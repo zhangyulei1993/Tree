@@ -46,8 +46,8 @@ import { onMounted, reactive, ref } from 'vue'
 import { api, type SiteConfig } from '../api'
 
 const menuOpen = ref(false)
-const defaultTitle = '家脉亲缘'
-const defaultDescription = '记录家庭亲属关系、家族故事与温暖记忆。'
+const defaultTitle = '\u5BB6\u8109\u4EB2\u7F18'
+const defaultDescription = '\u8BB0\u5F55\u5BB6\u5EAD\u4EB2\u5C5E\u5173\u7CFB\u3001\u5BB6\u65CF\u6545\u4E8B\u4E0E\u6E29\u6696\u8BB0\u5FC6\u3002'
 
 const site = reactive<SiteConfig>({
   site_name: '',

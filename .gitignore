@@ -44,3 +44,7 @@ desktop.ini
 # One-off local scaffolding/fix scripts
 setup_*.ps1
 fix_*.ps1
+*.cjs
+*.bak_decode_*
+entity_decode_backup_*/
+*.tsbuildinfo

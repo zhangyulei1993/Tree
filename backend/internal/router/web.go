@@ -15,4 +15,5 @@ func RegisterWebRoutes(r *gin.RouterGroup) {
 
 	r.GET("/family/tree", webHandler.FamilyTree)
 	r.GET("/family/member/:id", webHandler.FamilyMemberDetail)
+	r.GET("/public-tree", webHandler.PublicTree)
 }

@@ -58,8 +58,8 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { api, type Article, type Banner, type SiteConfig } from '../api'
 
-const defaultTitle = '家脉亲缘'
-const defaultDescription = '专注于家庭亲属关系结构梳理、家族故事记录与亲情传承。'
+const defaultTitle = '\u5BB6\u8109\u4EB2\u7F18'
+const defaultDescription = '\u4E13\u6CE8\u4E8E\u5BB6\u5EAD\u4EB2\u5C5E\u5173\u7CFB\u7ED3\u6784\u68B3\u7406\u3001\u5BB6\u65CF\u6545\u4E8B\u8BB0\u5F55\u4E0E\u4EB2\u60C5\u4F20\u627F\u3002'
 
 const site = reactive<SiteConfig>({
   site_name: '',

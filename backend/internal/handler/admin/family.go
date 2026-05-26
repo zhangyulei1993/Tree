@@ -217,7 +217,7 @@ func (h *Handler) RelationshipCreate(c *gin.Context) {
 		return
 	}
 
-	if req.RelationType != "parent_child" && req.RelationType != "spouse" {
+	if !relationshipTypeExists(req.RelationType) {
 		response.Error(c, 400, "invalid relation_type")
 		return
 	}
@@ -264,6 +264,11 @@ func (h *Handler) RelationshipUpdate(c *gin.Context) {
 		return
 	}
 
+	if req.RelationType == "" || !relationshipTypeExists(req.RelationType) {
+		response.Error(c, 400, "invalid relation_type")
+		return
+	}
+
 	item.FamilyID = req.FamilyID
 	item.FromMemberID = req.FromMemberID
 	item.ToMemberID = req.ToMemberID
@@ -286,4 +291,13 @@ func (h *Handler) RelationshipDelete(c *gin.Context) {
 	database.DB.Delete(&model.FamilyRelationship{}, id)
 
 	response.SuccessMsg(c, "deleted")
+}
+
+func relationshipTypeExists(code string) bool {
+	var count int64
+	database.DB.Model(&model.RelationshipType{}).
+		Where("code = ? AND status = ?", code, 1).
+		Count(&count)
+
+	return count > 0
 }

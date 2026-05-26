@@ -77,10 +77,8 @@
           <div class="form-row">
             <label>关系类型</label>
             <select v-model="form.relation_type" class="select">
-              <option value="">请选择关系类型</option>
-              <option v-for="type in activeRelationshipTypes" :key="type.code" :value="type.code">
-                {{ type.name }} - {{ type.description }}
-              </option>
+              <option value="parent_child">父母子女</option>
+              <option value="spouse">配偶</option>
             </select>
           </div>
 
@@ -110,13 +108,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { api, type Family, type FamilyMember, type FamilyRelationship, type RelationshipType } from '../api'
+import { onMounted, reactive, ref } from 'vue'
+import { api, type Family, type FamilyMember, type FamilyRelationship } from '../api'
 
 const families = ref<Family[]>([])
 const members = ref<FamilyMember[]>([])
 const relationships = ref<FamilyRelationship[]>([])
-const relationshipTypes = ref<RelationshipType[]>([])
 const selectedFamilyId = ref(0)
 const showModal = ref(false)
 
@@ -125,22 +122,15 @@ function emptyForm(): FamilyRelationship {
     family_id: selectedFamilyId.value || 0,
     from_member_id: 0,
     to_member_id: 0,
-    relation_type: '',
+    relation_type: 'parent_child',
     remark: ''
   }
 }
 
 const form = reactive<FamilyRelationship>(emptyForm())
-const activeRelationshipTypes = computed(() => relationshipTypes.value.filter((item) => item.status === 1))
 
 onMounted(async () => {
-  const [familyRes, typeRes] = await Promise.all([
-    api.familyList(),
-    api.relationshipTypeList()
-  ])
-
-  families.value = familyRes
-  relationshipTypes.value = typeRes
+  families.value = await api.familyList()
 
   if (families.value.length && families.value[0].id) {
     selectedFamilyId.value = families.value[0].id
@@ -174,7 +164,9 @@ function memberName(id: number) {
 }
 
 function relationLabel(type: string) {
-  return relationshipTypes.value.find((item) => item.code === type)?.name || type
+  if (type === 'parent_child') return '\u7236\u6BCD\u5B50\u5973'
+  if (type === 'spouse') return '\u914D\u5076'
+  return type
 }
 
 function openCreate() {
@@ -190,22 +182,17 @@ async function openEdit(item: FamilyRelationship) {
 
 async function save() {
   if (!form.family_id) {
-    alert('请选择家族')
+    alert('\u8BF7\u9009\u62E9\u5BB6\u65CF')
     return
   }
 
   if (!form.from_member_id || !form.to_member_id) {
-    alert('请选择关系成员')
-    return
-  }
-
-  if (!form.relation_type) {
-    alert('请选择关系类型')
+    alert('\u8BF7\u9009\u62E9\u5173\u7CFB\u6210\u5458')
     return
   }
 
   if (form.from_member_id === form.to_member_id) {
-    alert('两位成员不能是同一人')
+    alert('\u4E24\u4F4D\u6210\u5458\u4E0D\u80FD\u662F\u540C\u4E00\u4EBA')
     return
   }
 
@@ -222,7 +209,7 @@ async function save() {
 
 async function remove(id?: number) {
   if (!id) return
-  if (!confirm('确定删除这条亲属关系吗？')) return
+  if (!confirm('\u786E\u5B9A\u5220\u9664\u8FD9\u6761\u4EB2\u5C5E\u5173\u7CFB\u5417\uFF1F')) return
 
   await api.relationshipDelete(id)
   await reload()

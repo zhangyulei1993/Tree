@@ -50,7 +50,7 @@ async function load() {
 }
 
 async function remove(id: number) {
-  if (!confirm('确定删除这条留言吗？')) return
+  if (!confirm('\u786E\u5B9A\u5220\u9664\u8FD9\u6761\u7559\u8A00\u5417\uFF1F')) return
 
   await api.contactDelete(id)
   load()

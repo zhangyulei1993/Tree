@@ -7,6 +7,7 @@ import BannerManage from './views/BannerManage.vue'
 import ArticleManage from './views/ArticleManage.vue'
 import ContactManage from './views/ContactManage.vue'
 import FamilyManage from './views/FamilyManage.vue'
+import PublicTreeManage from './views/PublicTreeManage.vue'
 import MemberManage from './views/MemberManage.vue'
 import RelationshipManage from './views/RelationshipManage.vue'
 
@@ -24,6 +25,7 @@ const router = createRouter({
         { path: 'banner', component: BannerManage },
         { path: 'article', component: ArticleManage },
         { path: 'contact', component: ContactManage },
+        { path: 'public-tree', component: PublicTreeManage },
         { path: 'family', component: FamilyManage },
         { path: 'member', component: MemberManage },
         { path: 'relationship', component: RelationshipManage }

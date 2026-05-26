@@ -129,7 +129,7 @@ async function load() {
 }
 
 function statusText(status: number) {
-  return status === 1 ? '显示' : '隐藏'
+  return status === 1 ? '\u663E\u793A' : '\u9690\u85CF'
 }
 
 function openCreate() {
@@ -153,7 +153,7 @@ async function uploadCover(e: Event) {
 
 async function save() {
   if (!form.title) {
-    alert('请输入标题')
+    alert('\u8BF7\u8F93\u5165\u6807\u9898')
     return
   }
 
@@ -169,7 +169,7 @@ async function save() {
 
 async function remove(id?: number) {
   if (!id) return
-  if (!confirm('确定删除这篇故事吗？')) return
+  if (!confirm('\u786E\u5B9A\u5220\u9664\u8FD9\u7BC7\u6545\u4E8B\u5417\uFF1F')) return
 
   await api.articleDelete(id)
   load()

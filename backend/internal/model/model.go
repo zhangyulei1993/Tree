@@ -107,3 +107,51 @@ type FamilyRelationship struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
+
+type PublicTreeConfig struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	Title       string    `gorm:"size:100" json:"title"`
+	Subtitle    string    `gorm:"size:255" json:"subtitle"`
+	Description string    `gorm:"type:text" json:"description"`
+	Status      int       `gorm:"default:1" json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type PublicTreeNode struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	Name        string    `gorm:"size:80;not null" json:"name"`
+	Role        string    `gorm:"size:100" json:"role"`
+	Generation  int       `gorm:"default:1" json:"generation"`
+	Description string    `gorm:"type:text" json:"description"`
+	Sort        int       `gorm:"default:0" json:"sort"`
+	Status      int       `gorm:"default:1" json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type PublicTreeRelationship struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	FromNodeID   uint      `gorm:"index;not null" json:"from_node_id"`
+	ToNodeID     uint      `gorm:"index;not null" json:"to_node_id"`
+	RelationType string    `gorm:"size:40;not null" json:"relation_type"`
+	RelationName string    `gorm:"size:80" json:"relation_name"`
+	Remark       string    `gorm:"size:255" json:"remark"`
+	Sort         int       `gorm:"default:0" json:"sort"`
+	Status       int       `gorm:"default:1" json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type RelationshipType struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	Code        string    `gorm:"size:40;uniqueIndex;not null" json:"code"`
+	Name        string    `gorm:"size:80;not null" json:"name"`
+	Category    string    `gorm:"size:40" json:"category"`
+	Direction   string    `gorm:"size:20;default:one_way" json:"direction"`
+	Description string    `gorm:"size:255" json:"description"`
+	Sort        int       `gorm:"default:0" json:"sort"`
+	Status      int       `gorm:"default:1" json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}

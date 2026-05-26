@@ -1,20 +1,20 @@
 <template>
   <div class="card">
-    <h2 class="page-title">&#x9996;&#x9875;&#x770B;&#x677F;</h2>
+    <h2 class="page-title">首页看板</h2>
 
     <div class="stats">
       <div class="stat">
-        <span>&#x8F6E;&#x64AD;&#x56FE;</span>
+        <span>轮播图</span>
         <strong>{{ data.banner_count }}</strong>
       </div>
 
       <div class="stat">
-        <span>&#x5BB6;&#x65CF;&#x6545;&#x4E8B;</span>
+        <span>家族故事</span>
         <strong>{{ data.article_count }}</strong>
       </div>
 
       <div class="stat">
-        <span>&#x7559;&#x8A00;</span>
+        <span>留言</span>
         <strong>{{ data.contact_count }}</strong>
       </div>
     </div>

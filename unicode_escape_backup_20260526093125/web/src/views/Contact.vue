@@ -78,7 +78,7 @@ onMounted(async () => {
 
 async function submit() {
   if (!form.name && !form.phone && !form.email) {
-    alert('请至少填写姓名、电话或邮箱中的一项')
+    alert('\u8BF7\u81F3\u5C11\u586B\u5199\u59D3\u540D\u3001\u7535\u8BDD\u6216\u90AE\u7BB1\u4E2D\u7684\u4E00\u9879')
     return
   }
 
@@ -86,13 +86,13 @@ async function submit() {
 
   try {
     await api.submitContact(form)
-    alert('提交成功，我们会尽快与您联系')
+    alert('\u63D0\u4EA4\u6210\u529F\uFF0C\u6211\u4EEC\u4F1A\u5C3D\u5FEB\u4E0E\u60A8\u8054\u7CFB')
     form.name = ''
     form.phone = ''
     form.email = ''
     form.content = ''
   } catch (err) {
-    alert(err instanceof Error ? err.message : '提交失败')
+    alert(err instanceof Error ? err.message : '\u63D0\u4EA4\u5931\u8D25')
   } finally {
     submitting.value = false
   }

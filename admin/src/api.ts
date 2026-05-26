@@ -84,6 +84,46 @@ export interface FamilyRelationship {
   remark: string
 }
 
+export interface PublicTreeConfig {
+  id?: number
+  title: string
+  subtitle: string
+  description: string
+  status: number
+}
+
+export interface PublicTreeNode {
+  id?: number
+  name: string
+  role: string
+  generation: number
+  description: string
+  sort: number
+  status: number
+}
+
+export interface PublicTreeRelationship {
+  id?: number
+  from_node_id: number
+  to_node_id: number
+  relation_type: string
+  relation_name: string
+  remark: string
+  sort: number
+  status: number
+}
+
+export interface RelationshipType {
+  id?: number
+  code: string
+  name: string
+  category: string
+  direction: string
+  description: string
+  sort: number
+  status: number
+}
+
 export interface PageResult<T> {
   list: T[]
   total: number
@@ -200,6 +240,62 @@ export const api = {
 
   relationshipDelete(id: number) {
     return request.delete<null>('/admin/relationship/delete/' + id)
+  },
+
+  publicTreeConfig() {
+    return request.get<PublicTreeConfig>('/admin/public-tree/config')
+  },
+
+  publicTreeConfigUpdate(data: PublicTreeConfig) {
+    return request.post<PublicTreeConfig>('/admin/public-tree/config/update', data)
+  },
+
+  relationshipTypeList() {
+    return request.get<RelationshipType[]>('/admin/public-tree/relationship-type/list')
+  },
+
+  relationshipTypeCreate(data: RelationshipType) {
+    return request.post<RelationshipType>('/admin/public-tree/relationship-type/create', data)
+  },
+
+  relationshipTypeUpdate(data: RelationshipType) {
+    return request.post<RelationshipType>('/admin/public-tree/relationship-type/update', data)
+  },
+
+  relationshipTypeDelete(id: number) {
+    return request.delete<null>('/admin/public-tree/relationship-type/delete/' + id)
+  },
+
+  publicTreeNodeList() {
+    return request.get<PublicTreeNode[]>('/admin/public-tree/node/list')
+  },
+
+  publicTreeNodeCreate(data: PublicTreeNode) {
+    return request.post<PublicTreeNode>('/admin/public-tree/node/create', data)
+  },
+
+  publicTreeNodeUpdate(data: PublicTreeNode) {
+    return request.post<PublicTreeNode>('/admin/public-tree/node/update', data)
+  },
+
+  publicTreeNodeDelete(id: number) {
+    return request.delete<null>('/admin/public-tree/node/delete/' + id)
+  },
+
+  publicTreeRelationshipList() {
+    return request.get<PublicTreeRelationship[]>('/admin/public-tree/relationship/list')
+  },
+
+  publicTreeRelationshipCreate(data: PublicTreeRelationship) {
+    return request.post<PublicTreeRelationship>('/admin/public-tree/relationship/create', data)
+  },
+
+  publicTreeRelationshipUpdate(data: PublicTreeRelationship) {
+    return request.post<PublicTreeRelationship>('/admin/public-tree/relationship/update', data)
+  },
+
+  publicTreeRelationshipDelete(id: number) {
+    return request.delete<null>('/admin/public-tree/relationship/delete/' + id)
   },
 
   upload(file: File) {

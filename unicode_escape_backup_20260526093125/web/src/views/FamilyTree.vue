@@ -116,9 +116,9 @@ const tree = reactive<PublicTreeResult>({
   generations: {}
 })
 
-const pageTitle = computed(() => tree.config.title || '亲属关系树')
+const pageTitle = computed(() => tree.config.title || '\u4EB2\u5C5E\u5173\u7CFB\u6811')
 const pageSubtitle = computed(() => {
-  return tree.config.subtitle || '按代际从左到右横向展开，展示公开关系节点和关系。'
+  return tree.config.subtitle || '\u6309\u4EE3\u9645\u4ECE\u5DE6\u5230\u53F3\u6A2A\u5411\u5C55\u5F00\uFF0C\u5C55\u793A\u516C\u5F00\u5173\u7CFB\u8282\u70B9\u548C\u5173\u7CFB\u3002'
 })
 
 onMounted(load)
@@ -131,7 +131,7 @@ async function load() {
     const res = await api.publicTree()
     Object.assign(tree, res)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '加载失败'
+    error.value = err instanceof Error ? err.message : '\u52A0\u8F7D\u5931\u8D25'
   } finally {
     loading.value = false
   }
@@ -154,7 +154,7 @@ function relationLabel(item: PublicTreeRelationship) {
 }
 
 function formatNames(names: string[]) {
-  return names.join('、')
+  return names.join('\u3001')
 }
 
 function parentNames(nodeId: number) {

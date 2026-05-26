@@ -173,13 +173,13 @@ function familyName(id: number) {
 }
 
 function genderText(gender: string) {
-  if (gender === 'male') return '男'
-  if (gender === 'female') return '女'
-  return '未知'
+  if (gender === 'male') return '\u7537'
+  if (gender === 'female') return '\u5973'
+  return '\u672A\u77E5'
 }
 
 function statusText(status: number) {
-  return status === 1 ? '显示' : '隐藏'
+  return status === 1 ? '\u663E\u793A' : '\u9690\u85CF'
 }
 
 function openCreate() {
@@ -203,12 +203,12 @@ async function uploadAvatar(e: Event) {
 
 async function save() {
   if (!form.family_id) {
-    alert('请选择家族')
+    alert('\u8BF7\u9009\u62E9\u5BB6\u65CF')
     return
   }
 
   if (!form.name) {
-    alert('请输入姓名')
+    alert('\u8BF7\u8F93\u5165\u59D3\u540D')
     return
   }
 
@@ -224,7 +224,7 @@ async function save() {
 
 async function remove(id?: number) {
   if (!id) return
-  if (!confirm('确定删除这位成员吗？相关关系也会一起删除。')) return
+  if (!confirm('\u786E\u5B9A\u5220\u9664\u8FD9\u4F4D\u6210\u5458\u5417\uFF1F\u76F8\u5173\u5173\u7CFB\u4E5F\u4F1A\u4E00\u8D77\u5220\u9664\u3002')) return
 
   await api.memberDelete(id)
   await loadMembers()

@@ -1,10 +1,10 @@
 <template>
   <section class="section">
     <div class="container">
-      <p class="eyebrow">&#x5BB6;&#x65CF;&#x8BB0;&#x5FC6;</p>
-      <h1 class="section-title">&#x5BB6;&#x65CF;&#x6545;&#x4E8B;</h1>
+      <p class="eyebrow">家族记忆</p>
+      <h1 class="section-title">家族故事</h1>
       <p class="section-subtitle">
-        &#x9605;&#x8BFB;&#x5BB6;&#x65CF;&#x4E2D;&#x7684;&#x4EBA;&#x3001;&#x4E8B;&#x3001;&#x8BB0;&#x5FC6;&#x548C;&#x4F20;&#x627F;&#xFF0C;&#x8BA9;&#x4E00;&#x5BB6;&#x4EBA;&#x7684;&#x6765;&#x5904;&#x66F4;&#x52A0;&#x6E05;&#x6670;&#x3002;
+        阅读家族中的人、事、记忆和传承，让一家人的来处更加清晰。
       </p>
 
       <div v-if="articles.length" class="grid-3">
@@ -17,12 +17,12 @@
         </RouterLink>
       </div>
 
-      <div v-else class="empty">&#x6682;&#x65E0;&#x5BB6;&#x65CF;&#x6545;&#x4E8B;</div>
+      <div v-else class="empty">暂无家族故事</div>
 
       <div class="pager" v-if="total > pageSize">
-        <button class="btn secondary" :disabled="page <= 1" @click="prev">&#x4E0A;&#x4E00;&#x9875;</button>
-        <span>&#x7B2C; {{ page }} &#x9875;&#xFF0C;&#x5171; {{ total }} &#x6761;</span>
-        <button class="btn secondary" :disabled="page * pageSize >= total" @click="next">&#x4E0B;&#x4E00;&#x9875;</button>
+        <button class="btn secondary" :disabled="page <= 1" @click="prev">上一页</button>
+        <span>第 {{ page }} 页，共 {{ total }} 条</span>
+        <button class="btn secondary" :disabled="page * pageSize >= total" @click="next">下一页</button>
       </div>
     </div>
   </section>

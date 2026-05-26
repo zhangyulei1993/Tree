@@ -64,6 +64,43 @@ export interface FamilyRelationship {
   remark: string
 }
 
+export interface PublicTreeConfig {
+  id: number
+  title: string
+  subtitle: string
+  description: string
+  status: number
+}
+
+export interface PublicTreeNode {
+  id: number
+  name: string
+  role: string
+  generation: number
+  description: string
+  sort: number
+  status: number
+}
+
+export interface PublicTreeRelationship {
+  id: number
+  from_node_id: number
+  to_node_id: number
+  relation_type: string
+  relation_name: string
+  remark: string
+  sort: number
+  status: number
+}
+
+export interface PublicTreeResult {
+  config: PublicTreeConfig
+  nodes: PublicTreeNode[]
+  relationships: PublicTreeRelationship[]
+  generation_keys: number[]
+  generations: Record<string, PublicTreeNode[]>
+}
+
 export interface FamilyTreeResult {
   family: Family
   members: FamilyMember[]
@@ -103,5 +140,9 @@ export const api = {
   familyTree(familyId?: number) {
     const params = familyId ? { family_id: familyId } : {}
     return request.get('/web/family/tree', { params }) as Promise<FamilyTreeResult>
+  },
+
+  publicTree() {
+    return request.get('/web/public-tree') as Promise<PublicTreeResult>
   }
 }

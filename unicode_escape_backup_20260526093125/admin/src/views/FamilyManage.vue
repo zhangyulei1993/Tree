@@ -272,10 +272,8 @@
           <div class="form-row">
             <label>关系类型</label>
             <select v-model="relationForm.relation_type" class="select">
-              <option value="">请选择关系类型</option>
-              <option v-for="type in activeRelationshipTypes" :key="type.code" :value="type.code">
-                {{ type.name }} - {{ type.description }}
-              </option>
+              <option value="parent_child">父母子女</option>
+              <option value="spouse">配偶</option>
             </select>
           </div>
           <div class="form-row">
@@ -304,12 +302,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { api, type Family, type FamilyMember, type FamilyRelationship, type RelationshipType } from '../api'
+import { api, type Family, type FamilyMember, type FamilyRelationship } from '../api'
 
 const families = ref<Family[]>([])
 const members = ref<FamilyMember[]>([])
 const relationships = ref<FamilyRelationship[]>([])
-const relationshipTypes = ref<RelationshipType[]>([])
 const selectedFamily = ref<Family | null>(null)
 const activeTab = ref<'tree' | 'members' | 'relations'>('tree')
 
@@ -348,7 +345,7 @@ function emptyRelation(): FamilyRelationship {
     family_id: selectedFamily.value?.id || 0,
     from_member_id: 0,
     to_member_id: 0,
-    relation_type: '',
+    relation_type: 'parent_child',
     remark: ''
   }
 }
@@ -375,19 +372,12 @@ const generationGroups = computed(() => {
     }))
 })
 
-const familyDescription = computed(() => selectedFamily.value?.description || '暂无家族简介')
-const activeRelationshipTypes = computed(() => relationshipTypes.value.filter((item) => item.status === 1))
+const familyDescription = computed(() => selectedFamily.value?.description || '\u6682\u65E0\u5BB6\u65CF\u7B80\u4ECB')
 
 onMounted(loadFamilies)
 
 async function loadFamilies() {
-  const [familyRes, typeRes] = await Promise.all([
-    api.familyList(),
-    api.relationshipTypeList()
-  ])
-
-  families.value = familyRes
-  relationshipTypes.value = typeRes
+  families.value = await api.familyList()
 
   if (!selectedFamily.value && families.value.length) {
     await selectFamily(families.value[0])
@@ -418,13 +408,13 @@ async function loadFamilyData() {
 }
 
 function statusText(status: number) {
-  return status === 1 ? '显示' : '隐藏'
+  return status === 1 ? '\u663E\u793A' : '\u9690\u85CF'
 }
 
 function genderText(gender: string) {
-  if (gender === 'male') return '男'
-  if (gender === 'female') return '女'
-  return '未知'
+  if (gender === 'male') return '\u7537'
+  if (gender === 'female') return '\u5973'
+  return '\u672A\u77E5'
 }
 
 function memberName(id: number) {
@@ -432,7 +422,9 @@ function memberName(id: number) {
 }
 
 function relationLabel(type: string) {
-  return relationshipTypes.value.find((item) => item.code === type)?.name || type
+  if (type === 'parent_child') return '\u7236\u6BCD\u5B50\u5973'
+  if (type === 'spouse') return '\u914D\u5076'
+  return type
 }
 
 function openFamilyCreate() {
@@ -456,7 +448,7 @@ async function uploadFamilyCover(e: Event) {
 
 async function saveFamily() {
   if (!familyForm.name) {
-    alert('请输入家族名称')
+    alert('\u8BF7\u8F93\u5165\u5BB6\u65CF\u540D\u79F0')
     return
   }
 
@@ -472,7 +464,7 @@ async function saveFamily() {
 
 async function removeFamily(id?: number) {
   if (!id) return
-  if (!confirm('确定删除这个家族吗？相关成员和关系也会一起删除。')) return
+  if (!confirm('\u786E\u5B9A\u5220\u9664\u8FD9\u4E2A\u5BB6\u65CF\u5417\uFF1F\u76F8\u5173\u6210\u5458\u548C\u5173\u7CFB\u4E5F\u4F1A\u4E00\u8D77\u5220\u9664\u3002')) return
 
   await api.familyDelete(id)
   selectedFamily.value = null
@@ -505,7 +497,7 @@ async function saveMember() {
   memberForm.family_id = selectedFamily.value.id
 
   if (!memberForm.name) {
-    alert('请输入姓名')
+    alert('\u8BF7\u8F93\u5165\u59D3\u540D')
     return
   }
 
@@ -521,7 +513,7 @@ async function saveMember() {
 
 async function removeMember(id?: number) {
   if (!id) return
-  if (!confirm('确定删除这位成员吗？相关关系也会一起删除。')) return
+  if (!confirm('\u786E\u5B9A\u5220\u9664\u8FD9\u4F4D\u6210\u5458\u5417\uFF1F\u76F8\u5173\u5173\u7CFB\u4E5F\u4F1A\u4E00\u8D77\u5220\u9664\u3002')) return
 
   await api.memberDelete(id)
   await loadFamilyData()
@@ -542,17 +534,12 @@ async function saveRelation() {
   relationForm.family_id = selectedFamily.value.id
 
   if (!relationForm.from_member_id || !relationForm.to_member_id) {
-    alert('请选择关系成员')
-    return
-  }
-
-  if (!relationForm.relation_type) {
-    alert('请选择关系类型')
+    alert('\u8BF7\u9009\u62E9\u5173\u7CFB\u6210\u5458')
     return
   }
 
   if (relationForm.from_member_id === relationForm.to_member_id) {
-    alert('两位成员不能是同一人')
+    alert('\u4E24\u4F4D\u6210\u5458\u4E0D\u80FD\u662F\u540C\u4E00\u4EBA')
     return
   }
 
@@ -568,7 +555,7 @@ async function saveRelation() {
 
 async function removeRelation(id?: number) {
   if (!id) return
-  if (!confirm('确定删除这条亲属关系吗？')) return
+  if (!confirm('\u786E\u5B9A\u5220\u9664\u8FD9\u6761\u4EB2\u5C5E\u5173\u7CFB\u5417\uFF1F')) return
 
   await api.relationshipDelete(id)
   await loadFamilyData()

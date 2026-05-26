@@ -26,7 +26,7 @@ import { api, type Article } from '../api'
 
 const route = useRoute()
 const article = ref<Article | null>(null)
-const emptyText = '暂无内容'
+const emptyText = '\u6682\u65E0\u5185\u5BB9'
 
 onMounted(async () => {
   article.value = await api.articleDetail(String(route.params.id))

@@ -46,7 +46,7 @@ async function submit() {
   error.value = ''
 
   if (!form.username || !form.password) {
-    error.value = '请输入账号和密码'
+    error.value = '\u8BF7\u8F93\u5165\u8D26\u53F7\u548C\u5BC6\u7801'
     return
   }
 
@@ -58,7 +58,7 @@ async function submit() {
     localStorage.setItem('admin_user', JSON.stringify(res.user))
     router.push('/dashboard')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '登录失败'
+    error.value = err instanceof Error ? err.message : '\u767B\u5F55\u5931\u8D25'
   } finally {
     loading.value = false
   }

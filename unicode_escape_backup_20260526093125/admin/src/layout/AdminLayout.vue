@@ -45,18 +45,18 @@ const router = useRouter()
 
 const pageTitle = computed(() => {
   const map: Record<string, string> = {
-    '/dashboard': '首页看板',
-    '/site': '官网配置',
-    '/banner': '轮播图管理',
-    '/article': '家族故事',
-    '/contact': '留言管理',
-    '/public-tree': '公开树展示',
-    '/family': '家族管理',
-    '/member': '成员管理',
-    '/relationship': '亲属关系'
+    '/dashboard': '\u9996\u9875\u770B\u677F',
+    '/site': '\u5B98\u7F51\u914D\u7F6E',
+    '/banner': '\u8F6E\u64AD\u56FE\u7BA1\u7406',
+    '/article': '\u5BB6\u65CF\u6545\u4E8B',
+    '/contact': '\u7559\u8A00\u7BA1\u7406',
+    '/public-tree': '\u516C\u5F00\u6811\u5C55\u793A',
+    '/family': '\u5BB6\u65CF\u7BA1\u7406',
+    '/member': '\u6210\u5458\u7BA1\u7406',
+    '/relationship': '\u4EB2\u5C5E\u5173\u7CFB'
   }
 
-  return map[route.path] || '后台管理'
+  return map[route.path] || '\u540E\u53F0\u7BA1\u7406'
 })
 
 const username = computed(() => {

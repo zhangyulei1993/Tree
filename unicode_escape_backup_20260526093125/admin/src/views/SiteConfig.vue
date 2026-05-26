@@ -75,6 +75,6 @@ async function uploadLogo(e: Event) {
 async function save() {
   const res = await api.updateSiteConfig(form)
   Object.assign(form, res)
-  message.value = '保存成功'
+  message.value = '\u4FDD\u5B58\u6210\u529F'
 }
 </script>

@@ -1,8 +1,8 @@
 <template>
   <div class="card">
     <div class="toolbar">
-      <h2 class="page-title">家族故事</h2>
-      <button class="btn" @click="openCreate">新增故事</button>
+      <h2 class="page-title">轮播图管理</h2>
+      <button class="btn" @click="openCreate">新增轮播图</button>
     </div>
 
     <div class="table-wrap">
@@ -10,9 +10,9 @@
         <thead>
           <tr>
             <th>ID</th>
-            <th>封面</th>
+            <th>图片</th>
             <th>标题</th>
-            <th>摘要</th>
+            <th>链接</th>
             <th>排序</th>
             <th>状态</th>
             <th>操作</th>
@@ -22,9 +22,9 @@
         <tbody>
           <tr v-for="item in list" :key="item.id">
             <td>{{ item.id }}</td>
-            <td><img v-if="item.cover" :src="item.cover" class="cover" /></td>
+            <td><img :src="item.image_url" class="cover" /></td>
             <td>{{ item.title }}</td>
-            <td>{{ item.summary }}</td>
+            <td>{{ item.link_url }}</td>
             <td>{{ item.sort }}</td>
             <td>{{ statusText(item.status) }}</td>
             <td>
@@ -36,16 +36,10 @@
       </table>
     </div>
 
-    <div class="pager">
-      <button class="btn secondary small" :disabled="page <= 1" @click="prev">上一页</button>
-      <span>第 {{ page }} 页，共 {{ total }} 条</span>
-      <button class="btn secondary small" :disabled="page * pageSize >= total" @click="next">下一页</button>
-    </div>
-
     <div v-if="showModal" class="modal-mask">
       <div class="modal">
-        <h3 v-if="form.id">编辑故事</h3>
-        <h3 v-else>新增故事</h3>
+        <h3 v-if="form.id">编辑轮播图</h3>
+        <h3 v-else>新增轮播图</h3>
 
         <div class="form-grid">
           <div class="form-row">
@@ -54,19 +48,14 @@
           </div>
 
           <div class="form-row">
-            <label>封面</label>
-            <input type="file" accept="image/*" @change="uploadCover" />
-            <img v-if="form.cover" :src="form.cover" class="preview" />
+            <label>图片</label>
+            <input type="file" accept="image/*" @change="uploadImage" />
+            <img v-if="form.image_url" :src="form.image_url" class="preview" />
           </div>
 
           <div class="form-row">
-            <label>摘要</label>
-            <textarea v-model="form.summary" class="textarea"></textarea>
-          </div>
-
-          <div class="form-row">
-            <label>内容</label>
-            <textarea v-model="form.content" class="textarea article-textarea"></textarea>
+            <label>链接</label>
+            <input v-model="form.link_url" class="input" placeholder="/about" />
           </div>
 
           <div class="form-row">
@@ -94,42 +83,31 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { api, type Article } from '../api'
+import { api, type Banner } from '../api'
 
-const list = ref<Article[]>([])
-const total = ref(0)
-const page = ref(1)
-const pageSize = ref(10)
+const list = ref<Banner[]>([])
 const showModal = ref(false)
 
-function emptyForm(): Article {
+function emptyForm(): Banner {
   return {
     title: '',
-    cover: '',
-    summary: '',
-    content: '',
-    category_id: 0,
+    image_url: '',
+    link_url: '',
     sort: 0,
     status: 1
   }
 }
 
-const form = reactive<Article>(emptyForm())
+const form = reactive<Banner>(emptyForm())
 
 onMounted(load)
 
 async function load() {
-  const res = await api.articleList({
-    page: page.value,
-    page_size: pageSize.value
-  })
-
-  list.value = res.list
-  total.value = res.total
+  list.value = await api.bannerList()
 }
 
 function statusText(status: number) {
-  return status === 1 ? '显示' : '隐藏'
+  return status === 1 ? '\u663E\u793A' : '\u9690\u85CF'
 }
 
 function openCreate() {
@@ -137,30 +115,30 @@ function openCreate() {
   showModal.value = true
 }
 
-function openEdit(item: Article) {
+function openEdit(item: Banner) {
   Object.assign(form, item)
   showModal.value = true
 }
 
-async function uploadCover(e: Event) {
+async function uploadImage(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
 
   const res = await api.upload(file)
-  form.cover = res.url
+  form.image_url = res.url
 }
 
 async function save() {
-  if (!form.title) {
-    alert('请输入标题')
+  if (!form.image_url) {
+    alert('\u8BF7\u5148\u4E0A\u4F20\u56FE\u7247')
     return
   }
 
   if (form.id) {
-    await api.articleUpdate(form)
+    await api.bannerUpdate(form)
   } else {
-    await api.articleCreate(form)
+    await api.bannerCreate(form)
   }
 
   showModal.value = false
@@ -169,35 +147,9 @@ async function save() {
 
 async function remove(id?: number) {
   if (!id) return
-  if (!confirm('确定删除这篇故事吗？')) return
+  if (!confirm('\u786E\u5B9A\u5220\u9664\u8FD9\u5F20\u8F6E\u64AD\u56FE\u5417\uFF1F')) return
 
-  await api.articleDelete(id)
-  load()
-}
-
-function prev() {
-  if (page.value <= 1) return
-  page.value--
-  load()
-}
-
-function next() {
-  if (page.value * pageSize.value >= total.value) return
-  page.value++
+  await api.bannerDelete(id)
   load()
 }
 </script>
-
-<style scoped>
-.pager {
-  margin-top: 18px;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.article-textarea {
-  min-height: 220px;
-}
-</style>
