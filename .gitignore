@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Frontend build output
+dist/
+build/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Backend runtime files
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/*.zip
+backend/*.exe
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.old
+
+# Optional generated archives
+*.zip
+*.tar
+*.tar.gz
+
+# One-off local scaffolding/fix scripts
+setup_*.ps1
+fix_*.ps1
