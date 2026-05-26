@@ -32,7 +32,7 @@
     <main class="public-tree-tab-content">
 
       <section
-        v-if="publicTreeActiveTab === 'config'"
+        v-show="publicTreeActiveTab === 'config'"
         class="public-tree-tab-panel"
       >
         <section class="card">
@@ -112,7 +112,7 @@
 
 
       <section
-        v-if="publicTreeActiveTab === 'nodes'"
+        v-show="publicTreeActiveTab === 'nodes'"
         class="public-tree-tab-panel"
       >
         <section class="card">
@@ -1045,16 +1045,6 @@ async function removeType(id?: number) {
     min-width: 84px !important;
     padding: 0 12px !important;
   }
-}
-
-
-/* fix public tree tabs switch */
-.public-tree-tab-panel[style*="display: none"] {
-  display: none !important;
-}
-
-.public-tree-tab-panel {
-  min-width: 0;
 }
 
 </style>

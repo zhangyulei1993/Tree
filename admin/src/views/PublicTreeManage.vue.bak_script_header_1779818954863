@@ -32,7 +32,7 @@
     <main class="public-tree-tab-content">
 
       <section
-        v-if="publicTreeActiveTab === 'config'"
+        v-show="publicTreeActiveTab === 'config'"
         class="public-tree-tab-panel"
       >
         <section class="card">
@@ -112,7 +112,7 @@
 
 
       <section
-        v-if="publicTreeActiveTab === 'nodes'"
+        v-show="publicTreeActiveTab === 'nodes'"
         class="public-tree-tab-panel"
       >
         <section class="card">
@@ -352,14 +352,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import {
-  api,
-  type PublicTreeConfig,
-  type PublicTreeNode,
-  type PublicTreeRelationship,
-  type RelationshipType
-} from '../api'
+import { computed, onMounted, reactive, ref } from 'vue'import { api,
+
+type PublicTreeConfig, type PublicTreeNode, type PublicTreeRelationship, type RelationshipType } from '../api'
 
 const publicTreeActiveTab = ref('config')
 
@@ -913,148 +908,6 @@ async function removeType(id?: number) {
   .public-tree-tab-title {
     grid-column: 1 / -1;
   }
-}
-
-
-/* public tree top tabs layout */
-.public-tree-tab-page {
-  display: block !important;
-  width: 100% !important;
-  max-width: 100% !important;
-  padding: 16px !important;
-  box-sizing: border-box !important;
-  background: transparent !important;
-}
-
-.public-tree-tab-sidebar {
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 20 !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  width: 100% !important;
-  margin-bottom: 14px !important;
-  padding: 10px 12px !important;
-  border-radius: 16px !important;
-  background: rgba(255, 250, 243, 0.96) !important;
-  border: 1px solid #ead8c0 !important;
-  box-shadow: 0 10px 28px rgba(80, 45, 20, 0.06) !important;
-  overflow-x: auto !important;
-}
-
-.public-tree-tab-title {
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  flex: 0 0 auto !important;
-  padding: 0 14px 0 2px !important;
-  border-right: 1px solid #ead8c0 !important;
-  border-bottom: 0 !important;
-  white-space: nowrap !important;
-}
-
-.public-tree-tab-title strong {
-  color: #3f2418 !important;
-  font-size: 15px !important;
-  font-weight: 900 !important;
-}
-
-.public-tree-tab-title span {
-  display: none !important;
-}
-
-.public-tree-tab-btn {
-  flex: 0 0 auto !important;
-  width: auto !important;
-  min-width: 92px !important;
-  height: 34px !important;
-  min-height: 34px !important;
-  padding: 0 16px !important;
-  border-radius: 999px !important;
-  border: 1px solid #ead8c0 !important;
-  background: #fff7ed !important;
-  color: #7c4a2a !important;
-  text-align: center !important;
-  cursor: pointer !important;
-  box-shadow: none !important;
-}
-
-.public-tree-tab-btn strong {
-  display: block !important;
-  color: inherit !important;
-  font-size: 14px !important;
-  line-height: 32px !important;
-  font-weight: 900 !important;
-}
-
-.public-tree-tab-btn span {
-  display: none !important;
-}
-
-.public-tree-tab-btn.active {
-  background: linear-gradient(135deg, #8f1d1d, #b91c1c) !important;
-  border-color: #8f1d1d !important;
-  color: #fde68a !important;
-  box-shadow: 0 8px 18px rgba(127, 29, 29, 0.16) !important;
-}
-
-.public-tree-tab-content {
-  width: 100% !important;
-  min-width: 0 !important;
-}
-
-.public-tree-tab-panel {
-  display: grid !important;
-  gap: 14px !important;
-  min-width: 0 !important;
-}
-
-.public-tree-tab-panel > * {
-  max-width: 100% !important;
-}
-
-.public-tree-tab-page .card,
-.public-tree-tab-page .panel,
-.public-tree-tab-page article {
-  border-radius: 18px !important;
-}
-
-.public-tree-tab-page .table-wrap,
-.public-tree-tab-page .table-wrapper,
-.public-tree-tab-page .list-wrap {
-  max-height: 460px !important;
-  overflow: auto !important;
-}
-
-@media (max-width: 768px) {
-  .public-tree-tab-page {
-    padding: 10px !important;
-  }
-
-  .public-tree-tab-sidebar {
-    top: 0 !important;
-    border-radius: 14px !important;
-  }
-
-  .public-tree-tab-title {
-    display: none !important;
-  }
-
-  .public-tree-tab-btn {
-    min-width: 84px !important;
-    padding: 0 12px !important;
-  }
-}
-
-
-/* fix public tree tabs switch */
-.public-tree-tab-panel[style*="display: none"] {
-  display: none !important;
-}
-
-.public-tree-tab-panel {
-  min-width: 0;
 }
 
 </style>

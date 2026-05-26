@@ -92,10 +92,10 @@
 
               <div class="person-info">
                 <h3>{{ node.name }}</h3>
-                <p class="role">{{ node.kind === 'core' ? '关系中心' : node.role }}</p>
+                <p class="role">{{ node.role }}</p>
                 <p class="desc">{{ node.description }}</p>
 
-                <div v-if="node.kind !== 'core' && relatedText(node.id).length" class="relation-tags">
+                <div v-if="relatedText(node.id).length" class="relation-tags">
                   <span v-for="item in relatedText(node.id)" :key="item">
                     {{ item }}
                   </span>
@@ -137,7 +137,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { api } from '../api'
+import request from '../utils/request'
 
 interface PublicTreeConfig {
   title: string
@@ -205,8 +205,8 @@ const tree = reactive<PublicTreeResult>({
 
 const cardW = 232
 const cardH = 112
-const coreW = 285
-const coreH = 132
+const coreW = 330
+const coreH = 160
 
 const coreNode = computed(() => {
   return findCoreNode(tree.nodes)
@@ -341,17 +341,87 @@ onMounted(load)
 async function load() {
   loading.value = true
 
+  const endpoints = [
+    '/web/family/tree',
+    '/web/public-tree',
+    '/web/family-tree',
+    '/public-tree',
+    '/family/tree'
+  ]
+
   try {
-    applyTreePayload(await api.publicTree())
-  } catch {
-    tree.nodes = []
-    tree.relationships = []
+    let loaded = false
+
+    for (const url of endpoints) {
+      try {
+        const raw = await request.get(url) as any
+        const payload = normalizeTreePayload(raw)
+
+        if (payload && Array.isArray(payload.nodes)) {
+          applyTreePayload(payload)
+          loaded = true
+          break
+        }
+      } catch {
+        // 尝试下一个兼容地址
+      }
+    }
+
+    if (!loaded) {
+      tree.nodes = []
+      tree.relationships = []
+    }
   } finally {
     loading.value = false
   }
 }
 
-function applyTreePayload(payload: PublicTreeResult) {
+function normalizeTreePayload(raw: any): any {
+  if (!raw) return null
+
+  const candidates = [
+    raw,
+    raw.data,
+    raw.data?.data,
+    raw.result,
+    raw.result?.data,
+    raw.payload,
+    raw.payload?.data
+  ]
+
+  for (const item of candidates) {
+    if (!item) continue
+
+    const nodes =
+      item.nodes ||
+      item.node_list ||
+      item.public_tree_nodes ||
+      item.publicTreeNodes ||
+      []
+
+    const relationships =
+      item.relationships ||
+      item.relations ||
+      item.relationship_list ||
+      item.public_tree_relationships ||
+      item.publicTreeRelationships ||
+      []
+
+    if (Array.isArray(nodes)) {
+      return {
+        config: item.config || item.tree_config || item.public_tree_config || tree.config,
+        nodes,
+        relationships: Array.isArray(relationships) ? relationships : [],
+        generation_keys: item.generation_keys || item.generationKeys || [],
+        generations: item.generations || {}
+      }
+    }
+  }
+
+  return null
+}
+
+function applyTreePayload(payload: any) {
   tree.config = {
     title: payload.config?.title || tree.config.title,
     subtitle: payload.config?.subtitle || tree.config.subtitle,
@@ -732,10 +802,10 @@ function safeClass(value: string) {
 }
 
 .person-card.core {
-  width: 285px;
-  min-height: 132px;
-  grid-template-columns: 54px 1fr;
-  padding: 18px;
+  width: 330px;
+  min-height: 160px;
+  grid-template-columns: 68px 1fr;
+  padding: 22px;
   background:
     radial-gradient(circle at top right, rgba(251, 191, 36, 0.2), transparent 32%),
     linear-gradient(135deg, #7f1d1d, #b91c1c);
@@ -775,12 +845,12 @@ function safeClass(value: string) {
 }
 
 .core .avatar {
-  width: 50px;
-  height: 50px;
-  border-radius: 17px;
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
   background: #fde68a;
   color: #7f1d1d;
-  font-size: 24px;
+  font-size: 30px;
 }
 
 .person-info h3 {
@@ -792,7 +862,7 @@ function safeClass(value: string) {
 
 .core .person-info h3 {
   color: #fff7ed;
-  font-size: 22px;
+  font-size: 25px;
 }
 
 .person-info p {
@@ -807,7 +877,7 @@ function safeClass(value: string) {
 
 .core .role {
   color: #fde68a;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .desc {
@@ -822,8 +892,8 @@ function safeClass(value: string) {
 
 .core .desc {
   color: #ffedd5;
-  font-size: 13px;
-  -webkit-line-clamp: 2;
+  font-size: 14px;
+  -webkit-line-clamp: 3;
 }
 
 .relation-tags {

@@ -20,7 +20,9 @@
         </div>
       </div>
 
-      <div v-if="loading" class="empty">加载中...</div>
+      <div v-if="loading" class="empty">
+        加载中...
+      </div>
 
       <div v-else-if="!tree.nodes.length" class="empty">
         暂无公开关系树数据
@@ -30,7 +32,9 @@
         <div class="tree-header">
           <div>
             <h2>以 {{ coreNode?.name || '核心人物' }} 为中心的亲属关系网</h2>
-            <p>外围人物按长辈、配偶亲属、后代等关系分区排列，关系线展示人物之间的亲属线索。</p>
+            <p>
+              以一个核心人物为中心，向四周展开父母、配偶、子女、外戚等关系。关系线参考人物关系图谱形式展示。
+            </p>
           </div>
 
           <div class="legend">
@@ -49,9 +53,9 @@
               <defs>
                 <marker
                   id="arrowWarm"
-                  markerWidth="9"
-                  markerHeight="9"
-                  refX="7"
+                  markerWidth="10"
+                  markerHeight="10"
+                  refX="8"
                   refY="3"
                   orient="auto"
                   markerUnits="strokeWidth"
@@ -69,10 +73,10 @@
                 />
 
                 <foreignObject
-                  :x="line.labelX - 40"
-                  :y="line.labelY - 12"
-                  width="80"
-                  height="24"
+                  :x="line.labelX - 54"
+                  :y="line.labelY - 14"
+                  width="108"
+                  height="28"
                 >
                   <div class="line-label">{{ line.label }}</div>
                 </foreignObject>
@@ -88,14 +92,16 @@
               :class="node.kind"
               :style="{ left: node.x + 'px', top: node.y + 'px' }"
             >
-              <div class="avatar">{{ firstChar(node.name) }}</div>
+              <div class="avatar">
+                {{ firstChar(node.name) }}
+              </div>
 
               <div class="person-info">
                 <h3>{{ node.name }}</h3>
-                <p class="role">{{ node.kind === 'core' ? '关系中心' : node.role }}</p>
+                <p class="role">{{ node.role }}</p>
                 <p class="desc">{{ node.description }}</p>
 
-                <div v-if="node.kind !== 'core' && relatedText(node.id).length" class="relation-tags">
+                <div v-if="relatedText(node.id).length" class="relation-tags">
                   <span v-for="item in relatedText(node.id)" :key="item">
                     {{ item }}
                   </span>
@@ -137,7 +143,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { api } from '../api'
+import request from '../utils/request'
 
 interface PublicTreeConfig {
   title: string
@@ -203,58 +209,17 @@ const tree = reactive<PublicTreeResult>({
   generations: {}
 })
 
-const cardW = 232
-const cardH = 112
-const coreW = 285
-const coreH = 132
-
-const coreNode = computed(() => {
-  return findCoreNode(tree.nodes)
-})
-
-const displayTitle = computed(() => {
-  return tree.config.title || '汉武帝重要亲属关系示意'
-})
-
-const displayDescription = computed(() => {
-  return tree.config.description || '本关系树仅用于官网公开展示，不读取用户真实家庭树数据。'
-})
-
-const groupedOuterNodes = computed(() => {
-  const core = coreNode.value || tree.nodes[0]
-  const groups = {
-    elders: [] as PublicTreeNode[],
-    children: [] as PublicTreeNode[],
-    spouses: [] as PublicTreeNode[],
-    relatives: [] as PublicTreeNode[]
-  }
-
-  tree.nodes
-    .filter((node) => core && node.id !== core.id)
-    .sort((a, b) => {
-      if (a.generation !== b.generation) return a.generation - b.generation
-      return Number(a.sort || 0) - Number(b.sort || 0)
-    })
-    .forEach((node) => {
-      const kind = getNodeKind(node, core)
-
-      if (kind === 'elder') groups.elders.push(node)
-      else if (kind === 'child') groups.children.push(node)
-      else if (kind === 'spouse') groups.spouses.push(node)
-      else groups.relatives.push(node)
-    })
-
-  return groups
-})
+const cardW = 292
+const cardH = 146
+const coreW = 340
+const coreH = 174
 
 const board = computed(() => {
-  const groups = groupedOuterNodes.value
-  const topCount = Math.max(groups.elders.length, groups.children.length, 2)
-  const sideCount = Math.max(groups.spouses.length + groups.relatives.length, 2)
+  const count = Math.max(tree.nodes.length, 6)
 
   return {
-    width: Math.max(1220, topCount * 280 + 360),
-    height: Math.max(760, Math.ceil(sideCount / 2) * 165 + 430)
+    width: Math.max(1180, count * 138),
+    height: count > 8 ? 860 : 760
   }
 })
 
@@ -265,33 +230,51 @@ const center = computed(() => {
   }
 })
 
+const displayTitle = computed(() => {
+  return tree.config.title || '汉武帝重要亲属关系示意'
+})
+
+const displayDescription = computed(() => {
+  return tree.config.description || '本关系树仅用于官网公开展示，不读取用户真实家庭树数据。'
+})
+
+const coreNode = computed(() => {
+  return findCoreNode(tree.nodes)
+})
+
 const positionedNodes = computed<PositionedNode[]>(() => {
   if (!tree.nodes.length) return []
 
   const core = coreNode.value || tree.nodes[0]
-  const groups = groupedOuterNodes.value
-  const result: PositionedNode[] = []
+  const others = tree.nodes
+    .filter((node) => node.id !== core.id)
+    .sort((a, b) => {
+      if (a.generation !== b.generation) return a.generation - b.generation
+      return Number(a.sort || 0) - Number(b.sort || 0)
+    })
 
-  result.push({
-    ...core,
-    x: center.value.x - coreW / 2,
-    y: center.value.y - coreH / 2,
-    kind: 'core'
-  })
-
-  placeHorizontal(result, groups.elders, 'elder', 70)
-  placeHorizontal(result, groups.children, 'child', board.value.height - cardH - 70)
-
-  const sideNodes = [
-    ...groups.spouses.map((node) => ({ node, kind: 'spouse' })),
-    ...groups.relatives.map((node) => ({ node, kind: 'relative' }))
+  const result: PositionedNode[] = [
+    {
+      ...core,
+      x: center.value.x - coreW / 2,
+      y: center.value.y - coreH / 2,
+      kind: 'core'
+    }
   ]
 
-  const left = sideNodes.filter((_, index) => index % 2 === 0)
-  const right = sideNodes.filter((_, index) => index % 2 === 1)
+  const slots = buildSlots(others.length)
 
-  placeVertical(result, left, 'left')
-  placeVertical(result, right, 'right')
+  others.forEach((node, index) => {
+    const slot = slots[index]
+    const kind = getNodeKind(node, core)
+
+    result.push({
+      ...node,
+      x: slot.x - cardW / 2,
+      y: slot.y - cardH / 2,
+      kind
+    })
+  })
 
   return result
 })
@@ -315,8 +298,7 @@ const lines = computed<LineItem[]>(() => {
       const midX = (start.x + end.x) / 2
       const midY = (start.y + end.y) / 2
 
-      const curveOffset = index % 2 === 0 ? -20 : 20
-
+      const curveOffset = index % 2 === 0 ? -28 : 28
       const path = [
         'M', start.x, start.y,
         'C', midX, start.y + curveOffset,
@@ -341,17 +323,87 @@ onMounted(load)
 async function load() {
   loading.value = true
 
+  const endpoints = [
+    '/web/family/tree',
+    '/web/public-tree',
+    '/web/family-tree',
+    '/public-tree',
+    '/family/tree'
+  ]
+
   try {
-    applyTreePayload(await api.publicTree())
-  } catch {
-    tree.nodes = []
-    tree.relationships = []
+    let loaded = false
+
+    for (const url of endpoints) {
+      try {
+        const raw = await request.get(url) as any
+        const payload = normalizeTreePayload(raw)
+
+        if (payload && Array.isArray(payload.nodes)) {
+          applyTreePayload(payload)
+          loaded = true
+          break
+        }
+      } catch {
+        // 尝试下一个兼容地址
+      }
+    }
+
+    if (!loaded) {
+      tree.nodes = []
+      tree.relationships = []
+    }
   } finally {
     loading.value = false
   }
 }
 
-function applyTreePayload(payload: PublicTreeResult) {
+function normalizeTreePayload(raw: any): any {
+  if (!raw) return null
+
+  const candidates = [
+    raw,
+    raw.data,
+    raw.data?.data,
+    raw.result,
+    raw.result?.data,
+    raw.payload,
+    raw.payload?.data
+  ]
+
+  for (const item of candidates) {
+    if (!item) continue
+
+    const nodes =
+      item.nodes ||
+      item.node_list ||
+      item.public_tree_nodes ||
+      item.publicTreeNodes ||
+      []
+
+    const relationships =
+      item.relationships ||
+      item.relations ||
+      item.relationship_list ||
+      item.public_tree_relationships ||
+      item.publicTreeRelationships ||
+      []
+
+    if (Array.isArray(nodes)) {
+      return {
+        config: item.config || item.tree_config || item.public_tree_config || tree.config,
+        nodes,
+        relationships: Array.isArray(relationships) ? relationships : [],
+        generation_keys: item.generation_keys || item.generationKeys || [],
+        generations: item.generations || {}
+      }
+    }
+  }
+
+  return null
+}
+
+function applyTreePayload(payload: any) {
   tree.config = {
     title: payload.config?.title || tree.config.title,
     subtitle: payload.config?.subtitle || tree.config.subtitle,
@@ -364,52 +416,37 @@ function applyTreePayload(payload: PublicTreeResult) {
   tree.generations = payload.generations || {}
 }
 
-function placeHorizontal(
-  result: PositionedNode[],
-  nodes: PublicTreeNode[],
-  kind: string,
-  y: number
-) {
-  if (!nodes.length) return
+function buildSlots(count: number) {
+  const points: Array<{ x: number; y: number }> = []
+  const cx = center.value.x
+  const cy = center.value.y
 
-  const left = 80
-  const right = board.value.width - cardW - 80
-  const available = right - left
+  const primary = [
+    { x: cx, y: cy - 270 },
+    { x: cx + 385, y: cy - 160 },
+    { x: cx + 385, y: cy + 160 },
+    { x: cx, y: cy + 270 },
+    { x: cx - 385, y: cy + 160 },
+    { x: cx - 385, y: cy - 160 }
+  ]
 
-  nodes.forEach((node, index) => {
-    const x = nodes.length === 1
-      ? center.value.x - cardW / 2
-      : left + (available / Math.max(nodes.length - 1, 1)) * index
+  points.push(...primary)
 
-    result.push({
-      ...node,
-      x,
-      y,
-      kind
-    })
-  })
-}
+  if (count > primary.length) {
+    const extra = count - primary.length
+    const radiusX = 520
+    const radiusY = 330
 
-function placeVertical(
-  result: PositionedNode[],
-  items: Array<{ node: PublicTreeNode; kind: string }>,
-  side: 'left' | 'right'
-) {
-  if (!items.length) return
+    for (let i = 0; i < extra; i++) {
+      const angle = -Math.PI / 2 + ((Math.PI * 2) / extra) * i + Math.PI / 8
+      points.push({
+        x: cx + Math.cos(angle) * radiusX,
+        y: cy + Math.sin(angle) * radiusY
+      })
+    }
+  }
 
-  const x = side === 'left' ? 82 : board.value.width - cardW - 82
-  const gap = 148
-  const totalHeight = items.length * cardH + Math.max(0, items.length - 1) * (gap - cardH)
-  const startY = center.value.y - totalHeight / 2
-
-  items.forEach((item, index) => {
-    result.push({
-      ...item.node,
-      x,
-      y: startY + index * gap,
-      kind: item.kind
-    })
-  })
+  return points.slice(0, count)
 }
 
 function findCoreNode(nodes: PublicTreeNode[]) {
@@ -439,10 +476,14 @@ function findCoreNode(nodes: PublicTreeNode[]) {
 
 function getNodeKind(node: PublicTreeNode, core: PublicTreeNode) {
   const directRelations = tree.relationships.filter((rel) => {
-    return rel.from_node_id === node.id || rel.to_node_id === node.id
+    return rel.from_node_id === node.id ||
+      rel.to_node_id === node.id
   })
 
   if (directRelations.some((rel) => rel.relation_type === 'spouse')) return 'spouse'
+  if (directRelations.some((rel) => rel.relation_type === 'in_law')) return 'relative'
+  if (directRelations.some((rel) => rel.relation_type === 'uncle_nephew')) return 'relative'
+
   if (node.generation < core.generation) return 'elder'
   if (node.generation > core.generation) return 'child'
 
@@ -479,7 +520,7 @@ function edgePoint(from: PositionedNode, to: PositionedNode) {
 function relatedText(nodeId: number) {
   return tree.relationships
     .filter((rel) => rel.from_node_id === nodeId || rel.to_node_id === nodeId)
-    .slice(0, 1)
+    .slice(0, 2)
     .map((rel) => {
       const otherId = rel.from_node_id === nodeId ? rel.to_node_id : rel.from_node_id
       return (rel.relation_name || rel.relation_type) + '：' + nodeName(otherId)
@@ -658,7 +699,7 @@ function safeClass(value: string) {
   overflow: hidden;
   border-radius: 24px;
   background:
-    radial-gradient(circle at 50% 50%, rgba(251, 191, 36, 0.16), transparent 20%),
+    radial-gradient(circle at 50% 50%, rgba(251, 191, 36, 0.2), transparent 20%),
     linear-gradient(135deg, #fffdf7, #fff4e5);
   border: 1px solid #ead8c0;
 }
@@ -667,12 +708,12 @@ function safeClass(value: string) {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 390px;
-  height: 390px;
+  width: 430px;
+  height: 430px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   border: 1px dashed rgba(127, 29, 29, 0.16);
-  background: radial-gradient(circle, rgba(185, 28, 28, 0.05), transparent 65%);
+  background: radial-gradient(circle, rgba(185, 28, 28, 0.06), transparent 65%);
   z-index: 0;
 }
 
@@ -685,15 +726,15 @@ function safeClass(value: string) {
 
 .relation-line {
   stroke: #b45309;
-  stroke-width: 1.8;
+  stroke-width: 2.2;
   stroke-linecap: round;
-  stroke-dasharray: 6 6;
-  opacity: 0.76;
+  stroke-dasharray: 7 6;
+  opacity: 0.86;
 }
 
 .relation-line.spouse {
   stroke: #be123c;
-  stroke-width: 2.1;
+  stroke-width: 2.6;
 }
 
 .relation-line.in_law,
@@ -702,148 +743,132 @@ function safeClass(value: string) {
 }
 
 .line-label {
-  height: 24px;
-  line-height: 24px;
+  height: 28px;
+  line-height: 28px;
   text-align: center;
   border-radius: 999px;
-  background: rgba(127, 29, 29, 0.94);
+  background: #7f1d1d;
   color: #fde68a;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
-  box-shadow: 0 6px 14px rgba(127, 29, 29, 0.14);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  box-shadow: 0 8px 20px rgba(127, 29, 29, 0.18);
 }
 
 .person-card {
   position: absolute;
   z-index: 2;
-  width: 232px;
-  min-height: 112px;
+  width: 292px;
+  min-height: 146px;
   display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 11px;
-  padding: 13px;
-  border-radius: 18px;
-  background: rgba(255, 250, 243, 0.98);
+  grid-template-columns: 58px 1fr;
+  gap: 14px;
+  padding: 17px;
+  border-radius: 20px;
+  background: rgba(255, 250, 243, 0.97);
   border: 1px solid #ead8c0;
-  box-shadow: 0 12px 28px rgba(80, 45, 20, 0.08);
+  box-shadow: 0 16px 38px rgba(80, 45, 20, 0.09);
 }
 
 .person-card.core {
-  width: 285px;
-  min-height: 132px;
-  grid-template-columns: 54px 1fr;
-  padding: 18px;
+  width: 340px;
+  min-height: 174px;
+  grid-template-columns: 72px 1fr;
+  padding: 22px;
   background:
     radial-gradient(circle at top right, rgba(251, 191, 36, 0.2), transparent 32%),
     linear-gradient(135deg, #7f1d1d, #b91c1c);
   color: #fff7ed;
   border-color: rgba(253, 230, 138, 0.65);
   box-shadow:
-    0 24px 60px rgba(127, 29, 29, 0.2),
-    0 0 0 8px rgba(185, 28, 28, 0.05);
+    0 24px 60px rgba(127, 29, 29, 0.22),
+    0 0 0 8px rgba(185, 28, 28, 0.06);
 }
 
 .person-card.elder {
-  border-top: 4px solid #b45309;
+  border-top: 5px solid #b45309;
 }
 
 .person-card.spouse {
-  border-top: 4px solid #be123c;
+  border-top: 5px solid #be123c;
 }
 
 .person-card.child {
-  border-top: 4px solid #15803d;
+  border-top: 5px solid #15803d;
 }
 
 .person-card.relative {
-  border-top: 4px solid #2563eb;
+  border-top: 5px solid #2563eb;
 }
 
 .avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
   display: grid;
   place-items: center;
   background: linear-gradient(135deg, #b91c1c, #7f1d1d);
   color: #fde68a;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 900;
 }
 
 .core .avatar {
-  width: 50px;
-  height: 50px;
-  border-radius: 17px;
+  width: 68px;
+  height: 68px;
+  border-radius: 22px;
   background: #fde68a;
   color: #7f1d1d;
-  font-size: 24px;
+  font-size: 30px;
 }
 
 .person-info h3 {
-  margin: 0 0 4px;
+  margin: 0 0 6px;
   color: #3f2418;
-  font-size: 18px;
-  line-height: 1.2;
+  font-size: 20px;
 }
 
 .core .person-info h3 {
   color: #fff7ed;
-  font-size: 22px;
+  font-size: 24px;
 }
 
 .person-info p {
-  margin: 4px 0;
+  margin: 5px 0;
 }
 
 .role {
   color: #7f1d1d;
   font-weight: 900;
-  font-size: 13px;
 }
 
 .core .role {
   color: #fde68a;
-  font-size: 14px;
 }
 
 .desc {
   color: #7c4a2a;
-  line-height: 1.55;
-  font-size: 13px;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  line-height: 1.6;
+  font-size: 14px;
 }
 
 .core .desc {
   color: #ffedd5;
-  font-size: 13px;
-  -webkit-line-clamp: 2;
 }
 
 .relation-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
-  margin-top: 7px;
+  gap: 6px;
+  margin-top: 9px;
 }
 
 .relation-tags span {
-  padding: 3px 7px;
+  padding: 4px 8px;
   border-radius: 999px;
   background: #fff4e5;
   color: #7c4a2a;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
-  max-width: 150px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .core .relation-tags span {

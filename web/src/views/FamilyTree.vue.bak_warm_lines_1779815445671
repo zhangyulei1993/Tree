@@ -1,0 +1,976 @@
+<template>
+  <section class="section gossip-tree-page">
+    <div class="container">
+      <div class="hero-card">
+        <div>
+          <p class="eyebrow">公开关系图谱</p>
+          <h1>{{ displayTitle }}</h1>
+          <p>{{ displayDescription }}</p>
+
+          <div class="hero-tags">
+            <span>历史人物示意</span>
+            <span>关系图谱展示</span>
+            <span>不读取用户真实家庭树</span>
+          </div>
+        </div>
+
+        <div class="hero-rank">
+          <strong>{{ tree.nodes.length }}</strong>
+          <span>人物节点</span>
+          <strong>{{ tree.relationships.length }}</strong>
+          <span>关系线索</span>
+        </div>
+      </div>
+
+      <div v-if="loading" class="empty">加载中...</div>
+
+      <div v-else-if="!tree.nodes.length" class="empty">
+        暂无公开关系树数据
+      </div>
+
+      <div v-else class="gossip-shell">
+        <div class="board-header">
+          <div>
+            <p class="board-kicker">RELATION MAP</p>
+            <h2>汉式帝王亲属关系热搜图谱</h2>
+            <p>以核心人物为中心，像娱乐圈人物关系图一样展示父母、外戚、配偶、后代等关系。</p>
+          </div>
+
+          <div class="board-badges">
+            <span>核心人物：{{ coreNode?.name || '-' }}</span>
+            <span>公开展示</span>
+            <span>后台可维护</span>
+          </div>
+        </div>
+
+        <div class="board-scroll">
+          <div
+            class="gossip-board"
+            :style="{ width: board.width + 'px', height: board.height + 'px' }"
+          >
+            <div class="flash flash-one"></div>
+            <div class="flash flash-two"></div>
+            <div class="flash flash-three"></div>
+
+            <svg class="relation-svg" :width="board.width" :height="board.height">
+              <g v-for="line in lines" :key="line.id">
+                <path
+                  :d="line.path"
+                  :class="['relation-line', line.type]"
+                  fill="none"
+                />
+
+                <foreignObject
+                  :x="line.labelX - 48"
+                  :y="line.labelY - 15"
+                  width="96"
+                  height="30"
+                >
+                  <div class="line-label">{{ line.label }}</div>
+                </foreignObject>
+              </g>
+            </svg>
+
+            <article
+              v-for="node in positionedNodes"
+              :key="node.id"
+              class="person-card"
+              :class="node.kind"
+              :style="{
+                left: node.x + 'px',
+                top: node.y + 'px',
+                width: node.w + 'px',
+                minHeight: node.h + 'px'
+              }"
+            >
+              <div class="hot-tag" v-if="node.kind === 'core'">热搜中心</div>
+              <div class="person-photo">{{ firstChar(node.name) }}</div>
+
+              <div class="person-info">
+                <h3>{{ node.name }}</h3>
+                <p class="role">{{ node.role }}</p>
+                <p class="desc">{{ node.description }}</p>
+
+                <div class="mini-relations" v-if="relatedText(node.id).length">
+                  <span v-for="item in relatedText(node.id)" :key="item">
+                    {{ item }}
+                  </span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <section class="clue-panel">
+          <div class="panel-title">
+            <p>RELATION CLUES</p>
+            <h2>关系线索</h2>
+          </div>
+
+          <div class="clue-grid">
+            <article
+              v-for="item in tree.relationships"
+              :key="item.id"
+              class="clue-card"
+            >
+              <div class="clue-top">
+                <strong>{{ nodeName(item.from_node_id) }}</strong>
+                <span>{{ item.relation_name || item.relation_type }}</span>
+                <strong>{{ nodeName(item.to_node_id) }}</strong>
+              </div>
+
+              <p v-if="item.remark">{{ item.remark }}</p>
+              <p v-else>公开关系图谱中的一条人物关系线索。</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="privacy-note">
+          <strong>数据说明：</strong>
+          本页面展示的是官网公开关系树，仅用于历史人物关系示意，不读取、不展示用户真实家庭树数据。
+        </section>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, reactive, ref } from 'vue'
+import request from '../utils/request'
+
+interface PublicTreeConfig {
+  title: string
+  subtitle: string
+  description: string
+}
+
+interface PublicTreeNode {
+  id: number
+  name: string
+  role: string
+  generation: number
+  description: string
+  sort: number
+  status: number
+}
+
+interface PublicTreeRelationship {
+  id: number
+  from_node_id: number
+  to_node_id: number
+  relation_type: string
+  relation_name: string
+  remark: string
+  sort: number
+  status: number
+}
+
+interface PublicTreeResult {
+  config: PublicTreeConfig
+  nodes: PublicTreeNode[]
+  relationships: PublicTreeRelationship[]
+  generation_keys: number[]
+  generations: Record<string, PublicTreeNode[]>
+}
+
+interface PositionedNode extends PublicTreeNode {
+  x: number
+  y: number
+  w: number
+  h: number
+  kind: string
+}
+
+interface LineItem {
+  id: string
+  path: string
+  label: string
+  labelX: number
+  labelY: number
+  type: string
+}
+
+const loading = ref(false)
+
+const tree = reactive<PublicTreeResult>({
+  config: {
+    title: '',
+    subtitle: '',
+    description: ''
+  },
+  nodes: [],
+  relationships: [],
+  generation_keys: [],
+  generations: {}
+})
+
+const board = computed(() => {
+  const count = Math.max(tree.nodes.length, 6)
+
+  return {
+    width: Math.max(1280, count * 135),
+    height: count > 8 ? 900 : 760
+  }
+})
+
+const displayTitle = computed(() => {
+  return tree.config.title || '汉武帝重要亲属关系示意'
+})
+
+const displayDescription = computed(() => {
+  return tree.config.description || '本关系树仅用于官网公开展示，不读取用户真实家庭树数据。'
+})
+
+const coreNode = computed(() => {
+  return findCoreNode(tree.nodes)
+})
+
+const positionedNodes = computed<PositionedNode[]>(() => {
+  const nodes = [...tree.nodes].sort((a, b) => {
+    if (a.id === coreNode.value?.id) return -1
+    if (b.id === coreNode.value?.id) return 1
+
+    if (a.generation !== b.generation) return a.generation - b.generation
+
+    return Number(b.sort || 0) - Number(a.sort || 0)
+  })
+
+  if (!nodes.length) return []
+
+  const core = coreNode.value || nodes[0]
+  const others = nodes.filter((item) => item.id !== core.id)
+
+  const centerX = board.value.width / 2
+  const centerY = board.value.height / 2
+
+  const normalW = 250
+  const normalH = 142
+  const coreW = 330
+  const coreH = 188
+
+  const result: PositionedNode[] = [
+    {
+      ...core,
+      x: centerX - coreW / 2,
+      y: centerY - coreH / 2,
+      w: coreW,
+      h: coreH,
+      kind: 'core'
+    }
+  ]
+
+  const radiusX = Math.min(470, board.value.width / 2 - 190)
+  const radiusY = board.value.height > 800 ? 310 : 245
+  const total = Math.max(others.length, 1)
+
+  others.forEach((node, index) => {
+    const angle = -Math.PI / 2 + index * ((Math.PI * 2) / total)
+    const x = centerX + Math.cos(angle) * radiusX - normalW / 2
+    const y = centerY + Math.sin(angle) * radiusY - normalH / 2
+
+    result.push({
+      ...node,
+      x: clamp(x, 36, board.value.width - normalW - 36),
+      y: clamp(y, 42, board.value.height - normalH - 42),
+      w: normalW,
+      h: normalH,
+      kind: nodeKind(node.id, core.id)
+    })
+  })
+
+  return result
+})
+
+const lines = computed<LineItem[]>(() => {
+  const map = new Map<number, PositionedNode>()
+
+  positionedNodes.value.forEach((node) => {
+    map.set(node.id, node)
+  })
+
+  return tree.relationships
+    .map((rel, index) => {
+      const from = map.get(rel.from_node_id)
+      const to = map.get(rel.to_node_id)
+
+      if (!from || !to) return null
+
+      const start = edgePoint(from, to)
+      const end = edgePoint(to, from)
+
+      const midX = (start.x + end.x) / 2
+      const midY = (start.y + end.y) / 2
+      const offset = index % 2 === 0 ? -28 : 28
+
+      const path = [
+        'M', start.x, start.y,
+        'C', midX, start.y + offset,
+        midX, end.y - offset,
+        end.x, end.y
+      ].join(' ')
+
+      return {
+        id: String(rel.id || index),
+        path,
+        label: rel.relation_name || rel.relation_type,
+        labelX: midX,
+        labelY: midY,
+        type: safeClass(rel.relation_type)
+      }
+    })
+    .filter((item): item is LineItem => Boolean(item))
+})
+
+onMounted(load)
+
+async function load() {
+  loading.value = true
+
+  const endpoints = [
+    '/web/family/tree',
+    '/web/public-tree',
+    '/web/family-tree',
+    '/public-tree',
+    '/family/tree'
+  ]
+
+  try {
+    let loaded = false
+    let lastError: unknown = null
+
+    for (const url of endpoints) {
+      try {
+        const raw = await request.get(url) as any
+        const payload = normalizeTreePayload(raw)
+
+        if (payload && Array.isArray(payload.nodes)) {
+          applyTreePayload(payload)
+          loaded = true
+          break
+        }
+      } catch (error) {
+        lastError = error
+      }
+    }
+
+    if (!loaded) {
+      console.warn('公开关系树接口没有返回有效 nodes 数据', lastError)
+      tree.nodes = []
+      tree.relationships = []
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+function normalizeTreePayload(raw: any): any {
+  if (!raw) return null
+
+  const candidates = [
+    raw,
+    raw.data,
+    raw.data?.data,
+    raw.result,
+    raw.result?.data,
+    raw.payload,
+    raw.payload?.data
+  ]
+
+  for (const item of candidates) {
+    if (!item) continue
+
+    const nodes =
+      item.nodes ||
+      item.node_list ||
+      item.public_tree_nodes ||
+      item.publicTreeNodes ||
+      []
+
+    const relationships =
+      item.relationships ||
+      item.relations ||
+      item.relationship_list ||
+      item.public_tree_relationships ||
+      item.publicTreeRelationships ||
+      []
+
+    if (Array.isArray(nodes)) {
+      return {
+        config: item.config || item.tree_config || item.public_tree_config || tree.config,
+        nodes,
+        relationships: Array.isArray(relationships) ? relationships : [],
+        generation_keys: item.generation_keys || item.generationKeys || [],
+        generations: item.generations || {}
+      }
+    }
+  }
+
+  return null
+}
+
+function applyTreePayload(payload: any) {
+  tree.config = {
+    title: payload.config?.title || tree.config.title,
+    subtitle: payload.config?.subtitle || tree.config.subtitle,
+    description: payload.config?.description || tree.config.description
+  }
+
+  tree.nodes = Array.isArray(payload.nodes) ? payload.nodes : []
+  tree.relationships = Array.isArray(payload.relationships) ? payload.relationships : []
+  tree.generation_keys = Array.isArray(payload.generation_keys) ? payload.generation_keys : []
+  tree.generations = payload.generations || {}
+}
+
+function findCoreNode(nodes: PublicTreeNode[]) {
+  if (!nodes.length) return null
+
+  const roleCore = nodes.find((node) => {
+    return node.role.includes('核心') || node.role.toLowerCase().includes('core')
+  })
+
+  if (roleCore) return roleCore
+
+  const sorted = nodes
+    .map((node) => {
+      const count = tree.relationships.filter((rel) => {
+        return rel.from_node_id === node.id || rel.to_node_id === node.id
+      }).length
+
+      return {
+        node,
+        count
+      }
+    })
+    .sort((a, b) => b.count - a.count)
+
+  return sorted[0]?.node || nodes[0]
+}
+
+function nodeKind(nodeId: number, coreId: number) {
+  const related = tree.relationships.filter((rel) => {
+    return rel.from_node_id === nodeId ||
+      rel.to_node_id === nodeId ||
+      rel.from_node_id === coreId ||
+      rel.to_node_id === coreId
+  })
+
+  if (related.some((rel) => rel.relation_type === 'spouse')) return 'spouse'
+  if (related.some((rel) => rel.relation_type === 'in_law')) return 'inlaw'
+  if (related.some((rel) => rel.relation_type === 'uncle_nephew')) return 'relative'
+
+  const node = tree.nodes.find((item) => item.id === nodeId)
+  const core = tree.nodes.find((item) => item.id === coreId)
+
+  if (node && core) {
+    if (node.generation < core.generation) return 'elder'
+    if (node.generation > core.generation) return 'child'
+  }
+
+  return 'relative'
+}
+
+function edgePoint(from: PositionedNode, to: PositionedNode) {
+  const fromCenterX = from.x + from.w / 2
+  const fromCenterY = from.y + from.h / 2
+  const toCenterX = to.x + to.w / 2
+  const toCenterY = to.y + to.h / 2
+
+  const dx = toCenterX - fromCenterX
+  const dy = toCenterY - fromCenterY
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return {
+      x: dx > 0 ? from.x + from.w : from.x,
+      y: fromCenterY
+    }
+  }
+
+  return {
+    x: fromCenterX,
+    y: dy > 0 ? from.y + from.h : from.y
+  }
+}
+
+function relatedText(nodeId: number) {
+  return tree.relationships
+    .filter((rel) => rel.from_node_id === nodeId || rel.to_node_id === nodeId)
+    .slice(0, 2)
+    .map((rel) => {
+      const otherId = rel.from_node_id === nodeId ? rel.to_node_id : rel.from_node_id
+      return (rel.relation_name || rel.relation_type) + '：' + nodeName(otherId)
+    })
+}
+
+function nodeName(id: number) {
+  return tree.nodes.find((item) => item.id === id)?.name || '-'
+}
+
+function firstChar(name: string) {
+  return name ? name.slice(0, 1) : '?'
+}
+
+function safeClass(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]/g, '')
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
+}
+</script>
+
+<style scoped>
+.gossip-tree-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(239, 68, 68, 0.18), transparent 28%),
+    radial-gradient(circle at 88% 18%, rgba(251, 191, 36, 0.16), transparent 30%),
+    linear-gradient(135deg, #1f1110 0%, #3a1713 42%, #111827 100%);
+  color: #fff7ed;
+}
+
+.hero-card {
+  display: grid;
+  grid-template-columns: 1fr 220px;
+  gap: 24px;
+  align-items: stretch;
+  padding: 34px;
+  border-radius: 32px;
+  background:
+    linear-gradient(135deg, rgba(127, 29, 29, 0.92), rgba(17, 24, 39, 0.92)),
+    radial-gradient(circle at top right, rgba(250, 204, 21, 0.16), transparent 36%);
+  border: 1px solid rgba(253, 230, 138, 0.24);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.32);
+}
+
+.hero-card h1 {
+  margin: 0;
+  font-size: clamp(32px, 4vw, 58px);
+  letter-spacing: -0.04em;
+  color: #fef3c7;
+}
+
+.hero-card p {
+  margin: 14px 0 0;
+  color: #fed7aa;
+  line-height: 1.8;
+}
+
+.eyebrow {
+  margin: 0 0 10px !important;
+  color: #facc15 !important;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.hero-tags span,
+.board-badges span {
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.36);
+  color: #fde68a;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.hero-rank {
+  display: grid;
+  gap: 8px;
+  align-content: center;
+  padding: 24px;
+  border-radius: 24px;
+  background: rgba(255, 247, 237, 0.08);
+  border: 1px solid rgba(254, 243, 199, 0.18);
+}
+
+.hero-rank strong {
+  font-size: 44px;
+  color: #facc15;
+  line-height: 1;
+}
+
+.hero-rank span {
+  color: #fed7aa;
+  font-weight: 800;
+}
+
+.empty {
+  margin-top: 24px;
+  padding: 40px;
+  border-radius: 24px;
+  background: rgba(255, 247, 237, 0.08);
+  border: 1px solid rgba(253, 230, 138, 0.22);
+  text-align: center;
+  color: #fde68a;
+}
+
+.gossip-shell {
+  margin-top: 28px;
+  display: grid;
+  gap: 24px;
+}
+
+.board-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 26px 30px;
+  border-radius: 30px;
+  background: rgba(17, 24, 39, 0.72);
+  border: 1px solid rgba(253, 230, 138, 0.2);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.24);
+}
+
+.board-kicker {
+  margin: 0 0 8px;
+  color: #facc15;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+}
+
+.board-header h2 {
+  margin: 0;
+  color: #fff7ed;
+  font-size: 30px;
+}
+
+.board-header p {
+  margin: 10px 0 0;
+  color: #fed7aa;
+}
+
+.board-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-content: center;
+  justify-content: flex-end;
+}
+
+.board-scroll {
+  overflow-x: auto;
+  padding: 16px;
+  border-radius: 34px;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255,255,255,0.05) 1px, transparent 1px),
+    rgba(0, 0, 0, 0.24);
+  background-size: 36px 36px;
+  border: 1px solid rgba(253, 230, 138, 0.2);
+}
+
+.gossip-board {
+  position: relative;
+  overflow: hidden;
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(250, 204, 21, 0.2), transparent 24%),
+    radial-gradient(circle at 12% 18%, rgba(239, 68, 68, 0.2), transparent 22%),
+    linear-gradient(135deg, #111827 0%, #2b1110 48%, #020617 100%);
+  border: 1px solid rgba(253, 230, 138, 0.24);
+}
+
+.flash {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(18px);
+  opacity: 0.32;
+}
+
+.flash-one {
+  width: 240px;
+  height: 240px;
+  left: 80px;
+  top: 70px;
+  background: #ef4444;
+}
+
+.flash-two {
+  width: 300px;
+  height: 300px;
+  right: 110px;
+  bottom: 80px;
+  background: #facc15;
+}
+
+.flash-three {
+  width: 220px;
+  height: 220px;
+  left: 48%;
+  bottom: 80px;
+  background: #fb7185;
+}
+
+.relation-svg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.relation-line {
+  stroke: rgba(250, 204, 21, 0.72);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-dasharray: 9 7;
+  filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.36));
+}
+
+.relation-line.spouse {
+  stroke: rgba(244, 63, 94, 0.9);
+  stroke-width: 3;
+}
+
+.relation-line.in_law {
+  stroke: rgba(168, 85, 247, 0.86);
+}
+
+.relation-line.uncle_nephew {
+  stroke: rgba(56, 189, 248, 0.86);
+}
+
+.line-label {
+  height: 30px;
+  line-height: 30px;
+  text-align: center;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #dc2626, #7f1d1d);
+  color: #fef3c7;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 10px 28px rgba(220, 38, 38, 0.35);
+}
+
+.person-card {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 24px;
+  background: rgba(255, 247, 237, 0.94);
+  color: #431407;
+  border: 1px solid rgba(253, 230, 138, 0.56);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(14px);
+}
+
+.person-card::before {
+  content: '';
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: -6px;
+  height: 12px;
+  border-radius: 999px;
+  background: #dc2626;
+  box-shadow: 0 0 24px rgba(220, 38, 38, 0.52);
+}
+
+.person-card.core {
+  grid-template-columns: 82px 1fr;
+  padding: 22px;
+  background:
+    linear-gradient(135deg, rgba(127, 29, 29, 0.98), rgba(220, 38, 38, 0.94)),
+    radial-gradient(circle at top right, rgba(250, 204, 21, 0.24), transparent 38%);
+  color: #fff7ed;
+  border-color: rgba(250, 204, 21, 0.72);
+  box-shadow:
+    0 32px 110px rgba(220, 38, 38, 0.4),
+    0 0 0 8px rgba(250, 204, 21, 0.08);
+}
+
+.person-card.core::before {
+  background: #facc15;
+}
+
+.person-card.spouse::before {
+  background: #f43f5e;
+}
+
+.person-card.inlaw::before {
+  background: #a855f7;
+}
+
+.person-card.elder::before {
+  background: #f59e0b;
+}
+
+.person-card.child::before {
+  background: #22c55e;
+}
+
+.hot-tag {
+  position: absolute;
+  right: 18px;
+  top: -18px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: #facc15;
+  color: #7f1d1d;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 10px 26px rgba(250, 204, 21, 0.35);
+}
+
+.person-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #7f1d1d, #dc2626);
+  color: #facc15;
+  font-size: 28px;
+  font-weight: 900;
+  box-shadow: inset 0 0 0 2px rgba(250, 204, 21, 0.28);
+}
+
+.core .person-photo {
+  width: 82px;
+  height: 82px;
+  border-radius: 28px;
+  background: #facc15;
+  color: #7f1d1d;
+  font-size: 34px;
+}
+
+.person-info h3 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+
+.person-info p {
+  margin: 5px 0;
+}
+
+.role {
+  color: #b91c1c;
+  font-weight: 900;
+}
+
+.core .role {
+  color: #fef3c7;
+}
+
+.desc {
+  color: #7c2d12;
+  line-height: 1.55;
+  font-size: 14px;
+}
+
+.core .desc {
+  color: #ffedd5;
+}
+
+.mini-relations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.mini-relations span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(127, 29, 29, 0.08);
+  color: #7f1d1d;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.core .mini-relations span {
+  background: rgba(250, 204, 21, 0.18);
+  color: #fef3c7;
+}
+
+.clue-panel {
+  padding: 28px;
+  border-radius: 30px;
+  background: rgba(255, 247, 237, 0.08);
+  border: 1px solid rgba(253, 230, 138, 0.2);
+}
+
+.panel-title p {
+  margin: 0 0 6px;
+  color: #facc15;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+}
+
+.panel-title h2 {
+  margin: 0 0 20px;
+  color: #fff7ed;
+}
+
+.clue-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.clue-card {
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 247, 237, 0.92);
+  color: #431407;
+  border: 1px solid rgba(253, 230, 138, 0.46);
+}
+
+.clue-top {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.clue-top strong:last-child {
+  text-align: right;
+}
+
+.clue-top span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #7f1d1d;
+  color: #fef3c7;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.clue-card p {
+  margin: 12px 0 0;
+  color: #7c2d12;
+  line-height: 1.7;
+}
+
+.privacy-note {
+  padding: 20px 24px;
+  border-radius: 22px;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  color: #fef3c7;
+  line-height: 1.8;
+}
+
+@media (max-width: 960px) {
+  .hero-card,
+  .board-header {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .clue-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
