@@ -83,7 +83,6 @@
                       <th>编码</th>
                       <th>名称</th>
                       <th>分类</th>
-                      <th>方向</th>
                       <th>说明</th>
                       <th>排序</th>
                       <th>状态</th>
@@ -95,7 +94,6 @@
                       <td>{{ item.code }}</td>
                       <td>{{ item.name }}</td>
                       <td>{{ categoryText(item.category) }}</td>
-                      <td>{{ directionText(item.direction) }}</td>
                       <td>{{ item.description }}</td>
                       <td>{{ item.sort }}</td>
                       <td>{{ statusText(item.status) }}</td>
@@ -319,13 +317,6 @@
                 </select>
               </div>
               <div class="form-row">
-                <label>方向</label>
-                <select v-model="typeForm.direction" class="select">
-                  <option value="one_way">单向</option>
-                  <option value="two_way">双向</option>
-                </select>
-              </div>
-              <div class="form-row">
                 <label>说明</label>
                 <input v-model="typeForm.description" class="input" />
               </div>
@@ -446,10 +437,6 @@ function categoryText(category: string) {
   if (category === 'blood') return '血亲'
   if (category === 'marriage') return '姻亲'
   return '其他'
-}
-
-function directionText(direction: string) {
-  return direction === 'two_way' ? '双向' : '单向'
 }
 
 async function saveConfig() {

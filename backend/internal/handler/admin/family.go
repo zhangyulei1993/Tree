@@ -2,6 +2,7 @@ package admin
 
 import (
 	"strconv"
+	"strings"
 
 	"tree/backend/internal/database"
 	"tree/backend/internal/model"
@@ -12,8 +13,47 @@ import (
 
 func (h *Handler) FamilyList(c *gin.Context) {
 	var list []model.Family
-	database.DB.Order("id desc").Find(&list)
-	response.Success(c, list)
+	db := database.DB.Model(&model.Family{})
+
+	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
+		like := "%" + keyword + "%"
+		db = db.Where("name LIKE ? OR surname LIKE ? OR origin LIKE ?", like, like, like)
+	}
+
+	if status := strings.TrimSpace(c.Query("status")); status != "" {
+		db = db.Where("status = ?", status)
+	}
+
+	db.Order("id desc").Find(&list)
+
+	result := make([]gin.H, 0, len(list))
+	for _, family := range list {
+		var memberCount int64
+		var relationshipCount int64
+
+		database.DB.Model(&model.FamilyMember{}).
+			Where("family_id = ?", family.ID).
+			Count(&memberCount)
+		database.DB.Model(&model.FamilyRelationship{}).
+			Where("family_id = ?", family.ID).
+			Count(&relationshipCount)
+
+		result = append(result, gin.H{
+			"id":                 family.ID,
+			"name":               family.Name,
+			"surname":            family.Surname,
+			"origin":             family.Origin,
+			"cover":              family.Cover,
+			"description":        family.Description,
+			"status":             family.Status,
+			"created_at":         family.CreatedAt,
+			"updated_at":         family.UpdatedAt,
+			"member_count":       memberCount,
+			"relationship_count": relationshipCount,
+		})
+	}
+
+	response.Success(c, result)
 }
 
 func (h *Handler) FamilyCreate(c *gin.Context) {

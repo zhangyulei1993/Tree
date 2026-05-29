@@ -64,6 +64,10 @@ cleanup_*.ps1
 .trash*/
 *.bak
 *.bak_*
+unicode_escape_backup_*/
+*_backup_*/
+*.bak
+*.bak_*
 
 # temporary scripts
 fix_*.cjs

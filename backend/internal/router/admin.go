@@ -48,6 +48,7 @@ func RegisterAdminRoutes(r *gin.RouterGroup, cfg *config.Config) {
 		auth.POST("/relationship/create", h.RelationshipCreate)
 		auth.POST("/relationship/update", h.RelationshipUpdate)
 		auth.DELETE("/relationship/delete/:id", h.RelationshipDelete)
+		auth.GET("/relationship-type/list", h.RelationshipTypeList)
 
 		auth.GET("/public-tree/config", h.PublicTreeConfig)
 		auth.POST("/public-tree/config/update", h.PublicTreeConfigUpdate)

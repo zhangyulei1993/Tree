@@ -59,6 +59,8 @@ export interface Family {
   cover: string
   description: string
   status: number
+  member_count?: number
+  relationship_count?: number
 }
 
 export interface FamilyMember {
@@ -192,15 +194,15 @@ export const api = {
     return request.delete<null>('/admin/contact/delete/' + id)
   },
 
-  familyList() {
-    return request.get<Family[]>('/admin/family/list')
+  familyList(params?: { keyword?: string; status?: string | number; page?: number; page_size?: number }) {
+    return request.get<Family[]>('/admin/family/list', { params })
   },
 
-  familyCreate(data: Family) {
+  familyCreate(data: Partial<Family>) {
     return request.post<Family>('/admin/family/create', data)
   },
 
-  familyUpdate(data: Family) {
+  familyUpdate(data: Partial<Family>) {
     return request.post<Family>('/admin/family/update', data)
   },
 
@@ -213,11 +215,11 @@ export const api = {
     return request.get<FamilyMember[]>('/admin/member/list', { params })
   },
 
-  memberCreate(data: FamilyMember) {
+  memberCreate(data: Partial<FamilyMember>) {
     return request.post<FamilyMember>('/admin/member/create', data)
   },
 
-  memberUpdate(data: FamilyMember) {
+  memberUpdate(data: Partial<FamilyMember>) {
     return request.post<FamilyMember>('/admin/member/update', data)
   },
 
@@ -230,11 +232,11 @@ export const api = {
     return request.get<FamilyRelationship[]>('/admin/relationship/list', { params })
   },
 
-  relationshipCreate(data: FamilyRelationship) {
+  relationshipCreate(data: Partial<FamilyRelationship>) {
     return request.post<FamilyRelationship>('/admin/relationship/create', data)
   },
 
-  relationshipUpdate(data: FamilyRelationship) {
+  relationshipUpdate(data: Partial<FamilyRelationship>) {
     return request.post<FamilyRelationship>('/admin/relationship/update', data)
   },
 
@@ -251,7 +253,7 @@ export const api = {
   },
 
   relationshipTypeList() {
-    return request.get<RelationshipType[]>('/admin/public-tree/relationship-type/list')
+    return request.get<RelationshipType[]>('/admin/relationship-type/list')
   },
 
   relationshipTypeCreate(data: RelationshipType) {

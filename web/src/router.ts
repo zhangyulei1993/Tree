@@ -10,6 +10,19 @@ import FamilyTree from './views/FamilyTree.vue'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+  {
+    path: '/kinship-tool',
+    name: 'KinshipTool',
+    component: () => import('./views/KinshipTool.vue'),
+    meta: { title: '亲属关系工具' }
+  },
+  {
+    path: '/checkship-tool',
+    name: 'CheckshipTool',
+    component: () => import('./views/CheckshipTool.vue'),
+    meta: { title: '称谓推导工具' }
+  },
+
     {
       path: '/',
       component: WebLayout,

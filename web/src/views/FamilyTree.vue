@@ -46,38 +46,33 @@
             :style="{ width: board.width + 'px', height: board.height + 'px' }"
           >
             <svg class="relation-layer" :width="board.width" :height="board.height">
-              <defs>
-                <marker
-                  id="arrowWarm"
-                  markerWidth="9"
-                  markerHeight="9"
-                  refX="7"
-                  refY="3"
-                  orient="auto"
-                  markerUnits="strokeWidth"
-                >
-                  <path d="M0,0 L0,6 L8,3 z" fill="#b45309" />
-                </marker>
-              </defs>
+    <template v-for="(line, index) in lines" :key="line.id || index">
+      <path
+        :id="`family-relation-path-${line.id || index}`"
+        class="relation-line"
+        :class="[
+          line.className || line.class || line.relation_type || line.relationType,
+          {
+            spouse:
+              (line.relation_type || line.relationType || line.className || line.class) === 'spouse' ||
+              (line.relation_name || line.relationName || line.label || line.text) === '配偶'
+          }
+        ]"
+        :d="line.path || line.d || line.curve || line.pathD"
+        fill="none"
+      />
 
-              <g v-for="line in lines" :key="line.id">
-                <path
-                  :d="line.path"
-                  :class="['relation-line', line.type]"
-                  fill="none"
-                  marker-end="url(#arrowWarm)"
-                />
-
-                <foreignObject
-                  :x="line.labelX - 40"
-                  :y="line.labelY - 12"
-                  width="80"
-                  height="24"
-                >
-                  <div class="line-label">{{ line.label }}</div>
-                </foreignObject>
-              </g>
-            </svg>
+      <text class="line-label line-label-on-path" dy="-4">
+        <textPath
+          :href="`#family-relation-path-${line.id || index}`"
+          startOffset="50%"
+          text-anchor="middle"
+        >
+          {{ line.relation_name || line.relationName || line.label || line.text || '关系' }}
+        </textPath>
+      </text>
+    </template>
+</svg>
 
             <div class="center-halo"></div>
 
@@ -161,6 +156,10 @@ interface PublicTreeRelationship {
   to_node_id: number
   relation_type: string
   relation_name: string
+  fromNodeId?: number
+  toNodeId?: number
+  relationType?: string
+  relationName?: string
   remark: string
   sort: number
   status: number
@@ -181,15 +180,41 @@ interface PositionedNode extends PublicTreeNode {
 }
 
 interface LineItem {
-  id: string
+  id: number
   path: string
+  pathD: string
+  d: string
+  curve: string
   label: string
+  text: string
+  relation_name: string
+  relationName: string
+  relation_type: string
+  relationType?: string
+  className: string
+  class: string
   labelX: number
   labelY: number
+  midX: number
+  midY: number
+  x: number
+  y: number
   type: string
 }
 
 const loading = ref(false)
+
+const isMobile = ref(false)
+const mobileWidth = ref(375)
+const mobileHeight = ref(667)
+
+function updateMobileState() {
+  if (typeof window === 'undefined') return
+
+  isMobile.value = window.innerWidth <= 768
+  mobileWidth.value = Math.max(320, Math.min(window.innerWidth - 20, 430))
+  mobileHeight.value = window.innerHeight || 667
+}
 
 const tree = reactive<PublicTreeResult>({
   config: {
@@ -248,6 +273,13 @@ const groupedOuterNodes = computed(() => {
 })
 
 const board = computed(() => {
+  if (isMobile.value) {
+    return {
+      width: mobileWidth.value,
+      height: Math.max(470, Math.min(mobileHeight.value - 215, 620))
+    }
+  }
+
   const groups = groupedOuterNodes.value
   const topCount = Math.max(groups.elders.length, groups.children.length, 2)
   const sideCount = Math.max(groups.spouses.length + groups.relatives.length, 2)
@@ -267,6 +299,10 @@ const center = computed(() => {
 
 const positionedNodes = computed<PositionedNode[]>(() => {
   if (!tree.nodes.length) return []
+
+  if (isMobile.value) {
+    return buildMobilePositionedNodes()
+  }
 
   const core = coreNode.value || tree.nodes[0]
   const groups = groupedOuterNodes.value
@@ -297,46 +333,142 @@ const positionedNodes = computed<PositionedNode[]>(() => {
 })
 
 const lines = computed<LineItem[]>(() => {
-  const map = new Map<number, PositionedNode>()
+  const nodes = positionedNodes.value
+  const map = new Map(nodes.map((node) => [Number(node.id), node]))
 
-  positionedNodes.value.forEach((node) => {
-    map.set(node.id, node)
-  })
+  const mobileCardW = 78
+  const mobileCardH = 44
+  const mobileCoreW = 116
+  const mobileCoreH = 64
 
-  return tree.relationships
+  function getSize(node: PositionedNode) {
+    if (isMobile.value) {
+      return node.kind === 'core'
+        ? { w: mobileCoreW, h: mobileCoreH }
+        : { w: mobileCardW, h: mobileCardH }
+    }
+
+    return node.kind === 'core'
+      ? { w: coreW, h: coreH }
+      : { w: cardW, h: cardH }
+  }
+
+  function clamp(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, value))
+  }
+
+  const items: Array<LineItem | null> = tree.relationships
     .map((rel, index) => {
-      const from = map.get(rel.from_node_id)
-      const to = map.get(rel.to_node_id)
+      const fromId = Number(rel.from_node_id ?? rel.fromNodeId)
+      const toId = Number(rel.to_node_id ?? rel.toNodeId)
+
+      const from = map.get(fromId)
+      const to = map.get(toId)
 
       if (!from || !to) return null
 
-      const start = edgePoint(from, to)
-      const end = edgePoint(to, from)
-      const midX = (start.x + end.x) / 2
-      const midY = (start.y + end.y) / 2
+      const fromSize = getSize(from)
+      const toSize = getSize(to)
 
-      const curveOffset = index % 2 === 0 ? -20 : 20
+      const x1 = from.x + fromSize.w / 2
+      const y1 = from.y + fromSize.h / 2
+      const x2 = to.x + toSize.w / 2
+      const y2 = to.y + toSize.h / 2
 
-      const path = [
-        'M', start.x, start.y,
-        'C', midX, start.y + curveOffset,
-        midX, end.y - curveOffset,
-        end.x, end.y
-      ].join(' ')
+      const dx = x2 - x1
+      const dy = y2 - y1
+      const len = Math.max(1, Math.sqrt(dx * dx + dy * dy))
+
+      const nx = -dy / len
+      const ny = dx / len
+
+      const offset = isMobile.value
+        ? ((index % 3) - 1) * 18
+        : (index % 2 === 0 ? -20 : 20)
+
+      const c1x = x1 + dx * 0.35 + nx * offset
+      const c1y = y1 + dy * 0.35 + ny * offset
+      const c2x = x1 + dx * 0.65 + nx * offset
+      const c2y = y1 + dy * 0.65 + ny * offset
+
+      const path = 'M ' + x1 + ' ' + y1 +
+        ' C ' + c1x + ' ' + c1y +
+        ', ' + c2x + ' ' + c2y +
+        ', ' + x2 + ' ' + y2
+
+      let t = 0.5
+
+      if (isMobile.value) {
+        if (from.kind === 'core') t = 0.72
+        else if (to.kind === 'core') t = 0.28
+        else t = index % 2 === 0 ? 0.42 : 0.58
+      }
+
+      let labelX = x1 + dx * t + nx * (offset + (index % 2 === 0 ? 24 : -24))
+      let labelY = y1 + dy * t + ny * (offset + (index % 2 === 0 ? 18 : -18))
+
+      if (isMobile.value) {
+        const core = nodes.find((node) => node.kind === 'core')
+
+        if (core) {
+          const coreLeft = core.x - 34
+          const coreRight = core.x + mobileCoreW + 34
+          const coreTop = core.y - 28
+          const coreBottom = core.y + mobileCoreH + 28
+
+          const nearCore =
+            labelX >= coreLeft &&
+            labelX <= coreRight &&
+            labelY >= coreTop &&
+            labelY <= coreBottom
+
+          if (nearCore) {
+            const coreCx = core.x + mobileCoreW / 2
+            const coreCy = core.y + mobileCoreH / 2
+
+            labelX += labelX < coreCx ? -46 : 46
+            labelY += labelY < coreCy ? -30 : 30
+          }
+        }
+
+        labelX = clamp(labelX, 30, board.value.width - 30)
+        labelY = clamp(labelY, 20, board.value.height - 20)
+      }
+
+      const label = rel.relation_name || rel.relationName || rel.relation_type || rel.relationType || '关系'
 
       return {
-        id: String(rel.id || index),
+        id: rel.id || index + 1,
         path,
-        label: rel.relation_name || rel.relation_type,
-        labelX: midX,
-        labelY: midY,
-        type: safeClass(rel.relation_type)
+        pathD: path,
+        d: path,
+        curve: path,
+        label,
+        text: label,
+        relation_name: label,
+        relationName: label,
+        labelX,
+        labelY,
+        midX: labelX,
+        midY: labelY,
+        x: labelX,
+        y: labelY,
+        relation_type: rel.relation_type || rel.relationType || '',
+        relationType: rel.relationType || rel.relation_type || '',
+        className: rel.relation_type || rel.relationType || '',
+        class: rel.relation_type || rel.relationType || '',
+        type: rel.relation_type || rel.relationType || ''
       }
     })
-    .filter((item): item is LineItem => Boolean(item))
+
+  return items.filter((item): item is LineItem => item !== null)
 })
 
-onMounted(load)
+onMounted(() => {
+  updateMobileState()
+  window.addEventListener('resize', updateMobileState)
+  load()
+})
 
 async function load() {
   loading.value = true
@@ -362,6 +494,75 @@ function applyTreePayload(payload: PublicTreeResult) {
   tree.relationships = Array.isArray(payload.relationships) ? payload.relationships : []
   tree.generation_keys = Array.isArray(payload.generation_keys) ? payload.generation_keys : []
   tree.generations = payload.generations || {}
+}
+
+
+function buildMobilePositionedNodes() {
+  const core = coreNode.value || tree.nodes[0]
+
+  const mobileCardW = 78
+  const mobileCardH = 44
+  const mobileCoreW = 116
+  const mobileCoreH = 64
+
+  const others = tree.nodes
+    .filter((node) => node.id !== core.id)
+    .sort((a, b) => {
+      const kindA = getNodeKind(a, core)
+      const kindB = getNodeKind(b, core)
+      const order = ['elder', 'spouse', 'relative', 'child']
+      const diff = order.indexOf(kindA) - order.indexOf(kindB)
+
+      if (diff !== 0) return diff
+      return Number(a.sort || 0) - Number(b.sort || 0)
+    })
+
+  const result = []
+
+  const w = board.value.width
+  const h = board.value.height
+  const cx = w / 2
+  const cy = h / 2
+
+  result.push({
+    ...core,
+    x: cx - mobileCoreW / 2,
+    y: cy - mobileCoreH / 2,
+    kind: 'core'
+  })
+
+  const leftX = 12
+  const rightX = w - mobileCardW - 12
+  const midX = cx - mobileCardW / 2
+
+  const slots = [
+    { x: midX, y: 18 },
+    { x: leftX, y: Math.round(h * 0.19) },
+    { x: rightX, y: Math.round(h * 0.19) },
+    { x: leftX, y: Math.round(h * 0.40) },
+    { x: rightX, y: Math.round(h * 0.40) },
+    { x: leftX, y: Math.round(h * 0.64) },
+    { x: rightX, y: Math.round(h * 0.64) },
+    { x: midX, y: h - mobileCardH - 18 },
+    { x: Math.round(w * 0.27 - mobileCardW / 2), y: Math.round(h * 0.10) },
+    { x: Math.round(w * 0.73 - mobileCardW / 2), y: Math.round(h * 0.10) },
+    { x: Math.round(w * 0.27 - mobileCardW / 2), y: Math.round(h * 0.82) },
+    { x: Math.round(w * 0.73 - mobileCardW / 2), y: Math.round(h * 0.82) }
+  ]
+
+  others.forEach((node, index) => {
+    const slot = slots[index]
+    if (!slot) return
+
+    result.push({
+      ...node,
+      x: Math.max(6, Math.min(w - mobileCardW - 6, slot.x)),
+      y: Math.max(8, Math.min(h - mobileCardH - 8, slot.y)),
+      kind: getNodeKind(node, core)
+    })
+  })
+
+  return result
 }
 
 function placeHorizontal(
@@ -932,4 +1133,318 @@ function safeClass(value: string) {
     justify-content: flex-start;
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* H5 safe relation network */
+@media (max-width: 768px) {
+  .family-tree-page {
+    min-height: auto !important;
+    padding-bottom: 8px !important;
+  }
+
+  .family-tree-page .container {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 10px !important;
+  }
+
+  .intro-card {
+    grid-template-columns: 1fr auto !important;
+    gap: 8px !important;
+    padding: 12px !important;
+    border-radius: 16px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .intro-card h1 {
+    font-size: 20px !important;
+    line-height: 1.22 !important;
+  }
+
+  .intro-card p {
+    font-size: 11px !important;
+    line-height: 1.45 !important;
+  }
+
+  .intro-stats {
+    display: flex !important;
+    gap: 5px !important;
+  }
+
+  .intro-stats div {
+    width: 48px !important;
+    min-width: 48px !important;
+    padding: 7px 3px !important;
+    border-radius: 11px !important;
+  }
+
+  .intro-stats strong {
+    font-size: 19px !important;
+  }
+
+  .intro-stats span {
+    font-size: 9px !important;
+  }
+
+  .tree-shell {
+    margin-top: 8px !important;
+    gap: 7px !important;
+  }
+
+  .tree-header {
+    padding: 9px 11px !important;
+    border-radius: 15px !important;
+  }
+
+  .tree-header h2 {
+    font-size: 14px !important;
+  }
+
+  .tree-header p,
+  .legend,
+  .relationship-summary,
+  .privacy-note {
+    display: none !important;
+  }
+
+  .tree-scroll {
+    overflow: hidden !important;
+    padding: 5px !important;
+    border-radius: 18px !important;
+  }
+
+  .tree-board {
+    position: relative !important;
+    display: block !important;
+    width: 100% !important;
+    height: clamp(470px, calc(100dvh - 215px), 620px) !important;
+    min-height: 470px !important;
+    max-height: 620px !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    border-radius: 18px !important;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(251, 191, 36, 0.13), transparent 28%),
+      linear-gradient(90deg, rgba(127, 29, 29, 0.035) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(127, 29, 29, 0.035) 1px, transparent 1px),
+      #fffaf3 !important;
+    background-size: auto, 22px 22px, 22px 22px, auto !important;
+  }
+
+  .relation-layer {
+    display: block !important;
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 1 !important;
+    pointer-events: none !important;
+    overflow: visible !important;
+  }
+
+  .center-halo {
+    display: block !important;
+    width: 150px !important;
+    height: 150px !important;
+    opacity: 0.45 !important;
+    z-index: 0 !important;
+  }
+
+  .relation-line {
+    display: block !important;
+    stroke-width: 1px !important;
+    stroke-dasharray: 4 5 !important;
+    opacity: 0.5 !important;
+  }
+
+  .relation-line.spouse {
+    stroke-width: 1.2px !important;
+    opacity: 0.66 !important;
+  }
+
+  .line-label,
+  .line-label * {
+    display: block !important;
+    font-size: 7px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    color: #7f1d1d !important;
+    fill: #7f1d1d !important;
+    stroke: #fffaf3 !important;
+    stroke-width: 3px !important;
+    paint-order: stroke !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    min-width: 0 !important;
+    width: auto !important;
+    height: auto !important;
+    white-space: nowrap !important;
+    pointer-events: none !important;
+  }
+
+  .person-card {
+    position: absolute !important;
+    transform: none !important;
+    width: 78px !important;
+    min-width: 78px !important;
+    max-width: 78px !important;
+    min-height: 44px !important;
+    padding: 5px !important;
+    border-radius: 10px !important;
+    display: grid !important;
+    grid-template-columns: 19px minmax(0, 1fr) !important;
+    gap: 4px !important;
+    align-items: center !important;
+    box-shadow: 0 7px 16px rgba(80, 45, 20, 0.08) !important;
+    z-index: 2 !important;
+  }
+
+  .person-card.core {
+    width: 116px !important;
+    min-width: 116px !important;
+    max-width: 116px !important;
+    min-height: 64px !important;
+    padding: 7px !important;
+    border-radius: 13px !important;
+    grid-template-columns: 28px minmax(0, 1fr) !important;
+    gap: 6px !important;
+    z-index: 3 !important;
+    box-shadow: 0 12px 26px rgba(127, 29, 29, 0.18) !important;
+  }
+
+  .avatar {
+    width: 19px !important;
+    height: 19px !important;
+    border-radius: 6px !important;
+    font-size: 10px !important;
+  }
+
+  .core .avatar {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 9px !important;
+    font-size: 15px !important;
+  }
+
+  .person-info {
+    min-width: 0 !important;
+  }
+
+  .person-info h3 {
+    max-width: 48px !important;
+    margin: 0 0 2px !important;
+    font-size: 9px !important;
+    line-height: 1.12 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .core .person-info h3 {
+    max-width: 70px !important;
+    font-size: 11px !important;
+  }
+
+  .role {
+    max-width: 48px !important;
+    margin: 0 !important;
+    font-size: 7px !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .core .role {
+    max-width: 70px !important;
+    font-size: 8px !important;
+  }
+
+  .desc,
+  .relation-tags {
+    display: none !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .tree-board {
+    height: clamp(450px, calc(100dvh - 208px), 590px) !important;
+    min-height: 450px !important;
+  }
+
+  .person-card {
+    width: 74px !important;
+    min-width: 74px !important;
+    max-width: 74px !important;
+    min-height: 42px !important;
+    padding: 4px !important;
+  }
+
+  .person-card.core {
+    width: 110px !important;
+    min-width: 110px !important;
+    max-width: 110px !important;
+    min-height: 60px !important;
+  }
+
+  .person-info h3,
+  .role {
+    max-width: 44px !important;
+  }
+
+  .core .person-info h3,
+  .core .role {
+    max-width: 64px !important;
+  }
+
+  .line-label,
+  .line-label * {
+    font-size: 6.5px !important;
+  }
+}
+
+
+/* relation labels on path */
+.relation-layer .line-label-on-path {
+  display: block !important;
+  font-size: 11px;
+  font-weight: 900;
+  fill: #7f1d1d;
+  stroke: #fffaf3;
+  stroke-width: 4px;
+  paint-order: stroke;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.relation-layer .line-label-on-path textPath {
+  fill: #7f1d1d;
+}
+
+@media (max-width: 768px) {
+  .relation-layer .line-label-on-path {
+    display: block !important;
+    font-size: 7px !important;
+    stroke-width: 3px !important;
+  }
+
+  .relation-layer .line-label {
+    display: block !important;
+  }
+}
+
 </style>

@@ -109,6 +109,40 @@ export interface FamilyTreeResult {
   generations: Record<string, FamilyMember[]>
 }
 
+export interface KinshipPerson {
+  name: string
+  gender: string
+  birthday: string
+  age: number
+}
+
+export interface KinshipPathRow {
+  relation: string
+  target_name: string
+  target_gender: string
+  target_birthday: string
+  target_age: number
+}
+
+export interface KinshipResolveRequest {
+  self: KinshipPerson
+  rows: KinshipPathRow[]
+}
+
+export interface KinshipResolveResult {
+  name: string
+  matched: boolean
+  base_path: string[]
+  detail_path: string[]
+  debug_steps: Array<{
+    from: string
+    to: string
+    base_relation: string
+    detail_step: string
+    detail_name: string
+  }>
+}
+
 export interface PageResult<T> {
   list: T[]
   total: number
@@ -144,5 +178,9 @@ export const api = {
 
   publicTree() {
     return request.get('/web/public-tree') as Promise<PublicTreeResult>
+  },
+
+  kinshipResolve(data: KinshipResolveRequest) {
+    return request.post('/web/kinship/resolve', data) as Promise<KinshipResolveResult>
   }
 }
