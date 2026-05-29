@@ -48,3 +48,54 @@ fix_*.ps1
 *.bak_decode_*
 entity_decode_backup_*/
 *.tsbuildinfo
+
+# local temp files
+.trash*/
+*.bak
+*.bak_*
+fix_*.cjs
+reset_*.cjs
+make_*.cjs
+create_*.ps1
+cleanup_*.ps1
+.vscode/
+
+# temp backup files
+.trash*/
+*.bak
+*.bak_*
+
+# temporary scripts
+fix_*.cjs
+reset_*.cjs
+make_*.cjs
+patch_*.cjs
+rewrite_*.cjs
+cleanup_*.cjs
+create_*.ps1
+setup_*.ps1
+
+# temporary reports
+backend-routes-report.txt
+kinship-audit-report.txt
+kinship-tool-structure.txt
+
+# temp backup files
+.trash*/
+*.bak
+*.bak_*
+
+# temporary scripts
+fix_*.cjs
+reset_*.cjs
+make_*.cjs
+patch_*.cjs
+rewrite_*.cjs
+cleanup_*.cjs
+create_*.ps1
+setup_*.ps1
+
+# temporary reports
+backend-routes-report.txt
+kinship-audit-report.txt
+kinship-tool-structure.txt
