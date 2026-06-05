@@ -53,6 +53,7 @@ func auth(manager *commonjwt.Manager, blacklist redis.TokenBlacklist, tokenType 
 		}
 
 		ctx.Set(ContextJWTID, claims.TokenID)
+		ctx.Set(ContextJWTExpiresAt, claims.ExpiresAt)
 		switch tokenType {
 		case commonjwt.TokenTypeUser:
 			ctx.Set(ContextUserID, claims.Subject)

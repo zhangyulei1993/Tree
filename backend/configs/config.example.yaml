@@ -23,5 +23,9 @@ jwt:
   access_token_expire_minutes: 120
   refresh_token_expire_days: 7
 
+admin_security:
+  lock_max_failures: 5
+  lock_minutes: 30
+
 log:
   level: debug

@@ -65,6 +65,28 @@ Security notes:
 - Do not log access tokens, refresh tokens, verification codes, passwords, `session_key`, AppSecret, full openid, or full unionid.
 - Current auth middleware only parses tokens and injects context. Login, logout, token revocation rules, and user/admin status checks are implemented in later stages.
 
+## Admin Authentication
+
+M4 adds backend admin authentication APIs:
+
+```http
+POST /api/admin/auth/login
+POST /api/admin/auth/logout
+GET  /api/admin/me
+PUT  /api/admin/me/password
+```
+
+Admin tokens use `JWT_ADMIN_SECRET` and are separated from user tokens. Logout writes the current admin token ID into the Redis token blacklist. Password checks use bcrypt hash verification only.
+
+Admin lock settings:
+
+```env
+ADMIN_SECURITY_LOCK_MAX_FAILURES=5
+ADMIN_SECURITY_LOCK_MINUTES=30
+```
+
+`ROOT_ADMIN` login failures are written to `operation_logs`, but do not trigger automatic lockout. `SUPER_ADMIN` and `PLATFORM_ADMIN` can be locked after the configured failure limit. Do not log plaintext passwords, password hashes, access tokens, refresh tokens, verification codes, or other sensitive secrets.
+
 Start the backend API from inside the dev container:
 
 ```bash

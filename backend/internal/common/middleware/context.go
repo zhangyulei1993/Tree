@@ -11,6 +11,7 @@ const (
 	ContextAdminID       = "currentAdminID"
 	ContextAdminRole     = "currentAdminRole"
 	ContextJWTID         = "currentJWTID"
+	ContextJWTExpiresAt  = "currentJWTExpiresAt"
 	ContextPhoneVerified = "currentPhoneVerified"
 )
 
@@ -34,6 +35,30 @@ func CurrentAdminRole(ctx *gin.Context) (string, error) {
 		return "", ErrContextValueMissing
 	}
 	return role, nil
+}
+
+func CurrentJWTID(ctx *gin.Context) (string, error) {
+	value, ok := ctx.Get(ContextJWTID)
+	if !ok {
+		return "", ErrContextValueMissing
+	}
+	id, ok := value.(string)
+	if !ok || id == "" {
+		return "", ErrContextValueMissing
+	}
+	return id, nil
+}
+
+func CurrentJWTExpiresAt(ctx *gin.Context) (int64, error) {
+	value, ok := ctx.Get(ContextJWTExpiresAt)
+	if !ok {
+		return 0, ErrContextValueMissing
+	}
+	expiresAt, ok := value.(int64)
+	if !ok || expiresAt <= 0 {
+		return 0, ErrContextValueMissing
+	}
+	return expiresAt, nil
 }
 
 func uint64Value(ctx *gin.Context, key string) (uint64, error) {

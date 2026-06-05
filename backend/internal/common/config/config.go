@@ -7,11 +7,12 @@ import (
 )
 
 type Config struct {
-	App   AppConfig
-	MySQL MySQLConfig
-	Redis RedisConfig
-	JWT   JWTConfig
-	Log   LogConfig
+	App           AppConfig
+	MySQL         MySQLConfig
+	Redis         RedisConfig
+	JWT           JWTConfig
+	Log           LogConfig
+	AdminSecurity AdminSecurityConfig
 }
 
 type AppConfig struct {
@@ -45,6 +46,11 @@ type JWTConfig struct {
 
 type LogConfig struct {
 	Level string
+}
+
+type AdminSecurityConfig struct {
+	LockMaxFailures int
+	LockMinutes     int
 }
 
 func Load() (*Config, error) {
@@ -94,6 +100,10 @@ func Load() (*Config, error) {
 		Log: LogConfig{
 			Level: v.GetString("log.level"),
 		},
+		AdminSecurity: AdminSecurityConfig{
+			LockMaxFailures: v.GetInt("admin_security.lock_max_failures"),
+			LockMinutes:     v.GetInt("admin_security.lock_minutes"),
+		},
 	}, nil
 }
 
@@ -115,5 +125,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("jwt.admin_secret", "change_me_admin_secret")
 	v.SetDefault("jwt.access_token_expire_minutes", 120)
 	v.SetDefault("jwt.refresh_token_expire_days", 7)
+	v.SetDefault("admin_security.lock_max_failures", 5)
+	v.SetDefault("admin_security.lock_minutes", 30)
 	v.SetDefault("log.level", "debug")
 }
