@@ -1,0 +1,25 @@
+app:
+  env: dev
+  name: Tree
+  port: 8080
+
+mysql:
+  host: mysql
+  port: 3306
+  user: tree_user
+  password: tree_pass
+  database: tree_platform
+  charset: utf8mb4
+
+redis:
+  host: redis
+  port: 6379
+  password: ""
+  db: 0
+
+jwt:
+  user_secret: change_me_user_secret
+  admin_secret: change_me_admin_secret
+
+log:
+  level: debug

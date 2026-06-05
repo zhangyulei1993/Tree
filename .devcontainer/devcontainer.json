@@ -1,0 +1,17 @@
+{
+  "name": "Tree Dev Container",
+  "dockerComposeFile": "../docker/docker-compose.yml",
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [8080, 5173, 5174, 3306, 6379],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "Vue.volar",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  }
+}

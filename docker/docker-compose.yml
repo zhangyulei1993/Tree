@@ -1,0 +1,46 @@
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    container_name: tree-dev
+    working_dir: /workspace
+    volumes:
+      - ..:/workspace
+    ports:
+      - "8080:8080"
+      - "5173:5173"
+      - "5174:5174"
+    command: sleep infinity
+    depends_on:
+      - mysql
+      - redis
+
+  mysql:
+    image: mysql:8.0
+    container_name: tree-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: tree_platform
+      MYSQL_USER: tree_user
+      MYSQL_PASSWORD: tree_pass
+      MYSQL_ROOT_PASSWORD: root_pass
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+08:00
+
+  redis:
+    image: redis:7
+    container_name: tree-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/data:/data
+    command: ["redis-server", "--appendonly", "yes"]

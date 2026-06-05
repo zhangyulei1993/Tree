@@ -1,0 +1,27 @@
+.DS_Store
+
+# Environment files
+.env
+*.env.local
+
+# Go
+backend/bin/
+backend/tmp/
+backend/coverage.out
+
+# Frontend
+node_modules/
+dist/
+.vite/
+
+# Docker local data
+docker/mysql/data/
+docker/redis/data/
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
