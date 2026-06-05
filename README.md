@@ -47,6 +47,24 @@ done
 
 The `000014_seed_root_admin.up.sql` migration inserts `username = admin` with a bcrypt hash placeholder. Replace the hash before production use; do not use or document a plain default password.
 
+## Backend Infrastructure
+
+M3 adds the backend infrastructure foundation:
+
+- Unified API response helpers and staged error code constants.
+- Separate JWT manager paths for user tokens and admin tokens.
+- Gin middleware skeletons for user auth, admin auth, and phone verification.
+- zap logger initialization helpers with safe field masking/hash utilities.
+- Redis client initialization and token blacklist interface.
+- GORM transaction manager via `TransactionManager.WithTransaction`.
+- OperationLogService interface plus a GORM-backed base implementation.
+
+Security notes:
+
+- `JWT_USER_SECRET` and `JWT_ADMIN_SECRET` must be different.
+- Do not log access tokens, refresh tokens, verification codes, passwords, `session_key`, AppSecret, full openid, or full unionid.
+- Current auth middleware only parses tokens and injects context. Login, logout, token revocation rules, and user/admin status checks are implemented in later stages.
+
 Start the backend API from inside the dev container:
 
 ```bash

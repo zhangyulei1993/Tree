@@ -20,6 +20,8 @@ redis:
 jwt:
   user_secret: change_me_user_secret
   admin_secret: change_me_admin_secret
+  access_token_expire_minutes: 120
+  refresh_token_expire_days: 7
 
 log:
   level: debug

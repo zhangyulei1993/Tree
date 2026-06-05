@@ -1,17 +1,36 @@
 package service
 
-import "context"
+import (
+	"context"
+
+	"gorm.io/gorm"
+
+	"tree/backend/internal/operationlog/model"
+)
+
+const (
+	ResultSuccess = "SUCCESS"
+	ResultFailed  = "FAILED"
+)
 
 type WriteInput struct {
-	OperatorType string
-	OperatorID   uint64
-	Module       string
-	Action       string
-	TargetType   string
-	TargetID     uint64
-	Result       string
-	IP           string
-	UserAgent    string
+	OperatorType    string
+	OperatorAdminID *uint64
+	OperatorUserID  *uint64
+	OperatorRole    *string
+	Module          string
+	Action          string
+	TargetType      *string
+	TargetID        *uint64
+	FamilyID        *uint64
+	MemberID        *uint64
+	UserID          *uint64
+	BeforeJSON      []byte
+	AfterJSON       []byte
+	DetailJSON      []byte
+	ErrorMessage    *string
+	IP              *string
+	UserAgent       *string
 }
 
 type Service interface {
@@ -27,4 +46,50 @@ func (NoopService) WriteSuccess(context.Context, WriteInput) error {
 
 func (NoopService) WriteFailed(context.Context, WriteInput) error {
 	return nil
+}
+
+type GormService struct {
+	db *gorm.DB
+}
+
+func NewGormService(db *gorm.DB) *GormService {
+	return &GormService{db: db}
+}
+
+func (s *GormService) WriteSuccess(ctx context.Context, input WriteInput) error {
+	return s.write(ctx, input, ResultSuccess)
+}
+
+func (s *GormService) WriteFailed(ctx context.Context, input WriteInput) error {
+	return s.write(ctx, input, ResultFailed)
+}
+
+func (s *GormService) write(ctx context.Context, input WriteInput, result string) error {
+	if s == nil || s.db == nil {
+		return nil
+	}
+
+	record := model.OperationLog{
+		OperatorType:    input.OperatorType,
+		OperatorAdminID: input.OperatorAdminID,
+		OperatorUserID:  input.OperatorUserID,
+		OperatorRole:    input.OperatorRole,
+		Module:          input.Module,
+		Action:          input.Action,
+		TargetType:      input.TargetType,
+		TargetID:        input.TargetID,
+		FamilyID:        input.FamilyID,
+		MemberID:        input.MemberID,
+		UserID:          input.UserID,
+		BeforeJSON:      input.BeforeJSON,
+		AfterJSON:       input.AfterJSON,
+		DetailJSON:      input.DetailJSON,
+		Result:          result,
+		ErrorMessage:    input.ErrorMessage,
+		IP:              input.IP,
+		UserAgent:       input.UserAgent,
+	}
+
+	// TODO(service): sanitize DetailJSON/BeforeJSON/AfterJSON before each business module writes operation logs.
+	return s.db.WithContext(ctx).Create(&record).Error
 }

@@ -1,6 +1,12 @@
 package response
 
-import "github.com/gin-gonic/gin"
+import (
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+
+	apperrors "tree/backend/internal/common/errors"
+)
 
 const SuccessCode = 0
 const SuccessMessage = "success"
@@ -32,6 +38,26 @@ func Fail(ctx Context, httpStatus int, code int, message string) {
 	ctx.JSON(httpStatus, APIResponse[any]{
 		Code:    code,
 		Message: message,
+		Data:    nil,
+	})
+}
+
+func OK[T any](ctx Context, data T) {
+	Success(ctx, http.StatusOK, data)
+}
+
+func Created[T any](ctx Context, data T) {
+	Success(ctx, http.StatusCreated, data)
+}
+
+func Error(ctx Context, httpStatus int, err *apperrors.BusinessError) {
+	Fail(ctx, httpStatus, int(err.Code), err.Message)
+}
+
+func Abort(ctx Context, httpStatus int, code apperrors.Code) {
+	ctx.AbortWithStatusJSON(httpStatus, APIResponse[any]{
+		Code:    int(code),
+		Message: apperrors.Message(code),
 		Data:    nil,
 	})
 }

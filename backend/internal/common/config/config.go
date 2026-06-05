@@ -37,8 +37,10 @@ type RedisConfig struct {
 }
 
 type JWTConfig struct {
-	UserSecret  string
-	AdminSecret string
+	UserSecret               string
+	AdminSecret              string
+	AccessTokenExpireMinutes int
+	RefreshTokenExpireDays   int
 }
 
 type LogConfig struct {
@@ -84,8 +86,10 @@ func Load() (*Config, error) {
 			DB:       v.GetInt("redis.db"),
 		},
 		JWT: JWTConfig{
-			UserSecret:  v.GetString("jwt.user_secret"),
-			AdminSecret: v.GetString("jwt.admin_secret"),
+			UserSecret:               v.GetString("jwt.user_secret"),
+			AdminSecret:              v.GetString("jwt.admin_secret"),
+			AccessTokenExpireMinutes: v.GetInt("jwt.access_token_expire_minutes"),
+			RefreshTokenExpireDays:   v.GetInt("jwt.refresh_token_expire_days"),
 		},
 		Log: LogConfig{
 			Level: v.GetString("log.level"),
@@ -109,5 +113,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("redis.db", 0)
 	v.SetDefault("jwt.user_secret", "change_me_user_secret")
 	v.SetDefault("jwt.admin_secret", "change_me_admin_secret")
+	v.SetDefault("jwt.access_token_expire_minutes", 120)
+	v.SetDefault("jwt.refresh_token_expire_days", 7)
 	v.SetDefault("log.level", "debug")
 }
