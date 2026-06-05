@@ -13,6 +13,7 @@ type Config struct {
 	JWT           JWTConfig
 	Log           LogConfig
 	AdminSecurity AdminSecurityConfig
+	VerifyCode    VerifyCodeConfig
 }
 
 type AppConfig struct {
@@ -51,6 +52,11 @@ type LogConfig struct {
 type AdminSecurityConfig struct {
 	LockMaxFailures int
 	LockMinutes     int
+}
+
+type VerifyCodeConfig struct {
+	ExpireSeconds   int
+	CooldownSeconds int
 }
 
 func Load() (*Config, error) {
@@ -104,6 +110,10 @@ func Load() (*Config, error) {
 			LockMaxFailures: v.GetInt("admin_security.lock_max_failures"),
 			LockMinutes:     v.GetInt("admin_security.lock_minutes"),
 		},
+		VerifyCode: VerifyCodeConfig{
+			ExpireSeconds:   v.GetInt("verify_code.expire_seconds"),
+			CooldownSeconds: v.GetInt("verify_code.cooldown_seconds"),
+		},
 	}, nil
 }
 
@@ -127,5 +137,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("jwt.refresh_token_expire_days", 7)
 	v.SetDefault("admin_security.lock_max_failures", 5)
 	v.SetDefault("admin_security.lock_minutes", 30)
+	v.SetDefault("verify_code.expire_seconds", 300)
+	v.SetDefault("verify_code.cooldown_seconds", 60)
 	v.SetDefault("log.level", "debug")
 }

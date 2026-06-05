@@ -34,6 +34,21 @@ const (
 )
 
 const (
+	CodeRegisterCodeInvalid       Code = 40101
+	CodeRegisterCodeExpired       Code = 40102
+	CodeRegisterPhoneExists       Code = 40103
+	CodeRegisterPasswordWeak      Code = 40104
+	CodeRegisterStatusDenied      Code = 40105
+	CodeRegisterClaimFailed       Code = 40106
+	CodeLoginPhonePasswordInvalid Code = 40201
+	CodeLoginDisabled             Code = 40202
+	CodeLoginCancelled            Code = 40203
+	CodeLoginMerged               Code = 40204
+	CodeLoginPendingClaim         Code = 40205
+	CodeLoginTooManyFailures      Code = 40206
+)
+
+const (
 	CodeAdminUsernameOrPasswordInvalid Code = 47001
 	CodeAdminDisabled                  Code = 47002
 	CodeAdminLocked                    Code = 47003
@@ -71,6 +86,18 @@ var messages = map[Code]string{
 	CodeVerificationCodeInvalid:        "验证码错误",
 	CodeVerificationCodeExpired:        "验证码已过期",
 	CodeVerificationCodeUsed:           "验证码已使用",
+	CodeRegisterCodeInvalid:            "验证码错误",
+	CodeRegisterCodeExpired:            "验证码已过期",
+	CodeRegisterPhoneExists:            "手机号已注册",
+	CodeRegisterPasswordWeak:           "密码不符合规则",
+	CodeRegisterStatusDenied:           "账号状态不允许注册",
+	CodeRegisterClaimFailed:            "预创建账号认领失败",
+	CodeLoginPhonePasswordInvalid:      "手机号或密码错误",
+	CodeLoginDisabled:                  "账号已禁用",
+	CodeLoginCancelled:                 "账号已注销",
+	CodeLoginMerged:                    "账号已合并",
+	CodeLoginPendingClaim:              "账号待认领",
+	CodeLoginTooManyFailures:           "登录失败次数过多",
 	CodeAdminUsernameOrPasswordInvalid: "用户名或密码错误",
 	CodeAdminDisabled:                  "管理员账号已禁用",
 	CodeAdminLocked:                    "管理员账号已锁定",

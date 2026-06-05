@@ -87,6 +87,28 @@ ADMIN_SECURITY_LOCK_MINUTES=30
 
 `ROOT_ADMIN` login failures are written to `operation_logs`, but do not trigger automatic lockout. `SUPER_ADMIN` and `PLATFORM_ADMIN` can be locked after the configured failure limit. Do not log plaintext passwords, password hashes, access tokens, refresh tokens, verification codes, or other sensitive secrets.
 
+## User Phone Authentication
+
+M5 adds user phone authentication APIs:
+
+```http
+POST /api/auth/send-code
+POST /api/auth/register-phone
+POST /api/auth/login-phone
+POST /api/auth/logout
+```
+
+Verification codes are stored in `verification_codes` as bcrypt hashes and expire after 5 minutes by default. In non-production environments the response includes `devCode` for local testing; production must not expose or log plaintext verification codes.
+
+Default verification-code settings:
+
+```env
+VERIFY_CODE_EXPIRE_SECONDS=300
+VERIFY_CODE_COOLDOWN_SECONDS=60
+```
+
+Phone registration creates an `ACTIVE` user with `phone_verified = true` and a bcrypt `password_hash`. Phone login uses `JWT_USER_SECRET`, while admin login continues to use `JWT_ADMIN_SECRET`. Logout revokes the current user token through the Redis token blacklist.
+
 Start the backend API from inside the dev container:
 
 ```bash

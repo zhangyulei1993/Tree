@@ -27,5 +27,9 @@ admin_security:
   lock_max_failures: 5
   lock_minutes: 30
 
+verify_code:
+  expire_seconds: 300
+  cooldown_seconds: 60
+
 log:
   level: debug
