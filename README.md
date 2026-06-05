@@ -27,6 +27,26 @@ Run backend tests:
 docker exec tree-dev bash -lc "cd /workspace/backend && go test ./..."
 ```
 
+## Database Migration
+
+Migration files live in `backend/migrations`.
+
+The project is prepared for `golang-migrate`, but the CLI is not installed in the dev container yet. After installing it, run:
+
+```bash
+docker exec tree-dev bash -lc 'cd /workspace/backend && migrate -path ./migrations -database "mysql://tree_user:tree_pass@tcp(mysql:3306)/tree_platform?multiStatements=true" up'
+```
+
+Until the migration CLI is added, you can validate or apply the SQL files manually against the local MySQL container:
+
+```bash
+for file in backend/migrations/*.up.sql; do
+  docker exec -i tree-mysql mysql -utree_user -ptree_pass tree_platform < "$file"
+done
+```
+
+The `000014_seed_root_admin.up.sql` migration inserts `username = admin` with a bcrypt hash placeholder. Replace the hash before production use; do not use or document a plain default password.
+
 Start the backend API from inside the dev container:
 
 ```bash

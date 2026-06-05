@@ -11,9 +11,11 @@ RUN apt-get update \
         build-essential \
         ca-certificates \
         curl \
+        default-mysql-client \
         git \
         gnupg \
         make \
+        netcat-openbsd \
         openssh-client \
         pkg-config \
     && mkdir -p /etc/apt/keyrings \

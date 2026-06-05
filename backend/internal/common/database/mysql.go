@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -35,4 +36,32 @@ func NewMySQL(cfg config.MySQLConfig) (*gorm.DB, error) {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	return db, nil
+}
+
+func Init(ctx context.Context, cfg config.MySQLConfig) (*gorm.DB, error) {
+	db, err := NewMySQL(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, err
+	}
+	if err := sqlDB.PingContext(ctx); err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func MigrationDSN(cfg config.MySQLConfig) string {
+	return fmt.Sprintf(
+		"mysql://%s:%s@tcp(%s:%d)/%s?multiStatements=true",
+		cfg.User,
+		cfg.Password,
+		cfg.Host,
+		cfg.Port,
+		cfg.Database,
+	)
 }
