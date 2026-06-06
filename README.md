@@ -2,6 +2,14 @@
 
 Tree is a family genealogy platform. This repository currently contains the M1 project skeleton and local Docker development environment.
 
+## API Documentation
+
+- [API overview](docs/api/00-api-overview.md)
+- [Authentication and response format](docs/api/01-authentication-and-response.md)
+- [OpenAPI specification](docs/api/openapi.yaml)
+- [Error codes](docs/api/error-codes.md)
+- [Database schema overview](docs/database/schema-overview.md)
+
 ## Local Development With Docker Dev Container
 
 This project does not require Go, Node.js, or pnpm to be installed directly on the Mac. The development tools run inside the `tree-dev` container.
