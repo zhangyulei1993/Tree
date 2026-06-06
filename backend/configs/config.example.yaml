@@ -31,5 +31,10 @@ verify_code:
   expire_seconds: 300
   cooldown_seconds: 60
 
+wechat:
+  mini_app_id: ""
+  mini_app_secret: ""
+  mock_enabled: true
+
 log:
   level: debug

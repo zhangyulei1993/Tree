@@ -109,6 +109,29 @@ VERIFY_CODE_COOLDOWN_SECONDS=60
 
 Phone registration creates an `ACTIVE` user with `phone_verified = true` and a bcrypt `password_hash`. Phone login uses `JWT_USER_SECRET`, while admin login continues to use `JWT_ADMIN_SECRET`. Logout revokes the current user token through the Redis token blacklist.
 
+## WeChat Mini Program Account Flow
+
+M6 adds account extension APIs:
+
+```http
+POST /api/auth/wechat-mini/login
+POST /api/auth/wechat-mini/bind-phone
+POST /api/auth/change-phone
+POST /api/auth/cancel-account
+```
+
+Local development can use safe WeChat mock mode:
+
+```env
+WECHAT_MOCK_ENABLED=true
+WECHAT_MINI_APP_ID=
+WECHAT_MINI_APP_SECRET=
+```
+
+In production, disable mock mode and configure the real WeChat Mini Program AppID/AppSecret. AppSecret is read only by the backend and must never be logged or exposed to frontend code.
+
+M6 account operations use transactions for phone binding with account merge/claim, phone change, and account cancellation. Account merge checks whether the two accounts are bound to different members in the same family; when a conflict exists, the API returns a conflict error instead of merging automatically. Account merge and cancellation revoke old user tokens through Redis user-token revocation.
+
 Start the backend API from inside the dev container:
 
 ```bash

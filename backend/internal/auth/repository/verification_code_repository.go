@@ -14,6 +14,7 @@ type VerificationCodeRepository interface {
 	FindLatestPending(ctx context.Context, phoneHash string, scene string) (*model.VerificationCode, error)
 	FindLatestCreatedAfter(ctx context.Context, phoneHash string, scene string, after time.Time) (*model.VerificationCode, error)
 	MarkUsed(ctx context.Context, id uint64, now time.Time) error
+	WithTx(tx *gorm.DB) VerificationCodeRepository
 }
 
 type GormVerificationCodeRepository struct {
@@ -22,6 +23,10 @@ type GormVerificationCodeRepository struct {
 
 func NewGormVerificationCodeRepository(db *gorm.DB) *GormVerificationCodeRepository {
 	return &GormVerificationCodeRepository{db: db}
+}
+
+func (r *GormVerificationCodeRepository) WithTx(tx *gorm.DB) VerificationCodeRepository {
+	return &GormVerificationCodeRepository{db: tx}
 }
 
 func (r *GormVerificationCodeRepository) Create(ctx context.Context, code *model.VerificationCode) error {

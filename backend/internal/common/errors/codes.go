@@ -49,6 +49,30 @@ const (
 )
 
 const (
+	CodeWechatCodeInvalid          Code = 40301
+	CodeWechatOpenIDFetchFailed    Code = 40302
+	CodeWechatIdentityExpired      Code = 40303
+	CodeWechatAccountInvalid       Code = 40304
+	CodeWechatConfigError          Code = 40305
+	CodeBindPhoneLoginRequired     Code = 40401
+	CodeBindPhoneCodeInvalid       Code = 40402
+	CodeBindPhoneStatusDenied      Code = 40403
+	CodeBindPhoneExists            Code = 40404
+	CodeAccountMergeFailed         Code = 40405
+	CodeAccountClaimFailed         Code = 40406
+	CodeAccountMergeMemberConflict Code = 40504
+	CodeChangeOldPhoneCodeInvalid  Code = 40701
+	CodeChangeNewPhoneCodeInvalid  Code = 40702
+	CodeChangeNewPhoneExists       Code = 40703
+	CodeCancelStatusDenied         Code = 41001
+	CodeCancelActiveFamily         Code = 41002
+	CodeCancelFounder              Code = 41003
+	CodeCancelPendingTransfer      Code = 41004
+	CodeCancelPendingDissolution   Code = 41005
+	CodeCancelCodeInvalid          Code = 41006
+)
+
+const (
 	CodeAdminUsernameOrPasswordInvalid Code = 47001
 	CodeAdminDisabled                  Code = 47002
 	CodeAdminLocked                    Code = 47003
@@ -98,6 +122,27 @@ var messages = map[Code]string{
 	CodeLoginMerged:                    "账号已合并",
 	CodeLoginPendingClaim:              "账号待认领",
 	CodeLoginTooManyFailures:           "登录失败次数过多",
+	CodeWechatCodeInvalid:              "微信登录 code 无效",
+	CodeWechatOpenIDFetchFailed:        "微信 openid 获取失败",
+	CodeWechatIdentityExpired:          "微信身份已失效",
+	CodeWechatAccountInvalid:           "当前微信账号状态异常",
+	CodeWechatConfigError:              "小程序配置错误",
+	CodeBindPhoneLoginRequired:         "请先登录",
+	CodeBindPhoneCodeInvalid:           "验证码错误或已过期",
+	CodeBindPhoneStatusDenied:          "当前账号不能绑定手机号",
+	CodeBindPhoneExists:                "手机号已绑定其他账号",
+	CodeAccountMergeFailed:             "账号合并失败",
+	CodeAccountClaimFailed:             "账号认领失败",
+	CodeAccountMergeMemberConflict:     "同一家庭下存在多个成员绑定冲突",
+	CodeChangeOldPhoneCodeInvalid:      "旧手机号验证码错误",
+	CodeChangeNewPhoneCodeInvalid:      "新手机号验证码错误",
+	CodeChangeNewPhoneExists:           "新手机号已被其他账号绑定",
+	CodeCancelStatusDenied:             "当前账号状态不允许注销",
+	CodeCancelActiveFamily:             "请先退出所有家庭",
+	CodeCancelFounder:                  "家庭创始人必须先转让创始人身份",
+	CodeCancelPendingTransfer:          "存在未处理的创始人转让申请",
+	CodeCancelPendingDissolution:       "存在未处理的家庭解散申请",
+	CodeCancelCodeInvalid:              "验证码错误或已过期",
 	CodeAdminUsernameOrPasswordInvalid: "用户名或密码错误",
 	CodeAdminDisabled:                  "管理员账号已禁用",
 	CodeAdminLocked:                    "管理员账号已锁定",

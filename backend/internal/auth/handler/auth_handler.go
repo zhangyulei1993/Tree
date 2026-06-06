@@ -110,3 +110,113 @@ func (h *AuthHandler) Logout(ctx *gin.Context) {
 
 	response.OK(ctx, gin.H{"status": "ok"})
 }
+
+func (h *AuthHandler) WechatMiniLogin(ctx *gin.Context) {
+	var req dto.WechatMiniLoginRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+
+	result, businessErr := h.service.WechatMiniLogin(ctx.Request.Context(), authservice.WechatMiniLoginInput{
+		Code:       req.Code,
+		ClientType: req.ClientType,
+		IP:         ctx.ClientIP(),
+		UserAgent:  ctx.Request.UserAgent(),
+	})
+	if businessErr != nil {
+		response.Error(ctx, http.StatusBadRequest, businessErr)
+		return
+	}
+
+	response.OK(ctx, result)
+}
+
+func (h *AuthHandler) BindPhone(ctx *gin.Context) {
+	userID, err := middleware.CurrentUserID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	tokenID, _ := middleware.CurrentJWTID(ctx)
+
+	var req dto.BindPhoneRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+
+	result, businessErr := h.service.BindPhone(ctx.Request.Context(), authservice.BindPhoneInput{
+		UserID:    userID,
+		TokenID:   tokenID,
+		Phone:     req.Phone,
+		Code:      req.Code,
+		IP:        ctx.ClientIP(),
+		UserAgent: ctx.Request.UserAgent(),
+	})
+	if businessErr != nil {
+		response.Error(ctx, http.StatusBadRequest, businessErr)
+		return
+	}
+
+	response.OK(ctx, result)
+}
+
+func (h *AuthHandler) ChangePhone(ctx *gin.Context) {
+	userID, err := middleware.CurrentUserID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+
+	var req dto.ChangePhoneRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+
+	if businessErr := h.service.ChangePhone(ctx.Request.Context(), authservice.ChangePhoneInput{
+		UserID:       userID,
+		OldPhoneCode: req.OldPhoneCode,
+		NewPhone:     req.NewPhone,
+		NewPhoneCode: req.NewPhoneCode,
+		IP:           ctx.ClientIP(),
+		UserAgent:    ctx.Request.UserAgent(),
+	}); businessErr != nil {
+		response.Error(ctx, http.StatusBadRequest, businessErr)
+		return
+	}
+
+	response.OK(ctx, gin.H{"status": "ok"})
+}
+
+func (h *AuthHandler) CancelAccount(ctx *gin.Context) {
+	userID, err := middleware.CurrentUserID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	tokenID, _ := middleware.CurrentJWTID(ctx)
+	expiresAt, _ := middleware.CurrentJWTExpiresAt(ctx)
+
+	var req dto.CancelAccountRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+
+	if businessErr := h.service.CancelAccount(ctx.Request.Context(), authservice.CancelAccountInput{
+		UserID:       userID,
+		TokenID:      tokenID,
+		ExpiresAt:    expiresAt,
+		PhoneCode:    req.PhoneCode,
+		CancelReason: req.CancelReason,
+		IP:           ctx.ClientIP(),
+		UserAgent:    ctx.Request.UserAgent(),
+	}); businessErr != nil {
+		response.Error(ctx, http.StatusBadRequest, businessErr)
+		return
+	}
+
+	response.OK(ctx, gin.H{"status": "ok"})
+}

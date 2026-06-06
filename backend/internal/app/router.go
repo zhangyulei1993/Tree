@@ -18,6 +18,7 @@ import (
 	"tree/backend/internal/common/middleware"
 	commonredis "tree/backend/internal/common/redis"
 	"tree/backend/internal/common/response"
+	"tree/backend/internal/common/wechat"
 	operationlog "tree/backend/internal/operationlog/service"
 )
 
@@ -94,10 +95,14 @@ func (s *Server) registerUserAuthRoutes(api *gin.RouterGroup) {
 	auth.POST("/send-code", authHandler.SendCode)
 	auth.POST("/register-phone", authHandler.RegisterPhone)
 	auth.POST("/login-phone", authHandler.LoginPhone)
+	auth.POST("/wechat-mini/login", authHandler.WechatMiniLogin)
 
 	protected := auth.Group("")
 	protected.Use(userAuth)
 	protected.POST("/logout", authHandler.Logout)
+	protected.POST("/wechat-mini/bind-phone", authHandler.BindPhone)
+	protected.POST("/change-phone", authHandler.ChangePhone)
+	protected.POST("/cancel-account", authHandler.CancelAccount)
 }
 
 func (s *Server) buildUserAuth() (*authhandler.AuthHandler, gin.HandlerFunc) {
@@ -126,7 +131,8 @@ func (s *Server) buildUserAuth() (*authhandler.AuthHandler, gin.HandlerFunc) {
 	userRepo := authrepo.NewGormUserRepository(db)
 	codeRepo := authrepo.NewGormVerificationCodeRepository(db)
 	operationLog := operationlog.NewGormService(db)
-	service := authservice.NewPhoneAuthService(userRepo, codeRepo, jwtManager, blacklist, operationLog, s.cfg)
+	wechatClient := wechat.NewMiniProgramClient(s.cfg.Wechat)
+	service := authservice.NewPhoneAuthService(db, userRepo, codeRepo, wechatClient, jwtManager, blacklist, operationLog, s.cfg)
 	handler := authhandler.NewAuthHandler(service)
 
 	return handler, middleware.UserAuth(jwtManager, blacklist)

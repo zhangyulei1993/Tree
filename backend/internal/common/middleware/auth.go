@@ -50,6 +50,13 @@ func auth(manager *commonjwt.Manager, blacklist redis.TokenBlacklist, tokenType 
 				response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeLoginExpired)
 				return
 			}
+			if tokenType == commonjwt.TokenTypeUser {
+				userRevoked, err := blacklist.IsUserTokenRevoked(ctx.Request.Context(), claims.Subject, claims.IssuedAt)
+				if err != nil || userRevoked {
+					response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeLoginExpired)
+					return
+				}
+			}
 		}
 
 		ctx.Set(ContextJWTID, claims.TokenID)

@@ -14,6 +14,7 @@ type Config struct {
 	Log           LogConfig
 	AdminSecurity AdminSecurityConfig
 	VerifyCode    VerifyCodeConfig
+	Wechat        WechatConfig
 }
 
 type AppConfig struct {
@@ -57,6 +58,12 @@ type AdminSecurityConfig struct {
 type VerifyCodeConfig struct {
 	ExpireSeconds   int
 	CooldownSeconds int
+}
+
+type WechatConfig struct {
+	MiniAppID     string
+	MiniAppSecret string
+	MockEnabled   bool
 }
 
 func Load() (*Config, error) {
@@ -114,6 +121,11 @@ func Load() (*Config, error) {
 			ExpireSeconds:   v.GetInt("verify_code.expire_seconds"),
 			CooldownSeconds: v.GetInt("verify_code.cooldown_seconds"),
 		},
+		Wechat: WechatConfig{
+			MiniAppID:     v.GetString("wechat.mini_app_id"),
+			MiniAppSecret: v.GetString("wechat.mini_app_secret"),
+			MockEnabled:   v.GetBool("wechat.mock_enabled"),
+		},
 	}, nil
 }
 
@@ -121,13 +133,13 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("app.env", "dev")
 	v.SetDefault("app.name", "Tree")
 	v.SetDefault("app.port", 8080)
-	v.SetDefault("mysql.host", "127.0.0.1")
+	v.SetDefault("mysql.host", "mysql")
 	v.SetDefault("mysql.port", 3306)
 	v.SetDefault("mysql.user", "tree_user")
 	v.SetDefault("mysql.password", "tree_pass")
 	v.SetDefault("mysql.database", "tree_platform")
 	v.SetDefault("mysql.charset", "utf8mb4")
-	v.SetDefault("redis.host", "127.0.0.1")
+	v.SetDefault("redis.host", "redis")
 	v.SetDefault("redis.port", 6379)
 	v.SetDefault("redis.password", "")
 	v.SetDefault("redis.db", 0)
@@ -139,5 +151,8 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("admin_security.lock_minutes", 30)
 	v.SetDefault("verify_code.expire_seconds", 300)
 	v.SetDefault("verify_code.cooldown_seconds", 60)
+	v.SetDefault("wechat.mini_app_id", "")
+	v.SetDefault("wechat.mini_app_secret", "")
+	v.SetDefault("wechat.mock_enabled", true)
 	v.SetDefault("log.level", "debug")
 }
