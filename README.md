@@ -132,6 +132,23 @@ In production, disable mock mode and configure the real WeChat Mini Program AppI
 
 M6 account operations use transactions for phone binding with account merge/claim, phone change, and account cancellation. Account merge checks whether the two accounts are bound to different members in the same family; when a conflict exists, the API returns a conflict error instead of merging automatically. Account merge and cancellation revoke old user tokens through Redis user-token revocation.
 
+## Family Core
+
+M7 adds the authenticated family core APIs and an anonymous public profile endpoint:
+
+```http
+POST /api/families
+GET  /api/families
+GET  /api/families/:familyId
+GET  /api/families/:familyId/public
+PUT  /api/families/:familyId
+POST /api/families/:familyId/dissolution-requests
+GET  /api/families/:familyId/dissolution-requests/current
+POST /api/families/:familyId/dissolution-requests/:requestId/cancel
+```
+
+Creating a family requires an `ACTIVE`, phone-verified user. The family, founder placeholder member, and `FOUNDER` user link are created in one database transaction. Family detail and dissolution status require membership; family updates and dissolution creation require `FOUNDER` or `FAMILY_ADMIN`. Public family details are anonymous but only available for `NORMAL` families whose public display status is `APPROVED`.
+
 Start the backend API from inside the dev container:
 
 ```bash
