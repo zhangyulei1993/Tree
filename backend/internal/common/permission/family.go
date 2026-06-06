@@ -14,6 +14,9 @@ type FamilyPermissionService interface {
 	IsFamilyAdmin(ctx context.Context, userID uint64, familyID uint64) (bool, error)
 	IsFamilyMember(ctx context.Context, userID uint64, familyID uint64) (bool, error)
 	CanManageFamily(ctx context.Context, userID uint64, familyID uint64) (bool, error)
+	CanCreateMember(ctx context.Context, userID uint64, familyID uint64) (bool, error)
+	CanEditMember(ctx context.Context, userID uint64, familyID uint64, memberID uint64) (bool, error)
+	CanDeleteMember(ctx context.Context, userID uint64, familyID uint64, memberID uint64) (bool, error)
 	GetActiveLink(ctx context.Context, userID uint64, familyID uint64) (*familyrolemodel.FamilyMemberUserLink, error)
 }
 
@@ -43,6 +46,18 @@ func (s *GormFamilyPermissionService) IsFamilyMember(ctx context.Context, userID
 }
 
 func (s *GormFamilyPermissionService) CanManageFamily(ctx context.Context, userID uint64, familyID uint64) (bool, error) {
+	return s.IsFamilyAdmin(ctx, userID, familyID)
+}
+
+func (s *GormFamilyPermissionService) CanCreateMember(ctx context.Context, userID uint64, familyID uint64) (bool, error) {
+	return s.IsFamilyAdmin(ctx, userID, familyID)
+}
+
+func (s *GormFamilyPermissionService) CanEditMember(ctx context.Context, userID uint64, familyID uint64, memberID uint64) (bool, error) {
+	return s.IsFamilyAdmin(ctx, userID, familyID)
+}
+
+func (s *GormFamilyPermissionService) CanDeleteMember(ctx context.Context, userID uint64, familyID uint64, memberID uint64) (bool, error) {
 	return s.IsFamilyAdmin(ctx, userID, familyID)
 }
 

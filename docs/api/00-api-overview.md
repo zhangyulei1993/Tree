@@ -1,6 +1,6 @@
 # Tree API Overview
 
-本文档基于当前 `backend/internal/app/router.go`、DTO、VO、handler 和 service 实现整理，覆盖 M1-M7 已注册的 21 个接口。
+本文档基于当前 `backend/internal/app/router.go`、DTO、VO、handler 和 service 实现整理，覆盖 M1-M8 已注册的 28 个接口。
 
 ## 基础约定
 
@@ -69,5 +69,12 @@ USER 与 ADMIN token 不可互换。JWT payload 的 `typ` 必须与路由中间�
 | Family | POST | `/api/families/{familyId}/dissolution-requests` | USER |
 | Family | GET | `/api/families/{familyId}/dissolution-requests/current` | USER |
 | Family | POST | `/api/families/{familyId}/dissolution-requests/{requestId}/cancel` | USER |
+| Family Member | POST | `/api/families/{familyId}/members` | USER |
+| Family Member | GET | `/api/families/{familyId}/members` | USER |
+| Family Member | GET | `/api/families/{familyId}/members/{memberId}` | USER |
+| Family Member | PUT | `/api/families/{familyId}/members/{memberId}` | USER |
+| Family Member | DELETE | `/api/families/{familyId}/members/{memberId}` | USER |
+| Family Member | POST | `/api/families/{familyId}/members/{memberId}/bind-user` | USER |
+| Family Member | POST | `/api/families/{familyId}/members/{memberId}/unbind-user` | USER |
 
 详细契约见同目录其他文档及 [openapi.yaml](./openapi.yaml)。

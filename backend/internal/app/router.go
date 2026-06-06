@@ -23,6 +23,9 @@ import (
 	familyhandler "tree/backend/internal/family/core/handler"
 	familyrepo "tree/backend/internal/family/core/repository"
 	familyservice "tree/backend/internal/family/core/service"
+	memberhandler "tree/backend/internal/family/member/handler"
+	memberrepo "tree/backend/internal/family/member/repository"
+	memberservice "tree/backend/internal/family/member/service"
 	operationlog "tree/backend/internal/operationlog/service"
 )
 
@@ -144,8 +147,8 @@ func (s *Server) buildUserAuth() (*authhandler.AuthHandler, gin.HandlerFunc) {
 }
 
 func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
-	handler, userAuth := s.buildFamilyCore()
-	if handler == nil || userAuth == nil {
+	handler, memberHandler, userAuth := s.buildFamilyCore()
+	if handler == nil || memberHandler == nil || userAuth == nil {
 		s.logger.Error("family core routes disabled")
 		return
 	}
@@ -161,19 +164,26 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.POST("/:familyId/dissolution-requests", handler.CreateDissolutionRequest)
 	families.GET("/:familyId/dissolution-requests/current", handler.CurrentDissolutionRequest)
 	families.POST("/:familyId/dissolution-requests/:requestId/cancel", handler.CancelDissolutionRequest)
+	families.POST("/:familyId/members", memberHandler.Create)
+	families.GET("/:familyId/members", memberHandler.List)
+	families.GET("/:familyId/members/:memberId", memberHandler.Detail)
+	families.PUT("/:familyId/members/:memberId", memberHandler.Update)
+	families.DELETE("/:familyId/members/:memberId", memberHandler.Delete)
+	families.POST("/:familyId/members/:memberId/bind-user", memberHandler.BindUser)
+	families.POST("/:familyId/members/:memberId/unbind-user", memberHandler.UnbindUser)
 }
 
-func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, gin.HandlerFunc) {
+func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler.MemberHandler, gin.HandlerFunc) {
 	ctx := context.Background()
 	db, err := database.Init(ctx, s.cfg.MySQL)
 	if err != nil {
 		s.logger.Error("init mysql for family core", zap.Error(err))
-		return nil, nil
+		return nil, nil, nil
 	}
 	jwtManager, err := commonjwt.NewManager(s.cfg.JWT, s.cfg.App.Name)
 	if err != nil {
 		s.logger.Error("init jwt manager for family core", zap.Error(err))
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	var blacklist commonredis.TokenBlacklist = commonredis.NoopTokenBlacklist{}
@@ -187,5 +197,7 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, gin.HandlerFun
 	repo := familyrepo.NewFamilyRepository(db)
 	permissionService := permission.NewFamilyPermissionService(db)
 	service := familyservice.NewFamilyService(db, repo, permissionService)
-	return familyhandler.NewFamilyHandler(service), middleware.UserAuth(jwtManager, blacklist)
+	memberRepository := memberrepo.NewMemberRepository(db)
+	memberService := memberservice.NewMemberService(db, memberRepository, permissionService)
+	return familyhandler.NewFamilyHandler(service), memberhandler.NewMemberHandler(memberService), middleware.UserAuth(jwtManager, blacklist)
 }

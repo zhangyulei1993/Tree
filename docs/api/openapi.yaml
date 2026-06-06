@@ -11,6 +11,7 @@ tags:
   - name: User Auth
   - name: WeChat Account
   - name: Family
+  - name: Family Member
 paths:
   /health:
     get:
@@ -434,6 +435,179 @@ paths:
           $ref: "#/components/responses/BusinessError"
         "404":
           $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/members:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family Member]
+      summary: Create an unbound family member node
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMemberRequest"
+      responses:
+        "201":
+          description: Member created and graph version incremented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+    get:
+      tags: [Family Member]
+      summary: List active members in the current family
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Family member list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberListAPIResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/members/{memberId}:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/MemberID"
+    get:
+      tags: [Family Member]
+      summary: Get active family member detail
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Member detail without sensitive user data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberAPIResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+    put:
+      tags: [Family Member]
+      summary: Update member base information
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemberRequest"
+      responses:
+        "200":
+          description: Member updated and graph version incremented when values are supplied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+    delete:
+      tags: [Family Member]
+      summary: Soft-delete a member
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteMemberRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/StatusOK"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/members/{memberId}/bind-user:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/MemberID"
+    post:
+      tags: [Family Member]
+      summary: Bind an existing active user to a member
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BindMemberUserRequest"
+      responses:
+        "200":
+          description: User bound; graph version is unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/members/{memberId}/unbind-user:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/MemberID"
+    post:
+      tags: [Family Member]
+      summary: Unbind a non-privileged user link
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnbindMemberUserRequest"
+      responses:
+        "200":
+          description: User unbound; graph version is unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
 components:
   securitySchemes:
     UserBearerAuth:
@@ -457,6 +631,14 @@ components:
         minimum: 1
     RequestID:
       name: requestId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    MemberID:
+      name: memberId
       in: path
       required: true
       schema:
@@ -1026,6 +1208,191 @@ components:
         createdAt:
           type: string
           format: date-time
+    CreateMemberRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        gender:
+          type: string
+          nullable: true
+          enum: [MALE, FEMALE, UNKNOWN]
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+        birthYear:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+        deathYear:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+        isAlive:
+          type: boolean
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        userBindingPolicy:
+          type: string
+          nullable: true
+          enum: [OPTIONAL, REQUIRED, NOT_REQUIRED]
+    UpdateMemberRequest:
+      type: object
+      description: All fields are optional. birthDate/deathDate take precedence over the corresponding year.
+      properties:
+        name:
+          type: string
+          nullable: true
+        gender:
+          type: string
+          nullable: true
+          enum: [MALE, FEMALE, UNKNOWN]
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+        birthYear:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+        deathYear:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+        isAlive:
+          type: boolean
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        userBindingPolicy:
+          type: string
+          nullable: true
+          enum: [OPTIONAL, REQUIRED, NOT_REQUIRED]
+    DeleteMemberRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    BindMemberUserRequest:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          minimum: 1
+    UnbindMemberUserRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    FamilyMember:
+      type: object
+      required:
+        - memberId
+        - familyId
+        - name
+        - gender
+        - status
+        - userBindingPolicy
+        - createdAt
+        - updatedAt
+      properties:
+        memberId:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        gender:
+          type: string
+          enum: [MALE, FEMALE, UNKNOWN]
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+        birthYear:
+          type: integer
+          nullable: true
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+        deathYear:
+          type: integer
+          nullable: true
+        isAlive:
+          type: boolean
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, DELETED]
+        userBindingPolicy:
+          type: string
+          enum: [OPTIONAL, REQUIRED, NOT_REQUIRED]
+        boundUserId:
+          type: integer
+          format: int64
+          nullable: true
+        boundFamilyRole:
+          type: string
+          nullable: true
+          enum: [FOUNDER, FAMILY_ADMIN, MEMBER]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    MemberAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/FamilyMember"
+    MemberListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/FamilyMember"
     FamilyDetailAPIResponse:
       allOf:
         - $ref: "#/components/schemas/ResponseEnvelope"
