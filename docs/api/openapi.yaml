@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Tree API
-  version: 0.7.5
-  description: API contract synchronized from the M1-M7 Go router, DTOs, VOs, handlers, and services.
+  version: 0.9.0
+  description: API contract synchronized from the M1-M9 Go router, DTOs, VOs, handlers, and services.
 servers:
   - url: http://127.0.0.1:8080/api
 tags:
@@ -12,6 +12,7 @@ tags:
   - name: WeChat Account
   - name: Family
   - name: Family Member
+  - name: Family Relationship
 paths:
   /health:
     get:
@@ -608,6 +609,92 @@ paths:
           $ref: "#/components/responses/BusinessError"
         "404":
           $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/relationships:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family Relationship]
+      summary: Create a member and relationship through an addType operation
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRelationshipRequest"
+      responses:
+        "201":
+          description: Member and relationship created; graph version incremented once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RelationshipMutationAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/relationships/{relationshipId}:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/RelationshipID"
+    put:
+      tags: [Family Relationship]
+      summary: Update relationship note or parent-link type
+      description: fromMemberId, toMemberId, and relationshipType cannot be changed.
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRelationshipRequest"
+      responses:
+        "200":
+          description: Relationship updated and graph version incremented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RelationshipMutationAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+    delete:
+      tags: [Family Relationship]
+      summary: Soft-delete a relationship
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteRelationshipRequest"
+      responses:
+        "200":
+          description: Relationship soft deleted and graph version incremented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RelationshipMutationAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
 components:
   securitySchemes:
     UserBearerAuth:
@@ -639,6 +726,14 @@ components:
         minimum: 1
     MemberID:
       name: memberId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    RelationshipID:
+      name: relationshipId
       in: path
       required: true
       schema:
@@ -1311,6 +1406,187 @@ components:
         reason:
           type: string
           nullable: true
+    NewRelationshipMemberInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        gender:
+          type: string
+          nullable: true
+          enum: [MALE, FEMALE, UNKNOWN]
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+        birthYear:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+        deathYear:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+        isAlive:
+          type: boolean
+          nullable: true
+        userBindingPolicy:
+          type: string
+          nullable: true
+          enum: [OPTIONAL, REQUIRED, NOT_REQUIRED]
+    RelationshipInput:
+      type: object
+      properties:
+        relationshipType:
+          type: string
+          nullable: true
+          enum: [PARENT_CHILD, SPOUSE]
+        parentLinkType:
+          type: string
+          nullable: true
+          enum: [PRIMARY, STEP, ADOPTIVE, SUCCESSION, NOTE_ONLY, OTHER]
+        relationNoteType:
+          type: string
+          maxLength: 80
+          nullable: true
+        relationNote:
+          type: string
+          maxLength: 500
+          nullable: true
+    CreateRelationshipRequest:
+      type: object
+      required: [baseMemberId, addType, newMember]
+      properties:
+        baseMemberId:
+          type: integer
+          format: int64
+          minimum: 1
+        addType:
+          type: string
+          enum: [ADD_FATHER, ADD_MOTHER, ADD_CHILD, ADD_SPOUSE, ADD_SIBLING]
+        newMember:
+          $ref: "#/components/schemas/NewRelationshipMemberInput"
+        relationship:
+          $ref: "#/components/schemas/RelationshipInput"
+    UpdateRelationshipRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        parentLinkType:
+          type: string
+          nullable: true
+          enum: [PRIMARY, STEP, ADOPTIVE, SUCCESSION, NOTE_ONLY, OTHER]
+        relationNoteType:
+          type: string
+          maxLength: 80
+          nullable: true
+        relationNote:
+          type: string
+          maxLength: 500
+          nullable: true
+    DeleteRelationshipRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    CreatedRelationshipMember:
+      type: object
+      required: [memberId, familyId, name, gender, status]
+      properties:
+        memberId:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        gender:
+          type: string
+          enum: [MALE, FEMALE, UNKNOWN]
+        status:
+          type: string
+          enum: [ACTIVE]
+    FamilyRelationship:
+      type: object
+      required:
+        - relationshipId
+        - familyId
+        - fromMemberId
+        - toMemberId
+        - relationshipType
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        relationshipId:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        fromMemberId:
+          type: integer
+          format: int64
+        toMemberId:
+          type: integer
+          format: int64
+        relationshipType:
+          type: string
+          enum: [PARENT_CHILD, SPOUSE]
+        parentLinkType:
+          type: string
+          nullable: true
+          enum: [PRIMARY, STEP, ADOPTIVE, SUCCESSION, NOTE_ONLY, OTHER]
+        relationNoteType:
+          type: string
+          nullable: true
+        relationNote:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, DELETED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    RelationshipMutation:
+      type: object
+      required: [relationships, graphVersion]
+      properties:
+        createdMember:
+          allOf:
+            - $ref: "#/components/schemas/CreatedRelationshipMember"
+          nullable: true
+        relationships:
+          type: array
+          items:
+            $ref: "#/components/schemas/FamilyRelationship"
+        graphVersion:
+          type: integer
+          format: int64
+    RelationshipMutationAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/RelationshipMutation"
     FamilyMember:
       type: object
       required:
