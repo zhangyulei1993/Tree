@@ -134,3 +134,12 @@
 | 43308 | 关系不存在 |
 | 43309 | 不能与自己建立关系 |
 | 43310 | 家庭不存在或状态不允许操作 |
+
+## Family Tree Module Codes
+
+以下代码定义在 `backend/internal/family/tree/service/tree_service.go`。
+
+| Code | Message |
+|---:|---|
+| 42401 | 无权查看家庭树 |
+| 42402 | 公开家庭树不可访问 |

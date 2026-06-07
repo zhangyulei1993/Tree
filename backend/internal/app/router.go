@@ -29,6 +29,9 @@ import (
 	relationshiphandler "tree/backend/internal/family/relationship/handler"
 	relationshiprepo "tree/backend/internal/family/relationship/repository"
 	relationshipservice "tree/backend/internal/family/relationship/service"
+	treehandler "tree/backend/internal/family/tree/handler"
+	treerepo "tree/backend/internal/family/tree/repository"
+	treeservice "tree/backend/internal/family/tree/service"
 	operationlog "tree/backend/internal/operationlog/service"
 )
 
@@ -150,13 +153,14 @@ func (s *Server) buildUserAuth() (*authhandler.AuthHandler, gin.HandlerFunc) {
 }
 
 func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
-	handler, memberHandler, relationshipHandler, userAuth := s.buildFamilyCore()
-	if handler == nil || memberHandler == nil || relationshipHandler == nil || userAuth == nil {
+	handler, memberHandler, relationshipHandler, treeHandler, userAuth := s.buildFamilyCore()
+	if handler == nil || memberHandler == nil || relationshipHandler == nil || treeHandler == nil || userAuth == nil {
 		s.logger.Error("family core routes disabled")
 		return
 	}
 
 	api.GET("/families/:familyId/public", handler.PublicDetail)
+	api.GET("/public/families/:familyId/tree", treeHandler.PublicTree)
 
 	families := api.Group("/families")
 	families.Use(userAuth)
@@ -177,27 +181,30 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.POST("/:familyId/relationships", relationshipHandler.Create)
 	families.PUT("/:familyId/relationships/:relationshipId", relationshipHandler.Update)
 	families.DELETE("/:familyId/relationships/:relationshipId", relationshipHandler.Delete)
+	families.GET("/:familyId/tree", treeHandler.PrivateTree)
 }
 
-func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler.MemberHandler, *relationshiphandler.RelationshipHandler, gin.HandlerFunc) {
+func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler.MemberHandler, *relationshiphandler.RelationshipHandler, *treehandler.TreeHandler, gin.HandlerFunc) {
 	ctx := context.Background()
 	db, err := database.Init(ctx, s.cfg.MySQL)
 	if err != nil {
 		s.logger.Error("init mysql for family core", zap.Error(err))
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 	jwtManager, err := commonjwt.NewManager(s.cfg.JWT, s.cfg.App.Name)
 	if err != nil {
 		s.logger.Error("init jwt manager for family core", zap.Error(err))
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 
 	var blacklist commonredis.TokenBlacklist = commonredis.NoopTokenBlacklist{}
+	var treeCache commonredis.TreeCache = commonredis.NoopTreeCache{}
 	redisClient, err := commonredis.NewClient(ctx, s.cfg.Redis)
 	if err != nil {
 		s.logger.Warn("init redis family token blacklist failed, using noop blacklist", zap.Error(err))
 	} else {
 		blacklist = commonredis.NewTokenBlacklist(redisClient)
+		treeCache = commonredis.NewTreeCache(redisClient)
 	}
 
 	repo := familyrepo.NewFamilyRepository(db)
@@ -208,8 +215,11 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 	relationshipRepository := relationshiprepo.NewRepository(db)
 	relationshipUnitOfWork := relationshiprepo.NewUnitOfWork(db, relationshipRepository)
 	relationshipService := relationshipservice.NewRelationshipService(relationshipRepository, relationshipUnitOfWork, permissionService)
+	treeRepository := treerepo.NewRepository(db)
+	treeService := treeservice.NewTreeService(treeRepository, treeCache, permissionService)
 	return familyhandler.NewFamilyHandler(service),
 		memberhandler.NewMemberHandler(memberService),
 		relationshiphandler.NewRelationshipHandler(relationshipService),
+		treehandler.NewTreeHandler(treeService),
 		middleware.UserAuth(jwtManager, blacklist)
 }

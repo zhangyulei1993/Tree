@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Tree API
-  version: 0.9.0
-  description: API contract synchronized from the M1-M9 Go router, DTOs, VOs, handlers, and services.
+  version: 0.10.0
+  description: API contract synchronized from the M1-M10 Go router, DTOs, VOs, handlers, and services.
 servers:
   - url: http://127.0.0.1:8080/api
 tags:
@@ -13,6 +13,7 @@ tags:
   - name: Family
   - name: Family Member
   - name: Family Relationship
+  - name: Family Tree
 paths:
   /health:
     get:
@@ -695,6 +696,47 @@ paths:
           $ref: "#/components/responses/BusinessError"
         "404":
           $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/tree:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    get:
+      tags: [Family Tree]
+      summary: Get the private family tree
+      description: Requires the current USER to be an active member of the family.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: LIST_TREE family-tree snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyTreeAPIResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "500":
+          $ref: "#/components/responses/SystemError"
+  /public/families/{familyId}/tree:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    get:
+      tags: [Family Tree]
+      summary: Get a public family tree
+      description: Available only when family status is NORMAL and publicDisplayStatus is APPROVED.
+      security: []
+      responses:
+        "200":
+          description: Public-safe LIST_TREE family-tree snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyTreeAPIResponse"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "500":
+          $ref: "#/components/responses/SystemError"
 components:
   securitySchemes:
     UserBearerAuth:
@@ -1587,6 +1629,125 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/RelationshipMutation"
+    FamilyTreeNode:
+      type: object
+      required:
+        - memberId
+        - displayName
+        - gender
+        - memberType
+        - userBindingState
+        - canExpand
+      properties:
+        memberId:
+          type: integer
+          format: int64
+        displayName:
+          type: string
+        surname:
+          type: string
+        generationCharacter:
+          type: string
+        gender:
+          type: string
+        memberType:
+          type: string
+        birthDate:
+          type: string
+          format: date
+        deathDate:
+          type: string
+          format: date
+        isLiving:
+          type: boolean
+        userBindingState:
+          type: string
+          enum: [BOUND, UNBOUND, NOT_REQUIRED]
+        canExpand:
+          type: boolean
+        stopReason:
+          type: string
+    FamilyTreeEdge:
+      type: object
+      required:
+        - relationshipId
+        - fromMemberId
+        - toMemberId
+        - relationshipType
+      properties:
+        relationshipId:
+          type: integer
+          format: int64
+        fromMemberId:
+          type: integer
+          format: int64
+        toMemberId:
+          type: integer
+          format: int64
+        relationshipType:
+          type: string
+          enum: [PARENT_CHILD, SPOUSE]
+        parentLinkType:
+          type: string
+        relationNoteType:
+          type: string
+        relationNote:
+          type: string
+    FamilyTreeItem:
+      type: object
+      required: [memberId, parentIds, childrenIds, spouseIds]
+      properties:
+        memberId:
+          type: integer
+          format: int64
+        parentIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        childrenIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        spouseIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+    FamilyTree:
+      type: object
+      required: [familyId, treeMode, graphVersion, nodes, edges, tree]
+      properties:
+        familyId:
+          type: integer
+          format: int64
+        treeMode:
+          type: string
+          enum: [LIST_TREE]
+        graphVersion:
+          type: integer
+          format: int64
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/FamilyTreeNode"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/FamilyTreeEdge"
+        tree:
+          type: array
+          description: Root-oriented reference list; nodes and edges remain authoritative.
+          items:
+            $ref: "#/components/schemas/FamilyTreeItem"
+    FamilyTreeAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/FamilyTree"
     FamilyMember:
       type: object
       required:
