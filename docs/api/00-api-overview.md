@@ -1,6 +1,6 @@
 # Tree API Overview
 
-本文档基于当前 `backend/internal/app/router.go`、DTO、VO、handler 和 service 实现整理，覆盖 M1-M10 已注册的 33 个接口。
+本文档基于当前 `backend/internal/app/router.go`、DTO、VO、handler 和 service 实现整理，覆盖 M1-M11 已注册的 45 个接口。
 
 ## 基础约定
 
@@ -81,5 +81,17 @@ USER 与 ADMIN token 不可互换。JWT payload 的 `typ` 必须与路由中间�
 | Family Relationship | DELETE | `/api/families/{familyId}/relationships/{relationshipId}` | USER |
 | Family Tree | GET | `/api/families/{familyId}/tree` | USER |
 | Family Tree | GET | `/api/public/families/{familyId}/tree` | NONE |
+| Family Invitation | POST | `/api/families/{familyId}/members/{memberId}/invite` | USER |
+| Family Invitation | GET | `/api/invitations/{inviteToken}` | NONE |
+| Family Invitation | POST | `/api/invitations/{invitationId}/accept` | USER |
+| Family Invitation | POST | `/api/invitations/{invitationId}/reject` | USER |
+| Family Invitation | POST | `/api/invitations/{invitationId}/cancel` | USER |
+| Family Invitation | GET | `/api/users/me/invitations` | USER |
+| Family Join Request | POST | `/api/families/{familyId}/join-requests` | USER |
+| Family Join Request | GET | `/api/users/me/join-requests` | USER |
+| Family Join Request | GET | `/api/families/{familyId}/join-requests` | USER |
+| Family Join Request | POST | `/api/families/{familyId}/join-requests/{requestId}/approve` | USER |
+| Family Join Request | POST | `/api/families/{familyId}/join-requests/{requestId}/reject` | USER |
+| Family Join Request | POST | `/api/families/{familyId}/join-requests/{requestId}/cancel` | USER |
 
 详细契约见同目录其他文档及 [openapi.yaml](./openapi.yaml)。
