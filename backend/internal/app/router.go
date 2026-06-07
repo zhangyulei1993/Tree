@@ -23,6 +23,12 @@ import (
 	familyhandler "tree/backend/internal/family/core/handler"
 	familyrepo "tree/backend/internal/family/core/repository"
 	familyservice "tree/backend/internal/family/core/service"
+	invitationhandler "tree/backend/internal/family/invitation/handler"
+	invitationrepo "tree/backend/internal/family/invitation/repository"
+	invitationservice "tree/backend/internal/family/invitation/service"
+	joinhandler "tree/backend/internal/family/joinrequest/handler"
+	joinrepo "tree/backend/internal/family/joinrequest/repository"
+	joinservice "tree/backend/internal/family/joinrequest/service"
 	memberhandler "tree/backend/internal/family/member/handler"
 	memberrepo "tree/backend/internal/family/member/repository"
 	memberservice "tree/backend/internal/family/member/service"
@@ -153,14 +159,16 @@ func (s *Server) buildUserAuth() (*authhandler.AuthHandler, gin.HandlerFunc) {
 }
 
 func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
-	handler, memberHandler, relationshipHandler, treeHandler, userAuth := s.buildFamilyCore()
-	if handler == nil || memberHandler == nil || relationshipHandler == nil || treeHandler == nil || userAuth == nil {
+	handler, memberHandler, relationshipHandler, treeHandler, invitationHandler, joinHandler, userAuth := s.buildFamilyCore()
+	if handler == nil || memberHandler == nil || relationshipHandler == nil || treeHandler == nil ||
+		invitationHandler == nil || joinHandler == nil || userAuth == nil {
 		s.logger.Error("family core routes disabled")
 		return
 	}
 
 	api.GET("/families/:familyId/public", handler.PublicDetail)
 	api.GET("/public/families/:familyId/tree", treeHandler.PublicTree)
+	api.GET("/invitations/:inviteToken", invitationHandler.Detail)
 
 	families := api.Group("/families")
 	families.Use(userAuth)
@@ -178,23 +186,40 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.DELETE("/:familyId/members/:memberId", memberHandler.Delete)
 	families.POST("/:familyId/members/:memberId/bind-user", memberHandler.BindUser)
 	families.POST("/:familyId/members/:memberId/unbind-user", memberHandler.UnbindUser)
+	families.POST("/:familyId/members/:memberId/invite", invitationHandler.Create)
 	families.POST("/:familyId/relationships", relationshipHandler.Create)
 	families.PUT("/:familyId/relationships/:relationshipId", relationshipHandler.Update)
 	families.DELETE("/:familyId/relationships/:relationshipId", relationshipHandler.Delete)
 	families.GET("/:familyId/tree", treeHandler.PrivateTree)
+	families.POST("/:familyId/join-requests", joinHandler.Create)
+	families.GET("/:familyId/join-requests", joinHandler.ListFamily)
+	families.POST("/:familyId/join-requests/:requestId/approve", joinHandler.Approve)
+	families.POST("/:familyId/join-requests/:requestId/reject", joinHandler.Reject)
+	families.POST("/:familyId/join-requests/:requestId/cancel", joinHandler.Cancel)
+
+	invitations := api.Group("/invitations")
+	invitations.Use(userAuth)
+	invitations.POST("/:invitationId/accept", invitationHandler.Accept)
+	invitations.POST("/:invitationId/reject", invitationHandler.Reject)
+	invitations.POST("/:invitationId/cancel", invitationHandler.Cancel)
+
+	users := api.Group("/users/me")
+	users.Use(userAuth)
+	users.GET("/invitations", invitationHandler.ListMine)
+	users.GET("/join-requests", joinHandler.ListMine)
 }
 
-func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler.MemberHandler, *relationshiphandler.RelationshipHandler, *treehandler.TreeHandler, gin.HandlerFunc) {
+func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler.MemberHandler, *relationshiphandler.RelationshipHandler, *treehandler.TreeHandler, *invitationhandler.Handler, *joinhandler.Handler, gin.HandlerFunc) {
 	ctx := context.Background()
 	db, err := database.Init(ctx, s.cfg.MySQL)
 	if err != nil {
 		s.logger.Error("init mysql for family core", zap.Error(err))
-		return nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, nil, nil
 	}
 	jwtManager, err := commonjwt.NewManager(s.cfg.JWT, s.cfg.App.Name)
 	if err != nil {
 		s.logger.Error("init jwt manager for family core", zap.Error(err))
-		return nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, nil, nil
 	}
 
 	var blacklist commonredis.TokenBlacklist = commonredis.NoopTokenBlacklist{}
@@ -217,9 +242,17 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 	relationshipService := relationshipservice.NewRelationshipService(relationshipRepository, relationshipUnitOfWork, permissionService)
 	treeRepository := treerepo.NewRepository(db)
 	treeService := treeservice.NewTreeService(treeRepository, treeCache, permissionService)
+	invitationRepository := invitationrepo.NewRepository(db)
+	invitationUnitOfWork := invitationrepo.NewUnitOfWork(db, invitationRepository)
+	invitationService := invitationservice.NewService(invitationRepository, invitationUnitOfWork, permissionService)
+	joinRepository := joinrepo.NewRepository(db)
+	joinUnitOfWork := joinrepo.NewUnitOfWork(db, joinRepository)
+	joinRequestService := joinservice.NewService(joinRepository, joinUnitOfWork, permissionService)
 	return familyhandler.NewFamilyHandler(service),
 		memberhandler.NewMemberHandler(memberService),
 		relationshiphandler.NewRelationshipHandler(relationshipService),
 		treehandler.NewTreeHandler(treeService),
+		invitationhandler.NewHandler(invitationService),
+		joinhandler.NewHandler(joinRequestService),
 		middleware.UserAuth(jwtManager, blacklist)
 }

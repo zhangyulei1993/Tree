@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Tree API
-  version: 0.10.0
-  description: API contract synchronized from the M1-M10 Go router, DTOs, VOs, handlers, and services.
+  version: 0.11.0
+  description: API contract synchronized from the M1-M11 Go router, DTOs, VOs, handlers, and services.
 servers:
   - url: http://127.0.0.1:8080/api
 tags:
@@ -14,6 +14,8 @@ tags:
   - name: Family Member
   - name: Family Relationship
   - name: Family Tree
+  - name: Family Invitation
+  - name: Family Join Request
 paths:
   /health:
     get:
@@ -737,6 +739,184 @@ paths:
           $ref: "#/components/responses/BusinessError"
         "500":
           $ref: "#/components/responses/SystemError"
+  /families/{familyId}/members/{memberId}/invite:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/MemberID"
+    post:
+      tags: [Family Invitation]
+      summary: Create a share-link or in-app invitation
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateInvitationRequest"}
+      responses:
+        "201":
+          description: Invitation created; the raw inviteToken is returned once
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CreatedInvitationAPIResponse"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /invitations/{inviteToken}:
+    parameters:
+      - name: inviteToken
+        in: path
+        required: true
+        schema: {type: string}
+    get:
+      tags: [Family Invitation]
+      summary: Get public-safe invitation details
+      security: []
+      responses:
+        "200":
+          description: Invitation details
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/InvitationAPIResponse"}
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /invitations/{invitationId}/accept:
+    parameters:
+      - $ref: "#/components/parameters/InvitationID"
+    post:
+      tags: [Family Invitation]
+      summary: Accept an invitation and create an ACTIVE member link
+      security: [{UserBearerAuth: []}]
+      responses:
+        "200": {$ref: "#/components/responses/InvitationOK"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /invitations/{invitationId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/InvitationID"
+    post:
+      tags: [Family Invitation]
+      summary: Reject an invitation
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/InvitationReasonRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/InvitationOK"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+  /invitations/{invitationId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/InvitationID"
+    post:
+      tags: [Family Invitation]
+      summary: Cancel a pending invitation
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/InvitationReasonRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/InvitationOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /users/me/invitations:
+    get:
+      tags: [Family Invitation]
+      summary: List current user's in-app invitations
+      security: [{UserBearerAuth: []}]
+      responses:
+        "200":
+          description: Invitation list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/InvitationListAPIResponse"}
+  /families/{familyId}/join-requests:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family Join Request]
+      summary: Apply to join a family
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateJoinRequest"}
+      responses:
+        "201": {$ref: "#/components/responses/JoinRequestOK"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+    get:
+      tags: [Family Join Request]
+      summary: List family join requests as FOUNDER or FAMILY_ADMIN
+      security: [{UserBearerAuth: []}]
+      responses:
+        "200":
+          description: Join request list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/JoinRequestListAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /users/me/join-requests:
+    get:
+      tags: [Family Join Request]
+      summary: List current user's join requests
+      security: [{UserBearerAuth: []}]
+      responses:
+        "200":
+          description: Join request list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/JoinRequestListAPIResponse"}
+  /families/{familyId}/join-requests/{requestId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Family Join Request]
+      summary: Approve and bind an existing or newly-created member
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ApproveJoinRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/JoinRequestOK"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/join-requests/{requestId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Family Join Request]
+      summary: Reject a join request
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/HandleJoinRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/JoinRequestOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/join-requests/{requestId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Family Join Request]
+      summary: Cancel own pending join request
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CancelJoinRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/JoinRequestOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
 components:
   securitySchemes:
     UserBearerAuth:
@@ -776,6 +956,14 @@ components:
         minimum: 1
     RelationshipID:
       name: relationshipId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    InvitationID:
+      name: invitationId
       in: path
       required: true
       schema:
@@ -841,7 +1029,154 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/StatusAPIResponse"
+    InvitationOK:
+      description: Invitation mutation succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/InvitationAPIResponse"
+    JoinRequestOK:
+      description: Join-request mutation succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/JoinRequestAPIResponse"
   schemas:
+    CreateInvitationRequest:
+      type: object
+      required: [inviteChannel]
+      properties:
+        inviteChannel:
+          type: string
+          enum: [SHARE_LINK, IN_APP]
+        targetUserId:
+          type: integer
+          format: int64
+        inviteMessage:
+          type: string
+          maxLength: 500
+        familyRoleAfterAccept:
+          type: string
+          enum: [MEMBER]
+    InvitationReasonRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+    Invitation:
+      type: object
+      required: [invitationId, familyId, targetMemberId, inviteChannel, familyRoleAfterAccept, status, expiredAt, createdAt]
+      properties:
+        invitationId: {type: integer, format: int64}
+        familyId: {type: integer, format: int64}
+        familyName: {type: string}
+        targetMemberId: {type: integer, format: int64}
+        targetMemberName: {type: string}
+        inviteChannel: {type: string, enum: [SHARE_LINK, IN_APP]}
+        inviteMessage: {type: string}
+        familyRoleAfterAccept: {type: string, enum: [MEMBER]}
+        status: {type: string, enum: [PENDING, ACCEPTED, REJECTED, CANCELLED, EXPIRED]}
+        expiredAt: {type: string, format: date-time}
+        acceptedAt: {type: string, format: date-time}
+        rejectedAt: {type: string, format: date-time}
+        cancelledAt: {type: string, format: date-time}
+        createdAt: {type: string, format: date-time}
+    CreatedInvitation:
+      type: object
+      required: [invitation, inviteToken]
+      properties:
+        invitation: {$ref: "#/components/schemas/Invitation"}
+        inviteToken:
+          type: string
+          description: Returned once and never stored in plaintext.
+    InvitationAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/Invitation"}
+    CreatedInvitationAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/CreatedInvitation"}
+    InvitationListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items: {$ref: "#/components/schemas/Invitation"}
+    CreateJoinRequest:
+      type: object
+      properties:
+        applicantRealName: {type: string, maxLength: 100}
+        applicantMessage: {type: string, maxLength: 500}
+    NewJoinMember:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string}
+        gender: {type: string, enum: [MALE, FEMALE, UNKNOWN]}
+        birthDate: {type: string, format: date}
+        birthYear: {type: integer}
+        isAlive: {type: boolean}
+        userBindingPolicy: {type: string, enum: [OPTIONAL, REQUIRED]}
+    ApproveJoinRequest:
+      type: object
+      required: [approveMode]
+      properties:
+        approveMode:
+          type: string
+          enum: [BIND_EXISTING_MEMBER, CREATE_NEW_MEMBER]
+        memberId: {type: integer, format: int64}
+        newMember: {$ref: "#/components/schemas/NewJoinMember"}
+        handleComment: {type: string, maxLength: 500}
+    HandleJoinRequest:
+      type: object
+      properties:
+        handleComment: {type: string, maxLength: 500}
+    CancelJoinRequest:
+      type: object
+      properties:
+        cancelReason: {type: string, maxLength: 500}
+    JoinRequest:
+      type: object
+      required: [requestId, familyId, applicantUserId, requestStatus, createdAt, updatedAt]
+      properties:
+        requestId: {type: integer, format: int64}
+        familyId: {type: integer, format: int64}
+        familyName: {type: string}
+        applicantUserId: {type: integer, format: int64}
+        applicantRealName: {type: string}
+        applicantMessage: {type: string}
+        requestStatus: {type: string, enum: [PENDING, APPROVED, REJECTED, CANCELLED]}
+        approveMode: {type: string, enum: [BIND_EXISTING_MEMBER, CREATE_NEW_MEMBER]}
+        boundMemberId: {type: integer, format: int64}
+        createdMemberId: {type: integer, format: int64}
+        handleComment: {type: string}
+        handledAt: {type: string, format: date-time}
+        cancelledAt: {type: string, format: date-time}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        graphVersion: {type: integer, format: int64}
+    JoinRequestAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/JoinRequest"}
+    JoinRequestListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items: {$ref: "#/components/schemas/JoinRequest"}
     ErrorResponse:
       type: object
       required: [code, message, data]
