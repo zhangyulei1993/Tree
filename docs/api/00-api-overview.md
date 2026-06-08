@@ -1,6 +1,6 @@
 # Tree API Overview
 
-本文档基于当前 `backend/internal/app/router.go`、DTO、VO、handler 和 service 实现整理，覆盖 M1-M12 已注册的 58 个接口。
+本文档基于当前 `backend/internal/app/router.go`、DTO、VO、handler 和 service 实现整理，覆盖 M1-M13 已注册的 69 个接口。
 
 ## 基础约定
 
@@ -106,5 +106,16 @@ USER 与 ADMIN token 不可互换。JWT payload 的 `typ` 必须与路由中间�
 | Visitor Message | POST | `/api/admin/visitor-messages/{messageId}/approve` | ADMIN |
 | Visitor Message | POST | `/api/admin/visitor-messages/{messageId}/reject` | ADMIN |
 | Visitor Message | DELETE | `/api/admin/visitor-messages/{messageId}` | ADMIN |
+| Family Role | POST | `/api/families/{familyId}/members/{memberId}/set-admin` | USER |
+| Family Role | POST | `/api/families/{familyId}/members/{memberId}/unset-admin` | USER |
+| Founder Transfer | POST | `/api/families/{familyId}/founder-transfer-requests` | USER |
+| Founder Transfer | POST | `/api/families/{familyId}/founder-transfer-requests/{requestId}/cancel` | USER |
+| Founder Transfer | GET | `/api/admin/founder-transfer-requests` | ADMIN |
+| Founder Transfer | POST | `/api/admin/founder-transfer-requests/{requestId}/approve` | ADMIN |
+| Founder Transfer | POST | `/api/admin/founder-transfer-requests/{requestId}/reject` | ADMIN |
+| Family Dissolution | GET | `/api/admin/dissolution-requests` | ADMIN |
+| Family Dissolution | POST | `/api/admin/dissolution-requests/{requestId}/approve` | ADMIN |
+| Family Dissolution | POST | `/api/admin/dissolution-requests/{requestId}/reject` | ADMIN |
+| Family Restore | POST | `/api/admin/families/{familyId}/restore` | ADMIN |
 
 详细契约见同目录其他文档及 [openapi.yaml](./openapi.yaml)。

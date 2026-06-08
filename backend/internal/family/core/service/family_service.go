@@ -265,6 +265,9 @@ func (s *familyService) CreateDissolutionRequest(ctx context.Context, userID uin
 	if err != nil {
 		return nil, familyError(CodeFamilyDissolutionForbidden, "无权操作家庭解散申请")
 	}
+	if link.FamilyRole != string(enums.FamilyRoleFounder) {
+		return nil, familyError(CodeFamilyDissolutionForbidden, "无权操作家庭解散申请")
+	}
 	request := &dissolutionmodel.FamilyDissolutionRequest{
 		FamilyID: familyID, RequesterMemberID: link.MemberID, RequesterUserID: userID,
 		RequestStatus: dissolutionStatusPending, RequestReason: cleanString(req.RequestReason),

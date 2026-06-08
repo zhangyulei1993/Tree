@@ -23,6 +23,9 @@ import (
 	familyhandler "tree/backend/internal/family/core/handler"
 	familyrepo "tree/backend/internal/family/core/repository"
 	familyservice "tree/backend/internal/family/core/service"
+	dissolutionhandler "tree/backend/internal/family/dissolution/handler"
+	dissolutionrepo "tree/backend/internal/family/dissolution/repository"
+	dissolutionservice "tree/backend/internal/family/dissolution/service"
 	invitationhandler "tree/backend/internal/family/invitation/handler"
 	invitationrepo "tree/backend/internal/family/invitation/repository"
 	invitationservice "tree/backend/internal/family/invitation/service"
@@ -41,6 +44,12 @@ import (
 	relationshiphandler "tree/backend/internal/family/relationship/handler"
 	relationshiprepo "tree/backend/internal/family/relationship/repository"
 	relationshipservice "tree/backend/internal/family/relationship/service"
+	rolehandler "tree/backend/internal/family/role/handler"
+	rolerepo "tree/backend/internal/family/role/repository"
+	roleservice "tree/backend/internal/family/role/service"
+	transferhandler "tree/backend/internal/family/transfer/handler"
+	transferrepo "tree/backend/internal/family/transfer/repository"
+	transferservice "tree/backend/internal/family/transfer/service"
 	treehandler "tree/backend/internal/family/tree/handler"
 	treerepo "tree/backend/internal/family/tree/repository"
 	treeservice "tree/backend/internal/family/tree/service"
@@ -165,10 +174,11 @@ func (s *Server) buildUserAuth() (*authhandler.AuthHandler, gin.HandlerFunc) {
 }
 
 func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
-	handler, memberHandler, relationshipHandler, treeHandler, invitationHandler, joinHandler, publicApplicationHandler, visitorMessageHandler, userAuth, adminAuth := s.buildFamilyCore()
+	handler, memberHandler, relationshipHandler, treeHandler, invitationHandler, joinHandler, publicApplicationHandler, visitorMessageHandler, roleHandler, transferHandler, dissolutionHandler, userAuth, adminAuth := s.buildFamilyCore()
 	if handler == nil || memberHandler == nil || relationshipHandler == nil || treeHandler == nil ||
 		invitationHandler == nil || joinHandler == nil || publicApplicationHandler == nil ||
-		visitorMessageHandler == nil || userAuth == nil || adminAuth == nil {
+		visitorMessageHandler == nil || roleHandler == nil || transferHandler == nil ||
+		dissolutionHandler == nil || userAuth == nil || adminAuth == nil {
 		s.logger.Error("family core routes disabled")
 		return
 	}
@@ -196,6 +206,8 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.POST("/:familyId/members/:memberId/bind-user", memberHandler.BindUser)
 	families.POST("/:familyId/members/:memberId/unbind-user", memberHandler.UnbindUser)
 	families.POST("/:familyId/members/:memberId/invite", invitationHandler.Create)
+	families.POST("/:familyId/members/:memberId/set-admin", roleHandler.SetAdmin)
+	families.POST("/:familyId/members/:memberId/unset-admin", roleHandler.UnsetAdmin)
 	families.POST("/:familyId/relationships", relationshipHandler.Create)
 	families.PUT("/:familyId/relationships/:relationshipId", relationshipHandler.Update)
 	families.DELETE("/:familyId/relationships/:relationshipId", relationshipHandler.Delete)
@@ -208,6 +220,8 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.POST("/:familyId/public-applications", publicApplicationHandler.Submit)
 	families.GET("/:familyId/public-applications", publicApplicationHandler.ListFamily)
 	families.POST("/:familyId/public-applications/:applicationId/cancel", publicApplicationHandler.Cancel)
+	families.POST("/:familyId/founder-transfer-requests", transferHandler.Create)
+	families.POST("/:familyId/founder-transfer-requests/:requestId/cancel", transferHandler.Cancel)
 
 	invitations := api.Group("/invitations")
 	invitations.Use(userAuth)
@@ -230,19 +244,26 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	admin.POST("/visitor-messages/:messageId/approve", visitorMessageHandler.Approve)
 	admin.POST("/visitor-messages/:messageId/reject", visitorMessageHandler.Reject)
 	admin.DELETE("/visitor-messages/:messageId", visitorMessageHandler.Delete)
+	admin.GET("/founder-transfer-requests", transferHandler.ListAdmin)
+	admin.POST("/founder-transfer-requests/:requestId/approve", transferHandler.Approve)
+	admin.POST("/founder-transfer-requests/:requestId/reject", transferHandler.Reject)
+	admin.GET("/dissolution-requests", dissolutionHandler.ListAdmin)
+	admin.POST("/dissolution-requests/:requestId/approve", dissolutionHandler.Approve)
+	admin.POST("/dissolution-requests/:requestId/reject", dissolutionHandler.Reject)
+	admin.POST("/families/:familyId/restore", dissolutionHandler.Restore)
 }
 
-func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler.MemberHandler, *relationshiphandler.RelationshipHandler, *treehandler.TreeHandler, *invitationhandler.Handler, *joinhandler.Handler, *publichandler.Handler, *messagehandler.Handler, gin.HandlerFunc, gin.HandlerFunc) {
+func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler.MemberHandler, *relationshiphandler.RelationshipHandler, *treehandler.TreeHandler, *invitationhandler.Handler, *joinhandler.Handler, *publichandler.Handler, *messagehandler.Handler, *rolehandler.Handler, *transferhandler.Handler, *dissolutionhandler.Handler, gin.HandlerFunc, gin.HandlerFunc) {
 	ctx := context.Background()
 	db, err := database.Init(ctx, s.cfg.MySQL)
 	if err != nil {
 		s.logger.Error("init mysql for family core", zap.Error(err))
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil
 	}
 	jwtManager, err := commonjwt.NewManager(s.cfg.JWT, s.cfg.App.Name)
 	if err != nil {
 		s.logger.Error("init jwt manager for family core", zap.Error(err))
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil
 	}
 
 	var blacklist commonredis.TokenBlacklist = commonredis.NoopTokenBlacklist{}
@@ -277,6 +298,15 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 	messageRepository := messagerepo.NewRepository(db)
 	messageUnitOfWork := messagerepo.NewUnitOfWork(db, messageRepository)
 	visitorMessageService := messageservice.NewService(messageRepository, messageUnitOfWork)
+	roleRepository := rolerepo.NewRepository(db)
+	roleUnitOfWork := rolerepo.NewUnitOfWork(db, roleRepository)
+	roleService := roleservice.NewService(roleRepository, roleUnitOfWork)
+	transferRepository := transferrepo.NewRepository(db)
+	transferUnitOfWork := transferrepo.NewUnitOfWork(db, transferRepository)
+	transferService := transferservice.NewService(transferRepository, transferUnitOfWork)
+	dissolutionRepository := dissolutionrepo.NewRepository(db)
+	dissolutionUnitOfWork := dissolutionrepo.NewUnitOfWork(db, dissolutionRepository)
+	dissolutionService := dissolutionservice.NewService(dissolutionRepository, dissolutionUnitOfWork)
 	return familyhandler.NewFamilyHandler(service),
 		memberhandler.NewMemberHandler(memberService),
 		relationshiphandler.NewRelationshipHandler(relationshipService),
@@ -285,6 +315,9 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 		joinhandler.NewHandler(joinRequestService),
 		publichandler.NewHandler(publicApplicationService),
 		messagehandler.NewHandler(visitorMessageService),
+		rolehandler.NewHandler(roleService),
+		transferhandler.NewHandler(transferService),
+		dissolutionhandler.NewHandler(dissolutionService),
 		middleware.UserAuth(jwtManager, blacklist),
 		middleware.AdminAuth(jwtManager, blacklist)
 }
