@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Tree API
-  version: 0.11.0
-  description: API contract synchronized from the M1-M11 Go router, DTOs, VOs, handlers, and services.
+  version: 0.12.0
+  description: API contract synchronized from the M1-M12 Go router, DTOs, VOs, handlers, and services.
 servers:
   - url: http://127.0.0.1:8080/api
 tags:
@@ -16,6 +16,8 @@ tags:
   - name: Family Tree
   - name: Family Invitation
   - name: Family Join Request
+  - name: Family Public Display
+  - name: Visitor Message
 paths:
   /health:
     get:
@@ -917,6 +919,232 @@ paths:
       responses:
         "200": {$ref: "#/components/responses/JoinRequestOK"}
         "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/public-applications:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family Public Display]
+      summary: Submit a public-display application
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreatePublicApplicationRequest"}
+      responses:
+        "201": {$ref: "#/components/responses/PublicApplicationOK"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+    get:
+      tags: [Family Public Display]
+      summary: List current family's public-display applications
+      security: [{UserBearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StatusQuery"
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PageSizeQuery"
+      responses:
+        "200":
+          description: Public-display application list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PublicApplicationListAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/public-applications/{applicationId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/ApplicationID"
+    post:
+      tags: [Family Public Display]
+      summary: Cancel a pending public-display application
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CancelPublicApplicationRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/PublicApplicationOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /admin/family-public-applications:
+    get:
+      tags: [Family Public Display]
+      summary: Admin list public-display applications
+      security: [{AdminBearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StatusQuery"
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PageSizeQuery"
+      responses:
+        "200":
+          description: Public-display application list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PublicApplicationListAPIResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/family-public-applications/{applicationId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/ApplicationID"
+    post:
+      tags: [Family Public Display]
+      summary: Admin approve a public-display application
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewPublicApplicationRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/PublicApplicationOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /admin/family-public-applications/{applicationId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/ApplicationID"
+    post:
+      tags: [Family Public Display]
+      summary: Admin reject a public-display application
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewPublicApplicationRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/PublicApplicationOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /admin/families/{familyId}/take-down-public:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family Public Display]
+      summary: Admin take down an approved public family
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/TakeDownPublicFamilyRequest"}
+      responses:
+        "200":
+          description: Family public status updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FamilyPublicStatusAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /public/families/{familyId}/visitor-messages:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Visitor Message]
+      summary: Submit a visitor message to a public family
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateVisitorMessageRequest"}
+      responses:
+        "201": {$ref: "#/components/responses/VisitorMessageOK"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+        "429": {$ref: "#/components/responses/BusinessError"}
+    get:
+      tags: [Visitor Message]
+      summary: List approved public visitor messages
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PageSizeQuery"
+      responses:
+        "200":
+          description: Public visitor message list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PublicVisitorMessageListAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/visitor-messages:
+    get:
+      tags: [Visitor Message]
+      summary: Admin list visitor messages
+      security: [{AdminBearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StatusQuery"
+        - name: familyId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PageSizeQuery"
+      responses:
+        "200":
+          description: Visitor message list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/VisitorMessageListAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/visitor-messages/{messageId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/MessageID"
+    post:
+      tags: [Visitor Message]
+      summary: Admin approve a visitor message
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewVisitorMessageRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/VisitorMessageOK"}
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /admin/visitor-messages/{messageId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/MessageID"
+    post:
+      tags: [Visitor Message]
+      summary: Admin reject a visitor message
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewVisitorMessageRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/VisitorMessageOK"}
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /admin/visitor-messages/{messageId}:
+    parameters:
+      - $ref: "#/components/parameters/MessageID"
+    delete:
+      tags: [Visitor Message]
+      summary: Admin soft-delete a visitor message
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DeleteVisitorMessageRequest"}
+      responses:
+        "200":
+          description: Message deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ResponseEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          deleted:
+                            type: boolean
+        "404": {$ref: "#/components/responses/BusinessError"}
 components:
   securitySchemes:
     UserBearerAuth:
@@ -970,6 +1198,42 @@ components:
         type: integer
         format: int64
         minimum: 1
+    ApplicationID:
+      name: applicationId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    MessageID:
+      name: messageId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    StatusQuery:
+      name: status
+      in: query
+      schema:
+        type: string
+    PageQuery:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    PageSizeQuery:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
   responses:
     BadRequest:
       description: Invalid JSON or parameters
@@ -1041,6 +1305,18 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/JoinRequestAPIResponse"
+    PublicApplicationOK:
+      description: Public-display application mutation succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/PublicApplicationAPIResponse"
+    VisitorMessageOK:
+      description: Visitor message mutation succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/VisitorMessageAPIResponse"
   schemas:
     CreateInvitationRequest:
       type: object
@@ -2204,3 +2480,289 @@ components:
               allOf:
                 - $ref: "#/components/schemas/DissolutionRequest"
               nullable: true
+    CreatePublicApplicationRequest:
+      type: object
+      properties:
+        applicationReason:
+          type: string
+          nullable: true
+          maxLength: 500
+    ReviewPublicApplicationRequest:
+      type: object
+      properties:
+        reviewComment:
+          type: string
+          nullable: true
+          maxLength: 500
+    CancelPublicApplicationRequest:
+      type: object
+      properties:
+        cancelReason:
+          type: string
+          nullable: true
+          maxLength: 500
+    TakeDownPublicFamilyRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    PublicApplication:
+      type: object
+      properties:
+        applicationId:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        familyName:
+          type: string
+        applicantUserId:
+          type: integer
+          format: int64
+          nullable: true
+        applicantAdminId:
+          type: integer
+          format: int64
+          nullable: true
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, CANCELLED]
+        reason:
+          type: string
+          nullable: true
+        reviewResult:
+          type: string
+          nullable: true
+        reviewedByAdminId:
+          type: integer
+          format: int64
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewComment:
+          type: string
+          nullable: true
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+        cancelReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PublicApplicationList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicApplication"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+    FamilyPublicStatus:
+      type: object
+      properties:
+        familyId:
+          type: integer
+          format: int64
+        publicDisplayStatus:
+          type: string
+          enum: [PRIVATE, PENDING, APPROVED, REJECTED, CANCELLED, TAKEN_DOWN]
+        publicAppliedAt:
+          type: string
+          format: date-time
+          nullable: true
+        publicApprovedAt:
+          type: string
+          format: date-time
+          nullable: true
+        publicTakenDownAt:
+          type: string
+          format: date-time
+          nullable: true
+    CreateVisitorMessageRequest:
+      type: object
+      required: [messageContent]
+      properties:
+        visitorName:
+          type: string
+          nullable: true
+          maxLength: 100
+        visitorPhone:
+          type: string
+          nullable: true
+          maxLength: 30
+        visitorWechat:
+          type: string
+          nullable: true
+          maxLength: 120
+        messageContent:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    ReviewVisitorMessageRequest:
+      type: object
+      properties:
+        reviewComment:
+          type: string
+          nullable: true
+          maxLength: 500
+    DeleteVisitorMessageRequest:
+      type: object
+      properties:
+        deleteReason:
+          type: string
+          nullable: true
+          maxLength: 500
+    VisitorMessage:
+      type: object
+      properties:
+        messageId:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        familyName:
+          type: string
+        visitorName:
+          type: string
+          nullable: true
+        visitorPhone:
+          type: string
+          nullable: true
+        visitorWechat:
+          type: string
+          nullable: true
+        messageContent:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, DELETED]
+        reviewedByAdminId:
+          type: integer
+          format: int64
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewComment:
+          type: string
+          nullable: true
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PublicVisitorMessage:
+      type: object
+      description: Public visitor message result; visitorPhone and visitorWechat are intentionally omitted.
+      properties:
+        messageId:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        visitorName:
+          type: string
+          nullable: true
+        messageContent:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+    VisitorMessageList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisitorMessage"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+    PublicVisitorMessageList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicVisitorMessage"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+    PublicApplicationAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PublicApplication"
+    PublicApplicationListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PublicApplicationList"
+    FamilyPublicStatusAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/FamilyPublicStatus"
+    VisitorMessageAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/VisitorMessage"
+    VisitorMessageListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/VisitorMessageList"
+    PublicVisitorMessageListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PublicVisitorMessageList"

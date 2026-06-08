@@ -6,7 +6,7 @@ Tree is a family genealogy platform. This repository currently contains the M1 p
 
 - [API overview](docs/api/00-api-overview.md)
 - [Authentication and response format](docs/api/01-authentication-and-response.md)
-- [Family member API](docs/api/07-family-member-api.md)
+- [Family member API](docs/api/08-family-member-api.md)
 - [OpenAPI specification](docs/api/openapi.yaml)
 - [Error codes](docs/api/error-codes.md)
 - [Database schema overview](docs/database/schema-overview.md)
@@ -160,7 +160,7 @@ Creating a family requires an `ACTIVE`, phone-verified user. The family, founder
 
 ## Family Members
 
-M8 adds family member CRUD and user binding APIs under `/api/families/:familyId/members`. Family members remain separate from platform users. Creating, updating, and soft-deleting member structure increments `families.graph_version`; binding and unbinding users does not. See [the M8 API contract](docs/api/07-family-member-api.md).
+M8 adds family member CRUD and user binding APIs under `/api/families/:familyId/members`. Family members remain separate from platform users. Creating, updating, and soft-deleting member structure increments `families.graph_version`; binding and unbinding users does not. See [the M8 API contract](docs/api/08-family-member-api.md).
 
 Start the backend API from inside the dev container:
 

@@ -32,6 +32,12 @@ import (
 	memberhandler "tree/backend/internal/family/member/handler"
 	memberrepo "tree/backend/internal/family/member/repository"
 	memberservice "tree/backend/internal/family/member/service"
+	messagehandler "tree/backend/internal/family/message/handler"
+	messagerepo "tree/backend/internal/family/message/repository"
+	messageservice "tree/backend/internal/family/message/service"
+	publichandler "tree/backend/internal/family/publicdisplay/handler"
+	publicrepo "tree/backend/internal/family/publicdisplay/repository"
+	publicservice "tree/backend/internal/family/publicdisplay/service"
 	relationshiphandler "tree/backend/internal/family/relationship/handler"
 	relationshiprepo "tree/backend/internal/family/relationship/repository"
 	relationshipservice "tree/backend/internal/family/relationship/service"
@@ -159,15 +165,18 @@ func (s *Server) buildUserAuth() (*authhandler.AuthHandler, gin.HandlerFunc) {
 }
 
 func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
-	handler, memberHandler, relationshipHandler, treeHandler, invitationHandler, joinHandler, userAuth := s.buildFamilyCore()
+	handler, memberHandler, relationshipHandler, treeHandler, invitationHandler, joinHandler, publicApplicationHandler, visitorMessageHandler, userAuth, adminAuth := s.buildFamilyCore()
 	if handler == nil || memberHandler == nil || relationshipHandler == nil || treeHandler == nil ||
-		invitationHandler == nil || joinHandler == nil || userAuth == nil {
+		invitationHandler == nil || joinHandler == nil || publicApplicationHandler == nil ||
+		visitorMessageHandler == nil || userAuth == nil || adminAuth == nil {
 		s.logger.Error("family core routes disabled")
 		return
 	}
 
 	api.GET("/families/:familyId/public", handler.PublicDetail)
 	api.GET("/public/families/:familyId/tree", treeHandler.PublicTree)
+	api.POST("/public/families/:familyId/visitor-messages", visitorMessageHandler.CreatePublic)
+	api.GET("/public/families/:familyId/visitor-messages", visitorMessageHandler.ListPublic)
 	api.GET("/invitations/:inviteToken", invitationHandler.Detail)
 
 	families := api.Group("/families")
@@ -196,6 +205,9 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.POST("/:familyId/join-requests/:requestId/approve", joinHandler.Approve)
 	families.POST("/:familyId/join-requests/:requestId/reject", joinHandler.Reject)
 	families.POST("/:familyId/join-requests/:requestId/cancel", joinHandler.Cancel)
+	families.POST("/:familyId/public-applications", publicApplicationHandler.Submit)
+	families.GET("/:familyId/public-applications", publicApplicationHandler.ListFamily)
+	families.POST("/:familyId/public-applications/:applicationId/cancel", publicApplicationHandler.Cancel)
 
 	invitations := api.Group("/invitations")
 	invitations.Use(userAuth)
@@ -207,19 +219,30 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	users.Use(userAuth)
 	users.GET("/invitations", invitationHandler.ListMine)
 	users.GET("/join-requests", joinHandler.ListMine)
+
+	admin := api.Group("/admin")
+	admin.Use(adminAuth)
+	admin.GET("/family-public-applications", publicApplicationHandler.ListAdmin)
+	admin.POST("/family-public-applications/:applicationId/approve", publicApplicationHandler.Approve)
+	admin.POST("/family-public-applications/:applicationId/reject", publicApplicationHandler.Reject)
+	admin.POST("/families/:familyId/take-down-public", publicApplicationHandler.TakeDown)
+	admin.GET("/visitor-messages", visitorMessageHandler.ListAdmin)
+	admin.POST("/visitor-messages/:messageId/approve", visitorMessageHandler.Approve)
+	admin.POST("/visitor-messages/:messageId/reject", visitorMessageHandler.Reject)
+	admin.DELETE("/visitor-messages/:messageId", visitorMessageHandler.Delete)
 }
 
-func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler.MemberHandler, *relationshiphandler.RelationshipHandler, *treehandler.TreeHandler, *invitationhandler.Handler, *joinhandler.Handler, gin.HandlerFunc) {
+func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler.MemberHandler, *relationshiphandler.RelationshipHandler, *treehandler.TreeHandler, *invitationhandler.Handler, *joinhandler.Handler, *publichandler.Handler, *messagehandler.Handler, gin.HandlerFunc, gin.HandlerFunc) {
 	ctx := context.Background()
 	db, err := database.Init(ctx, s.cfg.MySQL)
 	if err != nil {
 		s.logger.Error("init mysql for family core", zap.Error(err))
-		return nil, nil, nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil
 	}
 	jwtManager, err := commonjwt.NewManager(s.cfg.JWT, s.cfg.App.Name)
 	if err != nil {
 		s.logger.Error("init jwt manager for family core", zap.Error(err))
-		return nil, nil, nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil
 	}
 
 	var blacklist commonredis.TokenBlacklist = commonredis.NoopTokenBlacklist{}
@@ -248,11 +271,20 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 	joinRepository := joinrepo.NewRepository(db)
 	joinUnitOfWork := joinrepo.NewUnitOfWork(db, joinRepository)
 	joinRequestService := joinservice.NewService(joinRepository, joinUnitOfWork, permissionService)
+	publicRepository := publicrepo.NewRepository(db)
+	publicUnitOfWork := publicrepo.NewUnitOfWork(db, publicRepository)
+	publicApplicationService := publicservice.NewService(publicRepository, publicUnitOfWork, permissionService)
+	messageRepository := messagerepo.NewRepository(db)
+	messageUnitOfWork := messagerepo.NewUnitOfWork(db, messageRepository)
+	visitorMessageService := messageservice.NewService(messageRepository, messageUnitOfWork)
 	return familyhandler.NewFamilyHandler(service),
 		memberhandler.NewMemberHandler(memberService),
 		relationshiphandler.NewRelationshipHandler(relationshipService),
 		treehandler.NewTreeHandler(treeService),
 		invitationhandler.NewHandler(invitationService),
 		joinhandler.NewHandler(joinRequestService),
-		middleware.UserAuth(jwtManager, blacklist)
+		publichandler.NewHandler(publicApplicationService),
+		messagehandler.NewHandler(visitorMessageService),
+		middleware.UserAuth(jwtManager, blacklist),
+		middleware.AdminAuth(jwtManager, blacklist)
 }
