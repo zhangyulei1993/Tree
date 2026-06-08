@@ -1,6 +1,6 @@
 # Tree API Overview
 
-本文档基于当前 `backend/internal/app/router.go`、DTO、VO、handler 和 service 实现整理，覆盖 M1-M11 已注册的 45 个接口。
+本文档基于当前 `backend/internal/app/router.go`、DTO、VO、handler 和 service 实现整理，覆盖 M1-M12 已注册的 58 个接口。
 
 ## 基础约定
 
@@ -93,5 +93,18 @@ USER 与 ADMIN token 不可互换。JWT payload 的 `typ` 必须与路由中间�
 | Family Join Request | POST | `/api/families/{familyId}/join-requests/{requestId}/approve` | USER |
 | Family Join Request | POST | `/api/families/{familyId}/join-requests/{requestId}/reject` | USER |
 | Family Join Request | POST | `/api/families/{familyId}/join-requests/{requestId}/cancel` | USER |
+| Family Public Display | POST | `/api/families/{familyId}/public-applications` | USER |
+| Family Public Display | GET | `/api/families/{familyId}/public-applications` | USER |
+| Family Public Display | POST | `/api/families/{familyId}/public-applications/{applicationId}/cancel` | USER |
+| Family Public Display | GET | `/api/admin/family-public-applications` | ADMIN |
+| Family Public Display | POST | `/api/admin/family-public-applications/{applicationId}/approve` | ADMIN |
+| Family Public Display | POST | `/api/admin/family-public-applications/{applicationId}/reject` | ADMIN |
+| Family Public Display | POST | `/api/admin/families/{familyId}/take-down-public` | ADMIN |
+| Visitor Message | POST | `/api/public/families/{familyId}/visitor-messages` | NONE |
+| Visitor Message | GET | `/api/public/families/{familyId}/visitor-messages` | NONE |
+| Visitor Message | GET | `/api/admin/visitor-messages` | ADMIN |
+| Visitor Message | POST | `/api/admin/visitor-messages/{messageId}/approve` | ADMIN |
+| Visitor Message | POST | `/api/admin/visitor-messages/{messageId}/reject` | ADMIN |
+| Visitor Message | DELETE | `/api/admin/visitor-messages/{messageId}` | ADMIN |
 
 详细契约见同目录其他文档及 [openapi.yaml](./openapi.yaml)。
