@@ -18,6 +18,10 @@ tags:
   - name: Family Join Request
   - name: Family Public Display
   - name: Visitor Message
+  - name: Family Role
+  - name: Founder Transfer
+  - name: Family Dissolution
+  - name: Family Restore
 paths:
   /health:
     get:
@@ -1145,6 +1149,186 @@ paths:
                           deleted:
                             type: boolean
         "404": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/members/{memberId}/set-admin:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/MemberID"
+    post:
+      tags: [Family Role]
+      summary: Set a bound member as FAMILY_ADMIN
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RoleChangeRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/RoleChangeOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/members/{memberId}/unset-admin:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/MemberID"
+    post:
+      tags: [Family Role]
+      summary: Unset a FAMILY_ADMIN back to MEMBER
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RoleChangeRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/RoleChangeOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/founder-transfer-requests:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Founder Transfer]
+      summary: Create a founder transfer request
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateFounderTransferRequest"}
+      responses:
+        "201": {$ref: "#/components/responses/FounderTransferOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/founder-transfer-requests/{requestId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Founder Transfer]
+      summary: Cancel a pending founder transfer request
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CancelFounderTransferRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/FounderTransferOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/founder-transfer-requests:
+    get:
+      tags: [Founder Transfer]
+      summary: Admin list founder transfer requests
+      security: [{AdminBearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StatusQuery"
+        - name: familyId
+          in: query
+          schema: {type: integer, format: int64}
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PageSizeQuery"
+      responses:
+        "200":
+          description: Founder transfer list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FounderTransferListAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/founder-transfer-requests/{requestId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Founder Transfer]
+      summary: Admin approve a founder transfer request
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/FounderTransferOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/founder-transfer-requests/{requestId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Founder Transfer]
+      summary: Admin reject a founder transfer request
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/FounderTransferOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/dissolution-requests:
+    get:
+      tags: [Family Dissolution]
+      summary: Admin list family dissolution requests
+      security: [{AdminBearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StatusQuery"
+        - name: familyId
+          in: query
+          schema: {type: integer, format: int64}
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PageSizeQuery"
+      responses:
+        "200":
+          description: Dissolution request list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminDissolutionListAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/dissolution-requests/{requestId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Family Dissolution]
+      summary: Admin approve a family dissolution request
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/AdminDissolutionOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/dissolution-requests/{requestId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Family Dissolution]
+      summary: Admin reject a family dissolution request
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/AdminDissolutionOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/families/{familyId}/restore:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family Restore]
+      summary: Admin restore a dissolved family
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RestoreFamilyRequest"}
+      responses:
+        "200":
+          description: Family restored
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RestoreFamilyAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
 components:
   securitySchemes:
     UserBearerAuth:
@@ -1317,6 +1501,24 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/VisitorMessageAPIResponse"
+    RoleChangeOK:
+      description: Family role changed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RoleChangeAPIResponse"
+    FounderTransferOK:
+      description: Founder transfer mutation succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FounderTransferAPIResponse"
+    AdminDissolutionOK:
+      description: Family dissolution review succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AdminDissolutionAPIResponse"
   schemas:
     CreateInvitationRequest:
       type: object
@@ -2766,3 +2968,164 @@ components:
           properties:
             data:
               $ref: "#/components/schemas/PublicVisitorMessageList"
+    RoleChangeRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    RoleChangeResult:
+      type: object
+      properties:
+        familyId: {type: integer, format: int64}
+        memberId: {type: integer, format: int64}
+        userId: {type: integer, format: int64}
+        familyRole:
+          type: string
+          enum: [FAMILY_ADMIN, MEMBER]
+        graphVersion: {type: integer, format: int64}
+        updatedAt: {type: string, format: date-time}
+    RoleChangeAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/RoleChangeResult"}
+    CreateFounderTransferRequest:
+      type: object
+      required: [toMemberId]
+      properties:
+        toMemberId: {type: integer, format: int64}
+        requestReason:
+          type: string
+          nullable: true
+    CancelFounderTransferRequest:
+      type: object
+      properties:
+        cancelReason:
+          type: string
+          nullable: true
+    ReviewRequest:
+      type: object
+      properties:
+        reviewComment:
+          type: string
+          nullable: true
+    FounderTransferRequest:
+      type: object
+      properties:
+        requestId: {type: integer, format: int64}
+        familyId: {type: integer, format: int64}
+        familyName: {type: string}
+        fromMemberId: {type: integer, format: int64}
+        fromUserId: {type: integer, format: int64}
+        toMemberId: {type: integer, format: int64}
+        toUserId: {type: integer, format: int64}
+        requestStatus:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, CANCELLED]
+        requestReason: {type: string, nullable: true}
+        reviewResult: {type: string, nullable: true}
+        reviewedByAdminId: {type: integer, format: int64, nullable: true}
+        reviewedAt: {type: string, format: date-time, nullable: true}
+        reviewComment: {type: string, nullable: true}
+        completedAt: {type: string, format: date-time, nullable: true}
+        cancelledAt: {type: string, format: date-time, nullable: true}
+        cancelReason: {type: string, nullable: true}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    FounderTransferAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/FounderTransferRequest"}
+    FounderTransferList:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/FounderTransferRequest"}
+        page: {type: integer}
+        pageSize: {type: integer}
+        total: {type: integer, format: int64}
+    FounderTransferListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/FounderTransferList"}
+    AdminDissolutionRequest:
+      type: object
+      properties:
+        requestId: {type: integer, format: int64}
+        familyId: {type: integer, format: int64}
+        familyName: {type: string}
+        requesterMemberId: {type: integer, format: int64}
+        requesterUserId: {type: integer, format: int64}
+        requestStatus:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, CANCELLED]
+        requestReason: {type: string, nullable: true}
+        reviewResult: {type: string, nullable: true}
+        reviewedByAdminId: {type: integer, format: int64, nullable: true}
+        reviewedAt: {type: string, format: date-time, nullable: true}
+        reviewComment: {type: string, nullable: true}
+        completedAt: {type: string, format: date-time, nullable: true}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    AdminDissolutionAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/AdminDissolutionRequest"}
+    AdminDissolutionList:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/AdminDissolutionRequest"}
+        page: {type: integer}
+        pageSize: {type: integer}
+        total: {type: integer, format: int64}
+    AdminDissolutionListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/AdminDissolutionList"}
+    RestoreFamilyRequest:
+      type: object
+      properties:
+        searchable:
+          type: boolean
+          nullable: true
+        restoreReason:
+          type: string
+          nullable: true
+        restoreStatus:
+          type: string
+          nullable: true
+        publicDisplayStatus:
+          type: string
+          nullable: true
+    RestoreFamilyResult:
+      type: object
+      properties:
+        familyId: {type: integer, format: int64}
+        status:
+          type: string
+          enum: [NORMAL]
+        publicDisplayStatus:
+          type: string
+          enum: [PRIVATE]
+        searchable: {type: boolean}
+        graphVersion: {type: integer, format: int64}
+        restoredAt: {type: string, format: date-time, nullable: true}
+    RestoreFamilyAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/RestoreFamilyResult"}
