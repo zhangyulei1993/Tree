@@ -69,6 +69,10 @@ func (s *GormService) write(ctx context.Context, input WriteInput, result string
 		return nil
 	}
 
+	detailJSON, err := sanitizeDetailJSON(input.DetailJSON)
+	if err != nil {
+		return err
+	}
 	record := model.OperationLog{
 		OperatorType:    input.OperatorType,
 		OperatorAdminID: input.OperatorAdminID,
@@ -83,13 +87,12 @@ func (s *GormService) write(ctx context.Context, input WriteInput, result string
 		UserID:          input.UserID,
 		BeforeJSON:      input.BeforeJSON,
 		AfterJSON:       input.AfterJSON,
-		DetailJSON:      input.DetailJSON,
+		DetailJSON:      detailJSON,
 		Result:          result,
 		ErrorMessage:    input.ErrorMessage,
 		IP:              input.IP,
 		UserAgent:       input.UserAgent,
 	}
 
-	// TODO(service): sanitize DetailJSON/BeforeJSON/AfterJSON before each business module writes operation logs.
 	return s.db.WithContext(ctx).Create(&record).Error
 }

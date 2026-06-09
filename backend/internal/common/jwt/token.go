@@ -45,6 +45,8 @@ type Manager struct {
 	refreshTTL  time.Duration
 }
 
+const maxIssuedAtFutureSkew = time.Minute
+
 func NewManager(cfg config.JWTConfig, appName string) (*Manager, error) {
 	if cfg.UserSecret == "" || cfg.AdminSecret == "" {
 		return nil, errors.New("jwt secrets are required")
@@ -142,6 +144,16 @@ func (m *Manager) Parse(token string, expectedType TokenType) (*Claims, error) {
 	if claims.TokenType != expectedType {
 		return nil, ErrTokenTypeInvalid
 	}
+	now := time.Now()
+	if claims.Subject == 0 ||
+		claims.Issuer == "" ||
+		claims.Issuer != m.issuer ||
+		claims.IssuedAt <= 0 ||
+		claims.ExpiresAt <= 0 ||
+		claims.ExpiresAt <= claims.IssuedAt ||
+		claims.IssuedAt > now.Add(maxIssuedAtFutureSkew).Unix() {
+		return nil, ErrInvalidToken
+	}
 
 	expectedSignature, err := m.sign(unsigned, claims.TokenType)
 	if err != nil {
@@ -150,7 +162,7 @@ func (m *Manager) Parse(token string, expectedType TokenType) (*Claims, error) {
 	if !hmac.Equal([]byte(parts[2]), []byte(expectedSignature)) {
 		return nil, ErrInvalidToken
 	}
-	if claims.ExpiresAt <= time.Now().Unix() {
+	if claims.ExpiresAt <= now.Unix() {
 		return nil, ErrTokenExpired
 	}
 
