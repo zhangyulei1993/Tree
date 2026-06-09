@@ -6,7 +6,10 @@
           <span class="eyebrow">{{ apiMode === 'real' ? '真实家庭数据' : 'Mock 家庭数据' }}</span>
           <h1>我的家庭</h1>
         </div>
-        <button class="button secondary" :disabled="loading" @click="loadFamilies">刷新</button>
+        <div class="heading-actions">
+          <RouterLink class="button" to="/me/families/new">创建家庭</RouterLink>
+          <button class="button secondary" :disabled="loading" @click="loadFamilies">刷新</button>
+        </div>
       </div>
 
       <section v-if="loading" class="card state-panel" aria-live="polite">
@@ -36,7 +39,7 @@
               家庭状态：{{ family.status }} · 公开状态：{{ family.publicDisplayStatus }}
             </p>
           </div>
-          <RouterLink class="button secondary" :to="`/families/${family.id}/public`">查看公开页</RouterLink>
+          <RouterLink class="button secondary" :to="`/families/${family.id}`">进入家庭</RouterLink>
         </article>
       </div>
     </section>
@@ -82,6 +85,11 @@ onMounted(loadFamilies)
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
+}
+
+.heading-actions {
+  display: flex;
+  gap: 10px;
 }
 
 .page-heading h1 {
@@ -149,6 +157,10 @@ onMounted(loadFamilies)
   .item,
   .page-heading {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .heading-actions {
     flex-direction: column;
   }
 }
