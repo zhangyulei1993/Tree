@@ -209,3 +209,69 @@ HTTPS
 ```
 
 最终以服务器所在地、主体、分发平台和最新官方规则为准。
+
+## 12. Staging 安全部署模板
+
+仓库提供：
+
+```text
+scripts/deploy-staging.sh
+scripts/rollback-staging.sh
+```
+
+这些脚本是安全模板，不包含服务器地址、数据库地址、账号或密钥，也不能直接用于 production。
+
+部署脚本要求：
+
+```text
+APP_ENV 必须严格等于 staging
+必须显式设置 STAGING_DEPLOY_CONFIRM=DEPLOY_STAGING
+STAGING_ROOT、服务名和健康检查地址不得包含 production/prod 标识
+必须提供可执行的备份 hook
+必须提供可执行的 forward-only migration hook
+发布物必须已在部署前构建并审核
+健康检查失败时部署命令返回失败
+```
+
+必要变量：
+
+```text
+APP_ENV
+STAGING_DEPLOY_CONFIRM
+STAGING_ROOT
+RELEASE_ID
+BACKEND_BINARY
+ADMIN_DIST
+WEB_DIST
+STAGING_BACKUP_SCRIPT
+STAGING_MIGRATE_SCRIPT
+STAGING_SERVICE_NAME
+STAGING_HEALTH_URL
+```
+
+变量只通过安全的服务器环境注入，不写入仓库。`STAGING_MIGRATE_SCRIPT` 只接受向前执行的 `up` 操作。
+
+## 13. Staging 回滚边界
+
+`rollback-staging.sh` 仅切换到上一应用发布目录并重启服务：
+
+```text
+不执行 migration down
+不自动恢复数据库
+不删除当前或历史数据库数据
+不允许 APP_ENV=production
+健康检查失败时恢复回滚前的应用版本
+```
+
+数据库 schema 发生不兼容变化时，必须使用向后兼容的 migration、分阶段发布或经审核的独立恢复方案，不能依赖 destructive/down migration。
+
+## 14. 发布前本地门禁
+
+在部署 staging 前运行：
+
+```bash
+bash scripts/security-check.sh
+bash scripts/m16-verify.sh
+```
+
+任一命令失败时停止发布，不得跳过或手工改写为 PASS。当前 `admin-web`、`web` 和 `miniapp` 仍包含 mock 原型流程，在完成真实 API 对接和体验环境验收前不得作为生产发布物。

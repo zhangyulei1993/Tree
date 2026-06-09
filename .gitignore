@@ -2,6 +2,13 @@
 
 # Environment files
 .env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+!**/.env.sample
+!**/.env.template
 *.env.local
 
 # Go
@@ -21,6 +28,21 @@ docker/redis/data/
 # Logs
 *.log
 logs/
+
+# Local release and backup artifacts
+.m16/
+backups/
+*.sql
+*.sql.gz
+*.dump
+*.tar.gz
+
+# Local mini program configuration and signing material
+project.private.config.json
+*.p12
+*.pfx
+*.jks
+*.keystore
 
 # IDE
 .idea/
