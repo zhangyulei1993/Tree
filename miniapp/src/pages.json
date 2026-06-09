@@ -1,0 +1,50 @@
+{
+  "pages": [
+    {"path": "pages/home/index", "style": {"navigationBarTitleText": "Tree"}},
+    {"path": "pages/auth/wechat-login", "style": {"navigationBarTitleText": "微信快捷登录"}},
+    {"path": "pages/auth/bind-phone", "style": {"navigationBarTitleText": "绑定手机号"}},
+    {"path": "pages/family/search", "style": {"navigationBarTitleText": "家庭搜索"}},
+    {"path": "pages/family/public-profile", "style": {"navigationBarTitleText": "公开家庭"}},
+    {"path": "pages/family/public-tree", "style": {"navigationBarTitleText": "公开树"}},
+    {"path": "pages/family/my", "style": {"navigationBarTitleText": "我的家庭"}},
+    {"path": "pages/family/detail", "style": {"navigationBarTitleText": "家庭详情"}},
+    {"path": "pages/invite/detail", "style": {"navigationBarTitleText": "邀请确认"}},
+    {"path": "pages/join/apply", "style": {"navigationBarTitleText": "加入申请"}},
+    {"path": "pages/me/index", "style": {"navigationBarTitleText": "个人中心"}},
+    {"path": "pages/legal/user-agreement", "style": {"navigationBarTitleText": "用户协议"}},
+    {"path": "pages/legal/privacy-policy", "style": {"navigationBarTitleText": "隐私政策"}},
+    {"path": "pages/account/cancel", "style": {"navigationBarTitleText": "注销账号"}}
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "Tree",
+    "navigationBarBackgroundColor": "#F7F3EA",
+    "backgroundColor": "#F7F3EA"
+  },
+  "tabBar": {
+    "color": "#6B7280",
+    "selectedColor": "#1F3A5F",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/home/index",
+        "text": "首页",
+        "iconPath": "static/tabbar/home.png",
+        "selectedIconPath": "static/tabbar/home-active.png"
+      },
+      {
+        "pagePath": "pages/family/search",
+        "text": "找家族",
+        "iconPath": "static/tabbar/search.png",
+        "selectedIconPath": "static/tabbar/search-active.png"
+      },
+      {
+        "pagePath": "pages/me/index",
+        "text": "我的",
+        "iconPath": "static/tabbar/user.png",
+        "selectedIconPath": "static/tabbar/user-active.png"
+      }
+    ]
+  }
+}

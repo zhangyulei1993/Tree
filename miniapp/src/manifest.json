@@ -1,0 +1,15 @@
+{
+  "name": "Tree",
+  "appid": "",
+  "description": "Tree 微信小程序静态原型",
+  "versionName": "0.1.0",
+  "versionCode": "1",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false
+    },
+    "usingComponents": true
+  }
+}
