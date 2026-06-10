@@ -14,6 +14,9 @@ importers:
       '@dcloudio/uni-components':
         specifier: 3.0.0-alpha-5010220260604001
         version: 3.0.0-alpha-5010220260604001(postcss@8.5.15)(rollup@4.61.1)(vite@6.4.3(terser@5.48.0))(vue@3.5.35(typescript@5.9.3))
+      '@dcloudio/uni-h5':
+        specifier: 3.0.0-alpha-5010220260604001
+        version: 3.0.0-alpha-5010220260604001(postcss@8.5.15)(rollup@4.61.1)(vite@6.4.3(terser@5.48.0))(vue@3.5.35(typescript@5.9.3))
       '@dcloudio/uni-mp-weixin':
         specifier: 3.0.0-alpha-5010220260604001
         version: 3.0.0-alpha-5010220260604001(postcss@8.5.15)(rollup@4.61.1)(vue@3.5.35(typescript@5.9.3))
@@ -3410,7 +3413,7 @@ snapshots:
       '@babel/parser': 7.29.7
       '@babel/template': 7.29.7
       '@babel/types': 7.29.7
-      debug: 4.3.7
+      debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
 
