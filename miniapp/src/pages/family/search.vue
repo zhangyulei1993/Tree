@@ -4,7 +4,7 @@
       <text class="title">家庭搜索</text>
       <input v-model="keyword" class="input" placeholder="家族名称 / 姓氏 / 地区" />
     </view>
-    <view v-for="family in filtered" :key="family.id" class="card" @click="go('/pages/family/public-profile')">
+    <view v-for="family in filtered" :key="family.id" class="card" @click="openFamily(family.id)">
       <text class="section-title">{{ family.name }}</text>
       <text class="tag">{{ family.surname }}</text>
       <text class="tag">{{ family.regionText }}</text>
@@ -21,7 +21,9 @@ import { families } from '@/mock/data'
 const keyword = ref('')
 const filtered = computed(() => families.filter((item) => !keyword.value || JSON.stringify(item).includes(keyword.value)))
 
-function go(url: string) {
-  uni.navigateTo({ url })
+function openFamily(familyId: string) {
+  uni.navigateTo({
+    url: `/pages/family/public-profile?familyId=${encodeURIComponent(familyId)}`
+  })
 }
 </script>

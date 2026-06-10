@@ -76,6 +76,41 @@ export interface PublicFamily {
   publicContactVisible: boolean
 }
 
+export interface PaginationQuery {
+  page?: number
+  pageSize?: number
+}
+
+export interface PaginatedResult<T> {
+  items: T[]
+  page: number
+  pageSize: number
+  total: number
+}
+
+export interface CreateVisitorMessageInput {
+  visitorName?: string
+  visitorPhone?: string
+  visitorWechat?: string
+  messageContent: string
+}
+
+export interface PublicVisitorMessage {
+  messageId: number | string
+  familyId: number | string
+  visitorName?: string | null
+  messageContent: string
+  createdAt: string
+  reviewedAt?: string | null
+}
+
+export interface VisitorMessageRecord extends PublicVisitorMessage {
+  visitorPhone?: string | null
+  visitorWechat?: string | null
+  status: string
+  updatedAt: string
+}
+
 export interface RejectInvitationInput {
   reason?: string
 }

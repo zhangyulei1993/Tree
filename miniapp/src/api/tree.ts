@@ -53,3 +53,8 @@ export async function getPrivateTree(familyId: number | string): Promise<FamilyT
   }
   return request<FamilyTreeResult>(`/families/${familyId}/tree`)
 }
+
+export async function getPublicTree(familyId: number | string): Promise<FamilyTreeResult> {
+  if (!isRealApiMode) return getPrivateTree(familyId)
+  return request<FamilyTreeResult>(`/public/families/${familyId}/tree`, { public: true })
+}

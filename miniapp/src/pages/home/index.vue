@@ -8,7 +8,7 @@
     </view>
     <view class="card">
       <text class="section-title">公开家庭推荐</text>
-      <view v-for="family in families" :key="family.id" class="family-row" @click="go('/pages/family/public-profile')">
+      <view v-for="family in families" :key="family.id" class="family-row" @click="openFamily(family.id)">
         <text>{{ family.name }}</text>
         <text class="muted">{{ family.regionText }}</text>
       </view>
@@ -25,6 +25,12 @@ function go(url: string) {
     return
   }
   uni.navigateTo({ url })
+}
+
+function openFamily(familyId: string) {
+  uni.navigateTo({
+    url: `/pages/family/public-profile?familyId=${encodeURIComponent(familyId)}`
+  })
 }
 </script>
 
