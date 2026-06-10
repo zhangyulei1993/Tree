@@ -7,32 +7,45 @@
         </el-tag>
       </el-form-item>
       <el-form-item label="审核备注">
-        <el-input v-model="comment" type="textarea" :rows="4" placeholder="填写 mock 审核备注" />
+        <el-input v-model="comment" type="textarea" :rows="4" :disabled="submitting" placeholder="填写审核备注" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="visible = false">取消</el-button>
-      <el-button :type="action === 'approve' ? 'primary' : 'danger'" @click="submit">提交</el-button>
+      <el-button :disabled="submitting" @click="visible = false">取消</el-button>
+      <el-button :type="action === 'approve' ? 'primary' : 'danger'" :loading="submitting" @click="submit">提交</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 const visible = defineModel<boolean>({ required: true })
 
-defineProps<{
+const props = withDefaults(defineProps<{
   title: string
   action: 'approve' | 'reject'
-}>()
+  submitting?: boolean
+  closeOnSubmit?: boolean
+}>(), {
+  submitting: false,
+  closeOnSubmit: true
+})
 
 const emit = defineEmits<{ submit: [comment: string] }>()
 const comment = ref('')
 
+watch(visible, (value) => {
+  if (!value && !props.submitting) {
+    comment.value = ''
+  }
+})
+
 function submit() {
   emit('submit', comment.value)
-  comment.value = ''
-  visible.value = false
+  if (props.closeOnSubmit) {
+    comment.value = ''
+    visible.value = false
+  }
 }
 </script>
