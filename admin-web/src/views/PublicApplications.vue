@@ -33,11 +33,15 @@
         <el-table-column label="创建时间" width="180">
           <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <div v-if="row.status === 'PENDING'" class="table-actions">
               <el-button size="small" type="primary" @click="openAudit(row.applicationId, 'approve')">通过</el-button>
               <el-button size="small" type="danger" @click="openAudit(row.applicationId, 'reject')">拒绝</el-button>
+            </div>
+            <div v-else-if="row.status === 'APPROVED'" class="table-actions">
+              <el-tag v-if="takenDownFamilyIds.has(row.familyId)" type="warning">本次会话已下架</el-tag>
+              <el-button v-else size="small" type="danger" plain @click="openTakeDown(row.familyId)">尝试下架</el-button>
             </div>
             <span v-else class="muted">已处理</span>
           </template>
@@ -56,12 +60,23 @@
     </DataTable>
 
     <AuditDialog
+      :key="auditKey"
       v-model="auditVisible"
       :title="auditTitle"
       :action="auditAction"
       :submitting="submitting"
       :close-on-submit="false"
       @submit="submitAudit"
+    />
+    <ConfirmDialog
+      v-model="takeDownVisible"
+      title="确认下架公开家庭"
+      message="申请已通过不代表家庭当前仍在公开。确认后将尝试下架，最终状态以后端校验结果为准。"
+      reason-label="填写下架原因（可选）"
+      :submitting="submitting"
+      :close-on-confirm="false"
+      danger
+      @confirm="confirmTakeDown"
     />
   </div>
 </template>
@@ -70,6 +85,7 @@
 import { ElMessage } from 'element-plus'
 import { onMounted, ref } from 'vue'
 
+import { takeDownPublicFamily } from '@/api/adminFamilies'
 import { getApiErrorMessage } from '@/api/client'
 import {
   approvePublicApplication,
@@ -77,6 +93,7 @@ import {
   rejectPublicApplication
 } from '@/api/publicApplications'
 import AuditDialog from '@/components/AuditDialog.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
 import DataTable from '@/components/DataTable.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SearchPanel from '@/components/SearchPanel.vue'
@@ -92,9 +109,13 @@ const loading = ref(false)
 const loadError = ref('')
 const operationError = ref('')
 const auditVisible = ref(false)
+const takeDownVisible = ref(false)
 const auditAction = ref<'approve' | 'reject'>('approve')
 const auditTitle = ref('公开申请审核')
+const auditKey = ref(0)
 const selectedApplicationId = ref<number | null>(null)
+const selectedFamilyId = ref<number | null>(null)
+const takenDownFamilyIds = ref(new Set<number>())
 const submitting = ref(false)
 
 onMounted(loadApplications)
@@ -144,7 +165,14 @@ function openAudit(applicationId: number, action: 'approve' | 'reject') {
   selectedApplicationId.value = applicationId
   auditAction.value = action
   auditTitle.value = `公开申请 ${applicationId}`
+  auditKey.value += 1
   auditVisible.value = true
+}
+
+function openTakeDown(familyId: number) {
+  operationError.value = ''
+  selectedFamilyId.value = familyId
+  takeDownVisible.value = true
 }
 
 async function submitAudit(reviewComment: string) {
@@ -161,6 +189,24 @@ async function submitAudit(reviewComment: string) {
     auditVisible.value = false
     ElMessage.success(auditAction.value === 'approve' ? '公开申请已通过' : '公开申请已驳回')
     await loadApplications()
+  } catch (error) {
+    operationError.value = getApiErrorMessage(error)
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function confirmTakeDown(reason: string) {
+  if (!selectedFamilyId.value || submitting.value) return
+  submitting.value = true
+  operationError.value = ''
+  try {
+    await takeDownPublicFamily(selectedFamilyId.value, {
+      reason: reason.trim() || undefined
+    })
+    takenDownFamilyIds.value = new Set(takenDownFamilyIds.value).add(selectedFamilyId.value)
+    takeDownVisible.value = false
+    ElMessage.success('公开家庭已下架')
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
   } finally {

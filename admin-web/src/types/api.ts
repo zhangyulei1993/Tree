@@ -44,6 +44,71 @@ export interface ReviewRequest {
   reviewComment?: string
 }
 
+export interface FounderTransferRequest {
+  requestId: number
+  familyId: number
+  familyName?: string
+  fromMemberId: number
+  fromUserId: number
+  toMemberId: number
+  toUserId: number
+  requestStatus: string
+  requestReason?: string
+  reviewResult?: string
+  reviewedByAdminId?: number
+  reviewedAt?: string
+  reviewComment?: string
+  completedAt?: string
+  cancelledAt?: string
+  cancelReason?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DissolutionRequest {
+  requestId: number
+  familyId: number
+  familyName?: string
+  requesterMemberId: number
+  requesterUserId: number
+  requestStatus: string
+  requestReason?: string
+  reviewResult?: string
+  reviewedByAdminId?: number
+  reviewedAt?: string
+  reviewComment?: string
+  completedAt?: string
+  cancelledAt?: string
+  cancelReason?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RestoreFamilyRequest {
+  searchable?: boolean
+}
+
+export interface RestoreFamilyResult {
+  familyId: number
+  status: string
+  publicDisplayStatus: string
+  searchable: boolean
+  graphVersion: number
+  restoredAt?: string
+}
+
+export interface TakeDownPublicFamilyRequest {
+  reason?: string
+}
+
+export interface FamilyPublicStatus {
+  familyId: number
+  publicDisplayStatus: string
+  publicAppliedAt?: string
+  publicApprovedAt?: string
+  publicTakenDownAt?: string
+}
+
 export interface DeleteVisitorMessageRequest {
   deleteReason?: string
 }
