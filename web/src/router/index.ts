@@ -17,6 +17,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/register', component: () => import('@/views/Register.vue') },
   { path: '/me', component: () => import('@/views/Profile.vue'), meta: { requiresAuth: true } },
   { path: '/me/families', component: () => import('@/views/MyFamilies.vue'), meta: { requiresAuth: true } },
+  { path: '/me/invitations', component: () => import('@/views/MyInvitations.vue'), meta: { requiresAuth: true } },
+  { path: '/me/join-requests', component: () => import('@/views/MyJoinRequests.vue'), meta: { requiresAuth: true } },
   { path: '/me/families/new', component: () => import('@/views/CreateFamily.vue'), meta: { requiresAuth: true } },
   { path: '/families/:familyId', component: () => import('@/views/FamilyDetail.vue'), meta: { requiresAuth: true } },
   {

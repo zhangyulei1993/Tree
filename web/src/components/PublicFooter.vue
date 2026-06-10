@@ -2,7 +2,7 @@
   <footer class="footer">
     <div class="container">
       <strong>Tree 家脉亲缘</strong>
-      <span>静态原型，当前不接真实 API。</span>
+      <span>本地联调模式：部分页面已接入真实 API，部分展示页仍使用 mock 数据。</span>
     </div>
   </footer>
 </template>

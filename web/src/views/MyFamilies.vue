@@ -8,6 +8,8 @@
         </div>
         <div class="heading-actions">
           <RouterLink class="button" to="/me/families/new">创建家庭</RouterLink>
+          <RouterLink class="button secondary" to="/me/invitations">我的邀请</RouterLink>
+          <RouterLink class="button secondary" to="/me/join-requests">加入申请</RouterLink>
           <button class="button secondary" :disabled="loading" @click="loadFamilies">刷新</button>
         </div>
       </div>

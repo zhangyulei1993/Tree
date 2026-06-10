@@ -136,6 +136,41 @@
                 <div><dt>家庭角色</dt><dd>{{ member.boundFamilyRole || '未绑定角色' }}</dd></div>
                 <div><dt>健在状态</dt><dd>{{ aliveLabel(member) }}</dd></div>
               </dl>
+              <div v-if="canManage && canInvite(member)" class="invite-actions">
+                <button class="button secondary" @click="openInvite(member.memberId)">
+                  创建分享邀请
+                </button>
+              </div>
+              <form
+                v-if="activeInviteMemberId === member.memberId"
+                class="invite-form"
+                @submit.prevent="submitInvite(member)"
+              >
+                <label>
+                  <span>邀请留言</span>
+                  <textarea
+                    v-model.trim="inviteMessage"
+                    class="field textarea"
+                    maxlength="300"
+                    placeholder="可选，将随邀请展示"
+                  />
+                </label>
+                <p class="notice">分享邀请接受后的家庭角色固定为 MEMBER，有效期由后端设置为 7 天。</p>
+                <p v-if="inviteError" class="feedback error" role="alert">{{ inviteError }}</p>
+                <div v-if="inviteLink" class="invite-result">
+                  <strong>邀请链接只在当前页面显示一次</strong>
+                  <input class="field" :value="inviteLink" readonly />
+                  <button class="button secondary" type="button" @click="copyInviteLink">
+                    {{ copyResult || '复制链接' }}
+                  </button>
+                </div>
+                <div class="invite-buttons">
+                  <button class="button" :disabled="inviteSubmitting || Boolean(inviteLink)">
+                    {{ inviteSubmitting ? '创建中...' : '创建 SHARE_LINK 邀请' }}
+                  </button>
+                  <button class="button secondary" type="button" @click="closeInvite">关闭</button>
+                </div>
+              </form>
             </article>
           </div>
         </section>
@@ -151,6 +186,7 @@ import { useRoute } from 'vue-router'
 
 import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
+import { createInvitation } from '@/api/invitations'
 import { createMember, listMembers } from '@/api/members'
 import { createRelationship } from '@/api/relationships'
 import PageShell from '@/components/PageShell.vue'
@@ -175,6 +211,12 @@ const relationshipSubmitting = ref(false)
 const memberError = ref('')
 const relationshipError = ref('')
 const relationshipSuccess = ref('')
+const activeInviteMemberId = ref<number | null>(null)
+const inviteMessage = ref('')
+const inviteLink = ref('')
+const inviteError = ref('')
+const inviteSubmitting = ref(false)
+const copyResult = ref('')
 
 const memberForm = reactive({
   name: '',
@@ -211,6 +253,56 @@ function aliveLabel(member: FamilyMember) {
   if (member.isAlive === true) return '健在'
   if (member.isAlive === false) return '已故'
   return '未填写'
+}
+
+function canInvite(member: FamilyMember) {
+  return member.status === 'ACTIVE' &&
+    !member.boundUserId &&
+    member.userBindingPolicy !== 'NOT_REQUIRED'
+}
+
+function openInvite(memberId: number) {
+  activeInviteMemberId.value = memberId
+  inviteMessage.value = ''
+  inviteLink.value = ''
+  inviteError.value = ''
+  copyResult.value = ''
+}
+
+function closeInvite() {
+  activeInviteMemberId.value = null
+  inviteMessage.value = ''
+  inviteLink.value = ''
+  inviteError.value = ''
+  copyResult.value = ''
+}
+
+async function submitInvite(member: FamilyMember) {
+  inviteSubmitting.value = true
+  inviteError.value = ''
+  copyResult.value = ''
+  try {
+    const result = await createInvitation(familyId.value, member.memberId, {
+      inviteChannel: 'SHARE_LINK',
+      inviteMessage: inviteMessage.value || undefined,
+      familyRoleAfterAccept: 'MEMBER'
+    })
+    inviteLink.value = `${window.location.origin}/invite/${encodeURIComponent(result.inviteToken)}`
+  } catch (requestError) {
+    inviteError.value = errorText(requestError, '创建分享邀请失败。')
+  } finally {
+    inviteSubmitting.value = false
+  }
+}
+
+async function copyInviteLink() {
+  if (!inviteLink.value) return
+  try {
+    await navigator.clipboard.writeText(inviteLink.value)
+    copyResult.value = '已复制'
+  } catch {
+    copyResult.value = '复制失败，请手动复制'
+  }
 }
 
 async function loadMembers() {
@@ -430,6 +522,25 @@ label {
 
 .member-card {
   padding: 18px;
+}
+
+.invite-actions {
+  margin-top: 16px;
+}
+
+.invite-form,
+.invite-result {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+}
+
+.invite-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .status-tag {

@@ -186,6 +186,69 @@ export interface VisitorMessageRecord extends PublicVisitorMessage {
   updatedAt: string
 }
 
+export type InviteChannel = 'SHARE_LINK' | 'IN_APP'
+
+export interface CreateInvitationInput {
+  inviteChannel: InviteChannel
+  targetUserId?: number
+  inviteMessage?: string
+  familyRoleAfterAccept?: 'MEMBER'
+}
+
+export interface InvitationActionInput {
+  reason?: string
+}
+
+export interface Invitation {
+  invitationId: number | string
+  familyId: number | string
+  familyName: string
+  targetMemberId: number | string
+  targetMemberName: string
+  inviteChannel: InviteChannel | string
+  inviteMessage?: string | null
+  familyRoleAfterAccept: string
+  status: string
+  expiredAt: string
+  acceptedAt?: string | null
+  rejectedAt?: string | null
+  cancelledAt?: string | null
+  createdAt: string
+}
+
+export interface CreatedInvitation {
+  invitation: Invitation
+  inviteToken: string
+}
+
+export interface CreateJoinRequestInput {
+  applicantRealName?: string
+  applicantMessage?: string
+}
+
+export interface CancelJoinRequestInput {
+  cancelReason?: string
+}
+
+export interface JoinRequest {
+  requestId: number | string
+  familyId: number | string
+  familyName?: string
+  applicantUserId: number | string
+  applicantRealName?: string | null
+  applicantMessage?: string | null
+  requestStatus: string
+  approveMode?: string | null
+  boundMemberId?: number | null
+  createdMemberId?: number | null
+  handleComment?: string | null
+  handledAt?: string | null
+  cancelledAt?: string | null
+  createdAt: string
+  updatedAt: string
+  graphVersion?: number | null
+}
+
 export type Gender = 'MALE' | 'FEMALE' | 'UNKNOWN'
 export type UserBindingPolicy = 'OPTIONAL' | 'REQUIRED' | 'NOT_REQUIRED'
 export type FamilyRole = 'FOUNDER' | 'FAMILY_ADMIN' | 'MEMBER'
