@@ -5,6 +5,7 @@ import type {
   CreateFamilyInput,
   FamilyDetail,
   FamilySummary,
+  PublicFamily,
   UpdateFamilyInput
 } from '@/types/api'
 
@@ -110,6 +111,24 @@ export async function getFamilyDetail(familyId: number | string): Promise<Family
     }
   }
   const response = await apiClient.get<ApiResponse<FamilyDetail>>(`/families/${familyId}`)
+  return response.data.data
+}
+
+export async function getPublicFamilyDetail(familyId: number | string): Promise<PublicFamily> {
+  if (!isRealApiMode) {
+    const source = publicFamilies.find((family) => family.id === String(familyId)) || publicFamilies[0]
+    return {
+      id: source.id,
+      familyName: source.name,
+      familySurname: source.surname,
+      nativePlace: source.nativePlace,
+      regionText: source.regionText,
+      description: source.description,
+      publicContactNote: source.publicContact || null,
+      publicContactVisible: Boolean(source.publicContact)
+    }
+  }
+  const response = await apiClient.get<ApiResponse<PublicFamily>>(`/families/${familyId}/public`)
   return response.data.data
 }
 

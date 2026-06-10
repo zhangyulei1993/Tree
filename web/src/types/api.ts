@@ -98,6 +98,94 @@ export interface FamilyDetail extends FamilySummary {
   graphVersion: number
 }
 
+export interface PublicFamily {
+  id: number | string
+  familyName: string
+  familySurname: string
+  nativePlace?: string | null
+  regionText?: string | null
+  description?: string | null
+  avatarUrl?: string | null
+  publicContactName?: string | null
+  publicContactPhone?: string | null
+  publicContactWechat?: string | null
+  publicContactNote?: string | null
+  publicContactVisible: boolean
+}
+
+export interface PaginationQuery {
+  page?: number
+  pageSize?: number
+}
+
+export interface PaginatedResult<T> {
+  items: T[]
+  page: number
+  pageSize: number
+  total: number
+}
+
+export interface SubmitPublicApplicationInput {
+  applicationReason?: string
+}
+
+export interface CancelPublicApplicationInput {
+  cancelReason?: string
+}
+
+export interface PublicApplication {
+  applicationId: number
+  familyId: number
+  familyName?: string
+  applicantUserId?: number
+  applicantAdminId?: number
+  status: string
+  reason?: string | null
+  reviewResult?: string | null
+  reviewedByAdminId?: number | null
+  reviewedAt?: string | null
+  reviewComment?: string | null
+  cancelledAt?: string | null
+  cancelReason?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PublicApplicationQuery extends PaginationQuery {
+  status?: string
+}
+
+export interface FamilyPublicStatus {
+  familyId: number
+  publicDisplayStatus: string
+  publicAppliedAt?: string | null
+  publicApprovedAt?: string | null
+  publicTakenDownAt?: string | null
+}
+
+export interface CreateVisitorMessageInput {
+  visitorName?: string
+  visitorPhone?: string
+  visitorWechat?: string
+  messageContent: string
+}
+
+export interface PublicVisitorMessage {
+  messageId: number | string
+  familyId: number | string
+  visitorName?: string | null
+  messageContent: string
+  createdAt: string
+  reviewedAt?: string | null
+}
+
+export interface VisitorMessageRecord extends PublicVisitorMessage {
+  visitorPhone?: string | null
+  visitorWechat?: string | null
+  status: string
+  updatedAt: string
+}
+
 export type Gender = 'MALE' | 'FEMALE' | 'UNKNOWN'
 export type UserBindingPolicy = 'OPTIONAL' | 'REQUIRED' | 'NOT_REQUIRED'
 export type FamilyRole = 'FOUNDER' | 'FAMILY_ADMIN' | 'MEMBER'

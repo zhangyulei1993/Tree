@@ -40,6 +40,14 @@
             <strong>私有家庭树</strong>
             <span>查看当前 nodes、edges 和 graph version</span>
           </RouterLink>
+          <RouterLink
+            v-if="canManage"
+            class="card entry"
+            :to="`/families/${family.id}/public-applications`"
+          >
+            <strong>公开展示申请</strong>
+            <span>提交申请、查看审核状态或取消待审核申请</span>
+          </RouterLink>
         </div>
       </template>
     </section>

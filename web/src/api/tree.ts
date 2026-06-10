@@ -37,3 +37,13 @@ export async function getPrivateTree(familyId: number | string): Promise<FamilyT
   const response = await apiClient.get<ApiResponse<FamilyTreeResult>>(`/families/${familyId}/tree`)
   return response.data.data
 }
+
+export async function getPublicTree(familyId: number | string): Promise<FamilyTreeResult> {
+  if (!isRealApiMode) {
+    return getPrivateTree(familyId)
+  }
+  const response = await apiClient.get<ApiResponse<FamilyTreeResult>>(
+    `/public/families/${familyId}/tree`
+  )
+  return response.data.data
+}

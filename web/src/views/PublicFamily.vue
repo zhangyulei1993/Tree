@@ -1,99 +1,183 @@
 <template>
   <PageShell>
     <section class="container family-page">
-      <div class="card profile">
-        <span class="eyebrow">公开家庭主页</span>
-        <h1>{{ family.name }}</h1>
-        <p>{{ family.description }}</p>
-        <dl>
-          <div><dt>姓氏</dt><dd>{{ family.surname }}</dd></div>
-          <div><dt>籍贯</dt><dd>{{ family.nativePlace }}</dd></div>
-          <div><dt>地区</dt><dd>{{ family.regionText }}</dd></div>
-          <div><dt>创始人</dt><dd>{{ family.founderName }}</dd></div>
-        </dl>
-        <p class="contact">{{ family.publicContact || '该家庭未设置公开联系方式，如需联系请通过平台协助。' }}</p>
-        <div class="actions">
-          <RouterLink class="button" :to="`/families/${family.id}/tree/public`">查看公开树</RouterLink>
-          <RouterLink class="button secondary" :to="`/families/${family.id}/join`">申请加入</RouterLink>
+      <section v-if="loadingFamily" class="card state-panel">正在加载公开家庭信息...</section>
+      <section v-else-if="familyError" class="card state-panel error" role="alert">
+        <strong>公开家庭信息不可访问</strong>
+        <span>{{ familyError }}</span>
+        <button class="button secondary" @click="loadFamily">重新加载</button>
+      </section>
+
+      <template v-else-if="family">
+        <div class="card profile">
+          <span class="eyebrow">公开家庭主页</span>
+          <h1>{{ family.familyName }}</h1>
+          <p>{{ family.description || '该家庭暂未填写公开简介。' }}</p>
+          <dl>
+            <div><dt>姓氏</dt><dd>{{ family.familySurname }}</dd></div>
+            <div><dt>籍贯</dt><dd>{{ family.nativePlace || '未设置' }}</dd></div>
+            <div><dt>地区</dt><dd>{{ family.regionText || '未设置' }}</dd></div>
+          </dl>
+          <div class="contact">
+            <template v-if="family.publicContactVisible && hasPublicContact">
+              <strong>{{ family.publicContactName || '公开联系方式' }}</strong>
+              <span v-if="family.publicContactPhone">电话：{{ family.publicContactPhone }}</span>
+              <span v-if="family.publicContactWechat">微信：{{ family.publicContactWechat }}</span>
+              <span v-if="family.publicContactNote">{{ family.publicContactNote }}</span>
+            </template>
+            <span v-else>该家庭未设置公开联系方式，如需联系请通过平台协助。</span>
+          </div>
+          <div class="actions">
+            <RouterLink class="button" :to="`/families/${family.id}/tree/public`">查看公开树</RouterLink>
+            <RouterLink class="button secondary" :to="`/families/${family.id}/join`">申请加入</RouterLink>
+          </div>
         </div>
-      </div>
-      <div class="grid two">
-        <section class="card panel">
-          <h2>游客留言</h2>
-          <article v-for="message in messages" :key="message.id" class="message">
-            <strong>{{ message.visitorName }}</strong>
-            <p>{{ message.content }}</p>
-            <span>{{ message.createdAt }}</span>
-          </article>
-        </section>
-        <section class="card panel">
-          <h2>提交留言</h2>
-          <form class="message-form" @submit.prevent="submitMessage">
-            <input v-model.trim="visitorName" class="field" maxlength="20" placeholder="访客称呼" />
-            <textarea
-              v-model.trim="messageContent"
-              class="field textarea"
-              maxlength="300"
-              placeholder="留言内容，静态原型不提交真实后端"
-            />
-            <div class="form-meta">
-              <span>{{ messageContent.length }}/300</span>
-              <button class="button" :disabled="submitting">
-                {{ submitting ? '提交中...' : '提交 mock 留言' }}
+
+        <div class="grid two">
+          <section class="card panel">
+            <div class="panel-heading">
+              <h2>游客留言</h2>
+              <button class="button secondary" :disabled="loadingMessages" @click="loadMessages">
+                刷新
               </button>
             </div>
-          </form>
-          <p v-if="formError" class="feedback error" role="alert">{{ formError }}</p>
-          <p v-if="submitResult" class="feedback success" role="status">{{ submitResult }}</p>
-        </section>
-      </div>
+            <div v-if="loadingMessages" class="inline-state">正在加载留言...</div>
+            <div v-else-if="messagesError" class="inline-state error" role="alert">
+              {{ messagesError }}
+            </div>
+            <div v-else-if="messages.length === 0" class="inline-state">暂无已审核公开留言。</div>
+            <article v-for="message in messages" v-else :key="message.messageId" class="message">
+              <strong>{{ message.visitorName || '匿名访客' }}</strong>
+              <p>{{ message.messageContent }}</p>
+              <span>{{ formatDate(message.reviewedAt || message.createdAt) }}</span>
+            </article>
+          </section>
+
+          <section class="card panel">
+            <h2>提交留言</h2>
+            <form class="message-form" @submit.prevent="submitMessage">
+              <input v-model.trim="form.visitorName" class="field" maxlength="40" placeholder="访客称呼（可选）" />
+              <input v-model.trim="form.visitorPhone" class="field" maxlength="30" placeholder="联系电话（可选，不公开展示）" />
+              <input v-model.trim="form.visitorWechat" class="field" maxlength="100" placeholder="微信号（可选，不公开展示）" />
+              <textarea
+                v-model.trim="form.messageContent"
+                class="field textarea"
+                maxlength="500"
+                placeholder="请输入留言内容"
+              />
+              <div class="form-meta">
+                <span>{{ form.messageContent.length }}/500</span>
+                <button class="button" :disabled="submitting">
+                  {{ submitting ? '提交中...' : '提交留言' }}
+                </button>
+              </div>
+            </form>
+            <p v-if="formError" class="feedback error" role="alert">{{ formError }}</p>
+            <p v-if="submitResult" class="feedback success" role="status">{{ submitResult }}</p>
+          </section>
+        </div>
+      </template>
     </section>
   </PageShell>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
+import { apiErrorMessage } from '@/api/client'
+import { getPublicFamilyDetail } from '@/api/families'
+import { createVisitorMessage, listPublicVisitorMessages } from '@/api/visitorMessages'
 import PageShell from '@/components/PageShell.vue'
-import { publicFamilies, visitorMessages } from '@/mock/data'
+import type { PublicFamily, PublicVisitorMessage } from '@/types/api'
 
 const route = useRoute()
-const family = computed(() => publicFamilies.find((item) => item.id === route.params.familyId) || publicFamilies[0])
-const localMessages = ref([...visitorMessages])
-const visitorName = ref('')
-const messageContent = ref('')
+const familyId = computed(() => String(route.params.familyId))
+const family = ref<PublicFamily | null>(null)
+const messages = ref<PublicVisitorMessage[]>([])
+const loadingFamily = ref(true)
+const loadingMessages = ref(true)
+const familyError = ref('')
+const messagesError = ref('')
 const formError = ref('')
 const submitResult = ref('')
 const submitting = ref(false)
-const messages = computed(() => localMessages.value.filter((item) => item.familyId === family.value.id))
+const form = reactive({
+  visitorName: '',
+  visitorPhone: '',
+  visitorWechat: '',
+  messageContent: ''
+})
 
-function submitMessage() {
+const hasPublicContact = computed(() => Boolean(
+  family.value?.publicContactName ||
+  family.value?.publicContactPhone ||
+  family.value?.publicContactWechat ||
+  family.value?.publicContactNote
+))
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleString('zh-CN')
+}
+
+async function loadFamily() {
+  loadingFamily.value = true
+  familyError.value = ''
+  try {
+    family.value = await getPublicFamilyDetail(familyId.value)
+  } catch (requestError) {
+    family.value = null
+    familyError.value = apiErrorMessage(requestError, '无法加载公开家庭信息。')
+  } finally {
+    loadingFamily.value = false
+  }
+}
+
+async function loadMessages() {
+  loadingMessages.value = true
+  messagesError.value = ''
+  try {
+    const result = await listPublicVisitorMessages(familyId.value, { page: 1, pageSize: 20 })
+    messages.value = result.items
+  } catch (requestError) {
+    messages.value = []
+    messagesError.value = apiErrorMessage(requestError, '无法加载公开留言。')
+  } finally {
+    loadingMessages.value = false
+  }
+}
+
+async function submitMessage() {
   formError.value = ''
   submitResult.value = ''
-
-  if (!visitorName.value) {
-    formError.value = '请填写访客称呼。'
-    return
-  }
-  if (!messageContent.value) {
+  if (!form.messageContent) {
     formError.value = '请填写留言内容。'
     return
   }
 
   submitting.value = true
-  localMessages.value.unshift({
-    id: `message_mock_${Date.now()}`,
-    familyId: family.value.id,
-    visitorName: visitorName.value,
-    content: messageContent.value,
-    createdAt: new Date().toLocaleDateString('zh-CN')
-  })
-  visitorName.value = ''
-  messageContent.value = ''
-  submitting.value = false
-  submitResult.value = '留言已提交。当前为 mock 原型，正式环境中需审核后公开。'
+  try {
+    await createVisitorMessage(familyId.value, {
+      visitorName: form.visitorName || undefined,
+      visitorPhone: form.visitorPhone || undefined,
+      visitorWechat: form.visitorWechat || undefined,
+      messageContent: form.messageContent
+    })
+    form.visitorName = ''
+    form.visitorPhone = ''
+    form.visitorWechat = ''
+    form.messageContent = ''
+    submitResult.value = '留言已提交，等待审核。'
+  } catch (requestError) {
+    formError.value = apiErrorMessage(requestError, '留言提交失败。')
+  } finally {
+    submitting.value = false
+  }
 }
+
+onMounted(async () => {
+  await Promise.all([loadFamily(), loadMessages()])
+})
 </script>
 
 <style scoped>
@@ -118,6 +202,11 @@ h1 {
   font-size: 40px;
 }
 
+h2,
+p {
+  margin-top: 0;
+}
+
 p {
   line-height: 1.8;
 }
@@ -125,7 +214,7 @@ p {
 dl,
 .two {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
 
@@ -139,28 +228,40 @@ dd {
 }
 
 .contact {
-  border-radius: 10px;
+  display: grid;
+  gap: 6px;
+  border-radius: 8px;
   background: #f4f1e8;
   padding: 12px;
 }
 
 .actions,
-.panel {
+.panel,
+.message-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.message-form {
-  display: grid;
-  gap: 12px;
+.actions {
+  align-items: flex-start;
+  flex-direction: row;
+  margin-top: 18px;
 }
 
+.panel-heading,
 .form-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.panel-heading h2 {
+  margin: 0;
+}
+
+.form-meta {
   color: var(--color-text-secondary);
   font-size: 13px;
 }
@@ -170,12 +271,15 @@ dd {
   opacity: 0.6;
 }
 
-.feedback {
+.feedback,
+.inline-state {
   margin: 0;
   font-weight: 700;
 }
 
-.feedback.error {
+.feedback.error,
+.inline-state.error,
+.state-panel.error {
   color: var(--color-danger);
 }
 
@@ -183,9 +287,31 @@ dd {
   color: var(--color-success);
 }
 
+.inline-state,
+.state-panel {
+  padding: 22px;
+  text-align: center;
+}
+
+.state-panel {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  gap: 12px;
+}
+
 .message {
   border-bottom: 1px solid var(--color-border);
   padding-bottom: 12px;
+}
+
+.message p {
+  margin: 6px 0;
+}
+
+.message span {
+  color: var(--color-text-secondary);
+  font-size: 12px;
 }
 
 .two {
@@ -196,6 +322,11 @@ dd {
   dl,
   .two {
     grid-template-columns: 1fr;
+  }
+
+  .actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 </style>
