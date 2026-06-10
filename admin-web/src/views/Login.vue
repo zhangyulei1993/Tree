@@ -4,10 +4,10 @@
       <div class="login-brand">
         <div class="brand-mark">T</div>
         <h1>Tree 管理后台</h1>
-        <p>静态原型使用 mock 登录，不连接真实后端。</p>
+        <p>{{ apiMode === 'real' ? '使用管理员账号登录本地联调环境。' : '静态原型使用 mock 登录。' }}</p>
       </div>
-      <el-form label-position="top">
-        <el-form-item label="管理员角色">
+      <el-form label-position="top" @submit.prevent="login">
+        <el-form-item v-if="apiMode === 'mock'" label="管理员角色">
           <el-select v-model="role">
             <el-option label="ROOT_ADMIN" value="ROOT_ADMIN" />
             <el-option label="SUPER_ADMIN" value="SUPER_ADMIN" />
@@ -15,12 +15,29 @@
           </el-select>
         </el-form-item>
         <el-form-item label="用户名">
-          <el-input model-value="mock_admin" disabled />
+          <el-input v-model.trim="username" :disabled="submitting" autocomplete="username" />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input model-value="mock_password" disabled show-password />
+          <el-input
+            v-model="password"
+            type="password"
+            :disabled="submitting"
+            autocomplete="current-password"
+            show-password
+            @keyup.enter="login"
+          />
         </el-form-item>
-        <el-button type="primary" size="large" class="login-button" @click="login">进入后台</el-button>
+        <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon :closable="false" />
+        <el-button
+          native-type="submit"
+          type="primary"
+          size="large"
+          class="login-button"
+          :loading="submitting"
+          :disabled="apiMode === 'real' && (!username || !password)"
+        >
+          登录
+        </el-button>
       </el-form>
     </section>
   </main>
@@ -28,17 +45,37 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
+import { apiMode, getApiErrorMessage } from '@/api/client'
 import { useAuthStore, type AdminRole } from '@/stores/auth'
 
 const role = ref<AdminRole>('ROOT_ADMIN')
+const username = ref('')
+const password = ref('')
+const submitting = ref(false)
+const errorMessage = ref('')
 const auth = useAuthStore()
+const route = useRoute()
 const router = useRouter()
 
-function login() {
-  auth.mockLogin(role.value)
-  router.push('/admin/dashboard')
+async function login() {
+  if (submitting.value) return
+  errorMessage.value = ''
+  submitting.value = true
+  try {
+    if (apiMode === 'real') {
+      await auth.login(username.value, password.value)
+    } else {
+      auth.mockLogin(role.value)
+    }
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/admin/dashboard'
+    await router.replace(redirect.startsWith('/admin/') ? redirect : '/admin/dashboard')
+  } catch (error) {
+    errorMessage.value = getApiErrorMessage(error)
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
@@ -84,5 +121,6 @@ p {
 
 .login-button {
   width: 100%;
+  margin-top: 16px;
 }
 </style>

@@ -10,9 +10,40 @@
       <RouterLink to="/me/families">我的家庭</RouterLink>
       <RouterLink to="/me">我的</RouterLink>
     </nav>
-    <RouterLink class="button secondary" to="/login">登录 / 注册</RouterLink>
+    <div v-if="session.isLoggedIn" class="account-actions">
+      <RouterLink class="account-link" to="/me">
+        {{ session.user?.nickname || '个人中心' }}
+      </RouterLink>
+      <button class="button secondary" :disabled="loggingOut" @click="logout">
+        {{ loggingOut ? '退出中...' : '退出登录' }}
+      </button>
+    </div>
+    <RouterLink v-else class="button secondary" to="/login">登录 / 注册</RouterLink>
   </header>
 </template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+import { useSessionStore } from '@/stores/session'
+
+const session = useSessionStore()
+const router = useRouter()
+const loggingOut = ref(false)
+
+async function logout() {
+  loggingOut.value = true
+  try {
+    await session.logout()
+  } catch {
+    // The session store clears local state even if the logout request fails.
+  } finally {
+    loggingOut.value = false
+    await router.push('/login')
+  }
+}
+</script>
 
 <style scoped>
 .header {
@@ -53,6 +84,22 @@ nav {
   color: var(--color-text-secondary);
 }
 
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.account-link {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 @media (max-width: 760px) {
   .header {
     align-items: flex-start;
@@ -62,6 +109,11 @@ nav {
 
   nav {
     flex-wrap: wrap;
+  }
+
+  .account-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 }
 </style>

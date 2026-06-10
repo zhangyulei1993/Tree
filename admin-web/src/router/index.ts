@@ -67,14 +67,23 @@ const router = createRouter({
   routes
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
+  await auth.init()
 
-  if (to.meta.requiresAuth && !auth.isLoggedIn) {
-    return '/admin/login'
+  if (to.path === '/admin/login' && auth.isLoggedIn) {
+    const redirect = typeof to.query.redirect === 'string' ? to.query.redirect : '/admin/dashboard'
+    return redirect.startsWith('/admin/') ? redirect : '/admin/dashboard'
   }
 
-  if (to.meta.roles && auth.admin && !to.meta.roles.includes(auth.admin.role)) {
+  if (to.meta.requiresAuth && !auth.isLoggedIn) {
+    return {
+      path: '/admin/login',
+      query: { redirect: to.fullPath }
+    }
+  }
+
+  if (to.meta.roles && !auth.hasRole(to.meta.roles)) {
     return '/admin/no-permission'
   }
 

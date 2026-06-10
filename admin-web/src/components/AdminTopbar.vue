@@ -5,13 +5,14 @@
       <span>Tree 家脉亲缘平台</span>
     </div>
     <div class="actions">
-      <el-select v-model="selectedRole" size="small" style="width: 160px" @change="onRoleChange">
+      <el-select v-if="apiMode === 'mock'" v-model="selectedRole" size="small" style="width: 160px" @change="onRoleChange">
         <el-option label="ROOT_ADMIN" value="ROOT_ADMIN" />
         <el-option label="SUPER_ADMIN" value="SUPER_ADMIN" />
         <el-option label="PLATFORM_ADMIN" value="PLATFORM_ADMIN" />
       </el-select>
+      <span v-if="auth.admin" class="admin-name">{{ auth.admin.displayName || auth.admin.username }}</span>
       <RoleTag v-if="auth.admin" :role="auth.admin.role" />
-      <el-button text @click="logout">退出</el-button>
+      <el-button text :loading="loggingOut" @click="logout">退出</el-button>
     </div>
   </header>
 </template>
@@ -20,13 +21,16 @@
 import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import { apiMode, getApiErrorMessage } from '@/api/client'
 import RoleTag from '@/components/RoleTag.vue'
 import { useAuthStore, type AdminRole } from '@/stores/auth'
+import { ElMessage } from 'element-plus'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const selectedRole = ref<AdminRole>(auth.admin?.role || 'ROOT_ADMIN')
+const loggingOut = ref(false)
 
 watch(
   () => auth.admin?.role,
@@ -42,9 +46,17 @@ function onRoleChange(role: AdminRole) {
   }
 }
 
-function logout() {
-  auth.logout()
-  router.push('/admin/login')
+async function logout() {
+  if (loggingOut.value) return
+  loggingOut.value = true
+  try {
+    await auth.logout()
+  } catch (error) {
+    ElMessage.error(`退出失败：${getApiErrorMessage(error)}`)
+  } finally {
+    await router.replace('/admin/login')
+    loggingOut.value = false
+  }
 }
 </script>
 
@@ -74,5 +86,11 @@ function logout() {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.admin-name {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 13px;
 }
 </style>
