@@ -2,7 +2,7 @@
   <view class="page">
     <view class="card">
       <text class="title">手机号注册</text>
-      <text class="muted">验证码由后端发送。页面不会预置或保存验证码。</text>
+      <text class="muted">请填写手机号并获取短信验证码，完成注册后即可登录。</text>
       <input
         v-model.trim="phone"
         class="input"
@@ -76,7 +76,7 @@ async function send() {
   try {
     const result = await sendCode(phone.value, 'REGISTER')
     cooldown.value = result.cooldownSeconds
-    sendResult.value = '验证码已发送，请查看开发环境响应或短信通道。'
+    sendResult.value = '验证码已发送，请查看短信。'
     timer = setInterval(() => {
       cooldown.value -= 1
       if (cooldown.value <= 0 && timer) {

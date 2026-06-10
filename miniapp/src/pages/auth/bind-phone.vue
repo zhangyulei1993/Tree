@@ -3,15 +3,15 @@
     <view class="card">
       <text class="title">绑定手机号</text>
       <template v-if="isRealApiMode">
-        <text class="muted">M18-1A 暂不提供真实微信手机号绑定，请使用手机号账号登录或注册。</text>
-        <button class="button" @click="go('/pages/auth/phone-login')">手机号登录</button>
+        <text class="muted">当前暂不支持微信手机号绑定，请使用手机号登录或注册。</text>
+        <button class="button" @click="go('/pages/auth/phone-login')">使用手机号登录</button>
         <button class="button secondary" @click="go('/pages/auth/register-phone')">手机号注册</button>
       </template>
       <template v-else>
-        <text class="muted">手机号和验证码均为 UI 示例，不发送真实验证码。</text>
+        <text class="muted">当前为本地体验模式，可先体验手机号绑定流程。</text>
         <input class="input" placeholder="138****0000" />
         <input class="input" placeholder="验证码" />
-        <button class="button" @click="bind">完成 mock 绑定</button>
+        <button class="button" @click="bind">完成绑定</button>
       </template>
     </view>
   </view>

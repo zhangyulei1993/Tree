@@ -25,8 +25,8 @@
     </view>
     <view class="card">
       <text class="section-title">微信登录</text>
-      <text class="muted">真实微信登录尚未启用，请先使用手机号登录。</text>
-      <button class="button secondary" @click="goWechat">查看微信登录说明</button>
+      <text class="muted">当前暂不支持微信一键登录，请使用手机号登录。</text>
+      <button class="button secondary" @click="goWechat">了解微信登录</button>
     </view>
   </view>
 </template>
