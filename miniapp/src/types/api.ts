@@ -61,6 +61,65 @@ export interface FamilyDetail extends FamilySummary {
   graphVersion: number
 }
 
+export interface PublicFamily {
+  id: number | string
+  familyName: string
+  familySurname: string
+  nativePlace?: string | null
+  regionText?: string | null
+  description?: string | null
+  avatarUrl?: string | null
+  publicContactName?: string | null
+  publicContactPhone?: string | null
+  publicContactWechat?: string | null
+  publicContactNote?: string | null
+  publicContactVisible: boolean
+}
+
+export interface RejectInvitationInput {
+  reason?: string
+}
+
+export interface Invitation {
+  invitationId: number | string
+  familyId: number | string
+  familyName: string
+  targetMemberId: number | string
+  targetMemberName: string
+  inviteChannel: string
+  inviteMessage?: string | null
+  familyRoleAfterAccept: string
+  status: string
+  expiredAt: string
+  acceptedAt?: string | null
+  rejectedAt?: string | null
+  cancelledAt?: string | null
+  createdAt: string
+}
+
+export interface CreateJoinRequestInput {
+  applicantRealName?: string
+  applicantMessage?: string
+}
+
+export interface CancelJoinRequestInput {
+  cancelReason?: string
+}
+
+export interface JoinRequest {
+  requestId: number | string
+  familyId: number | string
+  familyName?: string
+  applicantUserId: number | string
+  applicantRealName?: string | null
+  applicantMessage?: string | null
+  requestStatus: string
+  handleComment?: string | null
+  cancelledAt?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface FamilyMember {
   memberId: number
   familyId: number

@@ -8,6 +8,8 @@
         <text class="muted">账号状态：{{ session.user.status }}</text>
         <text class="muted">手机号验证：{{ session.user.phoneVerified ? '已验证' : '未验证' }}</text>
         <button class="button" @click="go('/pages/family/my')">我的家庭</button>
+        <button class="button secondary" @click="go('/pages/invite/my')">我的邀请</button>
+        <button class="button secondary" @click="go('/pages/join/my')">我的加入申请</button>
       </template>
       <template v-else>
         <text class="muted">当前未登录。请使用手机号登录或注册账号。</text>

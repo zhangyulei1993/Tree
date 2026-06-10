@@ -1,6 +1,6 @@
 import { isRealApiMode, request } from '@/api/client'
 import { families, myFamilies } from '@/mock/data'
-import type { FamilyDetail, FamilySummary } from '@/types/api'
+import type { FamilyDetail, FamilySummary, PublicFamily } from '@/types/api'
 
 export async function listMyFamilies(): Promise<FamilySummary[]> {
   if (!isRealApiMode) {
@@ -43,4 +43,21 @@ export async function getFamilyDetail(familyId: number | string): Promise<Family
     }
   }
   return request<FamilyDetail>(`/families/${familyId}`)
+}
+
+export async function getPublicFamilyDetail(familyId: number | string): Promise<PublicFamily> {
+  if (!isRealApiMode) {
+    const source = families.find((item) => item.id === String(familyId)) || families[0]
+    return {
+      id: source.id,
+      familyName: source.name,
+      familySurname: source.surname,
+      nativePlace: source.nativePlace,
+      regionText: source.regionText,
+      description: source.description,
+      publicContactNote: source.contact || null,
+      publicContactVisible: Boolean(source.contact)
+    }
+  }
+  return request<PublicFamily>(`/families/${familyId}/public`, { public: true })
 }
