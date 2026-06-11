@@ -5,7 +5,7 @@
       <template v-if="session.isLoggedIn && session.user">
         <text class="muted">昵称：{{ session.user.nickname || '未设置' }}</text>
         <text class="muted">手机号：{{ maskedPhone }}</text>
-        <text class="muted">账号状态：{{ session.user.status }}</text>
+        <text class="muted">账号状态：{{ accountStatusText }}</text>
         <text class="muted">手机号验证：{{ session.user.phoneVerified ? '已验证' : '未验证' }}</text>
         <button class="button" @click="go('/pages/family/my')">我的家庭</button>
         <button class="button secondary" @click="go('/pages/invite/my')">我的邀请</button>
@@ -54,6 +54,20 @@ const maskedPhone = computed(() => {
   if (!phone) return '未绑定'
   if (phone.includes('*')) return phone
   return phone.length === 11 ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : phone
+})
+const accountStatusText = computed(() => {
+  switch (session.user?.status) {
+    case 'ACTIVE':
+      return '正常'
+    case 'DISABLED':
+      return '已停用'
+    case 'CANCELLED':
+      return '已注销'
+    case 'PENDING_PHONE_BIND':
+      return '待绑定手机号'
+    default:
+      return session.user?.status || '未知'
+  }
 })
 
 function go(url: string) {

@@ -76,6 +76,17 @@ page {
   border: 1rpx solid #e5e0d6;
   border-radius: 16rpx;
   background: #fff;
+  font-size: 28rpx;
+}
+
+.input {
+  height: 72rpx;
+  min-height: 72rpx;
+  line-height: 72rpx;
+  padding: 0 20rpx;
+}
+
+.textarea {
   padding: 20rpx;
 }
 
