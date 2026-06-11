@@ -10,13 +10,31 @@
     </view>
     <view v-else-if="invitation" class="card">
       <text class="title">邀请确认</text>
-      <text class="muted">家庭：{{ invitation.familyName }}</text>
-      <text class="muted">目标成员：{{ invitation.targetMemberName }}</text>
-      <text class="muted">邀请渠道：{{ invitation.inviteChannel }}</text>
-      <text class="muted">接受后角色：{{ invitation.familyRoleAfterAccept }}</text>
-      <text class="muted">状态：{{ invitation.status }}</text>
-      <text class="muted">有效期至：{{ formatDate(invitation.expiredAt) }}</text>
-      <text v-if="invitation.inviteMessage" class="notice">{{ invitation.inviteMessage }}</text>
+      <view class="info-row">
+        <text class="label">家庭</text>
+        <text>{{ invitation.familyName }}</text>
+      </view>
+      <view class="info-row">
+        <text class="label">邀请成员</text>
+        <text>{{ invitation.targetMemberName }}</text>
+      </view>
+      <view class="info-row">
+        <text class="label">邀请方式</text>
+        <text>{{ inviteChannelText(invitation.inviteChannel) }}</text>
+      </view>
+      <view class="info-row">
+        <text class="label">加入后角色</text>
+        <text>{{ roleText(invitation.familyRoleAfterAccept) }}</text>
+      </view>
+      <view class="info-row">
+        <text class="label">邀请状态</text>
+        <text class="tag">{{ inviteStatusText(invitation.status) }}</text>
+      </view>
+      <view class="info-row">
+        <text class="label">有效期至</text>
+        <text>{{ formatDate(invitation.expiredAt) }}</text>
+      </view>
+      <text v-if="invitation.inviteMessage" class="notice">邀请说明：{{ invitation.inviteMessage }}</text>
 
       <view v-if="invitation.status === 'PENDING'" class="actions">
         <template v-if="session.isLoggedIn && session.isPhoneBound">
@@ -26,14 +44,14 @@
             maxlength="300"
             placeholder="拒绝原因（可选）"
           />
-          <button class="button" :disabled="Boolean(acting)" :loading="acting === 'accept'" @click="accept">
-            接受绑定
+          <button class="button" :disabled="Boolean(acting)" :loading="acting === 'accept'" @click="confirmAccept">
+            接受邀请
           </button>
           <button
             class="button secondary"
             :disabled="Boolean(acting)"
             :loading="acting === 'reject'"
-            @click="reject"
+            @click="confirmReject"
           >
             拒绝邀请
           </button>
@@ -44,7 +62,7 @@
         </template>
       </view>
       <view v-else>
-        <text class="notice">该邀请当前状态为 {{ invitation.status }}，不能继续处理。</text>
+        <text class="notice">该邀请当前状态为「{{ inviteStatusText(invitation.status) }}」，不能继续处理。</text>
       </view>
       <text v-if="actionError" class="error">{{ actionError }}</text>
       <text v-if="result" class="success">{{ result }}</text>
@@ -80,13 +98,56 @@ function formatDate(value: string) {
   return Number.isNaN(time.getTime()) ? value : time.toLocaleString('zh-CN')
 }
 
+function inviteStatusText(status: string) {
+  switch (status) {
+    case 'PENDING':
+      return '待处理'
+    case 'ACCEPTED':
+      return '已接受'
+    case 'REJECTED':
+      return '已拒绝'
+    case 'EXPIRED':
+      return '已过期'
+    case 'CANCELLED':
+      return '已取消'
+    default:
+      return '未知状态'
+  }
+}
+
+function inviteChannelText(channel: string) {
+  switch (channel) {
+    case 'SHARE_LINK':
+      return '链接邀请'
+    case 'IN_APP':
+      return '站内邀请'
+    default:
+      return '其他方式'
+  }
+}
+
+function roleText(role: string) {
+  switch (role) {
+    case 'FOUNDER':
+      return '创建者'
+    case 'FAMILY_ADMIN':
+      return '管理员'
+    case 'MEMBER':
+      return '成员'
+    case 'ROOT_ADMIN':
+      return '超级管理员'
+    default:
+      return '未知角色'
+  }
+}
+
 function requireLogin() {
   session.requireLogin(currentRoute())
 }
 
 async function loadInvitation() {
   if (!inviteToken.value) {
-    loadError.value = '缺少邀请参数。'
+    loadError.value = '邀请信息缺失。'
     return
   }
   loading.value = true
@@ -101,6 +162,28 @@ async function loadInvitation() {
   } finally {
     loading.value = false
   }
+}
+
+function confirmAccept() {
+  if (!invitation.value) return
+  uni.showModal({
+    title: '接受邀请',
+    content: `确定接受加入「${invitation.value.familyName}」的邀请吗？`,
+    success: (modalResult) => {
+      if (modalResult.confirm) accept()
+    }
+  })
+}
+
+function confirmReject() {
+  if (!invitation.value) return
+  uni.showModal({
+    title: '拒绝邀请',
+    content: `确定拒绝加入「${invitation.value.familyName}」的邀请吗？`,
+    success: (modalResult) => {
+      if (modalResult.confirm) reject()
+    }
+  })
 }
 
 async function accept() {
@@ -147,6 +230,25 @@ onLoad((options) => {
 <style scoped>
 .state-card {
   text-align: center;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 14rpx 0;
+  border-top: 1rpx solid #e5e0d6;
+  font-size: 26rpx;
+}
+
+.label {
+  flex-shrink: 0;
+  color: #6b7280;
+}
+
+.info-row text:last-child {
+  text-align: right;
 }
 
 .actions {

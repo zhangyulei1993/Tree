@@ -24,26 +24,26 @@
         <button class="button" @click="requireLogin">手机号登录</button>
       </view>
       <view v-else-if="!submittedRequest">
+        <text class="section-title">填写申请信息</text>
         <input
           v-model.trim="applicantRealName"
           class="input"
           maxlength="100"
-          placeholder="申请人真实姓名（可选）"
+          placeholder="你的真实姓名（可选）"
         />
         <textarea
           v-model.trim="applicantMessage"
           class="textarea"
           maxlength="500"
-          placeholder="申请理由（可选，建议说明与该家庭的关系）"
+          placeholder="请简单说明你与该家庭或成员的关系，方便管理员审核"
         />
         <button class="button" :disabled="submitting" :loading="submitting" @click="submitApplication">
           提交加入申请
         </button>
       </view>
       <view v-else class="result-card">
-        <text class="success">申请已提交。</text>
-        <text class="muted">申请 ID：{{ submittedRequest.requestId }}</text>
-        <text class="muted">当前状态：{{ submittedRequest.requestStatus }}</text>
+        <text class="success">申请已提交，请等待管理员审核。</text>
+        <text class="muted">你可以在「我的加入申请」中查看审核进度。</text>
         <button class="button secondary" @click="go('/pages/join/my')">查看我的加入申请</button>
       </view>
       <text v-if="submitError" class="error">{{ submitError }}</text>
@@ -86,7 +86,7 @@ function requireLogin() {
 
 async function loadFamily() {
   if (!familyId.value) {
-    familyError.value = '缺少 familyId。'
+    familyError.value = '家庭信息缺失。'
     return
   }
   loading.value = true

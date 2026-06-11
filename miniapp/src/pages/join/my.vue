@@ -2,6 +2,7 @@
   <view class="page">
     <view class="card">
       <text class="title">我的加入申请</text>
+      <text class="muted">查看你提交的家庭加入申请及审核进度。</text>
       <button class="button secondary" :disabled="loading" :loading="loading" @click="loadRequests">
         刷新
       </button>
@@ -16,18 +17,21 @@
       <button class="button secondary" @click="loadRequests">重新加载</button>
     </view>
     <view v-else-if="requests.length === 0" class="card state-card">
-      <text class="muted">暂无加入申请。</text>
+      <text class="section-title">暂无加入申请</text>
+      <text class="muted">你提交的家庭加入申请会显示在这里。</text>
     </view>
     <view v-else>
       <view v-for="item in requests" :key="item.requestId" class="card item-card">
         <view class="item-header">
-          <text class="section-title">{{ item.familyName || `家庭 ${item.familyId}` }}</text>
-          <text class="tag">{{ item.requestStatus }}</text>
+          <text class="section-title">{{ item.familyName || '未知家庭' }}</text>
+          <text class="tag">{{ requestStatusText(item.requestStatus) }}</text>
         </view>
         <text v-if="item.applicantRealName" class="muted">申请人：{{ item.applicantRealName }}</text>
         <text class="muted">申请理由：{{ item.applicantMessage || '未填写' }}</text>
         <text v-if="item.handleComment" class="muted">审核意见：{{ item.handleComment }}</text>
-        <text class="muted">创建时间：{{ formatDate(item.createdAt) }}</text>
+        <text class="muted">提交时间：{{ formatDate(item.createdAt) }}</text>
+        <text v-if="item.cancelledAt" class="muted">取消时间：{{ formatDate(item.cancelledAt) }}</text>
+        <text v-else-if="item.requestStatus !== 'PENDING'" class="muted">更新时间：{{ formatDate(item.updatedAt) }}</text>
         <button
           v-if="item.requestStatus === 'PENDING'"
           class="button danger"
@@ -63,6 +67,21 @@ function formatDate(value: string) {
   return Number.isNaN(time.getTime()) ? value : time.toLocaleString('zh-CN')
 }
 
+function requestStatusText(status: string) {
+  switch (status) {
+    case 'PENDING':
+      return '待审核'
+    case 'APPROVED':
+      return '已通过'
+    case 'REJECTED':
+      return '已拒绝'
+    case 'CANCELLED':
+      return '已取消'
+    default:
+      return '未知状态'
+  }
+}
+
 async function loadRequests() {
   if (!session.requireLogin('/pages/join/my')) return
   loading.value = true
@@ -80,7 +99,7 @@ async function loadRequests() {
 function confirmCancel(item: JoinRequest) {
   uni.showModal({
     title: '取消加入申请',
-    content: `确定取消对 ${item.familyName || `家庭 ${item.familyId}`} 的加入申请吗？`,
+    content: `确定取消对「${item.familyName || '该家庭'}」的加入申请吗？取消后需要重新提交申请。`,
     success: (result) => {
       if (result.confirm) cancel(item)
     }

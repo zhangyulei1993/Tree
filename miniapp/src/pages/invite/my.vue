@@ -2,6 +2,7 @@
   <view class="page">
     <view class="card">
       <text class="title">我的邀请</text>
+      <text class="muted">查看并处理收到的家庭邀请。</text>
       <button class="button secondary" :disabled="loading" :loading="loading" @click="loadInvitations">
         刷新
       </button>
@@ -16,16 +17,18 @@
       <button class="button secondary" @click="loadInvitations">重新加载</button>
     </view>
     <view v-else-if="invitations.length === 0" class="card state-card">
-      <text class="muted">暂无收到的站内邀请。</text>
+      <text class="section-title">暂无邀请</text>
+      <text class="muted">收到家庭邀请后，会在这里显示。</text>
     </view>
     <view v-else>
       <view v-for="item in invitations" :key="item.invitationId" class="card item-card">
         <view class="item-header">
           <text class="section-title">{{ item.familyName }}</text>
-          <text class="tag">{{ item.status }}</text>
+          <text class="tag">{{ inviteStatusText(item.status) }}</text>
         </view>
-        <text class="muted">目标成员：{{ item.targetMemberName }}</text>
-        <text class="muted">邀请渠道：{{ item.inviteChannel }}</text>
+        <text class="muted">邀请成员：{{ item.targetMemberName }}</text>
+        <text class="muted">邀请方式：{{ inviteChannelText(item.inviteChannel) }}</text>
+        <text class="muted">加入后角色：{{ roleText(item.familyRoleAfterAccept) }}</text>
         <text v-if="item.inviteMessage" class="muted">邀请说明：{{ item.inviteMessage }}</text>
         <text class="muted">有效期至：{{ formatDate(item.expiredAt) }}</text>
         <view v-if="item.status === 'PENDING'" class="actions">
@@ -33,17 +36,17 @@
             class="button"
             :disabled="actingId === item.invitationId"
             :loading="actingId === item.invitationId && actingType === 'accept'"
-            @click="accept(item.invitationId)"
+            @click="confirmAccept(item)"
           >
-            接受
+            接受邀请
           </button>
           <button
             class="button secondary"
             :disabled="actingId === item.invitationId"
             :loading="actingId === item.invitationId && actingType === 'reject'"
-            @click="reject(item.invitationId)"
+            @click="confirmReject(item)"
           >
-            拒绝
+            拒绝邀请
           </button>
         </view>
       </view>
@@ -73,6 +76,49 @@ function formatDate(value: string) {
   return Number.isNaN(time.getTime()) ? value : time.toLocaleString('zh-CN')
 }
 
+function inviteStatusText(status: string) {
+  switch (status) {
+    case 'PENDING':
+      return '待处理'
+    case 'ACCEPTED':
+      return '已接受'
+    case 'REJECTED':
+      return '已拒绝'
+    case 'EXPIRED':
+      return '已过期'
+    case 'CANCELLED':
+      return '已取消'
+    default:
+      return '未知状态'
+  }
+}
+
+function inviteChannelText(channel: string) {
+  switch (channel) {
+    case 'SHARE_LINK':
+      return '链接邀请'
+    case 'IN_APP':
+      return '站内邀请'
+    default:
+      return '其他方式'
+  }
+}
+
+function roleText(role: string) {
+  switch (role) {
+    case 'FOUNDER':
+      return '创建者'
+    case 'FAMILY_ADMIN':
+      return '管理员'
+    case 'MEMBER':
+      return '成员'
+    case 'ROOT_ADMIN':
+      return '超级管理员'
+    default:
+      return '未知角色'
+  }
+}
+
 async function loadInvitations() {
   if (!session.requireLogin('/pages/invite/my')) return
   loading.value = true
@@ -85,6 +131,26 @@ async function loadInvitations() {
   } finally {
     loading.value = false
   }
+}
+
+function confirmAccept(item: Invitation) {
+  uni.showModal({
+    title: '接受邀请',
+    content: `确定接受加入「${item.familyName}」的邀请吗？`,
+    success: (result) => {
+      if (result.confirm) accept(item.invitationId)
+    }
+  })
+}
+
+function confirmReject(item: Invitation) {
+  uni.showModal({
+    title: '拒绝邀请',
+    content: `确定拒绝加入「${item.familyName}」的邀请吗？`,
+    success: (result) => {
+      if (result.confirm) reject(item.invitationId)
+    }
+  })
 }
 
 async function accept(invitationId: number | string) {
