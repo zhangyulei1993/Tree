@@ -11,7 +11,9 @@
     </view>
     <view v-else-if="!errorMessage && families.length === 0" class="card state-card">
       <text class="section-title">暂无家庭</text>
-      <text class="muted">当前账号还没有加入家庭。</text>
+      <text class="muted">当前账号还没有创建或加入家庭。你可以查看公开家庭，或通过家人发送的邀请加入家庭。</text>
+      <button class="button" @click="openSearch">查看公开家庭</button>
+      <button class="button secondary" @click="openInvitations">查看我的邀请</button>
     </view>
     <view
       v-for="family in families"
@@ -21,13 +23,13 @@
     >
       <view class="section-row">
         <text class="section-title">{{ family.familyName }}</text>
-        <text class="tag">{{ family.role }}</text>
+        <text class="tag">{{ roleText(family.role) }}</text>
       </view>
       <text class="muted">姓氏：{{ family.familySurname }}</text>
       <text v-if="family.regionText || family.nativePlace" class="muted">
         地区：{{ family.regionText || family.nativePlace }}
       </text>
-      <text class="muted">家庭状态：{{ family.status }}</text>
+      <text class="muted">家庭状态：{{ familyStatusText(family.status) }}</text>
     </view>
   </view>
 </template>
@@ -63,6 +65,52 @@ function openFamily(familyId: number | string) {
   uni.navigateTo({ url: `/pages/family/detail?familyId=${encodeURIComponent(String(familyId))}` })
 }
 
+function openSearch() {
+  uni.switchTab({ url: '/pages/family/search' })
+}
+
+function openInvitations() {
+  uni.navigateTo({ url: '/pages/invite/my' })
+}
+
+function roleText(role: string) {
+  switch (role) {
+    case 'FOUNDER':
+      return '创建者'
+    case 'FAMILY_ADMIN':
+      return '管理员'
+    case 'MEMBER':
+      return '成员'
+    default:
+      return role ? '未知角色' : '成员'
+  }
+}
+
+function familyStatusText(status: string) {
+  switch (status) {
+    case 'NORMAL':
+      return '正常'
+    case 'DISABLED':
+      return '已停用'
+    case 'DISSOLVED':
+      return '已解散'
+    case 'DISSOLUTION_PENDING':
+      return '解散待审核'
+    case 'PENDING':
+      return '待审核'
+    case 'APPROVED':
+      return '已通过'
+    case 'REJECTED':
+      return '已拒绝'
+    case 'TAKEN_DOWN':
+      return '已下架'
+    case 'DELETED':
+      return '已删除'
+    default:
+      return '未知状态'
+  }
+}
+
 onShow(loadFamilies)
 </script>
 
@@ -76,10 +124,6 @@ onShow(loadFamilies)
 
 .state-card {
   text-align: center;
-}
-
-.family-card {
-  cursor: pointer;
 }
 
 .section-row {
