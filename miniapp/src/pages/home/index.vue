@@ -7,6 +7,11 @@
       <button class="button secondary" @click="go('/pages/auth/phone-login')">手机号登录</button>
     </view>
     <view class="card">
+      <text class="section-title">亲属关系工具</text>
+      <text class="muted">通过关系路径查询常见亲属称谓。</text>
+      <button class="button" @click="go('/pages/tools/kinship')">开始查询</button>
+    </view>
+    <view class="card">
       <text class="section-title">公开家庭推荐</text>
       <template v-if="isRealApiMode">
         <text class="muted">公开家庭推荐暂未开放，请通过邀请链接或公开家庭链接访问。</text>
