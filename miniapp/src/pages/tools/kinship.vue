@@ -1,13 +1,18 @@
 <template>
   <view class="page">
-    <view class="card">
+    <view class="card intro-card">
       <text class="title">亲属关系工具</text>
-      <text class="muted">选择一层层亲属关系，查看常见称谓。称谓因地区和习惯可能不同，结果仅供参考。</text>
+      <text class="muted intro-text">
+        选择一层层亲属关系，系统会根据性别、长幼和路径规则推算常见称谓。不同地区称呼可能不同，结果仅供参考。
+      </text>
+      <text class="tip-text">
+        最多支持 5 层关系路径；系统会自动限制容易绕回本人或同辈的路径。
+      </text>
     </view>
 
     <view class="card">
       <text class="section-title">本人信息</text>
-      <text class="muted field-hint">出生日期优先用于判断，年龄仅作为补充。</text>
+      <text class="muted field-hint">出生日期优先用于判断长幼，年龄仅作为补充。</text>
       <view class="picker-row">
         <text class="label">本人性别</text>
         <view class="tag-group">
@@ -22,37 +27,48 @@
           </text>
         </view>
       </view>
-      <input v-model.trim="self.birthday" class="input" placeholder="本人出生日期（可选）" />
+      <input v-model.trim="self.birthday" class="input" placeholder="本人出生日期（可选，如 1990-01-01）" />
       <input v-model.trim="selfAgeInput" class="input" type="number" placeholder="本人年龄（可选）" />
     </view>
 
-    <view class="card">
-      <text class="section-title">当前路径</text>
-      <text class="path-display">{{ pathDisplay }}</text>
-      <text class="muted">当前层数：{{ steps.length }} / {{ maxDepth }}</text>
-      <view v-if="steps.length > 0" class="step-list">
-        <view v-for="(step, index) in steps" :key="index" class="step-item">
-          <text>{{ index + 1 }}. {{ formatStepLabel(step) }}</text>
-        </view>
+    <view class="card path-card">
+      <text class="section-title">关系路径</text>
+      <view class="path-pills">
+        <text class="path-pill path-pill-self">我</text>
+        <template v-for="(step, index) in steps" :key="index">
+          <text class="path-separator">›</text>
+          <text class="path-pill">{{ formatStepLabel(step) }}</text>
+        </template>
       </view>
+      <text class="path-meta">当前层数：{{ steps.length }} / {{ maxDepth }}</text>
     </view>
 
     <view class="card">
-      <text class="section-title">添加下一层关系</text>
+      <text class="section-title">选择下一层关系</text>
       <view class="relation-grid">
-        <button
+        <view
           v-for="option in relationOptions"
           :key="option.relation"
-          class="button"
-          :class="{ secondary: !option.enabled, disabled: !option.enabled }"
+          class="relation-btn"
+          :class="{
+            active: pendingRelation === option.relation,
+            disabled: !option.enabled
+          }"
           @click="selectRelation(option)"
         >
-          {{ option.label }}
-        </button>
+          <text class="relation-btn-label">{{ option.label }}</text>
+        </view>
       </view>
-      <text v-if="selectedRelationLabel" class="muted">已选择：{{ selectedRelationLabel }}</text>
+      <text v-if="lastDisabledReason" class="disabled-hint">{{ lastDisabledReason }}</text>
+    </view>
 
-      <view v-if="pendingRelation" class="pending-form">
+    <view class="card">
+      <text class="section-title">补充这个人的信息</text>
+      <view v-if="!pendingRelation" class="empty-hint">
+        <text class="muted">请先选择下一层关系。</text>
+      </view>
+      <view v-else class="pending-form">
+        <text class="pending-relation-hint">正在为「{{ selectedRelationLabel }}」补充信息</text>
         <view class="picker-row">
           <text class="label">性别</text>
           <view class="tag-group">
@@ -70,7 +86,7 @@
         <input v-model.trim="pendingPerson.birthday" class="input" placeholder="出生日期（可选）" />
         <input v-model.trim="pendingAgeInput" class="input" type="number" placeholder="年龄（可选）" />
         <view v-if="pendingRelation === 'sibling'" class="picker-row">
-          <text class="label">长幼</text>
+          <text class="label">长幼（相对上一位）</text>
           <view class="tag-group">
             <text
               v-for="item in relativeAgeOptions"
@@ -83,35 +99,61 @@
             </text>
           </view>
         </view>
-        <button class="button" @click="appendStep">添加到路径</button>
+        <button class="button append-btn" @click="appendStep">添加到路径</button>
         <text v-if="appendError" class="error">{{ appendError }}</text>
       </view>
     </view>
 
-    <view class="card">
-      <text class="section-title">推导结果</text>
-      <text v-if="resolution.status === 'resolved'" class="result-title">{{ resolution.primaryTitle }}</text>
-      <text v-else-if="resolution.status === 'ambiguous'" class="result-title">
-        {{ resolution.primaryTitle || '信息不足' }}
-      </text>
-      <text v-else class="result-title">暂未收录该关系的常用称谓</text>
+    <view class="card result-card" :class="`result-${resolution.status}`">
+      <template v-if="resolution.status === 'resolved'">
+        <text class="result-label">常见称谓</text>
+        <text class="result-title">{{ resolution.primaryTitle }}</text>
+      </template>
+      <template v-else-if="resolution.status === 'ambiguous'">
+        <text class="result-label">可能称谓</text>
+        <view v-if="resolution.candidates?.length" class="candidate-list">
+          <text v-for="(item, index) in resolution.candidates" :key="index" class="candidate-tag">
+            {{ item }}
+          </text>
+        </view>
+        <text v-else-if="resolution.primaryTitle" class="result-title muted-title">
+          {{ resolution.primaryTitle }}
+        </text>
+        <text class="muted result-hint">
+          请补充性别、长幼或父系/母系方向等信息，以获得更明确的称谓。
+        </text>
+      </template>
+      <template v-else>
+        <text class="result-label">暂未收录</text>
+        <text class="result-unsupported">暂未收录该关系的常用称谓</text>
+        <text class="muted result-hint">
+          你仍然可以保留完整关系路径，后续版本会继续补充称谓规则。
+        </text>
+      </template>
 
-      <text v-if="resolution.candidates?.length" class="muted">
-        可能称谓：{{ resolution.candidates.join('、') }}
-      </text>
-      <text v-if="resolution.aliases.length" class="muted">别称：{{ resolution.aliases.join('、') }}</text>
-      <text v-if="resolution.explanation" class="muted">{{ resolution.explanation }}</text>
-      <text v-if="resolution.status === 'unsupported'" class="muted">你仍然可以保留完整关系路径。</text>
-      <text class="muted">路径：{{ resolution.pathDescription }}</text>
+      <view v-if="resolution.aliases.length" class="aliases-block">
+        <text class="aliases-label">其他常见叫法：</text>
+        <text class="aliases-text">{{ resolution.aliases.join('、') }}</text>
+      </view>
+
+      <text v-if="resolution.explanation" class="explanation-text">{{ resolution.explanation }}</text>
     </view>
 
-    <view class="card">
-      <button class="button secondary" :disabled="steps.length === 0" @click="undoStep">撤销一步</button>
-      <button class="button secondary" @click="resetAll">重新开始</button>
-      <button class="button" @click="copyDescription">复制关系描述</button>
+    <view class="card action-card">
+      <view class="action-row">
+        <button
+          class="button secondary action-btn"
+          :class="{ 'btn-disabled': steps.length === 0 }"
+          @click="undoStep"
+        >
+          撤销一步
+        </button>
+        <button class="button secondary action-btn" @click="confirmReset">重新开始</button>
+        <button class="button action-btn" @click="copyDescription">复制关系描述</button>
+      </view>
     </view>
 
-    <view class="card self-check-card">
+    <view class="footer-check">
       <text class="self-check-text">规则自检：{{ selfCheckSummary }}</text>
     </view>
   </view>
@@ -122,7 +164,6 @@ import { computed, ref } from 'vue'
 
 import { canAppendRelation, getRelationOptions } from '@/features/kinship/allowedRelations'
 import {
-  formatPathDisplay,
   formatStepLabel,
   normalizePersonFacts
 } from '@/features/kinship/helpers'
@@ -152,6 +193,7 @@ const pendingPerson = ref<PersonFacts>({ gender: 'unknown' })
 const pendingAgeInput = ref('')
 const pendingRelativeAge = ref<RelativeAge>('unknown')
 const appendError = ref('')
+const lastDisabledReason = ref('')
 
 const context = computed<KinshipContext>(() => ({
   self: normalizePersonFacts({
@@ -164,7 +206,6 @@ const context = computed<KinshipContext>(() => ({
 
 const relationOptions = computed(() => getRelationOptions(context.value))
 const resolution = computed(() => resolveKinship(context.value))
-const pathDisplay = computed(() => formatPathDisplay(context.value))
 const selfCheckResult = computed(() => runKinshipSelfChecks())
 const selfCheckSummary = computed(() => {
   const result = selfCheckResult.value
@@ -178,13 +219,15 @@ const selectedRelationLabel = computed(() => {
 
 function selectRelation(option: { relation: KinshipRelation; enabled: boolean; disabledReason?: string }) {
   if (!option.enabled) {
+    lastDisabledReason.value = option.disabledReason || '当前不可选择该关系'
     uni.showToast({
       title: option.disabledReason || '当前不可选择该关系',
       icon: 'none',
-      duration: 2500
+      duration: 2800
     })
     return
   }
+  lastDisabledReason.value = ''
   pendingRelation.value = option.relation
   pendingPerson.value = { gender: 'unknown' }
   pendingAgeInput.value = ''
@@ -210,7 +253,7 @@ function buildPendingStep(): KinshipStep {
 function appendStep() {
   appendError.value = ''
   if (!pendingRelation.value) {
-    appendError.value = '请先选择关系类型。'
+    appendError.value = '请先选择下一层关系。'
     return
   }
   const validation = canAppendRelation(context.value, pendingRelation.value)
@@ -223,12 +266,17 @@ function appendStep() {
   pendingPerson.value = { gender: 'unknown' }
   pendingAgeInput.value = ''
   pendingRelativeAge.value = 'unknown'
+  lastDisabledReason.value = ''
 }
 
 function undoStep() {
-  if (steps.value.length === 0) return
+  if (steps.value.length === 0) {
+    uni.showToast({ title: '当前没有可撤销的关系', icon: 'none' })
+    return
+  }
   steps.value = steps.value.slice(0, -1)
   appendError.value = ''
+  lastDisabledReason.value = ''
 }
 
 function resetAll() {
@@ -240,18 +288,43 @@ function resetAll() {
   pendingAgeInput.value = ''
   pendingRelativeAge.value = 'unknown'
   appendError.value = ''
+  lastDisabledReason.value = ''
 }
 
-function buildCopyText() {
-  const path = resolution.value.pathDescription
+function confirmReset() {
+  if (steps.value.length === 0 && self.value.gender === 'unknown' && !selfAgeInput.value && !self.value.birthday) {
+    resetAll()
+    return
+  }
+  uni.showModal({
+    title: '重新开始',
+    content: '是否清空当前关系路径？',
+    confirmText: '清空',
+    cancelText: '取消',
+    success: (res) => {
+      if (res.confirm) {
+        resetAll()
+      }
+    }
+  })
+}
+
+function buildPathText(): string {
+  if (steps.value.length === 0) return '我'
+  return ['我', ...steps.value.map((step) => formatStepLabel(step))].join(' > ')
+}
+
+function buildCopyText(): string {
+  const path = buildPathText()
+  if (steps.value.length === 0) return '我'
   if (resolution.value.status === 'resolved' && resolution.value.primaryTitle) {
     return `${path}：${resolution.value.primaryTitle}`
   }
   if (resolution.value.status === 'ambiguous') {
     const candidates = resolution.value.candidates?.join('、') || resolution.value.primaryTitle || '多种称谓'
-    return `${path}：可能为${candidates}，请补充性别或长幼信息。`
+    return `${path}：可能为 ${candidates}`
   }
-  return `${path}：暂未收录该关系的常用称谓。`
+  return `${path}：暂未收录该关系的常用称谓`
 }
 
 function copyDescription() {
@@ -265,18 +338,37 @@ function copyDescription() {
 </script>
 
 <style scoped>
+.intro-card {
+  padding-bottom: 24rpx;
+}
+
+.intro-text {
+  display: block;
+}
+
+.tip-text {
+  display: block;
+  margin-top: 16rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  background: #f4f1e8;
+  color: #6b7280;
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
 .field-hint {
   display: block;
   margin-bottom: 12rpx;
 }
 
 .picker-row {
-  margin-top: 16rpx;
+  margin-top: 20rpx;
 }
 
 .label {
   display: block;
-  margin-bottom: 8rpx;
+  margin-bottom: 10rpx;
   color: #6b7280;
   font-size: 24rpx;
 }
@@ -284,7 +376,7 @@ function copyDescription() {
 .tag-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 8rpx;
+  gap: 10rpx;
 }
 
 .tag.selectable {
@@ -296,46 +388,112 @@ function copyDescription() {
   color: #fff;
 }
 
-.path-display {
-  display: block;
-  margin-bottom: 12rpx;
-  font-size: 28rpx;
-  line-height: 1.7;
+.path-card {
+  background: linear-gradient(180deg, #fff 0%, #faf8f4 100%);
 }
 
-.step-list {
-  margin-top: 16rpx;
+.path-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8rpx;
+  margin-bottom: 16rpx;
 }
 
-.step-item {
-  padding: 12rpx 0;
-  border-top: 1rpx solid #e5e0d6;
+.path-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999rpx;
+  background: #eef4f1;
+  color: #2f6b57;
+  padding: 10rpx 20rpx;
   font-size: 26rpx;
+  line-height: 1.4;
+  max-width: 100%;
+  word-break: break-all;
+}
+
+.path-pill-self {
+  background: #1f3a5f;
+  color: #fff;
+  font-weight: 600;
+}
+
+.path-separator {
+  color: #9ca3af;
+  font-size: 24rpx;
+  flex-shrink: 0;
+}
+
+.path-meta {
+  color: #6b7280;
+  font-size: 24rpx;
 }
 
 .relation-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-wrap: wrap;
   gap: 12rpx;
 }
 
-.button.disabled,
-.button[disabled] {
-  opacity: 0.55;
+.relation-btn {
+  flex: 1 1 calc(50% - 6rpx);
+  min-width: 140rpx;
+  box-sizing: border-box;
+  border: 2rpx solid #1f3a5f;
+  border-radius: 16rpx;
+  background: #1f3a5f;
+  padding: 24rpx 16rpx;
+  text-align: center;
+}
+
+.relation-btn.active {
+  border-color: #2f6b57;
+  background: #2f6b57;
+  box-shadow: 0 4rpx 12rpx rgba(47, 107, 87, 0.25);
+}
+
+.relation-btn.disabled {
+  border-color: #e5e0d6;
+  background: #f9f7f3;
+  opacity: 1;
+}
+
+.relation-btn-label {
+  color: #fff;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.relation-btn.disabled .relation-btn-label {
+  color: #9ca3af;
+}
+
+.disabled-hint {
+  display: block;
+  margin-top: 16rpx;
+  color: #9ca3af;
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.empty-hint {
+  padding: 24rpx 0 8rpx;
 }
 
 .pending-form {
-  margin-top: 20rpx;
-  padding-top: 20rpx;
-  border-top: 1rpx solid #e5e0d6;
+  padding-top: 8rpx;
 }
 
-.result-title {
+.pending-relation-hint {
   display: block;
-  margin-bottom: 12rpx;
+  margin-bottom: 16rpx;
   color: #2f6b57;
-  font-size: 34rpx;
-  font-weight: 700;
+  font-size: 26rpx;
+}
+
+.append-btn {
+  margin-top: 24rpx;
 }
 
 .error {
@@ -345,12 +503,121 @@ function copyDescription() {
   font-size: 24rpx;
 }
 
-.self-check-card {
+.result-card {
+  border-color: #d4e5de;
+  background: linear-gradient(180deg, #f8fbf9 0%, #fff 100%);
+}
+
+.result-label {
+  display: block;
+  margin-bottom: 12rpx;
+  color: #6b7280;
+  font-size: 24rpx;
+  font-weight: 600;
+  letter-spacing: 1rpx;
+}
+
+.result-title {
+  display: block;
+  color: #2f6b57;
+  font-size: 40rpx;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.muted-title {
+  font-size: 32rpx;
+}
+
+.result-unsupported {
+  display: block;
+  color: #6b7280;
+  font-size: 30rpx;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.result-hint {
+  display: block;
+  margin-top: 12rpx;
+}
+
+.candidate-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-bottom: 8rpx;
+}
+
+.candidate-tag {
+  display: inline-flex;
+  border-radius: 999rpx;
+  background: #fff;
+  border: 1rpx solid #b8d4c8;
+  color: #2f6b57;
+  padding: 10rpx 20rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.aliases-block {
+  margin-top: 20rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #e5e0d6;
+}
+
+.aliases-label {
+  display: block;
+  margin-bottom: 6rpx;
+  color: #6b7280;
+  font-size: 24rpx;
+}
+
+.aliases-text {
+  color: #374151;
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.explanation-text {
+  display: block;
+  margin-top: 16rpx;
+  color: #6b7280;
+  font-size: 26rpx;
+  line-height: 1.7;
+}
+
+.action-card {
+  padding-bottom: 20rpx;
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.action-btn {
+  flex: 1 1 calc(50% - 6rpx);
+  min-width: 200rpx;
+  margin: 0;
+}
+
+.action-btn:last-child {
+  flex: 1 1 100%;
+}
+
+.btn-disabled {
+  opacity: 0.5;
+}
+
+.footer-check {
+  padding: 8rpx 0 32rpx;
   text-align: center;
 }
 
 .self-check-text {
-  color: #9ca3af;
-  font-size: 22rpx;
+  color: #c4c9d0;
+  font-size: 20rpx;
 }
 </style>
