@@ -2,12 +2,7 @@
   <view class="page">
     <view class="card intro-card">
       <text class="title">亲属关系工具</text>
-      <text class="muted intro-text">
-        选择一层层亲属关系，系统会根据性别、长幼和路径规则推算常见称谓。不同地区称呼可能不同，结果仅供参考。
-      </text>
-      <text class="tip-text">
-        最多支持 5 层关系路径；系统会自动限制容易绕回本人或同辈的路径。
-      </text>
+      <text class="muted intro-text">推导关系结果仅供参考，最多支持 5 代关系推测。</text>
     </view>
 
     <view class="card">
@@ -17,7 +12,7 @@
         <text class="label">本人性别</text>
         <view class="tag-group">
           <text
-            v-for="item in genderOptions"
+            v-for="item in selfGenderOptions"
             :key="item.value"
             class="tag selectable"
             :class="{ active: self.gender === item.value }"
@@ -27,6 +22,7 @@
           </text>
         </view>
       </view>
+      <text v-if="self.gender === 'unknown'" class="disabled-hint">请先选择本人性别，再开始选择关系。</text>
       <input v-model.trim="self.birthday" class="input" placeholder="本人出生日期（可选，如 1990-01-01）" />
       <input v-model.trim="selfAgeInput" class="input" type="number" placeholder="本人年龄（可选）" />
     </view>
@@ -40,7 +36,7 @@
           <text class="path-pill">{{ formatStepLabel(step) }}</text>
         </template>
       </view>
-      <text class="path-meta">当前层数：{{ steps.length }} / {{ maxDepth }}</text>
+      <text class="path-meta">当前代数：{{ generationDepth }} / {{ maxDepth }}</text>
     </view>
 
     <view class="card">
@@ -173,6 +169,10 @@ import type { Gender, KinshipContext, KinshipRelation, KinshipStep, PersonFacts,
 import { MAX_KINSHIP_DEPTH } from '@/features/kinship/types'
 
 const maxDepth = MAX_KINSHIP_DEPTH
+const selfGenderOptions = [
+  { value: 'male' as Gender, label: '男' },
+  { value: 'female' as Gender, label: '女' }
+]
 const genderOptions = [
   { value: 'male' as Gender, label: '男' },
   { value: 'female' as Gender, label: '女' },
@@ -204,7 +204,15 @@ const context = computed<KinshipContext>(() => ({
   maxDepth
 }))
 
-const relationOptions = computed(() => getRelationOptions(context.value))
+const relationOptions = computed(() => {
+  const options = getRelationOptions(context.value)
+  if (self.value.gender !== 'unknown') return options
+  return options.map((option) => ({
+    ...option,
+    enabled: false,
+    disabledReason: '请先选择本人性别。'
+  }))
+})
 const resolution = computed(() => resolveKinship(context.value))
 const selfCheckResult = computed(() => runKinshipSelfChecks())
 const selfCheckSummary = computed(() => {
@@ -217,7 +225,17 @@ const selectedRelationLabel = computed(() => {
   return relationOptions.value.find((item) => item.relation === pendingRelation.value)?.label || ''
 })
 
+const generationDepth = computed(() => steps.value.filter((step) => step.relation !== 'spouse').length)
+
 function selectRelation(option: { relation: KinshipRelation; enabled: boolean; disabledReason?: string }) {
+  if (self.value.gender === 'unknown') {
+    lastDisabledReason.value = '请先选择本人性别。'
+    uni.showToast({
+      title: '请先选择本人性别',
+      icon: 'none'
+    })
+    return
+  }
   if (!option.enabled) {
     lastDisabledReason.value = option.disabledReason || '当前不可选择该关系'
     uni.showToast({
@@ -229,10 +247,26 @@ function selectRelation(option: { relation: KinshipRelation; enabled: boolean; d
   }
   lastDisabledReason.value = ''
   pendingRelation.value = option.relation
-  pendingPerson.value = { gender: 'unknown' }
+  pendingPerson.value = { gender: getDefaultGenderForRelation(option.relation) }
   pendingAgeInput.value = ''
   pendingRelativeAge.value = 'unknown'
   appendError.value = ''
+}
+
+function getCurrentPersonGender(): Gender {
+  if (steps.value.length === 0) return self.value.gender
+  return steps.value[steps.value.length - 1].person.gender
+}
+
+function getOppositeGender(gender: Gender): Gender {
+  if (gender === 'male') return 'female'
+  if (gender === 'female') return 'male'
+  return 'unknown'
+}
+
+function getDefaultGenderForRelation(relation: KinshipRelation): Gender {
+  if (relation !== 'spouse') return 'unknown'
+  return getOppositeGender(getCurrentPersonGender())
 }
 
 function buildPendingStep(): KinshipStep {
@@ -252,6 +286,10 @@ function buildPendingStep(): KinshipStep {
 
 function appendStep() {
   appendError.value = ''
+  if (self.value.gender === 'unknown') {
+    appendError.value = '请先选择本人性别。'
+    return
+  }
   if (!pendingRelation.value) {
     appendError.value = '请先选择下一层关系。'
     return
@@ -355,6 +393,11 @@ function copyDescription() {
   color: #6b7280;
   font-size: 24rpx;
   line-height: 1.6;
+}
+
+.beta-tip {
+  background: #eef4fb;
+  color: #4b6a8a;
 }
 
 .field-hint {

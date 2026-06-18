@@ -6,6 +6,7 @@ import type {
   PersonFacts,
   RelativeAge
 } from './types'
+import { buildPathKey } from './pathKey'
 
 export function getRelationLabel(relation: KinshipRelation): string {
   switch (relation) {
@@ -89,16 +90,8 @@ export function inferRelativeAgeFromFacts(
   return 'unknown'
 }
 
-export function createPathKey(steps: KinshipStep[]): string {
-  return steps
-    .map((step) => {
-      const parts = [step.relation, step.person.gender]
-      if (step.relativeAge) parts.push(step.relativeAge)
-      if (step.person.birthday) parts.push(`b:${step.person.birthday}`)
-      else if (step.person.age !== undefined) parts.push(`a:${step.person.age}`)
-      return parts.join('|')
-    })
-    .join('>')
+export function createPathKey(context: KinshipContext): string {
+  return buildPathKey(context)
 }
 
 function formatStepRelationLabel(step: KinshipStep): string {
