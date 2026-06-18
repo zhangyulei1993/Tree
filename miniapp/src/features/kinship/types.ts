@@ -44,3 +44,12 @@ export interface KinshipResolution {
   pathDescription: string
   explanation?: string
 }
+
+export interface KinshipRuleMatch {
+  status: 'resolved' | 'ambiguous' | 'unsupported'
+  primaryTitle?: string
+  candidates?: string[]
+  aliases?: string[]
+  explanation?: string
+  terminal?: boolean
+}
