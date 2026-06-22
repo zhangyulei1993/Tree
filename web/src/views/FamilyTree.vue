@@ -4,7 +4,7 @@
       <div class="page-heading">
         <div>
           <span class="eyebrow">私有家庭树</span>
-          <h1>家庭树数据</h1>
+          <h1>私有家庭树</h1>
         </div>
         <div class="heading-actions">
           <RouterLink class="button secondary" :to="`/families/${familyId}`">家庭详情</RouterLink>
@@ -20,44 +20,43 @@
       </section>
       <template v-else-if="tree">
         <section class="card metrics">
-          <div><span>Tree Mode</span><strong>{{ tree.treeMode }}</strong></div>
-          <div><span>Graph Version</span><strong>{{ tree.graphVersion }}</strong></div>
-          <div><span>Nodes</span><strong>{{ tree.nodes.length }}</strong></div>
-          <div><span>Edges</span><strong>{{ visibleEdges.length }}</strong></div>
+          <div><span>展示方式</span><strong>{{ treeModeText(tree.treeMode) }}</strong></div>
+          <div><span>家谱版本</span><strong>第 {{ tree.graphVersion }} 版</strong></div>
+          <div><span>成员</span><strong>{{ tree.nodes.length }}</strong></div>
+          <div><span>关系</span><strong>{{ visibleEdges.length }}</strong></div>
         </section>
 
         <div class="content-grid">
           <section>
-            <h2>成员节点</h2>
-            <div v-if="tree.nodes.length === 0" class="card state-panel">暂无节点</div>
+            <h2>成员</h2>
+            <div v-if="tree.nodes.length === 0" class="card state-panel">暂无成员</div>
             <div v-else class="list">
               <article v-for="node in tree.nodes" :key="node.memberId" class="card list-item">
                 <div class="item-title">
-                  <strong>#{{ node.memberId }} {{ node.displayName }}</strong>
+                  <strong>{{ node.displayName }}</strong>
                   <span>{{ genderLabel(node.gender) }}</span>
                 </div>
                 <p class="muted">
-                  {{ lifeText(node) }} · {{ node.userBindingState }} · {{ node.memberType }}
+                  {{ lifeText(node) }} · {{ bindingText(node.userBindingState) }} · {{ memberTypeText(node.memberType) }}
                 </p>
               </article>
             </div>
           </section>
 
           <section>
-            <h2>关系边</h2>
+            <h2>亲属关系</h2>
             <p v-if="hiddenSiblingCount" class="warning">
-              已隐藏 {{ hiddenSiblingCount }} 条非法 SIBLING 边。
+              已隐藏 {{ hiddenSiblingCount }} 条不应直接展示的兄弟姐妹关系。
             </p>
             <div v-if="visibleEdges.length === 0" class="card state-panel">暂无关系</div>
             <div v-else class="list">
               <article v-for="edge in visibleEdges" :key="edge.relationshipId" class="card list-item">
                 <div class="item-title">
-                  <strong>{{ edge.relationshipType }}</strong>
-                  <span>#{{ edge.relationshipId }}</span>
+                  <strong>{{ relationTypeText(edge.relationshipType) }}</strong>
                 </div>
                 <p class="muted">
                   {{ memberName(edge.fromMemberId) }} → {{ memberName(edge.toMemberId) }}
-                  <template v-if="edge.parentLinkType"> · {{ edge.parentLinkType }}</template>
+                  <template v-if="edge.parentLinkType"> · {{ parentLinkText(edge.parentLinkType) }}</template>
                 </p>
               </article>
             </div>
@@ -111,7 +110,40 @@ function lifeText(node: TreeNode) {
 
 function memberName(memberId: number) {
   const node = tree.value?.nodes.find((item) => item.memberId === memberId)
-  return node ? `#${memberId} ${node.displayName}` : `#${memberId}`
+  return node ? node.displayName : '未知成员'
+}
+
+function treeModeText(mode: string) {
+  return mode === 'LIST_TREE' ? '列表家谱' : '家谱'
+}
+
+function bindingText(state?: string) {
+  if (state === 'BOUND') return '已绑定账号'
+  if (state === 'UNBOUND') return '未绑定账号'
+  if (state === 'NOT_REQUIRED') return '无需绑定'
+  return '绑定状态未填写'
+}
+
+function memberTypeText(type?: string) {
+  if (type === 'REAL') return '真实成员'
+  if (type === 'VIRTUAL') return '记录节点'
+  return '成员节点'
+}
+
+function relationTypeText(type?: string) {
+  if (type === 'PARENT_CHILD') return '父母子女'
+  if (type === 'SPOUSE') return '配偶'
+  return '亲属关系'
+}
+
+function parentLinkText(type?: string) {
+  if (type === 'PRIMARY') return '主要关系'
+  if (type === 'STEP') return '继亲'
+  if (type === 'ADOPTIVE') return '收养'
+  if (type === 'SUCCESSION') return '承继'
+  if (type === 'NOTE_ONLY') return '备注关系'
+  if (type === 'OTHER') return '其他关系'
+  return '关系属性未填写'
 }
 
 async function loadTree() {
@@ -133,7 +165,7 @@ onMounted(loadTree)
 
 <style scoped>
 .page-section {
-  padding: 32px 0;
+  padding: 44px 0;
 }
 
 .page-heading,
@@ -177,7 +209,10 @@ h1 {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
-  padding: 18px;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.07), transparent 150px),
+    rgba(255, 255, 255, 0.94);
 }
 
 .metrics div {
@@ -203,7 +238,7 @@ h1 {
 }
 
 .list-item {
-  padding: 16px;
+  padding: 18px;
 }
 
 .list-item p {

@@ -3,17 +3,24 @@
     <section class="container profile-page">
       <div class="page-heading">
         <div>
-          <span class="eyebrow">{{ session.mode === 'real' ? '真实 API 会话' : 'Mock 会话' }}</span>
+          <span class="eyebrow">账号中心</span>
           <h1>个人中心</h1>
         </div>
-        <span class="status">{{ user.status }}</span>
+        <span class="status-pill">{{ accountStatusText(user.status) }}</span>
       </div>
       <div class="card profile-card">
+        <div class="profile-hero">
+          <div class="avatar">{{ (user.nickname || '访').slice(0, 1) }}</div>
+          <div>
+            <strong>{{ user.nickname || '欢迎使用 Tree' }}</strong>
+            <span>{{ maskedPhone }}</span>
+          </div>
+        </div>
         <dl>
-          <div><dt>用户 ID</dt><dd>{{ user.id }}</dd></div>
           <div><dt>昵称</dt><dd>{{ user.nickname || '未设置' }}</dd></div>
           <div><dt>手机号</dt><dd>{{ maskedPhone }}</dd></div>
           <div><dt>手机验证</dt><dd>{{ user.phoneVerified ? '已验证' : '未验证' }}</dd></div>
+          <div><dt>账号状态</dt><dd>{{ accountStatusText(user.status) }}</dd></div>
         </dl>
         <div class="actions">
           <RouterLink class="button" to="/me/families">我的家庭</RouterLink>
@@ -56,6 +63,14 @@ const maskedPhone = computed(() => {
   return phone.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2')
 })
 
+function accountStatusText(status?: string) {
+  if (status === 'ACTIVE') return '正常'
+  if (status === 'DISABLED') return '已停用'
+  if (status === 'CANCELLED') return '已注销'
+  if (status === 'PENDING_PHONE_BIND') return '待绑定手机号'
+  return '未知'
+}
+
 async function logout() {
   error.value = ''
   loggingOut.value = true
@@ -73,7 +88,7 @@ async function logout() {
 
 <style scoped>
 .profile-page {
-  padding: 32px 0;
+  padding: 44px 0;
 }
 
 .page-heading {
@@ -94,18 +109,46 @@ async function logout() {
   font-weight: 700;
 }
 
-.status {
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: #fff;
-  padding: 6px 10px;
-  color: var(--color-success);
-  font-size: 13px;
-  font-weight: 700;
+.profile-card {
+  padding: 28px;
 }
 
-.profile-card {
+.profile-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  border-radius: 22px;
+  background: var(--gradient-hero);
   padding: 22px;
+}
+
+.avatar {
+  display: grid;
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  place-items: center;
+  border-radius: 22px;
+  background: var(--gradient-primary);
+  color: #fff;
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.profile-hero strong,
+.profile-hero span {
+  display: block;
+}
+
+.profile-hero strong {
+  color: var(--color-primary);
+  font-size: 22px;
+}
+
+.profile-hero span {
+  margin-top: 4px;
+  color: var(--color-text-secondary);
 }
 
 dl {

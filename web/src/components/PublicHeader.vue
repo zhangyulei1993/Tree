@@ -1,24 +1,29 @@
 <template>
   <header class="header">
-    <RouterLink class="brand" to="/">
-      <span>Tree</span>
-      <strong>家脉亲缘</strong>
-    </RouterLink>
-    <nav>
-      <RouterLink to="/">首页</RouterLink>
-      <RouterLink to="/families">搜索家庭</RouterLink>
-      <RouterLink to="/me/families">我的家庭</RouterLink>
-      <RouterLink to="/me">我的</RouterLink>
-    </nav>
-    <div v-if="session.isLoggedIn" class="account-actions">
-      <RouterLink class="account-link" to="/me">
-        {{ session.user?.nickname || '个人中心' }}
+    <div class="header-inner">
+      <RouterLink class="brand" to="/">
+        <span class="brand-mark">T</span>
+        <span class="brand-copy">
+          <strong>Tree</strong>
+          <small>家脉亲缘</small>
+        </span>
       </RouterLink>
-      <button class="button secondary" :disabled="loggingOut" @click="logout">
-        {{ loggingOut ? '退出中...' : '退出登录' }}
-      </button>
+      <nav>
+        <RouterLink to="/">首页</RouterLink>
+        <RouterLink to="/families">找家族</RouterLink>
+        <RouterLink to="/me/families">我的家庭</RouterLink>
+        <RouterLink to="/me">我的</RouterLink>
+      </nav>
+      <div v-if="session.isLoggedIn" class="account-actions">
+        <RouterLink class="account-link" to="/me">
+          {{ session.user?.nickname || '个人中心' }}
+        </RouterLink>
+        <button class="button secondary compact" :disabled="loggingOut" @click="logout">
+          {{ loggingOut ? '退出中...' : '退出登录' }}
+        </button>
+      </div>
+      <RouterLink v-else class="button secondary compact" to="/login">登录 / 注册</RouterLink>
     </div>
-    <RouterLink v-else class="button secondary" to="/login">登录 / 注册</RouterLink>
   </header>
 </template>
 
@@ -50,15 +55,19 @@ async function logout() {
   position: sticky;
   top: 0;
   z-index: 10;
+  border-bottom: 1px solid rgba(232, 237, 240, 0.82);
+  background: rgba(251, 252, 251, 0.84);
+  backdrop-filter: blur(18px);
+}
+
+.header-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18px;
-  min-height: 68px;
-  padding: 0 max(16px, calc((100vw - 1120px) / 2));
-  border-bottom: 1px solid var(--color-border);
-  background: rgba(247, 243, 234, 0.94);
-  backdrop-filter: blur(12px);
+  min-height: 72px;
+  width: min(1180px, calc(100vw - 40px));
+  margin: 0 auto;
 }
 
 .brand {
@@ -68,20 +77,54 @@ async function logout() {
   font-weight: 700;
 }
 
-.brand span {
+.brand-mark {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 42px;
+  height: 42px;
   place-items: center;
-  border-radius: 8px;
-  background: var(--color-primary);
+  border-radius: 15px;
+  background: var(--gradient-primary);
   color: #fff;
+  box-shadow: 0 12px 28px rgba(31, 58, 95, 0.18);
+  font-weight: 900;
+}
+
+.brand-copy {
+  display: grid;
+  gap: 1px;
+}
+
+.brand-copy strong {
+  line-height: 1;
+}
+
+.brand-copy small {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 nav {
   display: flex;
-  gap: 18px;
+  gap: 6px;
   color: var(--color-text-secondary);
+  border: 1px solid rgba(31, 58, 95, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 5px;
+}
+
+nav a {
+  border-radius: 999px;
+  padding: 8px 13px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+nav a.router-link-active {
+  background: var(--color-heritage-green-light);
+  color: var(--color-heritage-green);
+  font-weight: 700;
 }
 
 .account-actions {
@@ -100,15 +143,23 @@ nav {
   opacity: 0.6;
 }
 
+.compact {
+  min-height: 38px;
+  padding-inline: 15px;
+}
+
 @media (max-width: 760px) {
-  .header {
-    align-items: flex-start;
+  .header-inner {
+    width: min(100vw - 24px, 1180px);
+    align-items: stretch;
     flex-direction: column;
     padding-block: 12px;
   }
 
   nav {
+    width: 100%;
     flex-wrap: wrap;
+    border-radius: 18px;
   }
 
   .account-actions {

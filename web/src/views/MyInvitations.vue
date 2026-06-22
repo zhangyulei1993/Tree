@@ -25,10 +25,10 @@
             <div class="item-main">
               <div class="title">
                 <strong>{{ item.familyName }}</strong>
-                <span class="status">{{ item.status }}</span>
+                <span class="status">{{ invitationStatusText(item.status) }}</span>
               </div>
               <p>目标成员：{{ item.targetMemberName }}</p>
-              <p>邀请渠道：{{ item.inviteChannel }} · 接受后角色：{{ item.familyRoleAfterAccept }}</p>
+              <p>邀请方式：{{ inviteChannelText(item.inviteChannel) }} · 接受后身份：{{ roleText(item.familyRoleAfterAccept) }}</p>
               <p v-if="item.inviteMessage">{{ item.inviteMessage }}</p>
               <p class="muted">有效期至：{{ formatDate(item.expiredAt) }}</p>
             </div>
@@ -106,6 +106,28 @@ async function reject(item: Invitation) {
 }
 
 onMounted(loadInvitations)
+
+function invitationStatusText(status?: string) {
+  if (status === 'PENDING') return '待处理'
+  if (status === 'ACCEPTED') return '已接受'
+  if (status === 'REJECTED') return '已拒绝'
+  if (status === 'EXPIRED') return '已过期'
+  if (status === 'CANCELLED') return '已取消'
+  return '未知'
+}
+
+function inviteChannelText(channel?: string) {
+  if (channel === 'SHARE_LINK') return '链接邀请'
+  if (channel === 'IN_APP') return '站内邀请'
+  return '邀请'
+}
+
+function roleText(role?: string) {
+  if (role === 'FOUNDER') return '家庭创建者'
+  if (role === 'FAMILY_ADMIN') return '家庭管理员'
+  if (role === 'MEMBER') return '家庭成员'
+  return '未知'
+}
 </script>
 
 <style scoped>
@@ -154,8 +176,9 @@ p {
 
 .status {
   border-radius: 6px;
-  background: #f4f1e8;
+  background: var(--color-warm-gold-light);
   padding: 4px 8px;
+  color: var(--color-warm-gold-text);
   font-size: 12px;
   font-weight: 700;
 }

@@ -48,8 +48,8 @@
           <article v-for="application in applications" :key="application.applicationId" class="card record">
             <div>
               <div class="record-title">
-                <strong>申请 #{{ application.applicationId }}</strong>
-                <span class="status" :data-status="application.status">{{ application.status }}</span>
+                <strong>公开展示申请</strong>
+                <span class="status" :data-status="application.status">{{ applicationStatusText(application.status) }}</span>
               </div>
               <p>{{ application.reason || '未填写申请理由' }}</p>
               <p class="muted">提交时间：{{ formatDate(application.createdAt) }}</p>
@@ -150,6 +150,14 @@ async function cancelApplication(applicationId: number) {
 }
 
 onMounted(loadApplications)
+
+function applicationStatusText(status?: string) {
+  if (status === 'PENDING') return '待审核'
+  if (status === 'APPROVED') return '已通过'
+  if (status === 'REJECTED') return '已驳回'
+  if (status === 'CANCELLED') return '已取消'
+  return '未知'
+}
 </script>
 
 <style scoped>

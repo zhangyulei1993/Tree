@@ -1,7 +1,11 @@
 <template>
   <PageShell>
     <section class="container search-page">
-      <h1>寻找你的家族</h1>
+      <div class="search-hero">
+        <span class="eyebrow">公开家族</span>
+        <h1>寻找你的家族</h1>
+        <p>浏览已审核公开的家族主页、公开树和联系方式。未公开家庭不会出现在这里。</p>
+      </div>
       <div class="card filters">
         <input v-model="keyword" class="field" placeholder="请输入家族名称 / 姓氏 / 籍贯 / 地区" />
         <select v-model="surname" class="field"><option value="">全部姓氏</option><option>张</option><option>李</option><option>王</option></select>
@@ -35,19 +39,38 @@ const filtered = computed(() => publicFamilies.filter((family) =>
 
 <style scoped>
 .search-page {
-  padding: 32px 0;
+  padding: 54px 0 32px;
 }
 
-h1 {
-  font-size: 34px;
+.search-hero {
+  max-width: 760px;
+  margin-bottom: 22px;
+}
+
+.search-hero h1 {
+  margin: 14px 0 10px;
+  color: var(--color-primary);
+  font-size: clamp(34px, 5vw, 54px);
+  letter-spacing: -0.04em;
+  line-height: 1.08;
+}
+
+.search-hero p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 17px;
+  line-height: 1.75;
 }
 
 .filters {
   display: grid;
   grid-template-columns: 1.5fr 160px 160px auto;
   gap: 12px;
-  margin: 18px 0;
-  padding: 16px;
+  margin: 18px 0 20px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.08), transparent 170px),
+    rgba(255, 255, 255, 0.94);
 }
 
 @media (max-width: 820px) {

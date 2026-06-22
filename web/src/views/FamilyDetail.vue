@@ -19,10 +19,10 @@
         <section class="card detail-card">
           <div class="summary">
             <div><span>姓氏</span><strong>{{ family.familySurname }}</strong></div>
-            <div><span>我的角色</span><strong>{{ family.role }}</strong></div>
-            <div><span>家庭状态</span><strong>{{ family.status }}</strong></div>
-            <div><span>Graph Version</span><strong>{{ family.graphVersion }}</strong></div>
-            <div><span>创始成员 ID</span><strong>{{ family.currentFounderMemberId || '未设置' }}</strong></div>
+            <div><span>我的身份</span><strong>{{ roleText(family.role) }}</strong></div>
+            <div><span>家庭状态</span><strong>{{ statusText(family.status) }}</strong></div>
+            <div><span>家谱版本</span><strong>第 {{ family.graphVersion }} 版</strong></div>
+            <div><span>创建者记录</span><strong>{{ family.currentFounderMemberId ? '已确认' : '未确认' }}</strong></div>
           </div>
           <p v-if="family.description" class="description">{{ family.description }}</p>
           <p class="muted">
@@ -38,7 +38,7 @@
           </RouterLink>
           <RouterLink class="card entry" :to="`/families/${family.id}/tree`">
             <strong>私有家庭树</strong>
-            <span>查看当前 nodes、edges 和 graph version</span>
+            <span>查看成员列表、亲属关系和家谱版本</span>
           </RouterLink>
           <RouterLink
             v-if="canManage"
@@ -72,6 +72,21 @@ const forbidden = ref(false)
 const familyId = computed(() => String(route.params.familyId))
 const canManage = computed(() => family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN')
 
+function roleText(role?: string) {
+  if (role === 'FOUNDER') return '家庭创建者'
+  if (role === 'FAMILY_ADMIN') return '家庭管理员'
+  if (role === 'MEMBER') return '家庭成员'
+  return '未知'
+}
+
+function statusText(status?: string) {
+  if (status === 'NORMAL') return '正常'
+  if (status === 'DISSOLUTION_PENDING') return '解散待审核'
+  if (status === 'DISSOLVED') return '已解散'
+  if (status === 'DISABLED') return '已停用'
+  return '未知'
+}
+
 function errorText(requestError: unknown) {
   if (axios.isAxiosError<ApiResponse<unknown>>(requestError)) {
     forbidden.value = requestError.response?.status === 403
@@ -101,7 +116,7 @@ onMounted(loadFamily)
 
 <style scoped>
 .page-section {
-  padding: 32px 0;
+  padding: 44px 0;
 }
 
 .page-heading {
@@ -136,7 +151,22 @@ h1 {
 }
 
 .detail-card {
-  padding: 22px;
+  position: relative;
+  overflow: hidden;
+  padding: 28px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.08), transparent 170px),
+    rgba(255, 255, 255, 0.94);
+}
+
+.detail-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, var(--color-primary), var(--color-heritage-green), var(--color-warm-gold));
 }
 
 .summary {
@@ -173,11 +203,17 @@ h1 {
 .entry {
   display: grid;
   gap: 8px;
-  padding: 20px;
+  padding: 24px;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
 }
 
 .entry:hover {
   border-color: var(--color-primary);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-2px);
 }
 
 @media (max-width: 760px) {

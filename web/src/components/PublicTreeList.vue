@@ -34,7 +34,7 @@ function names(ids: string[]) {
 .tree-node {
   display: grid;
   gap: 10px;
-  padding: 16px;
+  padding: 20px;
 }
 
 h3,
@@ -52,7 +52,7 @@ p {
 
 .relations span {
   border-radius: 999px;
-  background: #f4f1e8;
+  background: var(--color-bg-soft);
   padding: 6px 10px;
 }
 </style>
