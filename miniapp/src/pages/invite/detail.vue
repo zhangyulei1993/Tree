@@ -1,72 +1,99 @@
 <template>
-  <view class="page">
-    <view v-if="loading" class="card state-card">
-      <text class="muted">正在加载邀请详情...</text>
-    </view>
-    <view v-else-if="loadError && !invitation" class="card state-card">
-      <text class="title">邀请确认</text>
-      <text class="error">{{ loadError }}</text>
-      <button class="button secondary" @click="loadInvitation">重新加载</button>
-    </view>
-    <view v-else-if="invitation" class="card">
-      <text class="title">邀请确认</text>
-      <view class="info-row">
-        <text class="label">家庭</text>
-        <text>{{ invitation.familyName }}</text>
-      </view>
-      <view class="info-row">
-        <text class="label">邀请成员</text>
-        <text>{{ invitation.targetMemberName }}</text>
-      </view>
-      <view class="info-row">
-        <text class="label">邀请方式</text>
-        <text>{{ inviteChannelText(invitation.inviteChannel) }}</text>
-      </view>
-      <view class="info-row">
-        <text class="label">加入后角色</text>
-        <text>{{ roleText(invitation.familyRoleAfterAccept) }}</text>
-      </view>
-      <view class="info-row">
-        <text class="label">邀请状态</text>
-        <text class="tag">{{ inviteStatusText(invitation.status) }}</text>
-      </view>
-      <view class="info-row">
-        <text class="label">有效期至</text>
-        <text>{{ formatDate(invitation.expiredAt) }}</text>
-      </view>
-      <text v-if="invitation.inviteMessage" class="notice">邀请说明：{{ invitation.inviteMessage }}</text>
+  <view class="tree-page">
+    <MiniSectionHeader title="邀请确认" subtitle="请核对邀请信息后再决定是否加入家庭。" />
 
-      <view v-if="invitation.status === 'PENDING'" class="actions">
+    <MiniCard v-if="loading">
+      <view class="state-block">
+        <text class="tree-muted">正在加载邀请详情...</text>
+      </view>
+    </MiniCard>
+
+    <MiniCard v-else-if="loadError && !invitation">
+      <MiniEmptyState
+        symbol="!"
+        title="邀请加载失败"
+        :description="loadError"
+        action-text="重新加载"
+        @action="loadInvitation"
+      />
+    </MiniCard>
+
+    <template v-else-if="invitation">
+      <MiniNotice tone="security" title="安全提示">
+        邀请由家庭管理员发起，请确认家庭名称与邀请成员后再操作。我们不会向你索要密码或验证码。
+      </MiniNotice>
+
+      <MiniCard variant="soft">
+        <view class="trust-card-head">
+          <text class="trust-family-name">{{ invitation.familyName }}</text>
+          <MiniStatusTag
+            :status="invitation.status"
+            :label="invitationStatusText(invitation.status)"
+          />
+        </view>
+        <text class="tree-muted trust-hint">邀请你以「{{ invitation.targetMemberName }}」身份加入此家庭</text>
+
+        <view class="tree-info-row">
+          <text class="tree-info-label">邀请方式</text>
+          <text class="tree-info-value">{{ inviteChannelText(invitation.inviteChannel) }}</text>
+        </view>
+        <view class="tree-info-row">
+          <text class="tree-info-label">加入后角色</text>
+          <text class="tree-info-value">{{ roleText(invitation.familyRoleAfterAccept) }}</text>
+        </view>
+        <view class="tree-info-row">
+          <text class="tree-info-label">有效期至</text>
+          <text class="tree-info-value">{{ formatDate(invitation.expiredAt) }}</text>
+        </view>
+      </MiniCard>
+
+      <MiniCard v-if="invitation.inviteMessage">
+        <text class="detail-block-title">邀请说明</text>
+        <text class="tree-muted">{{ invitation.inviteMessage }}</text>
+      </MiniCard>
+
+      <MiniCard v-if="invitation.status === 'PENDING'">
         <template v-if="session.isLoggedIn && session.isPhoneBound">
+          <text class="detail-block-title">处理邀请</text>
           <textarea
             v-model.trim="rejectReason"
-            class="textarea"
+            class="tree-textarea"
             maxlength="300"
             placeholder="拒绝原因（可选）"
           />
-          <button class="button" :disabled="Boolean(acting)" :loading="acting === 'accept'" @click="confirmAccept">
+          <MiniButton
+            :disabled="Boolean(acting)"
+            :loading="acting === 'accept'"
+            @click="confirmAccept"
+          >
             接受邀请
-          </button>
-          <button
-            class="button secondary"
+          </MiniButton>
+          <MiniButton
+            variant="secondary"
             :disabled="Boolean(acting)"
             :loading="acting === 'reject'"
             @click="confirmReject"
           >
             拒绝邀请
-          </button>
+          </MiniButton>
         </template>
         <template v-else>
-          <text class="notice">请先使用手机号登录或注册，再处理邀请。</text>
-          <button class="button" @click="requireLogin">手机号登录</button>
+          <MiniNotice tone="warm" title="需要登录">
+            请先使用手机号登录或注册，再处理邀请。
+          </MiniNotice>
+          <MiniButton @click="requireLogin">手机号登录</MiniButton>
         </template>
-      </view>
-      <view v-else>
-        <text class="notice">该邀请当前状态为「{{ inviteStatusText(invitation.status) }}」，不能继续处理。</text>
-      </view>
-      <text v-if="actionError" class="error">{{ actionError }}</text>
-      <text v-if="result" class="success">{{ result }}</text>
-    </view>
+      </MiniCard>
+
+      <MiniCard v-else>
+        <MiniNotice tone="info">
+          该邀请当前状态为「{{ invitationStatusText(invitation.status) }}」，不能继续处理。
+        </MiniNotice>
+      </MiniCard>
+
+      <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
+      <text v-if="result" class="tree-field-success">{{ result }}</text>
+    </template>
   </view>
 </template>
 
@@ -76,6 +103,13 @@ import { ref } from 'vue'
 
 import { acceptInvitation, getInvitationDetail, rejectInvitation } from '@/api/invitations'
 import { apiErrorMessage } from '@/api/client'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
+import { invitationStatusText, roleText } from '@/components/base/formatStatus'
+import MiniNotice from '@/components/base/MiniNotice.vue'
+import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
+import MiniStatusTag from '@/components/base/MiniStatusTag.vue'
 import { useSessionStore } from '@/stores/session'
 import type { Invitation } from '@/types/api'
 
@@ -98,23 +132,6 @@ function formatDate(value: string) {
   return Number.isNaN(time.getTime()) ? value : time.toLocaleString('zh-CN')
 }
 
-function inviteStatusText(status: string) {
-  switch (status) {
-    case 'PENDING':
-      return '待处理'
-    case 'ACCEPTED':
-      return '已接受'
-    case 'REJECTED':
-      return '已拒绝'
-    case 'EXPIRED':
-      return '已过期'
-    case 'CANCELLED':
-      return '已取消'
-    default:
-      return '未知状态'
-  }
-}
-
 function inviteChannelText(channel: string) {
   switch (channel) {
     case 'SHARE_LINK':
@@ -123,21 +140,6 @@ function inviteChannelText(channel: string) {
       return '站内邀请'
     default:
       return '其他方式'
-  }
-}
-
-function roleText(role: string) {
-  switch (role) {
-    case 'FOUNDER':
-      return '创建者'
-    case 'FAMILY_ADMIN':
-      return '管理员'
-    case 'MEMBER':
-      return '成员'
-    case 'ROOT_ADMIN':
-      return '超级管理员'
-    default:
-      return '未知角色'
   }
 }
 
@@ -228,55 +230,38 @@ onLoad((options) => {
 </script>
 
 <style scoped>
-.state-card {
+.state-block {
+  padding: 32rpx 0;
   text-align: center;
 }
 
-.info-row {
+.trust-card-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 24rpx;
-  padding: 14rpx 0;
-  border-top: 1rpx solid #e5e0d6;
-  font-size: 26rpx;
+  gap: 16rpx;
+  margin-bottom: 12rpx;
 }
 
-.label {
-  flex-shrink: 0;
-  color: #6b7280;
-}
-
-.info-row text:last-child {
-  text-align: right;
-}
-
-.actions {
-  margin-top: 24rpx;
-}
-
-.notice,
-.error,
-.success {
-  display: block;
-  margin-top: 18rpx;
-  font-size: 24rpx;
-}
-
-.notice {
-  color: #6b7280;
-}
-
-.error {
-  color: #c0392b;
-}
-
-.success {
-  color: #2f6b57;
+.trust-family-name {
+  flex: 1;
+  color: var(--tree-text-primary);
+  font-size: 34rpx;
   font-weight: 600;
+  line-height: 1.4;
 }
 
-.button[disabled] {
-  opacity: 0.55;
+.trust-hint {
+  display: block;
+  margin-bottom: 8rpx;
+  line-height: 1.7;
+}
+
+.detail-block-title {
+  display: block;
+  margin-bottom: 12rpx;
+  color: var(--tree-text);
+  font-size: 28rpx;
+  font-weight: 600;
 }
 </style>

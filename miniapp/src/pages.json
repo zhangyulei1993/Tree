@@ -6,6 +6,8 @@
     {"path": "pages/auth/phone-login", "style": {"navigationBarTitleText": "手机号登录"}},
     {"path": "pages/auth/register-phone", "style": {"navigationBarTitleText": "手机号注册"}},
     {"path": "pages/family/search", "style": {"navigationBarTitleText": "家庭搜索"}},
+    {"path": "pages/content/index", "style": {"navigationBarTitleText": "阅读"}},
+    {"path": "pages/content/detail", "style": {"navigationBarTitleText": "内容详情"}},
     {"path": "pages/family/public-profile", "style": {"navigationBarTitleText": "公开家庭"}},
     {"path": "pages/family/public-tree", "style": {"navigationBarTitleText": "公开树"}},
     {"path": "pages/family/my", "style": {"navigationBarTitleText": "我的家庭"}},
@@ -25,8 +27,8 @@
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "Tree",
-    "navigationBarBackgroundColor": "#F7F3EA",
-    "backgroundColor": "#F7F3EA"
+    "navigationBarBackgroundColor": "#F7FAF9",
+    "backgroundColor": "#F7FAF9"
   },
   "tabBar": {
     "color": "#6B7280",
@@ -45,6 +47,12 @@
         "text": "找家族",
         "iconPath": "static/tabbar/search.png",
         "selectedIconPath": "static/tabbar/search-active.png"
+      },
+      {
+        "pagePath": "pages/content/index",
+        "text": "阅读",
+        "iconPath": "static/tabbar/read.png",
+        "selectedIconPath": "static/tabbar/read-active.png"
       },
       {
         "pagePath": "pages/me/index",

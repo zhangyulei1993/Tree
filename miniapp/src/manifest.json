@@ -6,9 +6,11 @@
   "versionCode": "1",
   "transformPx": false,
   "mp-weixin": {
-    "appid": "",
+    "appid": "wx443accd1b2b899df",
+    "lazyCodeLoading": "requiredComponents",
     "setting": {
-      "urlCheck": false
+      "urlCheck": false,
+      "minified": true
     },
     "usingComponents": true
   }

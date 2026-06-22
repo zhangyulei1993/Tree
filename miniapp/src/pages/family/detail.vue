@@ -1,47 +1,116 @@
 <template>
-  <view class="page">
-    <view v-if="loading" class="card state-card">
-      <text class="muted">正在加载家庭详情...</text>
-    </view>
-    <view v-else-if="errorMessage" class="card state-card">
-      <text class="error">{{ errorMessage }}</text>
-      <button class="button secondary" @click="loadFamily">重新加载</button>
-    </view>
+  <view class="tree-page">
+    <MiniCard v-if="loading">
+      <MiniEmptyState symbol="…" title="正在加载" description="正在加载家庭详情..." />
+    </MiniCard>
+
+    <MiniCard v-else-if="errorMessage">
+      <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
+      <MiniButton variant="secondary" @click="loadFamily">重新加载</MiniButton>
+    </MiniCard>
+
     <template v-else-if="family">
-      <view class="card">
-        <text class="title">{{ family.familyName }}</text>
-        <text class="tag">{{ familyStatusText(family.status) }}</text>
-        <text class="tag">{{ publicStatusText(family.publicDisplayStatus) }}</text>
-        <text class="muted">{{ family.description || '暂未填写家庭简介。' }}</text>
-      </view>
+      <MiniCard variant="hero" class="dossier-hero tree-pedigree-watermark">
+        <view class="tree-dossier-head">
+          <view class="tree-dossier-seal">{{ family.familySurname.slice(0, 1) }}</view>
+          <view class="tree-dossier-copy">
+            <text class="dossier-eyebrow">家族档案</text>
+            <text class="tree-page-title">{{ family.familyName }}</text>
+            <view class="tag-row">
+              <MiniStatusTag :label="familyStatusText(family.status)" :tone="statusTagTone(family.status)" />
+              <MiniStatusTag
+                :label="publicStatusText(family.publicDisplayStatus)"
+                :tone="statusTagTone(family.publicDisplayStatus)"
+              />
+            </view>
+          </view>
+        </view>
+        <text class="tree-muted dossier-desc">{{ family.description || '暂未填写家庭简介。' }}</text>
+        <view class="tree-archive-ribbon">
+          <text v-if="family.familySurname" class="tree-archive-chip gold">{{ family.familySurname }}氏</text>
+          <text v-if="family.regionText || family.nativePlace" class="tree-archive-chip">
+            {{ family.regionText || family.nativePlace }}
+          </text>
+        </view>
+      </MiniCard>
 
-      <view class="card">
-        <text class="section-title">基本信息</text>
-        <view class="info-row"><text class="label">姓氏</text><text>{{ family.familySurname }}</text></view>
-        <view class="info-row"><text class="label">籍贯</text><text>{{ family.nativePlace || '未设置' }}</text></view>
-        <view class="info-row"><text class="label">地区</text><text>{{ family.regionText || '未设置' }}</text></view>
-      </view>
-
-      <view class="card">
-        <text class="section-title">公开展示</text>
-        <view class="info-row"><text class="label">公开状态</text><text>{{ publicStatusText(family.publicDisplayStatus) }}</text></view>
-        <view class="info-row"><text class="label">允许被搜索</text><text>{{ family.searchable ? '是' : '否' }}</text></view>
-        <view class="info-row">
-          <text class="label">公开联系方式</text>
-          <text>{{ publicContactText }}</text>
+      <view class="tree-space">
+        <view class="tree-space-head">
+          <text class="tree-space-title">档案信息</text>
+          <text class="tree-space-subtitle">家庭基本资料与公开展示状态</text>
+        </view>
+        <view class="tree-space-body section-pad">
+          <view class="tree-info-row">
+            <text class="tree-info-label">姓氏</text>
+            <text class="tree-info-value">{{ family.familySurname }}</text>
+          </view>
+          <view class="tree-info-row">
+            <text class="tree-info-label">籍贯</text>
+            <text class="tree-info-value">{{ family.nativePlace || '未设置' }}</text>
+          </view>
+          <view class="tree-info-row">
+            <text class="tree-info-label">地区</text>
+            <text class="tree-info-value">{{ family.regionText || '未设置' }}</text>
+          </view>
+          <view class="tree-info-row">
+            <text class="tree-info-label">公开状态</text>
+            <text class="tree-info-value">{{ publicStatusText(family.publicDisplayStatus) }}</text>
+          </view>
+          <view class="tree-info-row">
+            <text class="tree-info-label">允许被搜索</text>
+            <text class="tree-info-value">{{ family.searchable ? '是' : '否' }}</text>
+          </view>
+          <view class="tree-info-row">
+            <text class="tree-info-label">公开联系方式</text>
+            <text class="tree-info-value">{{ publicContactText }}</text>
+          </view>
         </view>
       </view>
 
-      <view class="card">
-        <text class="section-title">我的身份</text>
-        <view class="info-row"><text class="label">家庭角色</text><text>{{ roleText(family.role) }}</text></view>
-        <view class="info-row"><text class="label">家庭状态</text><text>{{ familyStatusText(family.status) }}</text></view>
+      <view class="tree-space">
+        <view class="tree-space-head">
+          <text class="tree-space-title">我的身份</text>
+          <text class="tree-space-subtitle">你在该家庭中的角色</text>
+        </view>
+        <view class="tree-space-body section-pad">
+          <view class="tree-info-row">
+            <text class="tree-info-label">家庭角色</text>
+            <text class="tree-info-value">{{ roleText(family.role) }}</text>
+          </view>
+          <view class="tree-info-row">
+            <text class="tree-info-label">家庭状态</text>
+            <text class="tree-info-value">{{ familyStatusText(family.status) }}</text>
+          </view>
+        </view>
       </view>
 
-      <view class="card">
-        <text class="section-title">操作入口</text>
-        <button class="button" @click="openMembers">查看成员列表</button>
-        <button class="button secondary" @click="openTree">查看私有家庭树</button>
+      <view class="tree-space">
+        <view class="tree-space-head">
+          <text class="tree-space-title">家族操作</text>
+          <text class="tree-space-subtitle">成员管理与家谱查看</text>
+        </view>
+        <view class="tree-space-body">
+          <view class="tree-action-tile" @click="openMembers">
+            <view class="tree-action-tile-icon">
+              <view class="tree-symbol tree-symbol-users" />
+            </view>
+            <view class="tree-action-tile-copy">
+              <text class="tree-action-tile-title">成员列表</text>
+              <text class="tree-action-tile-desc">查看与管理家庭成员</text>
+            </view>
+            <text class="feature-arrow">›</text>
+          </view>
+          <view class="tree-action-tile" @click="openTree">
+            <view class="tree-action-tile-icon">
+              <view class="tree-symbol tree-symbol-folder" />
+            </view>
+            <view class="tree-action-tile-copy">
+              <text class="tree-action-tile-title">私有家谱</text>
+              <text class="tree-action-tile-desc">查看成员与亲属关系</text>
+            </view>
+            <text class="feature-arrow">›</text>
+          </view>
+        </view>
       </view>
     </template>
   </view>
@@ -53,6 +122,12 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
+import MiniNotice from '@/components/base/MiniNotice.vue'
+import MiniStatusTag from '@/components/base/MiniStatusTag.vue'
+import { statusTagTone } from '@/components/base/formatStatus'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyDetail } from '@/types/api'
 
@@ -166,32 +241,42 @@ onLoad((options) => {
 </script>
 
 <style scoped>
-.state-card {
-  text-align: center;
+.dossier-hero {
+  margin-bottom: 20rpx;
 }
 
-.error {
+.dossier-eyebrow {
   display: block;
-  color: #c0392b;
-  font-size: 24rpx;
+  margin-bottom: 8rpx;
+  color: var(--tree-gold-text);
+  font-size: 22rpx;
+  font-weight: 600;
+  letter-spacing: 2rpx;
 }
 
-.info-row {
+.dossier-desc {
+  display: block;
+  margin-top: 16rpx;
+  line-height: 1.7;
+}
+
+.section-pad {
+  padding: 8rpx 24rpx 16rpx;
+}
+
+.entry-panel {
+  margin-top: 4rpx;
+}
+
+.feature-arrow {
+  color: var(--tree-text-weak);
+  font-size: 28rpx;
+}
+
+.tag-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24rpx;
-  padding: 14rpx 0;
-  border-top: 1rpx solid #e5e0d6;
-  font-size: 26rpx;
-}
-
-.label {
-  flex-shrink: 0;
-  color: #6b7280;
-}
-
-.info-row text:last-child {
-  text-align: right;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 12rpx;
 }
 </style>

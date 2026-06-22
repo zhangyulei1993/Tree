@@ -1,24 +1,37 @@
 <template>
-  <view class="page">
-    <view class="card">
-      <text class="title">绑定手机号</text>
+  <view class="tree-page auth-page">
+    <view class="tree-auth-brand">
+      <text class="tree-auth-brand-title">绑定手机号</text>
+      <text class="tree-auth-brand-desc">完成验证后，可使用完整家庭功能</text>
+    </view>
+
+    <MiniCard variant="soft" class="tree-auth-card">
       <template v-if="isRealApiMode">
-        <text class="muted">当前暂不支持微信手机号绑定，请使用手机号登录或注册。</text>
-        <button class="button" @click="go('/pages/auth/phone-login')">使用手机号登录</button>
-        <button class="button secondary" @click="go('/pages/auth/register-phone')">手机号注册</button>
+        <MiniNotice tone="info">微信手机号绑定即将开放，请使用手机号登录或注册。</MiniNotice>
+        <view class="btn-stack">
+          <MiniButton @click="go('/pages/auth/phone-login')">使用手机号登录</MiniButton>
+          <MiniButton variant="secondary" @click="go('/pages/auth/register-phone')">
+            手机号注册
+          </MiniButton>
+        </view>
       </template>
       <template v-else>
-        <text class="muted">当前为本地体验模式，可先体验手机号绑定流程。</text>
-        <input class="input" placeholder="138****0000" />
-        <input class="input" placeholder="验证码" />
-        <button class="button" @click="bind">完成绑定</button>
+        <text class="tree-muted">请填写手机号并完成验证码校验。</text>
+        <text class="tree-field-label">手机号</text>
+        <input class="input" placeholder="请输入手机号" />
+        <text class="tree-field-label">验证码</text>
+        <input class="input" placeholder="请输入验证码" />
+        <MiniButton class="btn-top" @click="bind">完成绑定</MiniButton>
       </template>
-    </view>
+    </MiniCard>
   </view>
 </template>
 
 <script setup lang="ts">
 import { isRealApiMode } from '@/api/client'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniNotice from '@/components/base/MiniNotice.vue'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
@@ -36,3 +49,16 @@ function go(url: string) {
   uni.navigateTo({ url })
 }
 </script>
+
+<style scoped>
+.btn-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  margin-top: 22rpx;
+}
+
+.btn-top {
+  margin-top: 22rpx;
+}
+</style>

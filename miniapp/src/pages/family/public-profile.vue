@@ -1,96 +1,114 @@
 <template>
-  <view class="page">
-    <view v-if="loadingFamily" class="card state-card">
-      <text class="muted">正在加载公开家庭信息...</text>
-    </view>
-    <view v-else-if="familyError" class="card state-card">
-      <text class="title">公开家庭</text>
-      <text class="error">{{ familyError }}</text>
-      <button class="button secondary" @click="loadFamily">重新加载</button>
-    </view>
+  <view class="tree-page">
+    <MiniCard v-if="loadingFamily">
+      <MiniEmptyState symbol="…" title="正在加载" description="正在加载公开家庭信息..." />
+    </MiniCard>
+
+    <MiniCard v-else-if="familyError">
+      <MiniSectionHeader title="公开家庭" />
+      <MiniNotice tone="warm" title="加载失败">{{ familyError }}</MiniNotice>
+      <MiniButton variant="secondary" @click="loadFamily">重新加载</MiniButton>
+    </MiniCard>
+
     <template v-else-if="family">
-      <view class="card">
-        <text class="title">{{ family.familyName }}</text>
-        <view class="actions">
-          <button class="button" @click="openPublicTree">查看公开家谱</button>
-          <button class="button secondary" @click="openJoinApply">申请加入家庭</button>
-        </view>
-      </view>
-
-      <view class="card">
-        <text class="section-title">基本信息</text>
-        <view class="info-row"><text class="label">家庭名称</text><text>{{ family.familyName }}</text></view>
-        <view class="info-row"><text class="label">姓氏</text><text>{{ family.familySurname }}</text></view>
-        <view class="info-row"><text class="label">籍贯</text><text>{{ family.nativePlace || '未设置' }}</text></view>
-        <view class="info-row"><text class="label">地区</text><text>{{ family.regionText || '未设置' }}</text></view>
-        <view class="info-block">
-          <text class="label">简介</text>
-          <text class="muted">{{ family.description || '该家庭暂未填写公开简介。' }}</text>
-        </view>
-      </view>
-
-      <view class="card">
-        <text class="section-title">公开联系方式</text>
-        <template v-if="family.publicContactVisible && hasPublicContact">
-          <view v-if="family.publicContactName" class="info-row">
-            <text class="label">联系人</text><text>{{ family.publicContactName }}</text>
+      <MiniCard variant="hero" class="public-hero tree-pedigree-watermark">
+        <text class="tree-public-eyebrow">公开家族主页</text>
+        <view class="tree-dossier-head">
+          <view class="tree-dossier-seal">{{ family.familySurname.slice(0, 1) }}</view>
+          <view class="tree-dossier-copy">
+            <text class="public-surname">{{ family.familySurname }}氏</text>
+            <text class="tree-page-title">{{ family.familyName }}</text>
           </view>
-          <view v-if="family.publicContactPhone" class="info-row">
-            <text class="label">联系电话</text><text>{{ family.publicContactPhone }}</text>
+        </view>
+        <text class="public-desc">{{ family.description || '该家庭暂未填写公开简介。' }}</text>
+        <view class="tree-archive-ribbon">
+          <text v-if="family.nativePlace" class="tree-archive-chip">{{ family.nativePlace }}</text>
+          <text v-if="family.regionText" class="tree-archive-chip green">{{ family.regionText }}</text>
+        </view>
+        <view class="hero-actions">
+          <MiniButton @click="openPublicTree">查看公开家谱</MiniButton>
+          <MiniButton variant="secondary" @click="openJoinApply">申请加入家庭</MiniButton>
+        </view>
+      </MiniCard>
+
+      <view v-if="family.publicContactVisible && hasPublicContact" class="tree-space contact-space">
+        <view class="tree-space-head">
+          <text class="tree-space-title">联系方式</text>
+          <text class="tree-space-subtitle">家庭选择对外公开的联络方式</text>
+        </view>
+        <view class="tree-space-body tree-contact-card">
+          <view v-if="family.publicContactName" class="tree-info-row">
+            <text class="tree-info-label">联系人</text>
+            <text class="tree-info-value">{{ family.publicContactName }}</text>
           </view>
-          <view v-if="family.publicContactWechat" class="info-row">
-            <text class="label">微信</text><text>{{ family.publicContactWechat }}</text>
+          <view v-if="family.publicContactPhone" class="tree-info-row">
+            <text class="tree-info-label">联系电话</text>
+            <text class="tree-info-value">{{ family.publicContactPhone }}</text>
+          </view>
+          <view v-if="family.publicContactWechat" class="tree-info-row">
+            <text class="tree-info-label">微信</text>
+            <text class="tree-info-value">{{ family.publicContactWechat }}</text>
           </view>
           <view v-if="family.publicContactNote" class="info-block">
-            <text class="label">备注</text>
-            <text class="muted">{{ family.publicContactNote }}</text>
+            <text class="tree-field-label">备注</text>
+            <text class="tree-muted">{{ family.publicContactNote }}</text>
           </view>
-        </template>
-        <text v-else class="muted">该家庭暂未公开联系方式。</text>
+        </view>
       </view>
 
-      <view class="card">
-        <text class="section-title">公开留言</text>
-        <text class="muted section-desc">审核通过的留言会显示在这里。</text>
-
+      <view class="tree-space message-space">
+        <view class="tree-space-head">
+          <text class="tree-space-title">公开留言</text>
+          <text class="tree-space-subtitle">审核通过的留言会显示在这里</text>
+        </view>
+        <view class="tree-space-body section-pad">
         <view class="subsection">
           <text class="subsection-title">留言列表</text>
-          <view v-if="loadingMessages" class="state-card">
-            <text class="muted">正在加载留言...</text>
-          </view>
-          <view v-else-if="messagesError" class="state-card">
-            <text class="error">{{ messagesError }}</text>
-            <button class="button secondary" @click="loadMessages">重新加载留言</button>
-          </view>
-          <view v-else-if="messages.length === 0" class="message-empty">
-            <text class="muted">暂无公开留言，审核通过的留言会显示在这里。</text>
-          </view>
-          <view v-for="message in messages" v-else :key="message.messageId" class="message">
-            <text class="message-name">{{ message.visitorName || '匿名访客' }}</text>
-            <text class="muted">{{ message.messageContent }}</text>
-            <text class="message-time">{{ formatDate(message.reviewedAt || message.createdAt) }}</text>
+          <MiniCard v-if="loadingMessages" variant="soft" :no-margin="true">
+            <MiniEmptyState symbol="…" title="正在加载" description="正在加载留言..." />
+          </MiniCard>
+          <MiniCard v-else-if="messagesError" variant="soft" :no-margin="true">
+            <MiniNotice tone="warm" title="加载失败">{{ messagesError }}</MiniNotice>
+            <MiniButton variant="secondary" @click="loadMessages">重新加载留言</MiniButton>
+          </MiniCard>
+          <MiniEmptyState
+            v-else-if="messages.length === 0"
+            symbol="言"
+            title="暂无公开留言"
+            description="审核通过的留言会显示在这里。"
+          />
+          <view v-for="message in messages" v-else :key="message.messageId" class="tree-message-wall-item">
+            <text class="tree-message-wall-name">{{ message.visitorName || '匿名访客' }}</text>
+            <text class="tree-muted">{{ message.messageContent }}</text>
+            <text class="tree-message-wall-time">{{ formatDate(message.reviewedAt || message.createdAt) }}</text>
           </view>
         </view>
 
         <view class="subsection">
           <text class="subsection-title">我要留言</text>
-          <text class="muted section-desc">留言内容会经家庭管理员审核后公开显示。</text>
-          <input v-model.trim="form.visitorName" class="input" maxlength="40" placeholder="你的称呼（可选）" />
-          <text class="field-hint">联系电话和微信号不会公开展示，仅用于联系确认。</text>
-          <input v-model.trim="form.visitorPhone" class="input" maxlength="30" placeholder="联系电话（可选）" />
-          <input v-model.trim="form.visitorWechat" class="input" maxlength="100" placeholder="微信号（可选）" />
+          <MiniNotice tone="security">
+            留言内容会经家庭管理员审核后公开显示。联系电话和微信号不会公开展示，仅用于联系确认。
+          </MiniNotice>
+          <text class="tree-field-label">你的称呼（可选）</text>
+          <input v-model.trim="form.visitorName" class="tree-input" maxlength="40" placeholder="你的称呼（可选）" />
+          <text class="tree-field-label">联系电话（可选）</text>
+          <input v-model.trim="form.visitorPhone" class="tree-input" maxlength="30" placeholder="联系电话（可选）" />
+          <text class="tree-field-label">微信号（可选）</text>
+          <input v-model.trim="form.visitorWechat" class="tree-input" maxlength="100" placeholder="微信号（可选）" />
+          <text class="tree-field-label">留言内容（必填）</text>
           <textarea
             v-model.trim="form.messageContent"
-            class="textarea"
+            class="tree-textarea"
             maxlength="500"
             placeholder="请输入留言内容（必填）"
           />
           <text class="counter">{{ form.messageContent.length }}/500</text>
-          <button class="button secondary" :disabled="submitting" :loading="submitting" @click="submitMessage">
+          <MiniButton variant="secondary" :disabled="submitting" :loading="submitting" @click="submitMessage">
             提交留言
-          </button>
-          <text v-if="formError" class="error">{{ formError }}</text>
-          <text v-if="submitResult" class="result">{{ submitResult }}</text>
+          </MiniButton>
+          <text v-if="formError" class="tree-field-error">{{ formError }}</text>
+          <text v-if="submitResult" class="tree-field-success">{{ submitResult }}</text>
+        </view>
         </view>
       </view>
     </template>
@@ -104,6 +122,11 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { apiErrorMessage } from '@/api/client'
 import { getPublicFamilyDetail } from '@/api/families'
 import { createVisitorMessage, listPublicVisitorMessages } from '@/api/visitorMessages'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
+import MiniNotice from '@/components/base/MiniNotice.vue'
+import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
 import type { PublicFamily, PublicVisitorMessage } from '@/types/api'
 
 const familyId = ref('')
@@ -290,72 +313,57 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.actions {
-  margin-top: 20rpx;
+.section-pad {
+  padding: 8rpx 24rpx 16rpx;
 }
 
-.info-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24rpx;
-  padding: 14rpx 0;
-  border-top: 1rpx solid #e5e0d6;
+.message-space {
+  margin-bottom: 20rpx;
+}
+
+.public-surname {
+  display: block;
+  margin-bottom: 8rpx;
+  color: var(--tree-gold-text);
+  font-size: 24rpx;
+  font-weight: 600;
+  letter-spacing: 2rpx;
+}
+
+.public-desc {
+  display: block;
+  margin-top: 12rpx;
+  color: var(--tree-text-secondary);
   font-size: 26rpx;
+  line-height: 1.7;
+}
+
+.hero-actions {
+  margin-top: 22rpx;
 }
 
 .info-block {
   padding: 14rpx 0;
-  border-top: 1rpx solid #e5e0d6;
-}
-
-.label {
-  flex-shrink: 0;
-  color: #6b7280;
-  font-size: 24rpx;
-}
-
-.info-row text:last-child {
-  text-align: right;
-}
-
-.info-block .label {
-  display: block;
-  margin-bottom: 8rpx;
-}
-
-.section-desc {
-  display: block;
-  margin-bottom: 16rpx;
+  border-top: 1rpx solid var(--tree-border-subtle);
 }
 
 .subsection {
-  margin-top: 24rpx;
-  padding-top: 20rpx;
-  border-top: 1rpx solid #e5e0d6;
+  margin-top: 22rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid var(--tree-border-subtle);
 }
 
 .subsection-title {
   display: block;
   margin-bottom: 12rpx;
+  color: var(--tree-text-primary);
   font-size: 28rpx;
   font-weight: 600;
 }
 
-.field-hint {
-  display: block;
-  margin: 8rpx 0 12rpx;
-  color: #9ca3af;
-  font-size: 22rpx;
-}
-
 .message {
   padding: 16rpx 0;
-  border-top: 1rpx solid #e5e0d6;
-}
-
-.message-empty {
-  padding: 16rpx 0;
+  border-top: 1rpx solid var(--tree-border-subtle);
 }
 
 .message-name {
@@ -370,35 +378,11 @@ onUnmounted(() => {
   font-size: 22rpx;
 }
 
-.state-card {
-  padding: 20rpx 0;
-  text-align: center;
-}
-
 .counter {
   display: block;
   margin-top: 8rpx;
   color: #9ca3af;
   font-size: 22rpx;
   text-align: right;
-}
-
-.result {
-  display: block;
-  margin-top: 18rpx;
-  color: #2f6b57;
-  font-size: 26rpx;
-  font-weight: 600;
-}
-
-.error {
-  display: block;
-  margin-top: 18rpx;
-  color: #c0392b;
-  font-size: 24rpx;
-}
-
-.button[disabled] {
-  opacity: 0.55;
 }
 </style>

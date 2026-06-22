@@ -1,8 +1,13 @@
 <template>
-  <view class="page">
-    <view class="card">
-      <text class="title">手机号登录</text>
-      <text class="muted">登录 Tree，查看你的家庭、成员与私有家庭树。</text>
+  <view class="tree-page auth-page tree-page-lineage">
+    <view class="tree-auth-brand">
+      <text class="tree-auth-brand-eyebrow">Tree</text>
+      <text class="tree-auth-brand-title">家脉亲缘</text>
+      <text class="tree-auth-brand-desc">使用手机号登录，进入家族空间</text>
+    </view>
+
+    <MiniCard variant="info" class="tree-auth-card paper-surface">
+      <text class="tree-field-label">手机号</text>
       <input
         v-model.trim="phone"
         class="input"
@@ -10,6 +15,7 @@
         maxlength="11"
         placeholder="请输入手机号"
       />
+      <text class="tree-field-label">密码</text>
       <input
         v-model="password"
         class="input"
@@ -17,17 +23,21 @@
         maxlength="64"
         placeholder="请输入密码"
       />
-      <text v-if="errorMessage" class="error">{{ errorMessage }}</text>
-      <button class="button" :disabled="submitting" :loading="submitting" @click="submit">
-        登录
-      </button>
-      <button class="button secondary" :disabled="submitting" @click="goRegister">注册新账号</button>
-    </view>
-    <view class="card">
-      <text class="section-title">微信登录</text>
-      <text class="muted">当前暂不支持微信一键登录，请使用手机号登录。</text>
-      <button class="button secondary" @click="goWechat">了解微信登录</button>
-    </view>
+      <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
+      <view class="btn-stack">
+        <MiniButton :disabled="submitting" :loading="submitting" @click="submit">
+          登录
+        </MiniButton>
+        <MiniButton variant="secondary" :disabled="submitting" @click="goRegister">
+          注册新账号
+        </MiniButton>
+      </view>
+    </MiniCard>
+
+    <MiniCard variant="soft" class="tree-auth-card tree-auth-foot">
+      <MiniNotice tone="info">微信一键登录即将开放，当前请使用手机号登录。</MiniNotice>
+      <MiniButton variant="ghost" class="btn-top" @click="goWechat">了解更多</MiniButton>
+    </MiniCard>
   </view>
 </template>
 
@@ -35,6 +45,9 @@
 import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniNotice from '@/components/base/MiniNotice.vue'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
@@ -76,14 +89,14 @@ function goWechat() {
 </script>
 
 <style scoped>
-.error {
-  display: block;
-  margin-top: 16rpx;
-  color: #c0392b;
-  font-size: 24rpx;
+.btn-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  margin-top: 22rpx;
 }
 
-.button[disabled] {
-  opacity: 0.55;
+.btn-top {
+  margin-top: 16rpx;
 }
 </style>

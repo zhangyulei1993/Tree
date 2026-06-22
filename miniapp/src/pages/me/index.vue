@@ -1,41 +1,61 @@
 <template>
-  <view class="page">
-    <view class="card">
-      <text class="title">个人中心</text>
-      <template v-if="session.isLoggedIn && session.user">
-        <text class="muted">昵称：{{ session.user.nickname || '未设置' }}</text>
-        <text class="muted">手机号：{{ maskedPhone }}</text>
-        <text class="muted">账号状态：{{ accountStatusText }}</text>
-        <text class="muted">手机号验证：{{ session.user.phoneVerified ? '已验证' : '未验证' }}</text>
-        <button class="button" @click="go('/pages/family/my')">我的家庭</button>
-        <button class="button secondary" @click="go('/pages/invite/my')">我的邀请</button>
-        <button class="button secondary" @click="go('/pages/join/my')">我的加入申请</button>
-      </template>
-      <template v-else>
-        <text class="muted">当前未登录。请使用手机号登录或注册账号。</text>
-        <button class="button" @click="go('/pages/auth/phone-login')">手机号登录</button>
-        <button class="button secondary" @click="go('/pages/auth/register-phone')">注册账号</button>
-      </template>
-    </view>
-    <view class="card">
-      <text class="section-title">协议与隐私</text>
-      <view class="link-row" @click="go('/pages/legal/user-agreement')">
-        <text>用户协议</text><text class="muted">查看</text>
-      </view>
-      <view class="link-row" @click="go('/pages/legal/privacy-policy')">
-        <text>隐私政策</text><text class="muted">查看</text>
-      </view>
-      <button
-        v-if="session.isLoggedIn"
-        class="button secondary"
-        :disabled="loggingOut"
-        :loading="loggingOut"
-        @click="logout"
-      >
-        退出登录
-      </button>
-      <text v-if="errorMessage" class="error">{{ errorMessage }}</text>
-    </view>
+  <view class="tree-page">
+    <template v-if="session.isLoggedIn && session.user">
+      <MiniCard variant="hero" class="profile-hero paper-surface">
+        <ProfileHeader
+          :name="session.user.nickname || '未设置昵称'"
+          :subtitle="maskedPhone"
+          :avatar-text="avatarText"
+          :tags="profileTags"
+        />
+      </MiniCard>
+
+      <MiniCard>
+        <MiniSectionHeader title="我的事务" subtitle="家庭、邀请与加入申请" />
+        <MiniActionList :items="affairItems" @select="onAffairSelect" />
+      </MiniCard>
+
+      <MiniCard>
+        <MiniSectionHeader title="账号与安全" subtitle="手机号绑定与账号管理" />
+        <MiniActionList :items="securityItems" @select="onSecuritySelect" />
+      </MiniCard>
+
+      <MiniCard>
+        <MiniSectionHeader title="协议与隐私" />
+        <MiniActionList :items="legalItems" @select="onLegalSelect" />
+        <MiniButton
+          variant="secondary"
+          class="btn-top"
+          :disabled="loggingOut"
+          :loading="loggingOut"
+          @click="logout"
+        >
+          退出登录
+        </MiniButton>
+        <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
+      </MiniCard>
+    </template>
+
+    <template v-else>
+      <MiniCard variant="hero" class="profile-hero paper-surface">
+        <ProfileHeader
+          name="欢迎使用 Tree"
+          subtitle="登录后可查看家庭、成员与邀请信息"
+          avatar-text="访"
+        />
+        <view class="guest-actions">
+          <MiniButton @click="go('/pages/auth/phone-login')">手机号登录</MiniButton>
+          <MiniButton variant="secondary" @click="go('/pages/auth/register-phone')">
+            注册账号
+          </MiniButton>
+        </view>
+      </MiniCard>
+
+      <MiniCard>
+        <MiniSectionHeader title="协议与隐私" />
+        <MiniActionList :items="legalItems" @select="onLegalSelect" />
+      </MiniCard>
+    </template>
   </view>
 </template>
 
@@ -44,34 +64,103 @@ import { onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
+import MiniActionList from '@/components/base/MiniActionList.vue'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
+import { accountStatusText, statusTagTone } from '@/components/base/formatStatus'
+import ProfileHeader from '@/components/profile/ProfileHeader.vue'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
 const loggingOut = ref(false)
 const errorMessage = ref('')
+
 const maskedPhone = computed(() => {
   const phone = session.user?.phone || ''
-  if (!phone) return '未绑定'
+  if (!phone) return '未绑定手机号'
   if (phone.includes('*')) return phone
   return phone.length === 11 ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : phone
 })
-const accountStatusText = computed(() => {
-  switch (session.user?.status) {
-    case 'ACTIVE':
-      return '正常'
-    case 'DISABLED':
-      return '已停用'
-    case 'CANCELLED':
-      return '已注销'
-    case 'PENDING_PHONE_BIND':
-      return '待绑定手机号'
-    default:
-      return session.user?.status || '未知'
-  }
+
+const avatarText = computed(() => {
+  const name = session.user?.nickname?.trim()
+  if (name) return name.slice(0, 1)
+  return '我'
 })
+
+const profileTags = computed(() => {
+  if (!session.user) return []
+  return [
+    {
+      label: accountStatusText(session.user.status),
+      tone: statusTagTone(session.user.status)
+    },
+    {
+      label: session.user.phoneVerified ? '手机号已验证' : '手机号未验证',
+      tone: session.user.phoneVerified ? 'active' : 'pending'
+    }
+  ] as Array<{ label: string; tone: 'active' | 'pending' | 'danger' | 'muted' }>
+})
+
+const affairItems = [
+  { key: 'family', title: '我的家庭', desc: '查看和管理家族资料' },
+  { key: 'invite', title: '我的邀请', desc: '查看邀请状态' },
+  { key: 'join', title: '我的加入申请', desc: '管理申请记录' }
+]
+
+const securityItems = computed(() => [
+  {
+    key: 'bind-phone',
+    title: '绑定手机号',
+    desc: session.user?.phoneVerified ? '已完成手机号验证' : '完成验证后可使用完整功能'
+  },
+  { key: 'cancel', title: '注销账号', desc: '注销后账号将不可继续登录', danger: true }
+])
+
+const legalItems = [
+  { key: 'user-agreement', title: '用户协议', desc: '查看' },
+  { key: 'privacy-policy', title: '隐私政策', desc: '查看' }
+]
 
 function go(url: string) {
   uni.navigateTo({ url })
+}
+
+function onAffairSelect(key: string) {
+  switch (key) {
+    case 'family':
+      go('/pages/family/my')
+      break
+    case 'invite':
+      go('/pages/invite/my')
+      break
+    case 'join':
+      go('/pages/join/my')
+      break
+  }
+}
+
+function onSecuritySelect(key: string) {
+  switch (key) {
+    case 'bind-phone':
+      go('/pages/auth/bind-phone')
+      break
+    case 'cancel':
+      go('/pages/account/cancel')
+      break
+  }
+}
+
+function onLegalSelect(key: string) {
+  switch (key) {
+    case 'user-agreement':
+      go('/pages/legal/user-agreement')
+      break
+    case 'privacy-policy':
+      go('/pages/legal/privacy-policy')
+      break
+  }
 }
 
 async function logout() {
@@ -92,17 +181,18 @@ onShow(() => session.restoreSession())
 </script>
 
 <style scoped>
-.link-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 22rpx 0;
-  border-top: 1rpx solid #e5e0d6;
+.profile-hero {
+  margin-bottom: 20rpx;
 }
 
-.error {
-  display: block;
-  margin-top: 16rpx;
-  color: #c0392b;
-  font-size: 24rpx;
+.btn-top {
+  margin-top: 24rpx;
+}
+
+.guest-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  margin-top: 28rpx;
 }
 </style>

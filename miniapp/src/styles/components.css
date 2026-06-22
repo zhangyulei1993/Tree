@@ -1,0 +1,840 @@
+/* Tree miniapp component utilities — imported via App.vue */
+
+.tree-auth-brand {
+  margin-bottom: 28rpx;
+  padding: 8rpx 4rpx 0;
+}
+
+.tree-auth-brand-eyebrow {
+  display: block;
+  color: var(--tree-gold-text);
+  font-size: 22rpx;
+  font-weight: 700;
+  letter-spacing: 4rpx;
+}
+
+.tree-auth-brand-title {
+  display: block;
+  color: var(--tree-text-primary);
+  font-size: 40rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.tree-auth-brand-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--tree-text-secondary);
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.tree-auth-card {
+  padding: 28rpx;
+}
+
+.tree-auth-foot {
+  margin-top: 20rpx;
+}
+
+.tree-symbol {
+  position: relative;
+  flex-shrink: 0;
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: var(--tree-radius-sm);
+  background: var(--tree-green-light);
+}
+
+.tree-symbol::before,
+.tree-symbol::after {
+  content: '';
+  position: absolute;
+  box-sizing: border-box;
+}
+
+.tree-symbol-home {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.tree-symbol-home::before {
+  top: 10rpx;
+  left: 10rpx;
+  width: 24rpx;
+  height: 18rpx;
+  border: 3rpx solid #fff;
+  border-bottom: none;
+  border-radius: 4rpx 4rpx 0 0;
+}
+
+.tree-symbol-home::after {
+  bottom: 8rpx;
+  left: 50%;
+  width: 28rpx;
+  height: 3rpx;
+  margin-left: -14rpx;
+  border-radius: 2rpx;
+  background: var(--tree-gold);
+}
+
+.tree-symbol-search {
+  background: var(--tree-green-light);
+}
+
+.tree-symbol-search::before {
+  top: 11rpx;
+  left: 11rpx;
+  width: 18rpx;
+  height: 18rpx;
+  border: 3rpx solid var(--tree-green);
+  border-radius: 50%;
+}
+
+.tree-symbol-search::after {
+  top: 24rpx;
+  left: 24rpx;
+  width: 12rpx;
+  height: 3rpx;
+  border-radius: 2rpx;
+  background: var(--tree-green);
+  transform: rotate(45deg);
+}
+
+.tree-symbol-folder::before {
+  top: 12rpx;
+  left: 10rpx;
+  width: 24rpx;
+  height: 18rpx;
+  border: 2rpx solid var(--tree-primary);
+  border-radius: 4rpx;
+}
+
+.tree-symbol-folder::after {
+  top: 8rpx;
+  left: 10rpx;
+  width: 12rpx;
+  height: 6rpx;
+  border: 2rpx solid var(--tree-primary);
+  border-bottom: none;
+  border-radius: 3rpx 3rpx 0 0;
+}
+
+.tree-symbol-users::before {
+  top: 11rpx;
+  left: 9rpx;
+  width: 12rpx;
+  height: 12rpx;
+  border: 2rpx solid var(--tree-green);
+  border-radius: 50%;
+}
+
+.tree-symbol-users::after {
+  top: 11rpx;
+  left: 21rpx;
+  width: 12rpx;
+  height: 12rpx;
+  border: 2rpx solid var(--tree-green);
+  border-radius: 50%;
+}
+
+.tree-symbol-mail::before {
+  top: 13rpx;
+  left: 9rpx;
+  width: 26rpx;
+  height: 16rpx;
+  border: 2rpx solid var(--tree-primary);
+  border-radius: 4rpx;
+}
+
+.tree-symbol-mail::after {
+  top: 13rpx;
+  left: 9rpx;
+  width: 13rpx;
+  height: 13rpx;
+  border-top: 2rpx solid var(--tree-primary);
+  border-right: 2rpx solid var(--tree-primary);
+  transform: rotate(-45deg);
+  transform-origin: top right;
+}
+
+.tree-symbol-doc::before {
+  top: 8rpx;
+  left: 12rpx;
+  width: 20rpx;
+  height: 26rpx;
+  border: 2rpx solid var(--tree-gold-text);
+  border-radius: 3rpx;
+}
+
+.tree-symbol-doc::after {
+  top: 16rpx;
+  left: 16rpx;
+  width: 12rpx;
+  height: 2rpx;
+  border-radius: 1rpx;
+  background: var(--tree-gold-text);
+  box-shadow: 0 6rpx 0 var(--tree-gold-text), 0 12rpx 0 var(--tree-gold-text);
+}
+
+.tree-symbol-link::before {
+  top: 18rpx;
+  left: 8rpx;
+  width: 14rpx;
+  height: 14rpx;
+  border: 2rpx solid var(--tree-green);
+  border-radius: 50%;
+}
+
+.tree-symbol-link::after {
+  top: 12rpx;
+  left: 20rpx;
+  width: 14rpx;
+  height: 14rpx;
+  border: 2rpx solid var(--tree-green);
+  border-radius: 50%;
+}
+
+.tree-symbol-tool::before {
+  top: 10rpx;
+  left: 10rpx;
+  width: 24rpx;
+  height: 24rpx;
+  border: 2rpx solid var(--tree-green);
+  border-radius: 6rpx;
+}
+
+.tree-symbol-tool::after {
+  top: 18rpx;
+  left: 18rpx;
+  width: 8rpx;
+  height: 8rpx;
+  border-radius: 50%;
+  background: var(--tree-green);
+}
+
+.tree-symbol-profile::before {
+  top: 10rpx;
+  left: 15rpx;
+  width: 14rpx;
+  height: 14rpx;
+  border: 2rpx solid var(--tree-primary);
+  border-radius: 50%;
+}
+
+.tree-symbol-profile::after {
+  bottom: 8rpx;
+  left: 10rpx;
+  width: 24rpx;
+  height: 12rpx;
+  border: 2rpx solid var(--tree-primary);
+  border-bottom: none;
+  border-radius: 12rpx 12rpx 0 0;
+}
+
+.tree-feature-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+
+.tree-feature-symbol {
+  margin-top: 2rpx;
+}
+
+/* —— 家谱视觉母题 —— */
+
+.tree-pedigree-watermark {
+  position: relative;
+}
+
+.tree-pedigree-watermark::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 24rpx;
+  width: 120rpx;
+  height: 120rpx;
+  border: 2rpx solid var(--tree-border-warm);
+  border-radius: 50%;
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.tree-pedigree-watermark::after {
+  content: '';
+  position: absolute;
+  top: 58rpx;
+  right: 82rpx;
+  width: 2rpx;
+  height: 48rpx;
+  background: var(--tree-gold);
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.tree-space {
+  position: relative;
+  margin-bottom: 20rpx;
+  border: 1rpx solid var(--tree-border-subtle);
+  border-radius: var(--tree-radius-lg);
+  background: #fff;
+  overflow: hidden;
+}
+
+.tree-space-head {
+  padding: 24rpx 24rpx 18rpx;
+  border-bottom: 1rpx solid var(--tree-border-subtle);
+  background: linear-gradient(135deg, #fffdf9 0%, #f8f3ea 100%);
+}
+
+.tree-space-title {
+  display: block;
+  color: var(--tree-text-primary);
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.tree-space-subtitle {
+  display: block;
+  margin-top: 6rpx;
+  color: var(--tree-text-secondary);
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.tree-space-body {
+  padding: 8rpx 0;
+}
+
+.tree-archive-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 14rpx;
+}
+
+.tree-archive-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999rpx;
+  background: var(--tree-green-light);
+  color: var(--tree-green);
+  padding: 8rpx 16rpx;
+  font-size: 22rpx;
+  font-weight: 600;
+}
+
+.tree-archive-chip.gold {
+  background: var(--tree-gold-light);
+  color: var(--tree-gold-text);
+}
+
+.tree-dossier-head {
+  display: flex;
+  gap: 20rpx;
+  align-items: flex-start;
+}
+
+.tree-dossier-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.tree-public-eyebrow {
+  display: block;
+  color: var(--tree-gold-text);
+  font-size: 22rpx;
+  font-weight: 600;
+  letter-spacing: 3rpx;
+}
+
+.tree-tool-banner {
+  margin-bottom: 18rpx;
+  padding: 22rpx 24rpx;
+  border: 1rpx solid var(--tree-border-green);
+  border-radius: var(--tree-radius-lg);
+  background: linear-gradient(135deg, #f4f8f5 0%, #faf6ee 100%);
+}
+
+.tree-tool-banner-title {
+  display: block;
+  color: var(--tree-text-primary);
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.tree-tool-banner-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--tree-text-secondary);
+  font-size: 24rpx;
+  line-height: 1.6;
+}
+
+.tree-pedigree-mark {
+  position: relative;
+  width: 96rpx;
+  height: 96rpx;
+  flex-shrink: 0;
+}
+
+.tree-pedigree-mark .node {
+  position: absolute;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.tree-pedigree-mark .node-root {
+  top: 8rpx;
+  left: 50%;
+  width: 28rpx;
+  height: 28rpx;
+  margin-left: -14rpx;
+  border: 3rpx solid var(--tree-primary);
+  background: #eef3f8;
+}
+
+.tree-pedigree-mark .node-branch {
+  width: 16rpx;
+  height: 16rpx;
+  border: 2rpx solid var(--tree-green);
+  background: var(--tree-green-light);
+}
+
+.tree-pedigree-mark .node-left {
+  left: 8rpx;
+  top: 52rpx;
+}
+
+.tree-pedigree-mark .node-right {
+  right: 8rpx;
+  top: 52rpx;
+}
+
+.tree-pedigree-mark .node-gold {
+  left: 50%;
+  bottom: 8rpx;
+  width: 12rpx;
+  height: 12rpx;
+  margin-left: -6rpx;
+  border: 2rpx solid var(--tree-gold);
+  background: var(--tree-gold-light);
+}
+
+.tree-pedigree-mark .line-v {
+  position: absolute;
+  top: 34rpx;
+  left: 50%;
+  width: 2rpx;
+  height: 22rpx;
+  margin-left: -1rpx;
+  background: var(--tree-primary-deep);
+  opacity: 0.4;
+}
+
+.tree-pedigree-mark .line-l,
+.tree-pedigree-mark .line-r {
+  position: absolute;
+  top: 44rpx;
+  width: 28rpx;
+  height: 2rpx;
+  background: var(--tree-primary-deep);
+  opacity: 0.4;
+}
+
+.tree-pedigree-mark .line-l {
+  left: 22rpx;
+  transform: rotate(-24deg);
+  transform-origin: left center;
+}
+
+.tree-pedigree-mark .line-r {
+  right: 22rpx;
+  transform: rotate(24deg);
+  transform-origin: right center;
+}
+
+.tree-pedigree-mark .trunk {
+  position: absolute;
+  bottom: 4rpx;
+  left: 50%;
+  width: 4rpx;
+  height: 20rpx;
+  margin-left: -2rpx;
+  border-radius: 2rpx;
+  background: var(--tree-gold);
+}
+
+/* —— 谱牒纸张与档案层级 —— */
+
+.paper-surface {
+  background:
+    linear-gradient(0deg, var(--tree-paper-grain) 1px, transparent 1px),
+    linear-gradient(90deg, var(--tree-paper-grain) 1px, transparent 1px),
+    #fffdf9;
+  background-size: 28rpx 28rpx, 28rpx 28rpx, 100% 100%;
+}
+
+.tree-page-lineage::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 48rpx;
+  width: 2rpx;
+  height: 100%;
+  min-height: 100vh;
+  background: linear-gradient(180deg, transparent 0%, var(--tree-gold) 12%, var(--tree-green) 50%, transparent 88%);
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.tree-page-lineage > view {
+  position: relative;
+  z-index: 1;
+}
+
+.tree-dossier-seal {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 96rpx;
+  height: 96rpx;
+  border: 3rpx solid var(--tree-gold);
+  border-radius: 50%;
+  background: #fffdf9;
+  box-shadow:
+    inset 0 0 0 4rpx rgba(200, 164, 93, 0.25),
+    0 0 0 1rpx rgba(31, 58, 95, 0.06);
+  color: var(--tree-text-primary);
+  font-size: 38rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.tree-dossier-seal.sm {
+  width: 72rpx;
+  height: 72rpx;
+  font-size: 30rpx;
+  border-width: 2rpx;
+}
+
+.tree-pedigree-mark-lg {
+  position: relative;
+  width: 160rpx;
+  height: 160rpx;
+  flex-shrink: 0;
+}
+
+.tree-pedigree-mark-lg .node {
+  position: absolute;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.tree-pedigree-mark-lg .node-root {
+  top: 12rpx;
+  left: 50%;
+  width: 40rpx;
+  height: 40rpx;
+  margin-left: -20rpx;
+  border: 4rpx solid var(--tree-primary);
+  background: #eef3f8;
+}
+
+.tree-pedigree-mark-lg .node-branch {
+  width: 22rpx;
+  height: 22rpx;
+  border: 3rpx solid var(--tree-green);
+  background: var(--tree-green-light);
+}
+
+.tree-pedigree-mark-lg .node-left {
+  left: 14rpx;
+  top: 86rpx;
+}
+
+.tree-pedigree-mark-lg .node-right {
+  right: 14rpx;
+  top: 86rpx;
+}
+
+.tree-pedigree-mark-lg .node-gold {
+  left: 50%;
+  bottom: 14rpx;
+  width: 16rpx;
+  height: 16rpx;
+  margin-left: -8rpx;
+  border: 2rpx solid var(--tree-gold);
+  background: var(--tree-gold-light);
+}
+
+.tree-pedigree-mark-lg .line-v {
+  position: absolute;
+  top: 50rpx;
+  left: 50%;
+  width: 3rpx;
+  height: 38rpx;
+  margin-left: -1.5rpx;
+  background: var(--tree-primary-deep);
+  opacity: 0.35;
+}
+
+.tree-pedigree-mark-lg .line-l,
+.tree-pedigree-mark-lg .line-r {
+  position: absolute;
+  top: 72rpx;
+  width: 44rpx;
+  height: 3rpx;
+  background: var(--tree-primary-deep);
+  opacity: 0.35;
+}
+
+.tree-pedigree-mark-lg .line-l {
+  left: 36rpx;
+  transform: rotate(-24deg);
+  transform-origin: left center;
+}
+
+.tree-pedigree-mark-lg .line-r {
+  right: 36rpx;
+  transform: rotate(24deg);
+  transform-origin: right center;
+}
+
+.tree-pedigree-mark-lg .trunk {
+  position: absolute;
+  bottom: 8rpx;
+  left: 50%;
+  width: 5rpx;
+  height: 28rpx;
+  margin-left: -2.5rpx;
+  border-radius: 3rpx;
+  background: var(--tree-gold);
+}
+
+.tree-lineage-chain {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0;
+  padding: 16rpx 4rpx;
+  overflow-x: auto;
+}
+
+.tree-lineage-node {
+  display: inline-flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 6rpx;
+  min-width: 72rpx;
+}
+
+.tree-lineage-node-dot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48rpx;
+  height: 48rpx;
+  border: 2rpx solid var(--tree-green);
+  border-radius: 50%;
+  background: var(--tree-green-light);
+  color: var(--tree-green);
+  font-size: 22rpx;
+  font-weight: 600;
+}
+
+.tree-lineage-node-dot.self {
+  border-color: var(--tree-primary);
+  background: var(--tree-primary);
+  color: #fff;
+}
+
+.tree-lineage-node-label {
+  max-width: 96rpx;
+  color: var(--tree-text-secondary);
+  font-size: 20rpx;
+  line-height: 1.3;
+  text-align: center;
+  word-break: break-all;
+}
+
+.tree-lineage-connector {
+  flex-shrink: 0;
+  width: 32rpx;
+  height: 2rpx;
+  margin: 0 4rpx;
+  margin-bottom: 22rpx;
+  background: linear-gradient(90deg, var(--tree-gold) 0%, var(--tree-green) 100%);
+  opacity: 0.55;
+}
+
+.tree-result-plaque {
+  position: relative;
+  border: 1rpx solid var(--tree-border-green);
+  border-radius: var(--tree-radius-lg);
+  background:
+    linear-gradient(135deg, #f8fbf9 0%, #faf6ee 100%);
+  padding: 32rpx 28rpx;
+  text-align: center;
+}
+
+.tree-result-plaque::before,
+.tree-result-plaque::after {
+  content: '';
+  position: absolute;
+  top: 16rpx;
+  width: 24rpx;
+  height: 2rpx;
+  background: var(--tree-gold);
+  opacity: 0.5;
+}
+
+.tree-result-plaque::before {
+  left: 24rpx;
+}
+
+.tree-result-plaque::after {
+  right: 24rpx;
+}
+
+.tree-relation-card {
+  flex: 1 1 calc(50% - 8rpx);
+  min-width: 140rpx;
+  box-sizing: border-box;
+  border: 1rpx solid var(--tree-border-warm);
+  border-radius: var(--tree-radius-md);
+  background: #fff;
+  padding: 20rpx 16rpx;
+  text-align: center;
+}
+
+.tree-relation-card.active {
+  border-color: var(--tree-green);
+  background: var(--tree-green-light);
+}
+
+.tree-relation-card.disabled {
+  border-color: var(--tree-border-subtle);
+  background: #faf8f5;
+  opacity: 0.85;
+}
+
+.tree-relation-card-label {
+  display: block;
+  color: var(--tree-text-primary);
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.tree-relation-card.disabled .tree-relation-card-label {
+  color: var(--tree-text-weak);
+}
+
+.tree-action-tile {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 22rpx 20rpx;
+  border-top: 1rpx solid var(--tree-border-subtle);
+}
+
+.tree-action-tile:first-child {
+  border-top: none;
+}
+
+.tree-action-tile:active {
+  background: #fffdf9;
+}
+
+.tree-action-tile-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: var(--tree-radius-sm);
+  background: var(--tree-green-light);
+}
+
+.tree-action-tile-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.tree-action-tile-title {
+  display: block;
+  color: var(--tree-text);
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.tree-action-tile-desc {
+  display: block;
+  margin-top: 4rpx;
+  color: var(--tree-text-secondary);
+  font-size: 22rpx;
+}
+
+.tree-contact-card {
+  padding: 20rpx 24rpx 16rpx;
+}
+
+.tree-message-wall-item {
+  padding: 20rpx 0;
+  border-top: 1rpx solid var(--tree-border-subtle);
+}
+
+.tree-message-wall-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.tree-message-wall-name {
+  display: block;
+  color: var(--tree-text-primary);
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.tree-message-wall-time {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--tree-text-weak);
+  font-size: 22rpx;
+}
+
+.tree-privacy-footnote {
+  display: block;
+  margin-top: 8rpx;
+  padding: 12rpx 8rpx 0;
+  color: var(--tree-text-weak);
+  font-size: 20rpx;
+  line-height: 1.65;
+  text-align: center;
+}
+
+/* —— 首页与阅读页现代布局 —— */
+
+.tree-surface-card {
+  border: 1rpx solid var(--tree-border-subtle);
+  border-radius: var(--tree-radius-lg);
+  background: var(--tree-surface);
+  box-shadow: var(--tree-shadow-sm);
+}
+
+.tree-content-article-card {
+  border: 1rpx solid var(--tree-border-subtle);
+  border-radius: var(--tree-radius-lg);
+  background: var(--tree-surface);
+  padding: 22rpx 20rpx;
+  box-shadow: var(--tree-shadow-sm);
+}
+
+.tree-content-article-card:active {
+  background: var(--tree-surface-muted);
+}
+
