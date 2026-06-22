@@ -1,0 +1,120 @@
+<template>
+  <view class="tree-page detail-page">
+    <MiniCard v-if="!article">
+      <MiniEmptyState title="内容不存在" description="请返回阅读页重新选择。" />
+      <MiniButton variant="secondary" @click="goBack">返回阅读</MiniButton>
+    </MiniCard>
+
+    <template v-else>
+      <view class="article-hero">
+        <text class="article-category">{{ categoryTitle }}</text>
+        <text class="article-title">{{ article.title }}</text>
+        <text class="article-summary">{{ article.summary }}</text>
+      </view>
+
+      <view class="article-body">
+        <text
+          v-for="(paragraph, index) in bodyParagraphs"
+          :key="index"
+          class="article-paragraph"
+        >
+          {{ paragraph }}
+        </text>
+      </view>
+    </template>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { onLoad } from '@dcloudio/uni-app'
+import { computed, ref } from 'vue'
+
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
+import { getArticleById, getCategoryMeta } from '@/mock/content'
+
+const articleId = ref('')
+const article = computed(() => (articleId.value ? getArticleById(articleId.value) : null))
+
+const categoryTitle = computed(() => {
+  if (!article.value) return ''
+  return getCategoryMeta(article.value.category)?.title || '内容'
+})
+
+const bodyParagraphs = computed(() => {
+  if (!article.value) return []
+  return article.value.body
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+})
+
+function goBack() {
+  uni.switchTab({ url: '/pages/content/index' })
+}
+
+onLoad((options) => {
+  articleId.value = String(options?.id || '').trim()
+})
+</script>
+
+<style scoped>
+.detail-page {
+  background: linear-gradient(180deg, #f7faf9 0%, #f5f8fc 100%);
+}
+
+.article-hero {
+  margin-bottom: 20rpx;
+  border-radius: var(--tree-radius-lg);
+  background: #fff;
+  padding: 28rpx 24rpx;
+  box-shadow: 0 2rpx 14rpx rgba(15, 23, 42, 0.04);
+}
+
+.article-category {
+  display: inline-flex;
+  border-radius: 8rpx;
+  background: #f1f5f9;
+  color: var(--tree-text-secondary);
+  padding: 6rpx 12rpx;
+  font-size: 22rpx;
+  font-weight: 500;
+}
+
+.article-title {
+  display: block;
+  margin-top: 16rpx;
+  color: var(--tree-text);
+  font-size: 36rpx;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.article-summary {
+  display: block;
+  margin-top: 12rpx;
+  color: var(--tree-text-secondary);
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.article-body {
+  border-radius: var(--tree-radius-lg);
+  background: #fff;
+  padding: 28rpx 24rpx;
+  box-shadow: 0 2rpx 14rpx rgba(15, 23, 42, 0.04);
+}
+
+.article-paragraph {
+  display: block;
+  margin-bottom: 20rpx;
+  color: var(--tree-text);
+  font-size: 28rpx;
+  line-height: 1.75;
+}
+
+.article-paragraph:last-child {
+  margin-bottom: 0;
+}
+</style>

@@ -1,8 +1,13 @@
 <template>
-  <view class="page">
-    <view class="card">
-      <text class="title">手机号注册</text>
-      <text class="muted">请填写手机号并获取短信验证码，完成注册后即可登录。</text>
+  <view class="tree-page auth-page tree-page-lineage">
+    <view class="tree-auth-brand">
+      <text class="tree-auth-brand-eyebrow">Tree</text>
+      <text class="tree-auth-brand-title">注册账号</text>
+      <text class="tree-auth-brand-desc">填写手机号与验证码，完成注册后即可登录</text>
+    </view>
+
+    <MiniCard variant="info" class="tree-auth-card paper-surface">
+      <text class="tree-field-label">手机号</text>
       <input
         v-model.trim="phone"
         class="input"
@@ -10,6 +15,7 @@
         maxlength="11"
         placeholder="请输入手机号"
       />
+      <text class="tree-field-label">验证码</text>
       <view class="code-row">
         <input
           v-model.trim="code"
@@ -18,16 +24,20 @@
           maxlength="8"
           placeholder="验证码"
         />
-        <button
+        <MiniButton
+          size="sm"
+          :block="false"
           class="code-button"
           :disabled="sending || cooldown > 0"
           :loading="sending"
           @click="send"
         >
           {{ cooldown > 0 ? `${cooldown}s` : '发送验证码' }}
-        </button>
+        </MiniButton>
       </view>
+      <text class="tree-field-label">昵称（可选）</text>
       <input v-model.trim="nickname" class="input" maxlength="30" placeholder="昵称（可选）" />
+      <text class="tree-field-label">密码</text>
       <input
         v-model="password"
         class="input"
@@ -35,13 +45,17 @@
         maxlength="64"
         placeholder="设置密码（至少 6 位）"
       />
-      <text v-if="errorMessage" class="error">{{ errorMessage }}</text>
-      <text v-if="sendResult" class="success">{{ sendResult }}</text>
-      <button class="button" :disabled="submitting" :loading="submitting" @click="submit">
-        注册并登录
-      </button>
-      <button class="button secondary" :disabled="submitting" @click="goLogin">已有账号，去登录</button>
-    </view>
+      <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
+      <text v-if="sendResult" class="tree-field-success">{{ sendResult }}</text>
+      <view class="btn-stack">
+        <MiniButton :disabled="submitting" :loading="submitting" @click="submit">
+          注册并登录
+        </MiniButton>
+        <MiniButton variant="secondary" :disabled="submitting" @click="goLogin">
+          已有账号，去登录
+        </MiniButton>
+      </view>
+    </MiniCard>
   </view>
 </template>
 
@@ -50,6 +64,8 @@ import { onUnmounted, ref } from 'vue'
 
 import { sendCode } from '@/api/auth'
 import { apiErrorMessage } from '@/api/client'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
@@ -146,31 +162,15 @@ onUnmounted(() => {
 }
 
 .code-button {
+  flex-shrink: 0;
   width: 220rpx;
   margin-top: 16rpx;
-  border-radius: 16rpx;
-  background: #2f6b57;
-  color: #fff;
-  font-size: 24rpx;
 }
 
-.error,
-.success {
-  display: block;
-  margin-top: 16rpx;
-  font-size: 24rpx;
-}
-
-.error {
-  color: #c0392b;
-}
-
-.success {
-  color: #2f6b57;
-}
-
-.button[disabled],
-.code-button[disabled] {
-  opacity: 0.55;
+.btn-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 24rpx;
 }
 </style>

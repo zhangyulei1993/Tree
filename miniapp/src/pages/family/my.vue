@@ -1,35 +1,47 @@
 <template>
-  <view class="page">
-    <view class="card">
-      <text class="title">我的家庭</text>
-      <text class="muted">查看当前账号已创建或加入的家庭。</text>
-      <text v-if="errorMessage" class="error">{{ errorMessage }}</text>
-      <button v-if="errorMessage" class="button secondary" @click="loadFamilies">重新加载</button>
-    </view>
-    <view v-if="loading" class="card state-card">
-      <text class="muted">正在加载家庭列表...</text>
-    </view>
-    <view v-else-if="!errorMessage && families.length === 0" class="card state-card">
-      <text class="section-title">暂无家庭</text>
-      <text class="muted">当前账号还没有创建或加入家庭。你可以查看公开家庭，或通过家人发送的邀请加入家庭。</text>
-      <button class="button" @click="openSearch">查看公开家庭</button>
-      <button class="button secondary" @click="openInvitations">查看我的邀请</button>
-    </view>
-    <view
-      v-for="family in families"
-      :key="family.id"
-      class="card family-card"
-      @click="openFamily(family.id)"
-    >
-      <view class="section-row">
-        <text class="section-title">{{ family.familyName }}</text>
-        <text class="tag">{{ roleText(family.role) }}</text>
+  <view class="tree-page family-space-page">
+    <view class="tree-space tree-pedigree-watermark">
+      <view class="tree-space-head">
+        <text class="tree-space-title">我的家庭</text>
+        <text class="tree-space-subtitle">你创建或加入的家族空间</text>
+        <view v-if="!loading && !errorMessage && families.length > 0" class="tree-archive-ribbon">
+          <text class="tree-archive-chip">共 {{ families.length }} 个家庭</text>
+        </view>
       </view>
-      <text class="muted">姓氏：{{ family.familySurname }}</text>
-      <text v-if="family.regionText || family.nativePlace" class="muted">
-        地区：{{ family.regionText || family.nativePlace }}
-      </text>
-      <text class="muted">家庭状态：{{ familyStatusText(family.status) }}</text>
+      <view class="tree-space-body archive-body">
+        <MiniCard v-if="errorMessage" flat class="state-card">
+          <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
+          <MiniButton variant="secondary" @click="loadFamilies">重新加载</MiniButton>
+        </MiniCard>
+
+        <MiniCard v-else-if="loading" flat class="state-card">
+          <MiniEmptyState title="正在加载" description="正在加载家庭列表..." />
+        </MiniCard>
+
+        <MiniCard v-else-if="families.length === 0" flat class="state-card">
+          <MiniEmptyState
+            title="暂无家庭"
+            description="当前账号还没有创建或加入家庭。你可以查看公开家庭，或通过家人发送的邀请加入家庭。"
+            action-text="查看公开家庭"
+            @action="openSearch"
+          />
+          <MiniButton variant="secondary" @click="openInvitations">查看我的邀请</MiniButton>
+        </MiniCard>
+
+        <view v-else class="family-stack">
+          <FamilyMiniCard
+            v-for="family in families"
+            :key="family.id"
+            :name="family.familyName"
+            :surname="family.familySurname"
+            :region="family.regionText || family.nativePlace || undefined"
+            :role-label="roleText(family.role)"
+            :status-label="familyStatusText(family.status)"
+            :status-tone="familyStatusTone(family.status)"
+            @click="openFamily(family.id)"
+          />
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -40,6 +52,12 @@ import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { listMyFamilies } from '@/api/families'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
+import MiniNotice from '@/components/base/MiniNotice.vue'
+import { statusTagTone } from '@/components/base/formatStatus'
+import FamilyMiniCard from '@/components/family/FamilyMiniCard.vue'
 import { useSessionStore } from '@/stores/session'
 import type { FamilySummary } from '@/types/api'
 
@@ -111,29 +129,23 @@ function familyStatusText(status: string) {
   }
 }
 
+function familyStatusTone(status: string) {
+  return statusTagTone(status)
+}
+
 onShow(loadFamilies)
 </script>
 
 <style scoped>
-.error {
-  display: block;
-  margin-top: 16rpx;
-  color: #c0392b;
-  font-size: 24rpx;
+.archive-body {
+  padding: 16rpx 20rpx 20rpx;
 }
 
 .state-card {
-  text-align: center;
+  margin-bottom: 0;
 }
 
-.section-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16rpx;
-}
-
-.section-row .section-title {
-  margin-bottom: 8rpx;
+.family-stack {
+  padding: 0;
 }
 </style>

@@ -1,15 +1,27 @@
 <template>
-  <view class="page">
-    <view class="card intro-card">
-      <text class="title">亲属关系工具</text>
-      <text class="muted intro-text">推导关系结果仅供参考，最多支持 5 代关系推测。</text>
+  <view class="tree-page kinship-page">
+    <view class="tree-tool-banner kinship-banner">
+      <view class="banner-copy">
+        <text class="tree-tool-banner-title">亲属关系工具</text>
+        <text class="tree-tool-banner-desc">推导关系结果仅供参考，最多支持 5 代关系推测。</text>
+      </view>
+      <view class="tree-pedigree-mark" aria-hidden="true">
+        <view class="node node-root" />
+        <view class="line-v" />
+        <view class="line-l" />
+        <view class="line-r" />
+        <view class="node node-branch node-left" />
+        <view class="node node-branch node-right" />
+        <view class="trunk" />
+      </view>
     </view>
 
-    <view class="card">
-      <text class="section-title">本人信息</text>
-      <text class="muted field-hint">出生日期优先用于判断长幼，年龄仅作为补充。</text>
+    <MiniNotice tone="info" class="beta-notice">规则持续完善中</MiniNotice>
+
+    <MiniCard>
+      <MiniSectionHeader title="本人信息" subtitle="出生日期优先用于判断长幼，年龄仅作为补充。" />
       <view class="picker-row">
-        <text class="label">本人性别</text>
+        <text class="tree-field-label">本人性别</text>
         <view class="tag-group">
           <text
             v-for="item in selfGenderOptions"
@@ -23,50 +35,56 @@
         </view>
       </view>
       <text v-if="self.gender === 'unknown'" class="disabled-hint">请先选择本人性别，再开始选择关系。</text>
-      <input v-model.trim="self.birthday" class="input" placeholder="本人出生日期（可选，如 1990-01-01）" />
-      <input v-model.trim="selfAgeInput" class="input" type="number" placeholder="本人年龄（可选）" />
-    </view>
+      <input v-model.trim="self.birthday" class="tree-input" placeholder="本人出生日期（可选，如 1990-01-01）" />
+      <input v-model.trim="selfAgeInput" class="tree-input" type="number" placeholder="本人年龄（可选）" />
+    </MiniCard>
 
-    <view class="card path-card">
-      <text class="section-title">关系路径</text>
-      <view class="path-pills">
-        <text class="path-pill path-pill-self">我</text>
+    <MiniCard variant="soft" class="path-card">
+      <MiniSectionHeader title="关系路径" subtitle="从「我」出发，沿谱系节点推导" />
+      <view class="tree-lineage-chain">
+        <view class="tree-lineage-node">
+          <view class="tree-lineage-node-dot self">我</view>
+          <text class="tree-lineage-node-label">本人</text>
+        </view>
         <template v-for="(step, index) in steps" :key="index">
-          <text class="path-separator">›</text>
-          <text class="path-pill">{{ formatStepLabel(step) }}</text>
+          <view class="tree-lineage-connector" />
+          <view class="tree-lineage-node">
+            <view class="tree-lineage-node-dot">{{ index + 1 }}</view>
+            <text class="tree-lineage-node-label">{{ formatStepLabel(step) }}</text>
+          </view>
         </template>
       </view>
       <text class="path-meta">当前代数：{{ generationDepth }} / {{ maxDepth }}</text>
-    </view>
+    </MiniCard>
 
-    <view class="card">
-      <text class="section-title">选择下一层关系</text>
+    <MiniCard>
+      <MiniSectionHeader title="选择下一层关系" />
       <view class="relation-grid">
         <view
           v-for="option in relationOptions"
           :key="option.relation"
-          class="relation-btn"
+          class="tree-relation-card"
           :class="{
             active: pendingRelation === option.relation,
             disabled: !option.enabled
           }"
           @click="selectRelation(option)"
         >
-          <text class="relation-btn-label">{{ option.label }}</text>
+          <text class="tree-relation-card-label">{{ option.label }}</text>
         </view>
       </view>
       <text v-if="lastDisabledReason" class="disabled-hint">{{ lastDisabledReason }}</text>
-    </view>
+    </MiniCard>
 
-    <view class="card">
-      <text class="section-title">补充这个人的信息</text>
+    <MiniCard>
+      <MiniSectionHeader title="补充这个人的信息" />
       <view v-if="!pendingRelation" class="empty-hint">
-        <text class="muted">请先选择下一层关系。</text>
+        <text class="tree-muted">请先选择下一层关系。</text>
       </view>
       <view v-else class="pending-form">
         <text class="pending-relation-hint">正在为「{{ selectedRelationLabel }}」补充信息</text>
         <view class="picker-row">
-          <text class="label">性别</text>
+          <text class="tree-field-label">性别</text>
           <view class="tag-group">
             <text
               v-for="item in genderOptions"
@@ -79,10 +97,10 @@
             </text>
           </view>
         </view>
-        <input v-model.trim="pendingPerson.birthday" class="input" placeholder="出生日期（可选）" />
-        <input v-model.trim="pendingAgeInput" class="input" type="number" placeholder="年龄（可选）" />
+        <input v-model.trim="pendingPerson.birthday" class="tree-input" placeholder="出生日期（可选）" />
+        <input v-model.trim="pendingAgeInput" class="tree-input" type="number" placeholder="年龄（可选）" />
         <view v-if="pendingRelation === 'sibling'" class="picker-row">
-          <text class="label">长幼（相对上一位）</text>
+          <text class="tree-field-label">长幼（相对上一位）</text>
           <view class="tag-group">
             <text
               v-for="item in relativeAgeOptions"
@@ -95,12 +113,12 @@
             </text>
           </view>
         </view>
-        <button class="button append-btn" @click="appendStep">添加到路径</button>
-        <text v-if="appendError" class="error">{{ appendError }}</text>
+        <MiniButton @click="appendStep">添加到路径</MiniButton>
+        <text v-if="appendError" class="tree-field-error">{{ appendError }}</text>
       </view>
-    </view>
+    </MiniCard>
 
-    <view class="card result-card" :class="`result-${resolution.status}`">
+    <view class="tree-result-plaque result-card" :class="`result-${resolution.status}`">
       <template v-if="resolution.status === 'resolved'">
         <text class="result-label">常见称谓</text>
         <text class="result-title">{{ resolution.primaryTitle }}</text>
@@ -115,14 +133,14 @@
         <text v-else-if="resolution.primaryTitle" class="result-title muted-title">
           {{ resolution.primaryTitle }}
         </text>
-        <text class="muted result-hint">
+        <text class="tree-muted result-hint">
           请补充性别、长幼或父系/母系方向等信息，以获得更明确的称谓。
         </text>
       </template>
       <template v-else>
         <text class="result-label">暂未收录</text>
         <text class="result-unsupported">暂未收录该关系的常用称谓</text>
-        <text class="muted result-hint">
+        <text class="tree-muted result-hint">
           你仍然可以保留完整关系路径，后续版本会继续补充称谓规则。
         </text>
       </template>
@@ -135,19 +153,24 @@
       <text v-if="resolution.explanation" class="explanation-text">{{ resolution.explanation }}</text>
     </view>
 
-    <view class="card action-card">
+    <MiniCard class="action-card">
       <view class="action-row">
-        <button
-          class="button secondary action-btn"
-          :class="{ 'btn-disabled': steps.length === 0 }"
+        <MiniButton
+          variant="secondary"
+          size="sm"
+          :block="false"
+          class="action-btn"
+          :class="{ 'btn-weak': steps.length === 0 }"
           @click="undoStep"
         >
           撤销一步
-        </button>
-        <button class="button secondary action-btn" @click="confirmReset">重新开始</button>
-        <button class="button action-btn" @click="copyDescription">复制关系描述</button>
+        </MiniButton>
+        <MiniButton variant="secondary" size="sm" :block="false" class="action-btn" @click="confirmReset">
+          重新开始
+        </MiniButton>
+        <MiniButton class="action-btn-wide" @click="copyDescription">复制关系描述</MiniButton>
       </view>
-    </view>
+    </MiniCard>
 
     <view class="footer-check">
       <text class="self-check-text">规则自检：{{ selfCheckSummary }}</text>
@@ -158,6 +181,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniNotice from '@/components/base/MiniNotice.vue'
+import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
 import { canAppendRelation, getRelationOptions } from '@/features/kinship/allowedRelations'
 import {
   formatStepLabel,
@@ -376,44 +403,12 @@ function copyDescription() {
 </script>
 
 <style scoped>
-.intro-card {
-  padding-bottom: 24rpx;
-}
-
-.intro-text {
-  display: block;
-}
-
-.tip-text {
-  display: block;
-  margin-top: 16rpx;
-  padding: 16rpx 20rpx;
-  border-radius: 12rpx;
-  background: #f4f1e8;
-  color: #6b7280;
-  font-size: 24rpx;
-  line-height: 1.6;
-}
-
-.beta-tip {
-  background: #eef4fb;
-  color: #4b6a8a;
-}
-
-.field-hint {
-  display: block;
+.path-card :deep(.mini-section-header) {
   margin-bottom: 12rpx;
 }
 
 .picker-row {
-  margin-top: 20rpx;
-}
-
-.label {
-  display: block;
-  margin-bottom: 10rpx;
-  color: #6b7280;
-  font-size: 24rpx;
+  margin-top: 12rpx;
 }
 
 .tag-group {
@@ -427,49 +422,25 @@ function copyDescription() {
 }
 
 .tag.active {
-  background: #1f3a5f;
+  background: var(--tree-primary, #1f3a5f);
   color: #fff;
 }
 
-.path-card {
-  background: linear-gradient(180deg, #fff 0%, #faf8f4 100%);
-}
-
-.path-pills {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8rpx;
-  margin-bottom: 16rpx;
-}
-
-.path-pill {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999rpx;
-  background: #eef4f1;
-  color: #2f6b57;
-  padding: 10rpx 20rpx;
-  font-size: 26rpx;
-  line-height: 1.4;
-  max-width: 100%;
-  word-break: break-all;
-}
-
-.path-pill-self {
-  background: #1f3a5f;
-  color: #fff;
-  font-weight: 600;
-}
-
+.path-pills,
+.path-pill,
+.path-pill-self,
 .path-separator {
-  color: #9ca3af;
-  font-size: 24rpx;
-  flex-shrink: 0;
+  display: none;
+}
+
+.result-card {
+  margin-bottom: 20rpx;
 }
 
 .path-meta {
-  color: #6b7280;
+  display: block;
+  margin-top: 12rpx;
+  color: var(--tree-text-secondary);
   font-size: 24rpx;
 }
 
@@ -477,39 +448,6 @@ function copyDescription() {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
-}
-
-.relation-btn {
-  flex: 1 1 calc(50% - 6rpx);
-  min-width: 140rpx;
-  box-sizing: border-box;
-  border: 2rpx solid #1f3a5f;
-  border-radius: 16rpx;
-  background: #1f3a5f;
-  padding: 24rpx 16rpx;
-  text-align: center;
-}
-
-.relation-btn.active {
-  border-color: #2f6b57;
-  background: #2f6b57;
-  box-shadow: 0 4rpx 12rpx rgba(47, 107, 87, 0.25);
-}
-
-.relation-btn.disabled {
-  border-color: #e5e0d6;
-  background: #f9f7f3;
-  opacity: 1;
-}
-
-.relation-btn-label {
-  color: #fff;
-  font-size: 28rpx;
-  font-weight: 600;
-}
-
-.relation-btn.disabled .relation-btn-label {
-  color: #9ca3af;
 }
 
 .disabled-hint {
@@ -521,11 +459,11 @@ function copyDescription() {
 }
 
 .empty-hint {
-  padding: 24rpx 0 8rpx;
+  padding: 16rpx 0 8rpx;
 }
 
 .pending-form {
-  padding-top: 8rpx;
+  padding-top: 4rpx;
 }
 
 .pending-relation-hint {
@@ -535,20 +473,8 @@ function copyDescription() {
   font-size: 26rpx;
 }
 
-.append-btn {
-  margin-top: 24rpx;
-}
-
-.error {
-  display: block;
-  margin-top: 12rpx;
-  color: #c0392b;
-  font-size: 24rpx;
-}
-
-.result-card {
-  border-color: #d4e5de;
-  background: linear-gradient(180deg, #f8fbf9 0%, #fff 100%);
+.result-card.result-card {
+  border: none;
 }
 
 .result-label {
@@ -631,7 +557,7 @@ function copyDescription() {
 }
 
 .action-card {
-  padding-bottom: 20rpx;
+  padding-bottom: 12rpx;
 }
 
 .action-row {
@@ -643,24 +569,40 @@ function copyDescription() {
 .action-btn {
   flex: 1 1 calc(50% - 6rpx);
   min-width: 200rpx;
-  margin: 0;
 }
 
-.action-btn:last-child {
+.action-btn-wide {
   flex: 1 1 100%;
 }
 
-.btn-disabled {
+.btn-weak {
   opacity: 0.5;
 }
 
+.beta-notice {
+  margin-bottom: 16rpx;
+}
+
+.kinship-banner,
+.genealogy-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.banner-copy {
+  flex: 1;
+  min-width: 0;
+}
+
 .footer-check {
-  padding: 8rpx 0 32rpx;
+  padding: 4rpx 0 24rpx;
   text-align: center;
 }
 
 .self-check-text {
-  color: #c4c9d0;
-  font-size: 20rpx;
+  color: #d1d5db;
+  font-size: 18rpx;
 }
 </style>

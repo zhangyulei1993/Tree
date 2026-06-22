@@ -1,41 +1,69 @@
 <template>
-  <view class="page">
-    <view v-if="loading" class="card state-card">
-      <text class="muted">正在加载公开家谱...</text>
-    </view>
-    <view v-else-if="errorMessage" class="card state-card">
-      <text class="title">公开家谱</text>
-      <text class="error">{{ errorMessage }}</text>
-      <button class="button secondary" @click="loadTree">重新加载</button>
-    </view>
-    <template v-else-if="tree">
-      <view class="card">
-        <text class="title">公开家谱</text>
-        <text class="tag">{{ treeModeText(tree.treeMode) }}</text>
-        <text class="muted version-text">家谱版本：{{ tree.graphVersion }}</text>
-      </view>
+  <view class="tree-page">
+    <MiniCard v-if="loading">
+      <MiniEmptyState symbol="…" title="正在加载" description="正在加载公开家谱..." />
+    </MiniCard>
 
-      <view class="card">
-        <text class="section-title">成员（{{ tree.nodes.length }}）</text>
-        <text v-if="tree.nodes.length === 0" class="muted">该家庭暂未公开家谱关系。</text>
-        <view v-for="node in tree.nodes" :key="node.memberId" class="data-row">
-          <view>
-            <text>{{ node.displayName }}</text>
-            <text class="muted">{{ genderText(node.gender) }} · {{ livingText(node.isLiving) }}</text>
+    <MiniCard v-else-if="errorMessage">
+      <MiniSectionHeader title="公开家谱" />
+      <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
+      <MiniButton variant="secondary" @click="loadTree">重新加载</MiniButton>
+    </MiniCard>
+
+    <template v-else-if="tree">
+      <view class="tree-tool-banner genealogy-banner">
+        <view class="banner-copy">
+          <text class="tree-tool-banner-title">公开家谱</text>
+          <text class="tree-tool-banner-desc">{{ treeViewLabel(tree.treeMode) }}</text>
+          <view class="tree-archive-ribbon">
+            <text class="tree-archive-chip">成员 {{ tree.nodes.length }}</text>
+            <text class="tree-archive-chip green">关系 {{ visibleEdges.length }}</text>
           </view>
+        </view>
+        <view class="tree-pedigree-mark" aria-hidden="true">
+          <view class="node node-root" />
+          <view class="line-v" />
+          <view class="line-l" />
+          <view class="line-r" />
+          <view class="node node-branch node-left" />
+          <view class="node node-branch node-right" />
+          <view class="trunk" />
         </view>
       </view>
 
-      <view class="card">
-        <text class="section-title">关系（{{ visibleEdges.length }}）</text>
-        <text v-if="visibleEdges.length === 0" class="muted">该家庭暂未公开家谱关系。</text>
-        <view v-for="edge in visibleEdges" :key="edge.relationshipId" class="data-row">
-          <view>
-            <text>{{ nodeName(edge.fromMemberId) }} → {{ nodeName(edge.toMemberId) }}</text>
-            <text class="muted">{{ relationTypeText(edge.relationshipType) }}</text>
-            <text v-if="edge.relationNote" class="subtle">{{ edge.relationNote }}</text>
-          </view>
-          <text class="tag">{{ relationTagText(edge) }}</text>
+      <view class="tree-space">
+        <view class="tree-space-head">
+          <text class="tree-space-title">成员档案</text>
+          <text class="tree-space-subtitle">该家庭公开可见的成员信息</text>
+        </view>
+        <view class="tree-space-body section-pad">
+        <MiniEmptyState
+          v-if="tree.nodes.length === 0"
+          title="暂无公开成员"
+          description="该家庭暂未公开家谱成员。"
+        />
+        <MemberMiniCard
+          v-for="node in tree.nodes"
+          :key="node.memberId"
+          :name="node.displayName"
+          :gender-label="genderText(node.gender)"
+          :life-info="livingText(node.isLiving)"
+        />
+        </view>
+      </view>
+
+      <view class="tree-space">
+        <view class="tree-space-head">
+          <text class="tree-space-title">亲属关系</text>
+          <text class="tree-space-subtitle">以自然语言描述的公开亲属关系</text>
+        </view>
+        <view class="tree-space-body section-pad">
+        <MiniEmptyState
+          v-if="visibleEdges.length === 0"
+          title="暂无公开关系"
+          description="该家庭暂未公开家谱关系。"
+        />
+        <RelationSentenceList v-else :items="relationSentences" />
         </view>
       </view>
     </template>
@@ -48,6 +76,13 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { getPublicTree } from '@/api/tree'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
+import MiniNotice from '@/components/base/MiniNotice.vue'
+import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
+import MemberMiniCard from '@/components/family/MemberMiniCard.vue'
+import RelationSentenceList from '@/components/family/RelationSentenceList.vue'
 import type { FamilyTreeResult } from '@/types/api'
 
 const familyId = ref('')
@@ -59,20 +94,45 @@ const visibleEdges = computed(() =>
   tree.value?.edges.filter((edge) => String(edge.relationshipType) !== 'SIBLING') || []
 )
 const nodeNameMap = computed(() => new Map((tree.value?.nodes || []).map((node) => [node.memberId, node.displayName])))
+const nodeGenderMap = computed(() => new Map((tree.value?.nodes || []).map((node) => [node.memberId, node.gender])))
+const relationSentences = computed(() =>
+  visibleEdges.value.map((edge) => buildRelationSentence(edge))
+)
 
 function nodeName(memberId: number) {
   return nodeNameMap.value.get(memberId) || '未知成员'
 }
 
-function treeModeText(mode: string) {
+function treeViewLabel(mode: string) {
   switch (mode) {
     case 'LIST_TREE':
-      return '列表家谱'
+      return '家谱列表'
     case 'GRAPH_TREE':
-      return '图谱家谱'
+      return '家谱图谱'
     default:
       return '公开家谱'
   }
+}
+
+function buildRelationSentence(edge: FamilyTreeResult['edges'][number]) {
+  const fromName = nodeName(edge.fromMemberId)
+  const toName = nodeName(edge.toMemberId)
+  if (edge.relationshipType === 'SPOUSE') {
+    let sentence = `${fromName} 与 ${toName} 是配偶`
+    if (edge.relationNote) sentence += `，${edge.relationNote}`
+    return sentence
+  }
+  const fromGender = nodeGenderMap.value.get(edge.fromMemberId)
+  let parentRole = '父母'
+  if (fromGender === 'MALE') parentRole = '父亲'
+  else if (fromGender === 'FEMALE') parentRole = '母亲'
+  let sentence = `${fromName} 是 ${toName} 的${parentRole}`
+  const linkLabel = parentLinkText(edge.parentLinkType)
+  if (linkLabel && linkLabel !== '父母子女') {
+    sentence += `（${linkLabel}）`
+  }
+  if (edge.relationNote) sentence += `，${edge.relationNote}`
+  return sentence
 }
 
 function relationTypeText(type: string) {
@@ -215,41 +275,20 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.state-card {
-  text-align: center;
-}
-
-.version-text {
-  display: block;
-  margin-top: 8rpx;
-  font-size: 22rpx;
-  color: #9ca3af;
-}
-
-.data-row {
+.genealogy-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16rpx;
-  padding: 18rpx 0;
-  border-top: 1rpx solid #e5e0d6;
+  margin-bottom: 20rpx;
 }
 
-.data-row view,
-.data-row text {
-  display: block;
+.banner-copy {
+  flex: 1;
+  min-width: 0;
 }
 
-.subtle {
-  margin-top: 6rpx;
-  color: #9ca3af;
-  font-size: 22rpx;
-}
-
-.error {
-  display: block;
-  margin-top: 18rpx;
-  color: #c0392b;
-  font-size: 24rpx;
+.section-pad {
+  padding: 8rpx 20rpx 16rpx;
 }
 </style>

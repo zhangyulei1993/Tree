@@ -1,48 +1,68 @@
 <template>
-  <view class="page">
-    <view class="card">
-      <text class="title">我的加入申请</text>
-      <text class="muted">查看你提交的家庭加入申请及审核进度。</text>
-      <button class="button secondary" :disabled="loading" :loading="loading" @click="loadRequests">
-        刷新
-      </button>
-      <text v-if="actionError" class="error">{{ actionError }}</text>
-    </view>
+  <view class="tree-page">
+    <MiniSectionHeader title="我的加入申请" subtitle="查看你提交的家庭加入申请及审核进度。" />
 
-    <view v-if="loading" class="card state-card">
-      <text class="muted">正在加载加入申请...</text>
-    </view>
-    <view v-else-if="loadError" class="card state-card">
-      <text class="error">{{ loadError }}</text>
-      <button class="button secondary" @click="loadRequests">重新加载</button>
-    </view>
-    <view v-else-if="requests.length === 0" class="card state-card">
-      <text class="section-title">暂无加入申请</text>
-      <text class="muted">你提交的家庭加入申请会显示在这里。</text>
-    </view>
-    <view v-else>
-      <view v-for="item in requests" :key="item.requestId" class="card item-card">
-        <view class="item-header">
-          <text class="section-title">{{ item.familyName || '未知家庭' }}</text>
-          <text class="tag">{{ requestStatusText(item.requestStatus) }}</text>
-        </view>
-        <text v-if="item.applicantRealName" class="muted">申请人：{{ item.applicantRealName }}</text>
-        <text class="muted">申请理由：{{ item.applicantMessage || '未填写' }}</text>
-        <text v-if="item.handleComment" class="muted">审核意见：{{ item.handleComment }}</text>
-        <text class="muted">提交时间：{{ formatDate(item.createdAt) }}</text>
-        <text v-if="item.cancelledAt" class="muted">取消时间：{{ formatDate(item.cancelledAt) }}</text>
-        <text v-else-if="item.requestStatus !== 'PENDING'" class="muted">更新时间：{{ formatDate(item.updatedAt) }}</text>
-        <button
-          v-if="item.requestStatus === 'PENDING'"
-          class="button danger"
-          :disabled="cancellingId === item.requestId"
-          :loading="cancellingId === item.requestId"
-          @click="confirmCancel(item)"
-        >
-          取消申请
-        </button>
+    <MiniCard>
+      <MiniNotice tone="security">
+        申请信息仅家庭管理员可见，用于核实身份。审核结果会在此页面更新。
+      </MiniNotice>
+      <MiniButton variant="secondary" size="sm" :disabled="loading" :loading="loading" @click="loadRequests">
+        刷新列表
+      </MiniButton>
+      <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
+    </MiniCard>
+
+    <MiniCard v-if="loading">
+      <view class="state-block">
+        <text class="tree-muted">正在加载加入申请...</text>
       </view>
-    </view>
+    </MiniCard>
+
+    <MiniCard v-else-if="loadError">
+      <MiniEmptyState
+        symbol="!"
+        title="加载失败"
+        :description="loadError"
+        action-text="重新加载"
+        @action="loadRequests"
+      />
+    </MiniCard>
+
+    <MiniCard v-else-if="requests.length === 0">
+      <MiniEmptyState
+        symbol="申"
+        title="暂无加入申请"
+        description="你提交的家庭加入申请会显示在这里。可在公开家庭主页提交加入申请，或请家人发送邀请。"
+        action-text="寻找家族"
+        @action="openSearch"
+      />
+    </MiniCard>
+
+    <template v-else>
+      <MiniCard v-for="item in requests" :key="item.requestId" variant="soft">
+      <view class="item-head">
+        <text class="item-name">{{ item.familyName || '未知家庭' }}</text>
+        <MiniStatusTag :status="item.requestStatus" :label="joinRequestStatusText(item.requestStatus)" />
+      </view>
+      <text v-if="item.applicantRealName" class="tree-muted item-meta">申请人：{{ item.applicantRealName }}</text>
+      <text class="tree-muted item-meta">申请理由：{{ item.applicantMessage || '未填写' }}</text>
+      <text v-if="item.handleComment" class="tree-muted item-meta">审核意见：{{ item.handleComment }}</text>
+      <text class="tree-weak item-meta">提交时间：{{ formatDate(item.createdAt) }}</text>
+      <text v-if="item.cancelledAt" class="tree-weak item-meta">取消时间：{{ formatDate(item.cancelledAt) }}</text>
+      <text v-else-if="item.requestStatus !== 'PENDING'" class="tree-weak item-meta">
+        更新时间：{{ formatDate(item.updatedAt) }}
+      </text>
+      <MiniButton
+        v-if="item.requestStatus === 'PENDING'"
+        variant="danger"
+        :disabled="cancellingId === item.requestId"
+        :loading="cancellingId === item.requestId"
+        @click="confirmCancel(item)"
+      >
+        取消申请
+      </MiniButton>
+      </MiniCard>
+    </template>
   </view>
 </template>
 
@@ -52,6 +72,13 @@ import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { cancelJoinRequest, listMyJoinRequests } from '@/api/joinRequests'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
+import { joinRequestStatusText } from '@/components/base/formatStatus'
+import MiniNotice from '@/components/base/MiniNotice.vue'
+import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
+import MiniStatusTag from '@/components/base/MiniStatusTag.vue'
 import { useSessionStore } from '@/stores/session'
 import type { JoinRequest } from '@/types/api'
 
@@ -67,19 +94,8 @@ function formatDate(value: string) {
   return Number.isNaN(time.getTime()) ? value : time.toLocaleString('zh-CN')
 }
 
-function requestStatusText(status: string) {
-  switch (status) {
-    case 'PENDING':
-      return '待审核'
-    case 'APPROVED':
-      return '已通过'
-    case 'REJECTED':
-      return '已拒绝'
-    case 'CANCELLED':
-      return '已取消'
-    default:
-      return '未知状态'
-  }
+function openSearch() {
+  uni.switchTab({ url: '/pages/family/search' })
 }
 
 async function loadRequests() {
@@ -126,33 +142,28 @@ onLoad(() => {
 </script>
 
 <style scoped>
-.state-card {
+.state-block {
+  padding: 32rpx 0;
   text-align: center;
 }
 
-.item-card {
-  margin-top: 20rpx;
-}
-
-.item-header {
+.item-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16rpx;
+  margin-bottom: 12rpx;
 }
 
-.button.danger {
-  background: #c0392b;
+.item-name {
+  flex: 1;
+  color: #1f2937;
+  font-size: 30rpx;
+  font-weight: 700;
 }
 
-.error {
+.item-meta {
   display: block;
-  margin-top: 16rpx;
-  color: #c0392b;
-  font-size: 24rpx;
-}
-
-.button[disabled] {
-  opacity: 0.55;
+  margin-top: 6rpx;
 }
 </style>

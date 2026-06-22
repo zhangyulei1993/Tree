@@ -1,56 +1,73 @@
 <template>
-  <view class="page">
-    <view class="card">
-      <text class="title">我的邀请</text>
-      <text class="muted">查看并处理收到的家庭邀请。</text>
-      <button class="button secondary" :disabled="loading" :loading="loading" @click="loadInvitations">
-        刷新
-      </button>
-      <text v-if="actionError" class="error">{{ actionError }}</text>
-    </view>
+  <view class="tree-page">
+    <MiniSectionHeader title="我的邀请" subtitle="查看并处理收到的家庭邀请。" />
 
-    <view v-if="loading" class="card state-card">
-      <text class="muted">正在加载邀请...</text>
-    </view>
-    <view v-else-if="loadError" class="card state-card">
-      <text class="error">{{ loadError }}</text>
-      <button class="button secondary" @click="loadInvitations">重新加载</button>
-    </view>
-    <view v-else-if="invitations.length === 0" class="card state-card">
-      <text class="section-title">暂无邀请</text>
-      <text class="muted">收到家庭邀请后，会在这里显示。</text>
-    </view>
-    <view v-else>
-      <view v-for="item in invitations" :key="item.invitationId" class="card item-card">
-        <view class="item-header">
-          <text class="section-title">{{ item.familyName }}</text>
-          <text class="tag">{{ inviteStatusText(item.status) }}</text>
-        </view>
-        <text class="muted">邀请成员：{{ item.targetMemberName }}</text>
-        <text class="muted">邀请方式：{{ inviteChannelText(item.inviteChannel) }}</text>
-        <text class="muted">加入后角色：{{ roleText(item.familyRoleAfterAccept) }}</text>
-        <text v-if="item.inviteMessage" class="muted">邀请说明：{{ item.inviteMessage }}</text>
-        <text class="muted">有效期至：{{ formatDate(item.expiredAt) }}</text>
-        <view v-if="item.status === 'PENDING'" class="actions">
-          <button
-            class="button"
-            :disabled="actingId === item.invitationId"
-            :loading="actingId === item.invitationId && actingType === 'accept'"
-            @click="confirmAccept(item)"
-          >
-            接受邀请
-          </button>
-          <button
-            class="button secondary"
-            :disabled="actingId === item.invitationId"
-            :loading="actingId === item.invitationId && actingType === 'reject'"
-            @click="confirmReject(item)"
-          >
-            拒绝邀请
-          </button>
-        </view>
+    <MiniCard>
+      <MiniNotice tone="security">
+        邀请由家庭管理员发起，请核对家庭名称与成员身份后再接受。
+      </MiniNotice>
+      <MiniButton variant="secondary" size="sm" :disabled="loading" :loading="loading" @click="loadInvitations">
+        刷新列表
+      </MiniButton>
+      <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
+    </MiniCard>
+
+    <MiniCard v-if="loading">
+      <view class="state-block">
+        <text class="tree-muted">正在加载邀请...</text>
       </view>
-    </view>
+    </MiniCard>
+
+    <MiniCard v-else-if="loadError">
+      <MiniEmptyState
+        symbol="!"
+        title="加载失败"
+        :description="loadError"
+        action-text="重新加载"
+        @action="loadInvitations"
+      />
+    </MiniCard>
+
+    <MiniCard v-else-if="invitations.length === 0">
+      <MiniEmptyState
+        symbol="邀"
+        title="暂无邀请"
+        description="收到家庭邀请后，会在这里显示。你可以请家人发送邀请，或在公开家庭主页提交加入申请。"
+        action-text="寻找家族"
+        @action="openSearch"
+      />
+    </MiniCard>
+
+    <template v-else>
+      <MiniCard v-for="item in invitations" :key="item.invitationId" variant="soft">
+      <view class="item-head">
+        <text class="item-name">{{ item.familyName }}</text>
+        <MiniStatusTag :status="item.status" :label="invitationStatusText(item.status)" />
+      </view>
+      <text class="tree-muted item-meta">邀请成员：{{ item.targetMemberName }}</text>
+      <text class="tree-muted item-meta">邀请方式：{{ inviteChannelText(item.inviteChannel) }}</text>
+      <text class="tree-muted item-meta">加入后角色：{{ roleText(item.familyRoleAfterAccept) }}</text>
+      <text v-if="item.inviteMessage" class="tree-muted item-meta">邀请说明：{{ item.inviteMessage }}</text>
+      <text class="tree-weak item-meta">有效期至：{{ formatDate(item.expiredAt) }}</text>
+      <view v-if="item.status === 'PENDING'" class="item-actions">
+        <MiniButton
+          :disabled="actingId === item.invitationId"
+          :loading="actingId === item.invitationId && actingType === 'accept'"
+          @click="confirmAccept(item)"
+        >
+          接受邀请
+        </MiniButton>
+        <MiniButton
+          variant="secondary"
+          :disabled="actingId === item.invitationId"
+          :loading="actingId === item.invitationId && actingType === 'reject'"
+          @click="confirmReject(item)"
+        >
+          拒绝邀请
+        </MiniButton>
+      </view>
+      </MiniCard>
+    </template>
   </view>
 </template>
 
@@ -60,6 +77,13 @@ import { ref } from 'vue'
 
 import { acceptInvitation, listMyInvitations, rejectInvitation } from '@/api/invitations'
 import { apiErrorMessage } from '@/api/client'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
+import { invitationStatusText, roleText } from '@/components/base/formatStatus'
+import MiniNotice from '@/components/base/MiniNotice.vue'
+import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
+import MiniStatusTag from '@/components/base/MiniStatusTag.vue'
 import { useSessionStore } from '@/stores/session'
 import type { Invitation } from '@/types/api'
 
@@ -76,23 +100,6 @@ function formatDate(value: string) {
   return Number.isNaN(time.getTime()) ? value : time.toLocaleString('zh-CN')
 }
 
-function inviteStatusText(status: string) {
-  switch (status) {
-    case 'PENDING':
-      return '待处理'
-    case 'ACCEPTED':
-      return '已接受'
-    case 'REJECTED':
-      return '已拒绝'
-    case 'EXPIRED':
-      return '已过期'
-    case 'CANCELLED':
-      return '已取消'
-    default:
-      return '未知状态'
-  }
-}
-
 function inviteChannelText(channel: string) {
   switch (channel) {
     case 'SHARE_LINK':
@@ -104,19 +111,8 @@ function inviteChannelText(channel: string) {
   }
 }
 
-function roleText(role: string) {
-  switch (role) {
-    case 'FOUNDER':
-      return '创建者'
-    case 'FAMILY_ADMIN':
-      return '管理员'
-    case 'MEMBER':
-      return '成员'
-    case 'ROOT_ADMIN':
-      return '超级管理员'
-    default:
-      return '未知角色'
-  }
+function openSearch() {
+  uni.switchTab({ url: '/pages/family/search' })
 }
 
 async function loadInvitations() {
@@ -190,33 +186,32 @@ onLoad(() => {
 </script>
 
 <style scoped>
-.state-card {
+.state-block {
+  padding: 32rpx 0;
   text-align: center;
 }
 
-.item-card {
-  margin-top: 20rpx;
-}
-
-.item-header {
+.item-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16rpx;
+  margin-bottom: 12rpx;
 }
 
-.actions {
-  margin-top: 20rpx;
+.item-name {
+  flex: 1;
+  color: #1f2937;
+  font-size: 30rpx;
+  font-weight: 700;
 }
 
-.error {
+.item-meta {
   display: block;
-  margin-top: 16rpx;
-  color: #c0392b;
-  font-size: 24rpx;
+  margin-top: 6rpx;
 }
 
-.button[disabled] {
-  opacity: 0.55;
+.item-actions {
+  margin-top: 20rpx;
 }
 </style>

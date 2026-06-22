@@ -1,39 +1,59 @@
 <template>
-  <view class="page">
-    <view class="card">
-      <text class="title">家庭成员</text>
-      <text class="muted">查看家庭中的成员、角色与绑定状态。</text>
-      <text v-if="errorMessage" class="error">{{ errorMessage }}</text>
-      <button v-if="errorMessage" class="button secondary" @click="loadMembers">重新加载</button>
-    </view>
-    <view v-if="loading" class="card state-card">
-      <text class="muted">正在加载成员...</text>
-    </view>
-    <view v-else-if="!errorMessage && members.length === 0" class="card state-card">
-      <text class="section-title">暂无成员</text>
-      <text class="muted">当前家庭还没有可展示的成员。</text>
-    </view>
-    <view v-else-if="!errorMessage" class="summary-card">
-      <text class="muted">共 {{ members.length }} 位成员</text>
-    </view>
-    <view v-for="member in members" :key="member.memberId" class="card">
-      <view class="section-row">
-        <text class="section-title">{{ member.name }}</text>
-        <text class="tag">{{ roleText(member.boundFamilyRole) }}</text>
+  <view class="tree-page">
+    <view class="tree-tool-banner members-banner">
+      <view class="banner-copy">
+        <text class="tree-tool-banner-title">家庭成员</text>
+        <text class="tree-tool-banner-desc">查看成员、角色与绑定状态</text>
       </view>
-      <view class="meta-row">
-        <text class="tag">{{ genderText(member.gender) }}</text>
-        <text class="tag">{{ memberStatusText(member.status) }}</text>
-      </view>
-      <view class="info-row">
-        <text class="label">账号绑定</text>
-        <text>{{ bindStatusText(member) }}</text>
-      </view>
-      <view class="info-row">
-        <text class="label">绑定要求</text>
-        <text>{{ bindingPolicyText(member.userBindingPolicy) }}</text>
+      <view class="tree-pedigree-mark" aria-hidden="true">
+        <view class="node node-root" />
+        <view class="line-v" />
+        <view class="line-l" />
+        <view class="line-r" />
+        <view class="node node-branch node-left" />
+        <view class="node node-branch node-right" />
+        <view class="trunk" />
       </view>
     </view>
+
+    <MiniCard v-if="errorMessage">
+      <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
+      <MiniButton variant="secondary" @click="loadMembers">重新加载</MiniButton>
+    </MiniCard>
+
+    <template v-else>
+      <MiniCard v-if="loading">
+        <MiniEmptyState symbol="…" title="正在加载" description="正在加载成员..." />
+      </MiniCard>
+
+      <MiniCard v-else-if="members.length === 0">
+        <MiniEmptyState
+          symbol="员"
+          title="暂无成员"
+          description="当前家庭还没有可展示的成员。"
+        />
+      </MiniCard>
+
+      <view v-else class="tree-space">
+        <view class="tree-space-head">
+          <text class="tree-space-title">成员名册</text>
+          <text class="tree-space-subtitle">共 {{ members.length }} 位成员</text>
+        </view>
+        <view class="tree-space-body section-pad">
+          <MemberMiniCard
+            v-for="member in members"
+            :key="member.memberId"
+            :name="member.name"
+            :gender-label="genderText(member.gender)"
+            :status-label="memberStatusText(member.status)"
+            :status-tone="memberStatusTone(member.status)"
+            :role-label="roleText(member.boundFamilyRole)"
+            :bind-label="bindStatusText(member)"
+            :remark="`绑定要求：${bindingPolicyText(member.userBindingPolicy)}`"
+          />
+        </view>
+      </view>
+    </template>
   </view>
 </template>
 
@@ -43,6 +63,12 @@ import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { listFamilyMembers } from '@/api/members'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniCard from '@/components/base/MiniCard.vue'
+import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
+import MiniNotice from '@/components/base/MiniNotice.vue'
+import { statusTagTone } from '@/components/base/formatStatus'
+import MemberMiniCard from '@/components/family/MemberMiniCard.vue'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyMember } from '@/types/api'
 
@@ -100,6 +126,10 @@ function memberStatusText(status: string) {
   }
 }
 
+function memberStatusTone(status: string) {
+  return statusTagTone(status)
+}
+
 function roleText(role?: string | null) {
   switch (role) {
     case 'FOUNDER':
@@ -138,49 +168,24 @@ onLoad((options) => {
 </script>
 
 <style scoped>
-.state-card {
-  text-align: center;
-}
-
-.error {
-  display: block;
-  margin-top: 16rpx;
-  color: #c0392b;
-  font-size: 24rpx;
-}
-
-.section-row,
-.info-row {
+.members-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16rpx;
+  margin-bottom: 20rpx;
 }
 
-.meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8rpx;
-  margin-bottom: 8rpx;
+.banner-copy {
+  flex: 1;
+  min-width: 0;
 }
 
-.section-row .section-title {
-  margin-bottom: 8rpx;
+.section-pad {
+  padding: 8rpx 24rpx 16rpx;
 }
 
-.info-row {
-  padding: 12rpx 0;
-  border-top: 1rpx solid #e5e0d6;
-  font-size: 26rpx;
+.tree-page :deep(.mini-card.soft) {
+  margin-bottom: 16rpx;
 }
-
-.label {
-  color: #6b7280;
-}
-
-.summary-card {
-  margin: 0 0 16rpx;
-  padding: 0 8rpx;
-}
-
 </style>
