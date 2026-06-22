@@ -34,6 +34,7 @@ logs/
 backups/
 LOCAL_TEST_ACCOUNTS.md
 *.sql
+!backend/migrations/*.sql
 *.sql.gz
 *.dump
 *.tar.gz

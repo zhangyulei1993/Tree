@@ -11,6 +11,8 @@ declare module 'vue-router' {
 const routes: RouteRecordRaw[] = [
   { path: '/', component: () => import('@/views/Home.vue') },
   { path: '/families', component: () => import('@/views/FamilySearch.vue') },
+  { path: '/content', component: () => import('@/views/ContentIndex.vue') },
+  { path: '/content/:articleId', component: () => import('@/views/ContentDetail.vue') },
   { path: '/families/:familyId/public', component: () => import('@/views/PublicFamily.vue') },
   { path: '/families/:familyId/tree/public', component: () => import('@/views/PublicTree.vue') },
   { path: '/login', component: () => import('@/views/Login.vue') },

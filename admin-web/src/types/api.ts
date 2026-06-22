@@ -147,3 +147,59 @@ export interface VisitorMessage {
   createdAt: string
   updatedAt: string
 }
+
+export interface ContentCategory {
+  id: number
+  key: string
+  name: string
+  description?: string | null
+  sortOrder: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ContentArticleSummary {
+  id: number
+  categoryId: number
+  categoryKey: string
+  categoryName: string
+  title: string
+  slug: string
+  summary?: string | null
+  coverUrl?: string | null
+  authorName?: string | null
+  source?: string | null
+  status: string
+  isFeatured: boolean
+  sortOrder: number
+  publishedAt?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ContentArticleDetail extends ContentArticleSummary {
+  body: string
+}
+
+export interface ContentCategoryInput {
+  key?: string
+  name: string
+  description?: string
+  sortOrder?: number
+  isActive?: boolean
+}
+
+export interface ContentArticleInput {
+  categoryKey: string
+  title: string
+  slug: string
+  summary?: string
+  coverUrl?: string
+  body: string
+  authorName?: string
+  source?: string
+  status?: string
+  isFeatured?: boolean
+  sortOrder?: number
+}

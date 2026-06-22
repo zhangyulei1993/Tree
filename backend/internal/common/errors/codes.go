@@ -84,6 +84,15 @@ const (
 	CodeOperationLogDetailForbidden    Code = 48005
 )
 
+const (
+	CodeContentCategoryNotFound Code = 49001
+	CodeContentArticleNotFound  Code = 49002
+	CodeContentInvalidStatus    Code = 49003
+	CodeContentDuplicateKey     Code = 49004
+	CodeContentForbidden        Code = 49005
+	CodeContentInvalidInput     Code = 49006
+)
+
 var messages = map[Code]string{
 	CodeSuccess:                        "success",
 	CodeSystemError:                    "系统错误",
@@ -152,6 +161,12 @@ var messages = map[Code]string{
 	CodeOperationLogQueryInvalid:       "日志查询参数错误",
 	CodeOperationLogTimeRangeInvalid:   "时间范围错误",
 	CodeOperationLogDetailForbidden:    "日志详情不可访问",
+	CodeContentCategoryNotFound:        "内容分类不存在",
+	CodeContentArticleNotFound:         "内容不存在",
+	CodeContentInvalidStatus:           "内容状态不可操作",
+	CodeContentDuplicateKey:            "内容标识已存在",
+	CodeContentForbidden:               "无权操作内容",
+	CodeContentInvalidInput:            "内容参数错误",
 }
 
 func Message(code Code) string {

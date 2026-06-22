@@ -11,6 +11,7 @@
       <nav>
         <RouterLink to="/">首页</RouterLink>
         <RouterLink to="/families">找家族</RouterLink>
+        <RouterLink to="/content">阅读</RouterLink>
         <RouterLink to="/me/families">我的家庭</RouterLink>
         <RouterLink to="/me">我的</RouterLink>
       </nav>

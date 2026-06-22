@@ -20,6 +20,9 @@ import (
 	commonredis "tree/backend/internal/common/redis"
 	"tree/backend/internal/common/response"
 	"tree/backend/internal/common/wechat"
+	contenthandler "tree/backend/internal/content/handler"
+	contentrepo "tree/backend/internal/content/repository"
+	contentservice "tree/backend/internal/content/service"
 	familyhandler "tree/backend/internal/family/core/handler"
 	familyrepo "tree/backend/internal/family/core/repository"
 	familyservice "tree/backend/internal/family/core/service"
@@ -63,6 +66,7 @@ func (s *Server) RegisterRoutes() {
 	s.registerAdminRoutes(api)
 	s.registerUserAuthRoutes(api)
 	s.registerFamilyRoutes(api)
+	s.registerContentRoutes(api)
 }
 
 func (s *Server) health(ctx response.Context) {
@@ -251,6 +255,62 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	admin.POST("/dissolution-requests/:requestId/approve", dissolutionHandler.Approve)
 	admin.POST("/dissolution-requests/:requestId/reject", dissolutionHandler.Reject)
 	admin.POST("/families/:familyId/restore", dissolutionHandler.Restore)
+}
+
+func (s *Server) registerContentRoutes(api *gin.RouterGroup) {
+	handler, adminAuth := s.buildContent()
+	if handler == nil || adminAuth == nil {
+		s.logger.Error("content routes disabled")
+		return
+	}
+
+	content := api.Group("/content")
+	content.GET("/categories", handler.PublicCategories)
+	content.GET("/articles", handler.PublicArticles)
+	content.GET("/articles/:articleId", handler.PublicArticleDetail)
+
+	admin := api.Group("/admin/content")
+	admin.Use(adminAuth)
+	admin.GET("/categories", handler.AdminCategories)
+	admin.POST("/categories", handler.CreateCategory)
+	admin.PUT("/categories/:categoryId", handler.UpdateCategory)
+	admin.DELETE("/categories/:categoryId", handler.DeleteCategory)
+	admin.GET("/articles", handler.AdminArticles)
+	admin.POST("/articles", handler.CreateArticle)
+	admin.GET("/articles/:articleId", handler.AdminArticleDetail)
+	admin.PUT("/articles/:articleId", handler.UpdateArticle)
+	admin.POST("/articles/:articleId/publish", handler.PublishArticle)
+	admin.POST("/articles/:articleId/unpublish", handler.UnpublishArticle)
+	admin.DELETE("/articles/:articleId", handler.DeleteArticle)
+}
+
+func (s *Server) buildContent() (*contenthandler.Handler, gin.HandlerFunc) {
+	ctx := context.Background()
+
+	db, err := database.Init(ctx, s.cfg.MySQL)
+	if err != nil {
+		s.logger.Error("init mysql for content", zap.Error(err))
+		return nil, nil
+	}
+
+	jwtManager, err := commonjwt.NewManager(s.cfg.JWT, s.cfg.App.Name)
+	if err != nil {
+		s.logger.Error("init jwt manager for content", zap.Error(err))
+		return nil, nil
+	}
+
+	var blacklist commonredis.TokenBlacklist = commonredis.NoopTokenBlacklist{}
+	redisClient, err := commonredis.NewClient(ctx, s.cfg.Redis)
+	if err != nil {
+		s.logger.Warn("init redis content token blacklist failed, using noop blacklist", zap.Error(err))
+	} else {
+		blacklist = commonredis.NewTokenBlacklist(redisClient)
+	}
+
+	repo := contentrepo.NewRepository(db)
+	uow := contentrepo.NewUnitOfWork(db, repo)
+	service := contentservice.NewService(repo, uow)
+	return contenthandler.NewHandler(service), middleware.AdminAuth(jwtManager, blacklist)
 }
 
 func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler.MemberHandler, *relationshiphandler.RelationshipHandler, *treehandler.TreeHandler, *invitationhandler.Handler, *joinhandler.Handler, *publichandler.Handler, *messagehandler.Handler, *rolehandler.Handler, *transferhandler.Handler, *dissolutionhandler.Handler, gin.HandlerFunc, gin.HandlerFunc) {

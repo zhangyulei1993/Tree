@@ -88,6 +88,40 @@ export interface PaginatedResult<T> {
   total: number
 }
 
+export interface ContentCategory {
+  id: number
+  key: string
+  name: string
+  description?: string | null
+  sortOrder: number
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ContentArticleSummary {
+  id: number
+  categoryId: number
+  categoryKey: string
+  categoryName: string
+  title: string
+  slug: string
+  summary?: string | null
+  coverUrl?: string | null
+  authorName?: string | null
+  source?: string | null
+  status: string
+  isFeatured: boolean
+  sortOrder: number
+  publishedAt?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ContentArticleDetail extends ContentArticleSummary {
+  body: string
+}
+
 export interface CreateVisitorMessageInput {
   visitorName?: string
   visitorPhone?: string
