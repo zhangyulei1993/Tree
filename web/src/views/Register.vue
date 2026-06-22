@@ -2,38 +2,46 @@
   <PageShell>
     <section class="container auth-page">
       <form class="card auth-card" @submit.prevent="submit">
-        <div>
-          <span class="eyebrow">{{ session.mode === 'real' ? '真实 API' : 'Mock 模式' }}</span>
-          <h1>注册账号</h1>
-          <p class="muted">验证码不会写入页面文件或浏览器存储。</p>
+        <div class="auth-intro">
+          <span class="eyebrow">创建账号</span>
+          <h1>先建立可信身份，再进入家庭协作。</h1>
+          <p>手机号用于确认身份，后续可接收家庭邀请和加入申请处理结果。</p>
+          <div class="intro-points">
+            <span>验证码验证手机号</span>
+            <span>不公开展示联系方式</span>
+            <span>登录后管理家庭资料</span>
+          </div>
         </div>
-        <label>
-          <span>手机号</span>
-          <input v-model.trim="phone" class="field" inputmode="numeric" autocomplete="username" placeholder="请输入手机号" />
-        </label>
-        <div class="code-row">
+        <div class="auth-form">
+          <h2>手机号注册</h2>
           <label>
-            <span>验证码</span>
-            <input v-model.trim="code" class="field" inputmode="numeric" autocomplete="one-time-code" placeholder="请输入验证码" />
+            <span>手机号</span>
+            <input v-model.trim="phone" class="field" inputmode="numeric" autocomplete="username" placeholder="请输入手机号" />
           </label>
-          <button class="button secondary code-button" type="button" :disabled="sending || cooldown > 0" @click="requestCode">
-            {{ cooldown > 0 ? `${cooldown}s` : sending ? '发送中...' : '发送验证码' }}
+          <div class="code-row">
+            <label>
+              <span>验证码</span>
+              <input v-model.trim="code" class="field" inputmode="numeric" autocomplete="one-time-code" placeholder="请输入验证码" />
+            </label>
+            <button class="button secondary code-button" type="button" :disabled="sending || cooldown > 0" @click="requestCode">
+              {{ cooldown > 0 ? `${cooldown}s` : sending ? '发送中...' : '发送验证码' }}
+            </button>
+          </div>
+          <label>
+            <span>密码</span>
+            <input v-model="password" class="field" type="password" autocomplete="new-password" placeholder="至少 6 位" />
+          </label>
+          <label>
+            <span>昵称（可选）</span>
+            <input v-model.trim="nickname" class="field" maxlength="100" placeholder="请输入昵称" />
+          </label>
+          <p v-if="notice" class="feedback success" role="status">{{ notice }}</p>
+          <p v-if="error" class="feedback error" role="alert">{{ error }}</p>
+          <button class="button" :disabled="submitting">
+            {{ submitting ? '注册中...' : '完成注册' }}
           </button>
+          <RouterLink to="/login">已有账号？返回登录</RouterLink>
         </div>
-        <label>
-          <span>密码</span>
-          <input v-model="password" class="field" type="password" autocomplete="new-password" placeholder="至少 6 位" />
-        </label>
-        <label>
-          <span>昵称（可选）</span>
-          <input v-model.trim="nickname" class="field" maxlength="100" placeholder="请输入昵称" />
-        </label>
-        <p v-if="notice" class="feedback success" role="status">{{ notice }}</p>
-        <p v-if="error" class="feedback error" role="alert">{{ error }}</p>
-        <button class="button" :disabled="submitting">
-          {{ submitting ? '注册中...' : '完成注册' }}
-        </button>
-        <RouterLink to="/login">已有账号？返回登录</RouterLink>
       </form>
     </section>
   </PageShell>
@@ -133,26 +141,68 @@ onBeforeUnmount(() => {
 <style scoped>
 .auth-page {
   display: grid;
-  min-height: 620px;
+  min-height: 660px;
   place-items: center;
-  padding: 24px 0;
+  padding: 48px 0;
 }
 
 .auth-card {
   display: grid;
-  width: min(460px, 100%);
+  grid-template-columns: minmax(0, 0.95fr) minmax(380px, 0.78fr);
+  width: min(960px, 100%);
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.auth-intro {
+  display: grid;
+  align-content: center;
+  padding: 42px;
+  background:
+    radial-gradient(circle at 88% 18%, rgba(47, 107, 87, 0.14), transparent 160px),
+    var(--gradient-hero);
+}
+
+.auth-intro h1 {
+  margin: 16px 0 14px;
+  color: var(--color-primary);
+  font-size: clamp(30px, 4vw, 46px);
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.auth-intro p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.intro-points {
+  display: grid;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.intro-points span {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 12px 14px;
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.auth-form {
+  display: grid;
+  align-content: center;
   gap: 16px;
-  padding: 24px;
+  padding: 42px;
 }
 
-.auth-card h1 {
-  margin: 8px 0;
-}
-
-.eyebrow {
-  color: var(--color-heritage-green);
-  font-size: 13px;
-  font-weight: 700;
+.auth-form h2 {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: 28px;
 }
 
 label {
@@ -192,6 +242,15 @@ label {
 }
 
 @media (max-width: 520px) {
+  .auth-card {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-intro,
+  .auth-form {
+    padding: 28px;
+  }
+
   .code-row {
     grid-template-columns: 1fr;
   }

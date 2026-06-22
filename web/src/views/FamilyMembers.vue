@@ -5,7 +5,7 @@
         <div>
           <span class="eyebrow">家庭成员</span>
           <h1>{{ family?.familyName || '成员管理' }}</h1>
-          <p class="muted">当前角色：{{ family?.role || '读取中' }}</p>
+          <p class="muted">当前身份：{{ roleText(family?.role) }}</p>
         </div>
         <div class="heading-actions">
           <RouterLink class="button secondary" :to="`/families/${familyId}`">家庭详情</RouterLink>
@@ -64,7 +64,7 @@
               <select v-model.number="relationshipForm.baseMemberId" class="field">
                 <option :value="0" disabled>请选择成员</option>
                 <option v-for="member in members" :key="member.memberId" :value="member.memberId">
-                  #{{ member.memberId }} {{ member.name }}
+                  {{ member.name }}
                 </option>
               </select>
             </label>
@@ -95,12 +95,12 @@
             <label v-if="relationshipForm.addType !== 'ADD_SPOUSE'">
               <span>父子关系属性</span>
               <select v-model="relationshipForm.parentLinkType" class="field">
-                <option value="PRIMARY">PRIMARY</option>
-                <option value="STEP">STEP</option>
-                <option value="ADOPTIVE">ADOPTIVE</option>
-                <option value="SUCCESSION">SUCCESSION</option>
-                <option value="NOTE_ONLY">NOTE_ONLY</option>
-                <option value="OTHER">OTHER</option>
+                <option value="PRIMARY">主要关系</option>
+                <option value="STEP">继亲</option>
+                <option value="ADOPTIVE">收养</option>
+                <option value="SUCCESSION">承继</option>
+                <option value="NOTE_ONLY">仅备注</option>
+                <option value="OTHER">其他</option>
               </select>
             </label>
             <p v-if="relationshipError" class="feedback error" role="alert">{{ relationshipError }}</p>
@@ -112,7 +112,7 @@
         </div>
 
         <section v-else class="card readonly-note">
-          当前角色为 MEMBER，仅可查看成员和家庭树。
+          当前身份为家庭成员，仅可查看成员和家庭树。
         </section>
 
         <section class="member-section">
@@ -127,13 +127,13 @@
           <div v-else class="member-list">
             <article v-for="member in members" :key="member.memberId" class="card member-card">
               <div class="member-title">
-                <strong>#{{ member.memberId }} {{ member.name }}</strong>
-                <span class="status-tag">{{ member.status }}</span>
+                <strong>{{ member.name }}</strong>
+                <span class="status-tag">{{ memberStatusText(member.status) }}</span>
               </div>
               <dl>
                 <div><dt>性别</dt><dd>{{ genderLabel(member.gender) }}</dd></div>
                 <div><dt>字辈/代次</dt><dd>后端未提供</dd></div>
-                <div><dt>家庭角色</dt><dd>{{ member.boundFamilyRole || '未绑定角色' }}</dd></div>
+                <div><dt>家庭身份</dt><dd>{{ roleText(member.boundFamilyRole) }}</dd></div>
                 <div><dt>健在状态</dt><dd>{{ aliveLabel(member) }}</dd></div>
               </dl>
               <div v-if="canManage && canInvite(member)" class="invite-actions">
@@ -155,7 +155,7 @@
                     placeholder="可选，将随邀请展示"
                   />
                 </label>
-                <p class="notice">分享邀请接受后的家庭角色固定为 MEMBER，有效期由后端设置为 7 天。</p>
+                <p class="notice">分享邀请接受后的身份为家庭成员，有效期为 7 天。</p>
                 <p v-if="inviteError" class="feedback error" role="alert">{{ inviteError }}</p>
                 <div v-if="inviteLink" class="invite-result">
                   <strong>邀请链接只在当前页面显示一次</strong>
@@ -166,7 +166,7 @@
                 </div>
                 <div class="invite-buttons">
                   <button class="button" :disabled="inviteSubmitting || Boolean(inviteLink)">
-                    {{ inviteSubmitting ? '创建中...' : '创建 SHARE_LINK 邀请' }}
+                    {{ inviteSubmitting ? '创建中...' : '创建分享邀请' }}
                   </button>
                   <button class="button secondary" type="button" @click="closeInvite">关闭</button>
                 </div>
@@ -253,6 +253,20 @@ function aliveLabel(member: FamilyMember) {
   if (member.isAlive === true) return '健在'
   if (member.isAlive === false) return '已故'
   return '未填写'
+}
+
+function roleText(role?: string | null) {
+  if (role === 'FOUNDER') return '家庭创建者'
+  if (role === 'FAMILY_ADMIN') return '家庭管理员'
+  if (role === 'MEMBER') return '家庭成员'
+  if (!role) return '未绑定身份'
+  return '未知'
+}
+
+function memberStatusText(status?: string) {
+  if (status === 'ACTIVE') return '正常'
+  if (status === 'DELETED') return '已删除'
+  return '未知'
 }
 
 function canInvite(member: FamilyMember) {
@@ -393,7 +407,7 @@ async function submitRelationship() {
             parentLinkType: relationshipForm.parentLinkType
           }
     })
-    relationshipSuccess.value = `创建成功，当前 graphVersion：${result.graphVersion}`
+    relationshipSuccess.value = `创建成功，家谱版本已更新为第 ${result.graphVersion} 版。`
     relationshipForm.name = ''
     relationshipForm.gender = 'UNKNOWN'
     await loadMembers()

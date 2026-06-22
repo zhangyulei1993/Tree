@@ -3,7 +3,7 @@
     <section class="container my-page">
       <div class="page-heading">
         <div>
-          <span class="eyebrow">{{ apiMode === 'real' ? '真实家庭数据' : 'Mock 家庭数据' }}</span>
+          <span class="eyebrow">我的家庭空间</span>
           <h1>我的家庭</h1>
         </div>
         <div class="heading-actions">
@@ -31,14 +31,14 @@
           <div>
             <div class="item-title">
               <h3>{{ family.familyName }}</h3>
-              <span class="role">{{ family.role }}</span>
+              <span class="role">{{ roleText(family.role) }}</span>
             </div>
             <p class="muted">
               姓氏：{{ family.familySurname }}
               <template v-if="family.regionText"> · 地区：{{ family.regionText }}</template>
             </p>
             <p class="meta">
-              家庭状态：{{ family.status }} · 公开状态：{{ family.publicDisplayStatus }}
+              家庭状态：{{ familyStatusText(family.status) }} · 公开状态：{{ publicStatusText(family.publicDisplayStatus) }}
             </p>
           </div>
           <RouterLink class="button secondary" :to="`/families/${family.id}`">进入家庭</RouterLink>
@@ -51,7 +51,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 
-import { apiErrorMessage, apiMode } from '@/api/client'
+import { apiErrorMessage } from '@/api/client'
 import { listMyFamilies } from '@/api/families'
 import PageShell from '@/components/PageShell.vue'
 import type { FamilySummary } from '@/types/api'
@@ -74,11 +74,35 @@ async function loadFamilies() {
 }
 
 onMounted(loadFamilies)
+
+function roleText(role?: string) {
+  if (role === 'FOUNDER') return '家庭创建者'
+  if (role === 'FAMILY_ADMIN') return '家庭管理员'
+  if (role === 'MEMBER') return '家庭成员'
+  return '未知'
+}
+
+function familyStatusText(status?: string) {
+  if (status === 'NORMAL') return '正常'
+  if (status === 'DISSOLUTION_PENDING') return '解散待审核'
+  if (status === 'DISSOLVED') return '已解散'
+  if (status === 'DISABLED') return '已停用'
+  return '未知'
+}
+
+function publicStatusText(status?: string) {
+  if (status === 'APPROVED') return '已公开'
+  if (status === 'PENDING') return '审核中'
+  if (status === 'REJECTED') return '未通过'
+  if (status === 'PRIVATE') return '私密'
+  if (status === 'TAKEN_DOWN') return '已下架'
+  return '未知'
+}
 </script>
 
 <style scoped>
 .my-page {
-  padding: 32px 0;
+  padding: 44px 0;
 }
 
 .page-heading {
@@ -109,7 +133,22 @@ onMounted(loadFamilies)
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px;
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.07), transparent 150px),
+    rgba(255, 255, 255, 0.94);
+}
+
+.item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 5px;
+  height: 100%;
+  background: var(--color-warm-gold);
 }
 
 .item-title {
@@ -124,12 +163,12 @@ onMounted(loadFamilies)
 }
 
 .role {
-  border-radius: 6px;
-  background: #edf4ef;
-  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--color-heritage-green-light);
+  padding: 5px 10px;
   color: var(--color-success);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .meta {

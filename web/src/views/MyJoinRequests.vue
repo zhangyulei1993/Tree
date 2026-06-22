@@ -20,8 +20,8 @@
         <article v-for="item in requests" :key="item.requestId" class="card item">
           <div class="item-main">
             <div class="title">
-              <strong>{{ item.familyName || `家庭 ${item.familyId}` }}</strong>
-              <span class="status">{{ item.requestStatus }}</span>
+              <strong>{{ item.familyName || '家庭申请' }}</strong>
+              <span class="status">{{ requestStatusText(item.requestStatus) }}</span>
             </div>
             <p v-if="item.applicantRealName">申请人：{{ item.applicantRealName }}</p>
             <p>{{ item.applicantMessage || '未填写申请理由' }}</p>
@@ -73,7 +73,7 @@ async function loadRequests() {
 }
 
 async function cancel(item: JoinRequest) {
-  if (!window.confirm(`确定取消对 ${item.familyName || `家庭 ${item.familyId}`} 的加入申请吗？`)) return
+  if (!window.confirm(`确定取消对 ${item.familyName || '该家庭'} 的加入申请吗？`)) return
   cancellingId.value = item.requestId
   error.value = ''
   try {
@@ -87,6 +87,14 @@ async function cancel(item: JoinRequest) {
 }
 
 onMounted(loadRequests)
+
+function requestStatusText(status?: string) {
+  if (status === 'PENDING') return '待审核'
+  if (status === 'APPROVED') return '已通过'
+  if (status === 'REJECTED') return '已驳回'
+  if (status === 'CANCELLED') return '已取消'
+  return '未知'
+}
 </script>
 
 <style scoped>
@@ -134,8 +142,9 @@ p {
 
 .status {
   border-radius: 6px;
-  background: #f4f1e8;
+  background: var(--color-warm-gold-light);
   padding: 4px 8px;
+  color: var(--color-warm-gold-text);
   font-size: 12px;
   font-weight: 700;
 }

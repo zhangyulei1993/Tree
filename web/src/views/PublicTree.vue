@@ -17,9 +17,9 @@
       </section>
       <template v-else-if="tree">
         <div class="meta">
-          <span>模式：{{ tree.treeMode }}</span>
-          <span>Graph Version：{{ tree.graphVersion }}</span>
-          <span>节点：{{ tree.nodes.length }}</span>
+          <span>展示方式：{{ treeModeText(tree.treeMode) }}</span>
+          <span>家谱版本：第 {{ tree.graphVersion }} 版</span>
+          <span>成员：{{ tree.nodes.length }}</span>
           <span>关系：{{ visibleEdges.length }}</span>
         </div>
 
@@ -30,7 +30,6 @@
                 <h2>{{ nodeName(item.memberId) }}</h2>
                 <span>{{ nodeGender(item.memberId) }}</span>
               </div>
-              <span>#{{ item.memberId }}</span>
             </div>
             <div class="relations">
               <span>父母：{{ names(item.parentIds) || '未展示' }}</span>
@@ -45,7 +44,7 @@
           <p v-if="visibleEdges.length === 0" class="muted">暂无公开关系。</p>
           <div v-else class="edge-list">
             <div v-for="edge in visibleEdges" :key="edge.relationshipId" class="edge-row">
-              <strong>{{ edge.relationshipType }}</strong>
+              <strong>{{ relationTypeText(edge.relationshipType) }}</strong>
               <span>{{ nodeName(edge.fromMemberId) }} → {{ nodeName(edge.toMemberId) }}</span>
             </div>
           </div>
@@ -78,12 +77,22 @@ function node(memberId: number) {
 }
 
 function nodeName(memberId: number) {
-  return node(memberId)?.displayName || `成员 ${memberId}`
+  return node(memberId)?.displayName || '未知成员'
 }
 
 function nodeGender(memberId: number) {
   const gender = node(memberId)?.gender
   return gender === 'MALE' ? '男' : gender === 'FEMALE' ? '女' : '未知'
+}
+
+function treeModeText(mode: string) {
+  return mode === 'LIST_TREE' ? '列表家谱' : '家谱'
+}
+
+function relationTypeText(type?: string) {
+  if (type === 'PARENT_CHILD') return '父母子女'
+  if (type === 'SPOUSE') return '配偶'
+  return '亲属关系'
 }
 
 function names(ids: number[]) {
@@ -110,7 +119,7 @@ onMounted(loadTree)
 .tree-page {
   display: grid;
   gap: 18px;
-  padding: 32px 0;
+  padding: 48px 0 32px;
 }
 
 .page-heading,
@@ -145,8 +154,8 @@ h2 {
 
 .meta span,
 .relations span {
-  border-radius: 6px;
-  background: #f4f1e8;
+  border-radius: 999px;
+  background: var(--color-bg-soft);
   padding: 6px 10px;
 }
 
@@ -158,7 +167,10 @@ h2 {
 
 .tree-node,
 .edge-panel {
-  padding: 18px;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.06), transparent 140px),
+    rgba(255, 255, 255, 0.94);
 }
 
 .node-heading span,
