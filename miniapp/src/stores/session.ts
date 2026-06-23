@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 
-import { loginPhone, logoutUser, registerPhone, wechatPhoneLogin } from '@/api/auth'
+import { bindPhone, loginPhone, logoutUser, registerPhone, wechatMiniLogin } from '@/api/auth'
 import {
   apiMode,
   pendingRouteKey,
@@ -8,7 +8,7 @@ import {
   sessionUserKey
 } from '@/api/client'
 import { mockUser, type UserState } from '@/mock/data'
-import type { LoginPhoneInput, RegisterPhoneInput, UserInfo } from '@/types/api'
+import type { BindPhoneInput, LoginPhoneInput, RegisterPhoneInput, UserInfo } from '@/types/api'
 
 function restoredUser(): UserInfo | null {
   const value = uni.getStorageSync(sessionUserKey)
@@ -65,8 +65,23 @@ export const useSessionStore = defineStore('session', {
       const result = await loginPhone(input)
       this.persistSession(result.accessToken, result.user)
     },
-    async loginWithWechatPhone(phoneCode: string) {
-      const result = await wechatPhoneLogin(phoneCode)
+    async loginWithWechat() {
+      const loginResult = await new Promise<UniApp.LoginRes>((resolve, reject) => {
+        uni.login({
+          provider: 'weixin',
+          success: resolve,
+          fail: reject
+        })
+      })
+      if (!loginResult.code) {
+        throw new Error('微信登录失败，请稍后重试。')
+      }
+      const result = await wechatMiniLogin(loginResult.code)
+      this.persistSession(result.accessToken, result.user)
+      return result
+    },
+    async bindPhone(input: BindPhoneInput) {
+      const result = await bindPhone(input)
       this.persistSession(result.accessToken, result.user)
     },
     async register(input: RegisterPhoneInput) {
@@ -77,13 +92,30 @@ export const useSessionStore = defineStore('session', {
       this.restoreSession()
       if (this.isLoggedIn) return true
       if (route) uni.setStorageSync(pendingRouteKey, route)
-      uni.reLaunch({ url: '/pages/auth/phone-login' })
+      uni.reLaunch({ url: '/pages/auth/wechat-login' })
       return false
+    },
+    requirePhoneBound(route: string) {
+      this.restoreSession()
+      if (!this.isLoggedIn) {
+        if (route) uni.setStorageSync(pendingRouteKey, route)
+        uni.reLaunch({ url: '/pages/auth/wechat-login' })
+        return false
+      }
+      if (!this.isPhoneBound) {
+        if (route) uni.setStorageSync(pendingRouteKey, route)
+        uni.navigateTo({ url: '/pages/auth/bind-phone' })
+        return false
+      }
+      return true
     },
     finishLogin(defaultRoute = '/pages/family/my') {
       const pending = uni.getStorageSync(pendingRouteKey) as string
       uni.removeStorageSync(pendingRouteKey)
       uni.reLaunch({ url: pending || defaultRoute })
+    },
+    finishBind() {
+      this.finishLogin()
     },
     mockWechatLogin() {
       this.persistSession(mockUser.token, {
@@ -91,7 +123,8 @@ export const useSessionStore = defineStore('session', {
         phone: null,
         phoneVerified: false,
         nickname: mockUser.nickname,
-        status: mockUser.status
+        status: mockUser.status,
+        passwordSet: false
       })
     },
     mockBindPhone() {
@@ -99,7 +132,8 @@ export const useSessionStore = defineStore('session', {
       this.persistSession(this.token || mockUser.token, {
         ...this.user,
         phone: mockUser.maskedPhone,
-        phoneVerified: true
+        phoneVerified: true,
+        passwordSet: true
       })
     },
     async logout() {

@@ -37,6 +37,14 @@ export interface LoginPhoneInput {
   password: string
 }
 
+export interface BindPhoneInput {
+  phone: string
+  code: string
+  password: string
+}
+
+export type SendCodeScene = 'REGISTER' | 'LOGIN' | 'BIND_PHONE'
+
 export interface FamilySummary {
   id: number | string
   familyName: string

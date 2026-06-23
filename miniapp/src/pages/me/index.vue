@@ -10,6 +10,13 @@
         />
       </MiniCard>
 
+      <MiniCard v-if="showPhoneBindNotice" variant="soft" class="bind-notice-card">
+        <MiniNotice tone="warm">
+          请绑定手机号以使用家庭、邀请、加入申请等功能。
+        </MiniNotice>
+        <MiniButton class="btn-top" @click="go('/pages/auth/bind-phone')">去绑定手机号</MiniButton>
+      </MiniCard>
+
       <MiniCard>
         <MiniSectionHeader title="我的事务" subtitle="家庭、邀请与加入申请" />
         <MiniActionList :items="affairItems" @select="onAffairSelect" />
@@ -18,7 +25,7 @@
       <MiniCard>
         <MiniSectionHeader title="账号与安全" subtitle="手机号绑定与账号管理" />
         <MiniNotice v-if="showPasswordUnsetNotice" tone="info" class="password-notice">
-          当前账号尚未设置登录密码。如需在电脑网页登录，请先设置登录密码。
+          建议设置登录密码，方便电脑网页登录。
         </MiniNotice>
         <MiniActionList :items="securityItems" @select="onSecuritySelect" />
       </MiniCard>
@@ -47,8 +54,9 @@
           avatar-text="访"
         />
         <view class="guest-actions">
-          <MiniButton @click="go('/pages/auth/phone-login')">手机号登录</MiniButton>
-          <MiniButton variant="secondary" @click="go('/pages/auth/register-phone')">
+          <MiniButton @click="go('/pages/auth/wechat-login')">微信登录</MiniButton>
+          <MiniButton variant="secondary" @click="go('/pages/auth/phone-login')">手机号登录</MiniButton>
+          <MiniButton variant="ghost" @click="go('/pages/auth/register-phone')">
             注册账号
           </MiniButton>
         </view>
@@ -107,7 +115,13 @@ const profileTags = computed(() => {
   ] as Array<{ label: string; tone: 'active' | 'pending' | 'danger' | 'muted' }>
 })
 
-const showPasswordUnsetNotice = computed(() => session.user?.passwordSet === false)
+const showPasswordUnsetNotice = computed(() =>
+  session.isPhoneBound && session.user?.passwordSet === false
+)
+
+const showPhoneBindNotice = computed(() =>
+  session.isLoggedIn && !session.isPhoneBound
+)
 
 const affairItems = [
   { key: 'family', title: '我的家庭', desc: '查看和管理家族资料' },
@@ -196,6 +210,10 @@ onShow(() => session.restoreSession())
 }
 
 .password-notice {
+  margin-bottom: 20rpx;
+}
+
+.bind-notice-card {
   margin-bottom: 20rpx;
 }
 

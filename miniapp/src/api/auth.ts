@@ -1,10 +1,12 @@
 import { isRealApiMode, request } from '@/api/client'
 import { mockUser } from '@/mock/data'
 import type {
+  BindPhoneInput,
   LoginPhoneInput,
   LoginResult,
   RegisterPhoneInput,
   SendCodeResult,
+  SendCodeScene,
   UserInfo
 } from '@/types/api'
 
@@ -16,12 +18,25 @@ function mockLoginResult(): LoginResult {
     phone: mockUser.maskedPhone,
     phoneVerified: true,
     nickname: mockUser.nickname,
-    status: mockUser.status
+    status: mockUser.status,
+    passwordSet: true
   }
   return { accessToken: mockUser.token, tokenType: 'Bearer', user }
 }
 
-export async function sendCode(phone: string, scene: 'REGISTER' | 'LOGIN') {
+function mockWechatPendingResult(): LoginResult {
+  const user: UserInfo = {
+    id: 'mock_user',
+    phone: null,
+    phoneVerified: false,
+    nickname: mockUser.nickname,
+    status: 'PENDING_BIND',
+    passwordSet: false
+  }
+  return { accessToken: mockUser.token, tokenType: 'Bearer', user }
+}
+
+export async function sendCode(phone: string, scene: SendCodeScene) {
   if (!isRealApiMode) {
     return { expireSeconds: 300, cooldownSeconds: 60 } satisfies SendCodeResult
   }
@@ -55,6 +70,29 @@ export async function loginPhone(input: LoginPhoneInput) {
       method: 'POST',
       public: true,
       data: { ...input, clientType }
+    }
+  )
+}
+
+export async function wechatMiniLogin(code: string) {
+  if (!isRealApiMode) return mockWechatPendingResult()
+  return request<LoginResult, { code: string; clientType: string }>(
+    '/auth/wechat-mini/login',
+    {
+      method: 'POST',
+      public: true,
+      data: { code, clientType }
+    }
+  )
+}
+
+export async function bindPhone(input: BindPhoneInput) {
+  if (!isRealApiMode) return mockLoginResult()
+  return request<LoginResult, BindPhoneInput>(
+    '/auth/wechat-mini/bind-phone',
+    {
+      method: 'POST',
+      data: input
     }
   )
 }

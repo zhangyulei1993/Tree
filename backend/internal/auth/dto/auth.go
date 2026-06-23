@@ -31,8 +31,9 @@ type WechatMiniPhoneLoginRequest struct {
 }
 
 type BindPhoneRequest struct {
-	Phone string `json:"phone" binding:"required"`
-	Code  string `json:"code" binding:"required"`
+	Phone    string  `json:"phone" binding:"required"`
+	Code     string  `json:"code" binding:"required"`
+	Password *string `json:"password"`
 }
 
 type ChangePhoneRequest struct {

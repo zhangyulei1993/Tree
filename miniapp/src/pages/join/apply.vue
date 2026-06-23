@@ -33,16 +33,17 @@
 
       <MiniCard v-if="!session.isLoggedIn">
         <MiniNotice tone="warm" title="需要登录">
-          请先使用手机号登录或注册，再提交加入申请。
+          请先登录，再提交加入申请。
         </MiniNotice>
-        <MiniButton @click="requireLogin">手机号登录</MiniButton>
+        <MiniButton @click="requireLogin">微信登录</MiniButton>
+        <MiniButton variant="secondary" class="btn-top" @click="goPhoneLogin">手机号登录</MiniButton>
       </MiniCard>
 
       <MiniCard v-else-if="!session.isPhoneBound">
-        <MiniNotice tone="warm" title="需要验证手机号">
-          当前账号尚未完成手机号验证，请使用手机号账号登录或注册。
+        <MiniNotice tone="warm" title="需要绑定手机号">
+          请先绑定手机号并设置登录密码，再提交加入申请。
         </MiniNotice>
-        <MiniButton @click="requireLogin">手机号登录</MiniButton>
+        <MiniButton @click="requirePhoneBound">去绑定手机号</MiniButton>
       </MiniCard>
 
       <MiniCard v-else-if="!submittedRequest">
@@ -86,7 +87,7 @@
 import { onLoad } from '@dcloudio/uni-app'
 import { ref } from 'vue'
 
-import { apiErrorMessage } from '@/api/client'
+import { apiErrorMessage, pendingRouteKey } from '@/api/client'
 import { getPublicFamilyDetail } from '@/api/families'
 import { createJoinRequest } from '@/api/joinRequests'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
@@ -122,6 +123,15 @@ function requireLogin() {
   session.requireLogin(currentRoute())
 }
 
+function requirePhoneBound() {
+  session.requirePhoneBound(currentRoute())
+}
+
+function goPhoneLogin() {
+  uni.setStorageSync(pendingRouteKey, currentRoute())
+  uni.navigateTo({ url: '/pages/auth/phone-login' })
+}
+
 async function loadFamily() {
   if (!familyId.value) {
     familyError.value = '家庭信息缺失。'
@@ -141,7 +151,7 @@ async function loadFamily() {
 }
 
 async function submitApplication() {
-  if (!session.requireLogin(currentRoute())) return
+  if (!session.requirePhoneBound(currentRoute())) return
   submitting.value = true
   submitError.value = ''
   try {

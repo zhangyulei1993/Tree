@@ -110,6 +110,7 @@ type BindPhoneInput struct {
 	TokenID   string
 	Phone     string
 	Code      string
+	Password  *string
 	IP        string
 	UserAgent string
 }
@@ -377,7 +378,7 @@ func (s *PhoneAuthService) WechatMiniLogin(ctx context.Context, input WechatMini
 
 	var created *usermodel.User
 	var businessErr *apperrors.BusinessError
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.withTransaction(ctx, func(tx *gorm.DB) error {
 		txUserRepo := s.userRepo.WithTx(tx)
 		now := time.Now()
 		user := &usermodel.User{
@@ -487,6 +488,12 @@ func (s *PhoneAuthService) BindPhone(ctx context.Context, input BindPhoneInput) 
 	if !security.ValidPhone(input.Phone) {
 		return nil, apperrors.New(apperrors.CodeVerificationPhoneInvalid)
 	}
+	passwordHash, businessErr := s.prepareBindPhonePassword(input.Password)
+	if businessErr != nil {
+		s.writeUserAction(ctx, input.UserID, actionBindPhone, input.IP, input.UserAgent, false, "invalid password")
+		return nil, businessErr
+	}
+
 	current, err := s.userRepo.FindByID(ctx, input.UserID)
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeBindPhoneLoginRequired)
@@ -497,8 +504,7 @@ func (s *PhoneAuthService) BindPhone(ctx context.Context, input BindPhoneInput) 
 
 	phoneHash := security.PhoneHash(input.Phone)
 	var resultUser *usermodel.User
-	var businessErr *apperrors.BusinessError
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.withTransaction(ctx, func(tx *gorm.DB) error {
 		txUserRepo := s.userRepo.WithTx(tx)
 		txCodeRepo := s.codeRepo.WithTx(tx)
 		if businessErr = s.consumeCodeWithRepo(ctx, txCodeRepo, input.Phone, phoneHash, SceneBindPhone, input.Code, apperrors.CodeBindPhoneCodeInvalid, apperrors.CodeBindPhoneCodeInvalid); businessErr != nil {
@@ -507,13 +513,15 @@ func (s *PhoneAuthService) BindPhone(ctx context.Context, input BindPhoneInput) 
 		target, findErr := txUserRepo.FindByPhoneHash(ctx, phoneHash)
 		if findErr != nil {
 			now := time.Now()
-			if err := txUserRepo.UpdateUser(ctx, current.ID, map[string]any{
+			updates := map[string]any{
 				"phone":          input.Phone,
 				"phone_hash":     phoneHash,
 				"phone_verified": true,
 				"status":         string(enums.StatusActive),
 				"updated_at":     now,
-			}); err != nil {
+			}
+			applyPasswordIfUnset(updates, current, passwordHash)
+			if err := txUserRepo.UpdateUser(ctx, current.ID, updates); err != nil {
 				businessErr = apperrors.New(apperrors.CodeSystemError)
 				return errors.New(errRollback)
 			}
@@ -523,9 +531,9 @@ func (s *PhoneAuthService) BindPhone(ctx context.Context, input BindPhoneInput) 
 		}
 		switch target.Status {
 		case string(enums.StatusActive):
-			resultUser, businessErr = s.mergeUsers(ctx, txUserRepo, current, target, input.IP, input.UserAgent)
+			resultUser, businessErr = s.mergeUsers(ctx, txUserRepo, current, target, input.IP, input.UserAgent, passwordHash)
 		case string(enums.StatusPendingClaim):
-			resultUser, businessErr = s.claimUser(ctx, txUserRepo, current, target, input.Phone, phoneHash, input.IP, input.UserAgent)
+			resultUser, businessErr = s.claimUser(ctx, txUserRepo, current, target, input.Phone, phoneHash, input.IP, input.UserAgent, passwordHash)
 		default:
 			businessErr = apperrors.New(apperrors.CodeBindPhoneStatusDenied)
 		}
@@ -542,11 +550,18 @@ func (s *PhoneAuthService) BindPhone(ctx context.Context, input BindPhoneInput) 
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
 
-	if resultUser.ID != current.ID {
+	if resultUser.ID != current.ID && s.blacklist != nil {
 		_ = s.blacklist.RevokeUserTokens(ctx, current.ID, time.Now().Unix(), 30*24*time.Hour)
 	}
 	s.writeUserAction(ctx, resultUser.ID, actionBindPhone, input.IP, input.UserAgent, true, "")
 	return s.issueUserToken(resultUser)
+}
+
+func (s *PhoneAuthService) withTransaction(ctx context.Context, fn func(tx *gorm.DB) error) error {
+	if s.db == nil {
+		return fn(nil)
+	}
+	return s.db.WithContext(ctx).Transaction(fn)
 }
 
 func (s *PhoneAuthService) ChangePhone(ctx context.Context, input ChangePhoneInput) *apperrors.BusinessError {
@@ -712,7 +727,7 @@ func (s *PhoneAuthService) newVerificationCode() (string, error) {
 	return security.GenerateNumericCode(6)
 }
 
-func (s *PhoneAuthService) mergeUsers(ctx context.Context, repo repository.UserRepository, source *usermodel.User, target *usermodel.User, ip string, userAgent string) (*usermodel.User, *apperrors.BusinessError) {
+func (s *PhoneAuthService) mergeUsers(ctx context.Context, repo repository.UserRepository, source *usermodel.User, target *usermodel.User, ip string, userAgent string, passwordHash *string) (*usermodel.User, *apperrors.BusinessError) {
 	conflict, err := repo.HasMemberBindingConflict(ctx, source.ID, target.ID)
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
@@ -752,6 +767,9 @@ func (s *PhoneAuthService) mergeUsers(ctx context.Context, repo repository.UserR
 		return nil, apperrors.New(apperrors.CodeAccountMergeFailed)
 	}
 	s.writeUserAction(ctx, target.ID, actionMergeAccount, ip, userAgent, true, "")
+	if err := s.setPasswordIfUnset(ctx, repo, target, passwordHash); err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
 	updated, err := repo.FindByID(ctx, target.ID)
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeAccountMergeFailed)
@@ -759,12 +777,12 @@ func (s *PhoneAuthService) mergeUsers(ctx context.Context, repo repository.UserR
 	return updated, nil
 }
 
-func (s *PhoneAuthService) claimUser(ctx context.Context, repo repository.UserRepository, temp *usermodel.User, target *usermodel.User, phone string, phoneHash string, ip string, userAgent string) (*usermodel.User, *apperrors.BusinessError) {
+func (s *PhoneAuthService) claimUser(ctx context.Context, repo repository.UserRepository, temp *usermodel.User, target *usermodel.User, phone string, phoneHash string, ip string, userAgent string, passwordHash *string) (*usermodel.User, *apperrors.BusinessError) {
 	now := time.Now()
 	if err := repo.MoveIdentities(ctx, temp.ID, target.ID); err != nil {
 		return nil, apperrors.New(apperrors.CodeAccountClaimFailed)
 	}
-	if err := repo.UpdateUser(ctx, target.ID, map[string]any{
+	targetUpdates := map[string]any{
 		"status":         string(enums.StatusActive),
 		"phone":          phone,
 		"phone_hash":     phoneHash,
@@ -772,7 +790,9 @@ func (s *PhoneAuthService) claimUser(ctx context.Context, repo repository.UserRe
 		"claimed_at":     now,
 		"claimed_via":    claimViaWechatBindPhone,
 		"updated_at":     now,
-	}); err != nil {
+	}
+	applyPasswordIfUnset(targetUpdates, target, passwordHash)
+	if err := repo.UpdateUser(ctx, target.ID, targetUpdates); err != nil {
 		return nil, apperrors.New(apperrors.CodeAccountClaimFailed)
 	}
 	if err := repo.UpdateUser(ctx, temp.ID, map[string]any{
@@ -871,6 +891,43 @@ func phoneLoginStatusError(user *usermodel.User) *apperrors.BusinessError {
 		return nil
 	}
 	return apperrors.New(apperrors.CodeWechatPhoneLoginInvalid)
+}
+
+func (s *PhoneAuthService) prepareBindPhonePassword(password *string) (*string, *apperrors.BusinessError) {
+	if password == nil || *password == "" {
+		return nil, nil
+	}
+	if len(*password) < 6 {
+		return nil, apperrors.New(apperrors.CodeRegisterPasswordWeak)
+	}
+	hash, err := security.HashPassword(*password)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	return &hash, nil
+}
+
+func applyPasswordIfUnset(updates map[string]any, user *usermodel.User, passwordHash *string) {
+	if passwordHash == nil {
+		return
+	}
+	if user.PasswordHash != nil && *user.PasswordHash != "" {
+		return
+	}
+	updates["password_hash"] = *passwordHash
+}
+
+func (s *PhoneAuthService) setPasswordIfUnset(ctx context.Context, repo repository.UserRepository, user *usermodel.User, passwordHash *string) error {
+	if passwordHash == nil {
+		return nil
+	}
+	if user.PasswordHash != nil && *user.PasswordHash != "" {
+		return nil
+	}
+	return repo.UpdateUser(ctx, user.ID, map[string]any{
+		"password_hash": *passwordHash,
+		"updated_at":    time.Now(),
+	})
 }
 
 func userInfo(user *usermodel.User) vo.UserInfo {
