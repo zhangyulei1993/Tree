@@ -109,8 +109,14 @@ async function handleGetPhoneNumber(event: GetPhoneNumberEvent) {
   errorMessage.value = ''
   const errMsg = event.detail.errMsg || ''
   const phoneCode = event.detail.code
-  if (!phoneCode || !errMsg.includes('ok')) {
+  if (!errMsg.includes('ok')) {
+    console.warn('getPhoneNumber failed', errMsg)
     errorMessage.value = '你已取消授权，可使用手机号密码登录。'
+    return
+  }
+  if (!phoneCode) {
+    console.warn('getPhoneNumber returned no code', errMsg)
+    errorMessage.value = '暂时无法获取手机号，请确认小程序已开通手机号快速验证能力，或使用手机号密码登录。'
     return
   }
 
