@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page">
+    <MiniBackHome />
     <MiniSectionHeader title="我的加入申请" subtitle="查看你提交的家庭加入申请及审核进度。" />
 
     <MiniCard>
@@ -72,6 +73,7 @@ import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { cancelJoinRequest, listMyJoinRequests } from '@/api/joinRequests'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'

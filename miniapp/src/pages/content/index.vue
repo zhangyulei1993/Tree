@@ -26,11 +26,10 @@
       </view>
     </scroll-view>
 
-    <navigator
+    <view
       v-if="spotlightArticle"
       class="spotlight-card"
-      hover-class="navigator-hover"
-      :url="articleUrl(spotlightArticle.id)"
+      @click="goArticle(spotlightArticle.id)"
     >
       <view class="spotlight-art">
         <view class="art-line art-line-a" />
@@ -48,33 +47,50 @@
         <text class="spotlight-title">{{ spotlightArticle.title }}</text>
         <text class="spotlight-summary">{{ spotlightArticle.summary }}</text>
       </view>
-    </navigator>
+    </view>
 
     <view class="article-section">
       <view class="section-head">
         <text class="section-title">{{ listTitle }}</text>
-        <text class="section-count">{{ displayArticles.length }} 篇</text>
+        <text class="section-count">{{ articles.length }} 篇</text>
       </view>
 
-      <navigator
-        v-for="article in displayArticles"
-        :key="article.id"
-        class="article-card"
-        hover-class="navigator-hover"
-        :url="articleUrl(article.id)"
-      >
-        <view class="article-leading" :class="`article-leading-${article.categoryKey}`">
-          <text>{{ categoryShort(article.categoryKey) }}</text>
+      <view v-if="loading" class="content-state">
+        <MiniEmptyState title="正在加载内容" description="正在读取阅读列表，请稍候。" />
+      </view>
+
+      <view v-else-if="error" class="content-state">
+        <MiniNotice tone="warm" title="阅读列表加载失败">{{ error }}</MiniNotice>
+        <MiniButton variant="secondary" class="retry-button" @click="loadArticles">重新加载</MiniButton>
+      </view>
+
+      <view v-else-if="articles.length === 0" class="content-state">
+        <MiniEmptyState title="暂无内容" description="当前分类暂时没有已发布文章。" />
+      </view>
+
+      <template v-else>
+        <view v-if="displayArticles.length === 0" class="content-note">
+          <text>当前分类暂无更多文章，可先阅读上方精选内容。</text>
         </view>
-        <view class="article-copy">
-          <view class="article-meta">
-            <text class="article-tag">{{ article.categoryName }}</text>
-            <text class="article-read">{{ readMinutes(article) }} 分钟</text>
+        <view
+          v-for="article in displayArticles"
+          :key="article.id"
+          class="article-card"
+          @click="goArticle(article.id)"
+        >
+          <view class="article-leading" :class="`article-leading-${article.categoryKey}`">
+            <text>{{ categoryShort(article.categoryKey) }}</text>
           </view>
-          <text class="article-title">{{ article.title }}</text>
-          <text class="article-summary">{{ article.summary }}</text>
+          <view class="article-copy">
+            <view class="article-meta">
+              <text class="article-tag">{{ article.categoryName }}</text>
+              <text class="article-read">{{ readMinutes(article) }} 分钟</text>
+            </view>
+            <text class="article-title">{{ article.title }}</text>
+            <text class="article-summary">{{ article.summary }}</text>
+          </view>
         </view>
-      </navigator>
+      </template>
     </view>
   </view>
 </template>
@@ -84,6 +100,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { listContentArticles, listContentCategories } from '@/api/content'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
+import MiniNotice from '@/components/base/MiniNotice.vue'
 import type { ContentArticleSummary, ContentCategory } from '@/types/api'
 
 const activeCategory = ref('all')
@@ -159,6 +178,10 @@ function readMinutes(article: ContentArticleSummary) {
 function articleUrl(id: number | string) {
   const article = articles.value.find((item) => item.id === id)
   return `/pages/content/detail?id=${encodeURIComponent(article?.slug || String(id))}`
+}
+
+function goArticle(id: number | string) {
+  uni.navigateTo({ url: articleUrl(id) })
 }
 </script>
 
@@ -438,6 +461,32 @@ function articleUrl(id: number | string) {
 .section-count {
   color: var(--tree-text-weak);
   font-size: 21rpx;
+}
+
+.content-state {
+  margin-top: 14rpx;
+  border: 1rpx solid rgba(148, 163, 184, 0.14);
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 16rpx;
+  box-shadow: 0 10rpx 28rpx rgba(31, 58, 95, 0.04);
+}
+
+.retry-button {
+  margin-top: 16rpx;
+}
+
+.content-note {
+  border: 1rpx solid rgba(216, 229, 220, 0.9);
+  border-radius: 24rpx;
+  background: rgba(244, 248, 245, 0.9);
+  padding: 22rpx;
+}
+
+.content-note text {
+  color: var(--tree-text-secondary);
+  font-size: 24rpx;
+  line-height: 1.7;
 }
 
 .article-card {

@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page legal-page">
+    <MiniBackHome />
     <view class="legal-lead card">
       <text class="title">用户协议</text>
       <text class="muted">更新日期：2026-06-09 · 本页面内容将根据上线前法律审核结果更新。当前内容为产品说明占位，正式版本将以最终法律文本为准。</text>
@@ -12,6 +13,8 @@
 </template>
 
 <script setup lang="ts">
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
+
 const sections = [
   { title: '一、服务说明', content: 'Tree 用于记录家庭成员、亲缘关系、公开家庭信息以及邀请和加入申请。用户应确保提交信息真实、合法，并获得必要授权。' },
   { title: '二、账号使用', content: '账号仅供本人使用。用户不得冒用他人身份，不得上传违法、有害或侵犯他人权益的内容。' },

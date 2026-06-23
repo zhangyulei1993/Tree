@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page legal-page">
+    <MiniBackHome />
     <view class="legal-lead card">
       <text class="title">隐私政策</text>
       <text class="muted">更新日期：2026-06-09 · 本页面内容将根据上线前法律审核结果更新。当前内容为产品说明占位，正式版本将以最终法律文本为准。</text>
@@ -12,6 +13,8 @@
 </template>
 
 <script setup lang="ts">
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
+
 const sections = [
   { title: '一、信息收集', content: '正式服务可能收集账号资料、手机号验证状态、家庭成员资料、邀请和申请记录，以及保障服务安全所需的设备与日志信息。' },
   { title: '二、信息使用', content: '相关信息用于账号认证、家庭关系维护、权限判断、公开展示审核、安全审计和用户主动发起的联系流程。' },

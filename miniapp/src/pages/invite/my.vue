@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page">
+    <MiniBackHome />
     <MiniSectionHeader title="我的邀请" subtitle="查看并处理收到的家庭邀请。" />
 
     <MiniCard>
@@ -77,6 +78,7 @@ import { ref } from 'vue'
 
 import { acceptInvitation, listMyInvitations, rejectInvitation } from '@/api/invitations'
 import { apiErrorMessage } from '@/api/client'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'

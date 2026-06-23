@@ -28,10 +28,9 @@
     </view>
 
     <view class="primary-grid">
-      <navigator
+      <view
         class="primary-card primary-card-main"
-        hover-class="navigator-hover"
-        url="/pages/family/my"
+        @click="go('/pages/family/my')"
       >
         <view class="primary-card-glow" />
         <view class="primary-card-content">
@@ -40,12 +39,10 @@
           <text class="primary-desc">查看成员、关系和私有家谱</text>
         </view>
         <text class="primary-arrow">›</text>
-      </navigator>
-      <navigator
+      </view>
+      <view
         class="primary-card primary-card-light"
-        hover-class="navigator-hover"
-        open-type="switchTab"
-        url="/pages/family/search"
+        @click="goTab('/pages/family/search')"
       >
         <view class="primary-card-content">
           <view class="primary-icon primary-icon-search" />
@@ -53,7 +50,7 @@
           <text class="primary-desc">浏览公开主页</text>
         </view>
         <text class="primary-arrow">›</text>
-      </navigator>
+      </view>
     </view>
 
     <view class="dashboard-card">
@@ -65,20 +62,20 @@
         <text class="section-note">保持家庭资料同步</text>
       </view>
       <view class="task-grid">
-        <navigator class="task-card" hover-class="navigator-hover" url="/pages/invite/my">
+        <view class="task-card" @click="go('/pages/invite/my')">
           <view class="task-mark task-mark-blue" />
           <text class="task-title">我的邀请</text>
           <text class="task-desc">查看收到的家庭邀请</text>
-        </navigator>
-        <navigator class="task-card" hover-class="navigator-hover" url="/pages/join/my">
+        </view>
+        <view class="task-card" @click="go('/pages/join/my')">
           <view class="task-mark task-mark-green" />
           <text class="task-title">加入申请</text>
           <text class="task-desc">查看申请处理进度</text>
-        </navigator>
+        </view>
       </view>
     </view>
 
-    <navigator class="kinship-card" hover-class="navigator-hover" url="/pages/tools/kinship">
+    <view class="kinship-card" @click="go('/pages/tools/kinship')">
       <view class="kinship-orb">
         <view class="kinship-dot kinship-dot-a" />
         <view class="kinship-dot kinship-dot-b" />
@@ -89,54 +86,47 @@
         <text class="kinship-desc">按关系路径推测常见称呼</text>
       </view>
       <text class="kinship-arrow">›</text>
-    </navigator>
+    </view>
 
     <view class="read-card">
-      <navigator
+      <view
         class="section-row read-head"
-        hover-class="navigator-hover-soft"
-        open-type="switchTab"
-        url="/pages/content/index"
+        @click="goTab('/pages/content/index')"
       >
         <view>
           <text class="section-kicker">阅读精选</text>
           <text class="section-title">故事、典故与使用指南</text>
         </view>
         <text class="read-more">进入阅读</text>
-      </navigator>
+      </view>
 
-      <navigator
+      <view
         v-if="featuredRead"
         class="featured-read"
-        hover-class="navigator-hover"
-        :url="articleUrl(featuredRead.id)"
+        @click="go(articleUrl(featuredRead.id))"
       >
         <text class="featured-label">{{ categoryTitle(featuredRead.category) }}</text>
         <text class="featured-title">{{ featuredRead.title }}</text>
         <text class="featured-summary">{{ featuredRead.summary }}</text>
-      </navigator>
+      </view>
 
       <view class="read-mini-grid">
-        <navigator
+        <view
           v-for="item in secondaryReadHighlights"
           :key="item.category.key"
           class="read-mini"
           :class="`read-mini-${item.category.key}`"
-          hover-class="navigator-hover"
-          :open-type="item.article ? 'navigate' : 'switchTab'"
-          :url="item.article ? articleUrl(item.article.id) : '/pages/content/index'"
+          @click="item.article ? go(articleUrl(item.article.id)) : goTab('/pages/content/index')"
         >
           <text class="read-mini-label">{{ item.category.title }}</text>
           <text class="read-mini-title">{{ item.article?.title || item.category.desc }}</text>
-        </navigator>
+        </view>
       </view>
     </view>
 
-    <navigator
+    <view
       class="public-card"
-      hover-class="navigator-hover"
-      open-type="switchTab"
-      url="/pages/family/search"
+      @click="goTab('/pages/family/search')"
     >
       <view class="public-copy">
         <text class="section-kicker">公开家族</text>
@@ -146,7 +136,7 @@
       <view class="public-avatar">
         <text>张</text>
       </view>
-    </navigator>
+    </view>
 
     <view class="home-privacy">
       <text>家庭资料仅在授权范围内可见，公开展示需经过审核。</text>
@@ -168,10 +158,20 @@ function categoryTitle(key: ContentCategory) {
 function articleUrl(id: string) {
   return `/pages/content/detail?id=${encodeURIComponent(id)}`
 }
+
+function go(url: string) {
+  uni.navigateTo({ url })
+}
+
+function goTab(url: string) {
+  uni.switchTab({ url })
+}
 </script>
 
 <style scoped>
 .home-page {
+  min-height: auto;
+  padding-bottom: calc(180rpx + env(safe-area-inset-bottom));
   background:
     radial-gradient(circle at 90% 4%, rgba(47, 107, 87, 0.08), transparent 240rpx),
     radial-gradient(circle at 10% 18%, rgba(39, 76, 119, 0.07), transparent 260rpx);
@@ -827,7 +827,7 @@ function articleUrl(id: string) {
 }
 
 .home-privacy {
-  padding: 4rpx 18rpx 18rpx;
+  padding: 4rpx 18rpx 34rpx;
   text-align: center;
 }
 

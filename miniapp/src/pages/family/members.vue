@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page">
+    <MiniBackHome />
     <view class="tree-tool-banner members-banner">
       <view class="banner-copy">
         <text class="tree-tool-banner-title">家庭成员</text>
@@ -63,6 +64,7 @@ import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { listFamilyMembers } from '@/api/members'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'

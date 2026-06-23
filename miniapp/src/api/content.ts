@@ -66,13 +66,14 @@ export async function listContentArticles(query: ContentArticleQuery = {}): Prom
     }
     return { items: items.slice((page - 1) * pageSize, page * pageSize), page, pageSize, total: items.length }
   }
-  const params = new URLSearchParams()
-  if (query.categoryKey) params.set('categoryKey', query.categoryKey)
-  if (query.keyword) params.set('keyword', query.keyword)
-  if (query.featured !== undefined) params.set('featured', String(query.featured))
-  params.set('page', String(query.page || 1))
-  params.set('pageSize', String(query.pageSize || 20))
-  return request<PaginatedResult<ContentArticleSummary>>(`/content/articles?${params.toString()}`, { public: true })
+  const params = buildQuery({
+    categoryKey: query.categoryKey,
+    keyword: query.keyword,
+    featured: query.featured === undefined ? undefined : String(query.featured),
+    page: String(query.page || 1),
+    pageSize: String(query.pageSize || 20)
+  })
+  return request<PaginatedResult<ContentArticleSummary>>(`/content/articles?${params}`, { public: true })
 }
 
 export async function getContentArticle(articleId: number | string): Promise<ContentArticleDetail> {
@@ -91,4 +92,11 @@ function hashCode(value: string) {
     hash |= 0
   }
   return hash
+}
+
+function buildQuery(params: Record<string, string | undefined>) {
+  return Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value as string)}`)
+    .join('&')
 }

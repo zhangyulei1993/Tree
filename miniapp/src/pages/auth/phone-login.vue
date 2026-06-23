@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page auth-page tree-page-lineage">
+    <MiniBackHome />
     <view class="tree-auth-brand">
       <text class="tree-auth-brand-eyebrow">Tree</text>
       <text class="tree-auth-brand-title">家脉亲缘</text>
@@ -45,6 +46,7 @@
 import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
@@ -93,7 +95,7 @@ function goWechat() {
   display: flex;
   flex-direction: column;
   gap: 14rpx;
-  margin-top: 22rpx;
+  margin-top: 58rpx;
 }
 
 .btn-top {

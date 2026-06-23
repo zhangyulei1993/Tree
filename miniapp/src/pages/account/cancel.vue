@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page">
+    <MiniBackHome />
     <MiniCard variant="soft">
       <text class="tree-page-title">注销账号</text>
       <MiniNotice tone="warm" title="重要提示">
@@ -31,6 +32,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'

@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page detail-page">
+    <MiniBackHome />
     <MiniCard v-if="loading">
       <MiniEmptyState title="正在加载" description="正在读取内容，请稍候。" />
     </MiniCard>
@@ -35,6 +36,7 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { getContentArticle } from '@/api/content'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'

@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page auth-page tree-page-lineage">
+    <MiniBackHome />
     <view class="tree-auth-brand">
       <text class="tree-auth-brand-eyebrow">Tree</text>
       <text class="tree-auth-brand-title">注册账号</text>
@@ -64,6 +65,7 @@ import { onUnmounted, ref } from 'vue'
 
 import { sendCode } from '@/api/auth'
 import { apiErrorMessage } from '@/api/client'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import { useSessionStore } from '@/stores/session'

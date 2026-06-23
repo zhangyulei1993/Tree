@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page">
+    <MiniBackHome />
     <MiniSectionHeader title="邀请确认" subtitle="请核对邀请信息后再决定是否加入家庭。" />
 
     <MiniCard v-if="loading">
@@ -103,6 +104,7 @@ import { ref } from 'vue'
 
 import { acceptInvitation, getInvitationDetail, rejectInvitation } from '@/api/invitations'
 import { apiErrorMessage } from '@/api/client'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'

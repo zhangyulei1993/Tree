@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page kinship-page">
+    <MiniBackHome />
     <view class="tree-tool-banner kinship-banner">
       <view class="banner-copy">
         <text class="tree-tool-banner-title">亲属关系工具</text>
@@ -181,6 +182,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
@@ -418,6 +420,11 @@ function copyDescription() {
 }
 
 .tag.selectable {
+  min-width: 72rpx;
+  min-height: 56rpx;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   cursor: pointer;
 }
 
@@ -448,6 +455,12 @@ function copyDescription() {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
+}
+
+.tree-relation-card {
+  min-height: 92rpx;
+  align-items: center;
+  justify-content: center;
 }
 
 .disabled-hint {

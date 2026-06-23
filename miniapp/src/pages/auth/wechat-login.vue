@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page auth-page">
+    <MiniBackHome />
     <view class="tree-auth-brand">
       <text class="tree-auth-brand-title">微信登录</text>
       <text class="tree-auth-brand-desc">使用微信授权，快速进入家脉亲缘</text>
@@ -30,6 +31,7 @@
 
 <script setup lang="ts">
 import { isRealApiMode } from '@/api/client'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
