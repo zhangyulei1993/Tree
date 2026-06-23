@@ -6,8 +6,23 @@
           :name="session.user.nickname || '未设置昵称'"
           :subtitle="maskedPhone"
           :avatar-text="avatarText"
+          :avatar-url="avatarUrl"
           :tags="profileTags"
         />
+      </MiniCard>
+
+      <MiniCard v-if="showProfileIncompleteNotice" variant="soft" class="bind-notice-card">
+        <MiniNotice tone="info">
+          完善头像和昵称，方便家人识别你。
+        </MiniNotice>
+        <MiniButton class="btn-top" @click="go('/pages/me/profile')">去完善资料</MiniButton>
+      </MiniCard>
+
+      <MiniCard v-if="showPhoneBindNotice" variant="soft" class="bind-notice-card">
+        <MiniNotice tone="warm">
+          请绑定手机号以使用家庭、邀请、加入申请等功能。
+        </MiniNotice>
+        <MiniButton class="btn-top" @click="go('/pages/auth/bind-phone')">去绑定手机号</MiniButton>
       </MiniCard>
 
       <MiniCard>
@@ -18,7 +33,7 @@
       <MiniCard>
         <MiniSectionHeader title="账号与安全" subtitle="手机号绑定与账号管理" />
         <MiniNotice v-if="showPasswordUnsetNotice" tone="info" class="password-notice">
-          当前账号尚未设置登录密码。如需在电脑网页登录，请先设置登录密码。
+          建议设置登录密码，方便电脑网页登录。
         </MiniNotice>
         <MiniActionList :items="securityItems" @select="onSecuritySelect" />
       </MiniCard>
@@ -47,8 +62,9 @@
           avatar-text="访"
         />
         <view class="guest-actions">
-          <MiniButton @click="go('/pages/auth/phone-login')">手机号登录</MiniButton>
-          <MiniButton variant="secondary" @click="go('/pages/auth/register-phone')">
+          <MiniButton @click="go('/pages/auth/wechat-login')">微信登录</MiniButton>
+          <MiniButton variant="secondary" @click="go('/pages/auth/phone-login')">手机号登录</MiniButton>
+          <MiniButton variant="ghost" @click="go('/pages/auth/register-phone')">
             注册账号
           </MiniButton>
         </view>
@@ -66,7 +82,7 @@
 import { onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
-import { apiErrorMessage } from '@/api/client'
+import { apiErrorMessage, resolveAssetUrl } from '@/api/client'
 import MiniActionList from '@/components/base/MiniActionList.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
@@ -93,6 +109,15 @@ const avatarText = computed(() => {
   return '我'
 })
 
+const avatarUrl = computed(() => resolveAssetUrl(session.user?.avatarUrl))
+
+const showProfileIncompleteNotice = computed(() => {
+  if (!session.isLoggedIn || !session.user) return false
+  const nicknameMissing = !session.user.nickname?.trim()
+  const avatarMissing = !session.user.avatarUrl
+  return nicknameMissing || avatarMissing
+})
+
 const profileTags = computed(() => {
   if (!session.user) return []
   return [
@@ -107,7 +132,13 @@ const profileTags = computed(() => {
   ] as Array<{ label: string; tone: 'active' | 'pending' | 'danger' | 'muted' }>
 })
 
-const showPasswordUnsetNotice = computed(() => session.user?.passwordSet === false)
+const showPasswordUnsetNotice = computed(() =>
+  session.isPhoneBound && session.user?.passwordSet === false
+)
+
+const showPhoneBindNotice = computed(() =>
+  session.isLoggedIn && !session.isPhoneBound
+)
 
 const affairItems = [
   { key: 'family', title: '我的家庭', desc: '查看和管理家族资料' },
@@ -116,6 +147,11 @@ const affairItems = [
 ]
 
 const securityItems = computed(() => [
+  {
+    key: 'profile',
+    title: '完善资料',
+    desc: showProfileIncompleteNotice.value ? '设置昵称和头像' : '更新昵称和头像'
+  },
   {
     key: 'bind-phone',
     title: '绑定手机号',
@@ -149,6 +185,9 @@ function onAffairSelect(key: string) {
 
 function onSecuritySelect(key: string) {
   switch (key) {
+    case 'profile':
+      go('/pages/me/profile')
+      break
     case 'bind-phone':
       go('/pages/auth/bind-phone')
       break
@@ -183,7 +222,12 @@ async function logout() {
   }
 }
 
-onShow(() => session.restoreSession())
+onShow(() => {
+  session.restoreSession()
+  if (session.isLoggedIn) {
+    session.refreshMe().catch(() => undefined)
+  }
+})
 </script>
 
 <style scoped>
@@ -196,6 +240,10 @@ onShow(() => session.restoreSession())
 }
 
 .password-notice {
+  margin-bottom: 20rpx;
+}
+
+.bind-notice-card {
   margin-bottom: 20rpx;
 }
 

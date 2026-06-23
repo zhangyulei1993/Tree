@@ -8,18 +8,20 @@
 
     <MiniCard variant="soft" class="tree-auth-card">
       <template v-if="isRealApiMode">
-        <MiniNotice tone="info">微信一键登录即将开放，当前可使用手机号登录或注册。</MiniNotice>
+        <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
         <view class="btn-stack">
-          <MiniButton @click="go('/pages/auth/phone-login')">使用手机号登录</MiniButton>
-          <MiniButton variant="secondary" @click="go('/pages/auth/register-phone')">
-            手机号注册
+          <MiniButton :disabled="submitting" :loading="submitting" @click="loginWithWechat">
+            微信登录
+          </MiniButton>
+          <MiniButton variant="secondary" :disabled="submitting" @click="go('/pages/auth/phone-login')">
+            使用手机号密码登录
           </MiniButton>
         </view>
       </template>
       <template v-else>
         <text class="tree-muted">本地体验模式下，可先体验登录流程。</text>
         <view class="btn-stack">
-          <MiniButton @click="login">微信快捷登录</MiniButton>
+          <MiniButton @click="mockLogin">微信快捷登录</MiniButton>
           <MiniButton variant="secondary" @click="go('/pages/auth/bind-phone')">
             去绑定手机号
           </MiniButton>
@@ -30,21 +32,43 @@
 </template>
 
 <script setup lang="ts">
-import { isRealApiMode } from '@/api/client'
+import { ref } from 'vue'
+
+import { apiErrorMessage, isRealApiMode } from '@/api/client'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
-import MiniNotice from '@/components/base/MiniNotice.vue'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
+const submitting = ref(false)
+const errorMessage = ref('')
 
-function login() {
-  if (isRealApiMode) return
+async function loginWithWechat() {
+  errorMessage.value = ''
+  submitting.value = true
+  try {
+    const result = await session.loginWithWechat()
+    uni.showToast({ title: '登录成功', icon: 'success' })
+    setTimeout(() => {
+      if (result.user.phoneVerified) {
+        session.finishLogin()
+      } else {
+        uni.navigateTo({ url: '/pages/auth/bind-phone' })
+      }
+    }, 300)
+  } catch (error) {
+    errorMessage.value = apiErrorMessage(error, '微信登录失败，请稍后重试。')
+  } finally {
+    submitting.value = false
+  }
+}
+
+function mockLogin() {
   session.mockWechatLogin()
   uni.showToast({ title: '登录成功', icon: 'none' })
   setTimeout(() => {
-    uni.switchTab({ url: '/pages/me/index' })
+    uni.navigateTo({ url: '/pages/auth/bind-phone' })
   }, 500)
 }
 

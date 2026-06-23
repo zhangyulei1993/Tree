@@ -36,21 +36,12 @@
     </MiniCard>
 
     <MiniCard variant="soft" class="tree-auth-card tree-auth-foot">
-      <!-- #ifdef MP-WEIXIN -->
-      <button
-        class="wechat-phone-btn"
-        open-type="getPhoneNumber"
-        :disabled="submitting"
-        @getphonenumber="handleGetPhoneNumber"
-      >
-        手机号一键登录
-      </button>
-      <!-- #endif -->
-      <!-- #ifndef MP-WEIXIN -->
       <MiniNotice tone="info">
-        一键登录仅在微信小程序中可用，请使用手机号密码登录。
+        当前小程序暂不支持手机号一键登录。你可以使用微信登录后绑定手机号，或使用手机号密码登录。
       </MiniNotice>
-      <!-- #endif -->
+      <MiniButton variant="secondary" class="btn-top" @click="goWechat">
+        微信登录
+      </MiniButton>
     </MiniCard>
   </view>
 </template>
@@ -98,38 +89,8 @@ function goRegister() {
   uni.navigateTo({ url: '/pages/auth/register-phone' })
 }
 
-type GetPhoneNumberEvent = {
-  detail: {
-    code?: string
-    errMsg?: string
-  }
-}
-
-async function handleGetPhoneNumber(event: GetPhoneNumberEvent) {
-  errorMessage.value = ''
-  const errMsg = event.detail.errMsg || ''
-  const phoneCode = event.detail.code
-  if (!errMsg.includes('ok')) {
-    console.warn('getPhoneNumber failed', errMsg)
-    errorMessage.value = '你已取消授权，可使用手机号密码登录。'
-    return
-  }
-  if (!phoneCode) {
-    console.warn('getPhoneNumber returned no code', errMsg)
-    errorMessage.value = '暂时无法获取手机号，请确认小程序已开通手机号快速验证能力，或使用手机号密码登录。'
-    return
-  }
-
-  submitting.value = true
-  try {
-    await session.loginWithWechatPhone(phoneCode)
-    uni.showToast({ title: '登录成功', icon: 'success' })
-    setTimeout(() => session.finishLogin(), 300)
-  } catch (error) {
-    errorMessage.value = apiErrorMessage(error, '一键登录失败，请稍后重试或使用手机号密码登录。')
-  } finally {
-    submitting.value = false
-  }
+function goWechat() {
+  uni.navigateTo({ url: '/pages/auth/wechat-login' })
 }
 </script>
 
@@ -143,21 +104,5 @@ async function handleGetPhoneNumber(event: GetPhoneNumberEvent) {
 
 .btn-top {
   margin-top: 16rpx;
-}
-
-.wechat-phone-btn {
-  width: 100%;
-  height: 88rpx;
-  line-height: 88rpx;
-  border: none;
-  border-radius: 16rpx;
-  background: #2f6b4f;
-  color: #fff;
-  font-size: 30rpx;
-  font-weight: 600;
-}
-
-.wechat-phone-btn[disabled] {
-  opacity: 0.6;
 }
 </style>

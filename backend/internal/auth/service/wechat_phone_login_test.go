@@ -18,12 +18,25 @@ import (
 
 type wechatClientFake struct {
 	phone    string
+	openID   string
+	unionID  string
 	err      error
 	callCode string
 }
 
-func (f *wechatClientFake) Code2Session(context.Context, string) (*wechat.Code2SessionResult, error) {
-	return nil, errors.New("not implemented")
+func (f *wechatClientFake) Code2Session(_ context.Context, code string) (*wechat.Code2SessionResult, error) {
+	f.callCode = code
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.openID != "" {
+		return &wechat.Code2SessionResult{
+			OpenID:     f.openID,
+			UnionID:    f.unionID,
+			SessionKey: "mock_session_key",
+		}, nil
+	}
+	return nil, errors.New("wechat code2session failed")
 }
 
 func (f *wechatClientFake) GetPhoneNumber(_ context.Context, phoneCode string) (string, error) {

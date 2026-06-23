@@ -69,7 +69,7 @@ const loading = ref(false)
 const errorMessage = ref('')
 
 async function loadFamilies() {
-  if (!session.requireLogin('/pages/family/my')) return
+  if (!session.requirePhoneBound('/pages/family/my')) return
   loading.value = true
   errorMessage.value = ''
   try {

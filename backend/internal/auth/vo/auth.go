@@ -11,6 +11,7 @@ type UserInfo struct {
 	Phone         *string `json:"phone,omitempty"`
 	PhoneVerified bool    `json:"phoneVerified"`
 	Nickname      *string `json:"nickname,omitempty"`
+	AvatarURL     *string `json:"avatarUrl,omitempty"`
 	Status        string  `json:"status"`
 	PasswordSet   bool    `json:"passwordSet"`
 }

@@ -9,8 +9,13 @@ export interface UserInfo {
   phone?: string | null
   phoneVerified: boolean
   nickname?: string | null
+  avatarUrl?: string | null
   status: string
   passwordSet?: boolean
+}
+
+export interface UpdateProfileInput {
+  nickname?: string
 }
 
 export interface LoginResult {
@@ -36,6 +41,14 @@ export interface LoginPhoneInput {
   phone: string
   password: string
 }
+
+export interface BindPhoneInput {
+  phone: string
+  code: string
+  password: string
+}
+
+export type SendCodeScene = 'REGISTER' | 'LOGIN' | 'BIND_PHONE'
 
 export interface FamilySummary {
   id: number | string

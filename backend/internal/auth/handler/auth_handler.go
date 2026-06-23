@@ -172,6 +172,7 @@ func (h *AuthHandler) BindPhone(ctx *gin.Context) {
 		TokenID:   tokenID,
 		Phone:     req.Phone,
 		Code:      req.Code,
+		Password:  req.Password,
 		IP:        ctx.ClientIP(),
 		UserAgent: ctx.Request.UserAgent(),
 	})

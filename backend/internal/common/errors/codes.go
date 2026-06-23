@@ -64,6 +64,7 @@ const (
 	CodeAccountMergeFailed         Code = 40405
 	CodeAccountClaimFailed         Code = 40406
 	CodeAccountMergeMemberConflict Code = 40504
+	CodeProfileNicknameInvalid     Code = 40601
 	CodeChangeOldPhoneCodeInvalid  Code = 40701
 	CodeChangeNewPhoneCodeInvalid  Code = 40702
 	CodeChangeNewPhoneExists       Code = 40703
@@ -149,6 +150,7 @@ var messages = map[Code]string{
 	CodeAccountMergeFailed:             "账号合并失败",
 	CodeAccountClaimFailed:             "账号认领失败",
 	CodeAccountMergeMemberConflict:     "同一家庭下存在多个成员绑定冲突",
+	CodeProfileNicknameInvalid:         "昵称格式不正确",
 	CodeChangeOldPhoneCodeInvalid:      "旧手机号验证码错误",
 	CodeChangeNewPhoneCodeInvalid:      "新手机号验证码错误",
 	CodeChangeNewPhoneExists:           "新手机号已被其他账号绑定",
