@@ -54,7 +54,7 @@ ON DUPLICATE KEY UPDATE
 
 INSERT INTO content_articles
     (category_id, category_key, title, slug, summary, body, author_name, source, status, is_featured, sort_order, published_at)
-SELECT c.id, c.category_key, seed.title, seed.slug, seed.summary, seed.body, 'Tree 编辑部', '平台精选', 'PUBLISHED', seed.is_featured, seed.sort_order, NOW()
+SELECT c.id, c.category_key, seed.title, seed.slug, seed.summary, seed.body, 'Tree 编辑部', '平台精选', 'PUBLISHED', seed.is_featured, seed.sort_order, UTC_TIMESTAMP()
 FROM content_categories c
 JOIN (
     SELECT 'tutorial' AS category_key, '如何创建第一个家庭' AS title, 'tutorial-create-family' AS slug,
