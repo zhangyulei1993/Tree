@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page">
+    <MiniBackHome />
     <MiniCard v-if="loading">
       <MiniEmptyState symbol="…" title="正在加载" description="正在加载家庭详情..." />
     </MiniCard>
@@ -122,6 +123,7 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
@@ -241,6 +243,11 @@ onLoad((options) => {
 </script>
 
 <style scoped>
+.tree-page {
+  min-height: auto;
+  padding-bottom: calc(160rpx + env(safe-area-inset-bottom));
+}
+
 .dossier-hero {
   margin-bottom: 20rpx;
 }
@@ -266,6 +273,10 @@ onLoad((options) => {
 
 .entry-panel {
   margin-top: 4rpx;
+}
+
+.tree-space:last-child {
+  margin-bottom: 48rpx;
 }
 
 .feature-arrow {

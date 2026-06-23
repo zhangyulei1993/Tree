@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page">
+    <MiniBackHome />
     <MiniCard v-if="loading">
       <MiniEmptyState symbol="…" title="正在加载" description="正在加载公开家谱..." />
     </MiniCard>
@@ -76,6 +77,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { getPublicTree } from '@/api/tree'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'

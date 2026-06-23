@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 
-import { loginPhone, logoutUser, registerPhone } from '@/api/auth'
+import { loginPhone, logoutUser, registerPhone, wechatPhoneLogin } from '@/api/auth'
 import {
   apiMode,
   pendingRouteKey,
@@ -63,6 +63,10 @@ export const useSessionStore = defineStore('session', {
     },
     async login(input: LoginPhoneInput) {
       const result = await loginPhone(input)
+      this.persistSession(result.accessToken, result.user)
+    },
+    async loginWithWechatPhone(phoneCode: string) {
+      const result = await wechatPhoneLogin(phoneCode)
       this.persistSession(result.accessToken, result.user)
     },
     async register(input: RegisterPhoneInput) {

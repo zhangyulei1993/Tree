@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page auth-page tree-page-lineage">
+    <MiniBackHome />
     <view class="tree-auth-brand">
       <text class="tree-auth-brand-eyebrow">Tree</text>
       <text class="tree-auth-brand-title">家脉亲缘</text>
@@ -35,8 +36,21 @@
     </MiniCard>
 
     <MiniCard variant="soft" class="tree-auth-card tree-auth-foot">
-      <MiniNotice tone="info">微信一键登录即将开放，当前请使用手机号登录。</MiniNotice>
-      <MiniButton variant="ghost" class="btn-top" @click="goWechat">了解更多</MiniButton>
+      <!-- #ifdef MP-WEIXIN -->
+      <button
+        class="wechat-phone-btn"
+        open-type="getPhoneNumber"
+        :disabled="submitting"
+        @getphonenumber="handleGetPhoneNumber"
+      >
+        手机号一键登录
+      </button>
+      <!-- #endif -->
+      <!-- #ifndef MP-WEIXIN -->
+      <MiniNotice tone="info">
+        一键登录仅在微信小程序中可用，请使用手机号密码登录。
+      </MiniNotice>
+      <!-- #endif -->
     </MiniCard>
   </view>
 </template>
@@ -45,6 +59,7 @@
 import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
@@ -83,8 +98,38 @@ function goRegister() {
   uni.navigateTo({ url: '/pages/auth/register-phone' })
 }
 
-function goWechat() {
-  uni.navigateTo({ url: '/pages/auth/wechat-login' })
+type GetPhoneNumberEvent = {
+  detail: {
+    code?: string
+    errMsg?: string
+  }
+}
+
+async function handleGetPhoneNumber(event: GetPhoneNumberEvent) {
+  errorMessage.value = ''
+  const errMsg = event.detail.errMsg || ''
+  const phoneCode = event.detail.code
+  if (!errMsg.includes('ok')) {
+    console.warn('getPhoneNumber failed', errMsg)
+    errorMessage.value = '你已取消授权，可使用手机号密码登录。'
+    return
+  }
+  if (!phoneCode) {
+    console.warn('getPhoneNumber returned no code', errMsg)
+    errorMessage.value = '暂时无法获取手机号，请确认小程序已开通手机号快速验证能力，或使用手机号密码登录。'
+    return
+  }
+
+  submitting.value = true
+  try {
+    await session.loginWithWechatPhone(phoneCode)
+    uni.showToast({ title: '登录成功', icon: 'success' })
+    setTimeout(() => session.finishLogin(), 300)
+  } catch (error) {
+    errorMessage.value = apiErrorMessage(error, '一键登录失败，请稍后重试或使用手机号密码登录。')
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
@@ -93,10 +138,26 @@ function goWechat() {
   display: flex;
   flex-direction: column;
   gap: 14rpx;
-  margin-top: 22rpx;
+  margin-top: 58rpx;
 }
 
 .btn-top {
   margin-top: 16rpx;
+}
+
+.wechat-phone-btn {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  border: none;
+  border-radius: 16rpx;
+  background: #2f6b4f;
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.wechat-phone-btn[disabled] {
+  opacity: 0.6;
 }
 </style>

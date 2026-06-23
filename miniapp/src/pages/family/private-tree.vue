@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page private-tree-page">
+    <MiniBackHome />
     <MiniCard v-if="errorMessage">
       <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
       <MiniButton variant="secondary" @click="loadTree">重新加载</MiniButton>
@@ -76,6 +77,7 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { getPrivateTree } from '@/api/tree'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'

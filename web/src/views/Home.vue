@@ -79,17 +79,17 @@
         </div>
       </div>
       <div class="reading-layout">
-        <article class="featured-article">
+        <RouterLink class="featured-article" to="/content/tutorial-create-family">
           <span class="article-label">使用教程</span>
           <h3>如何创建第一个家庭</h3>
           <p>从姓氏、家庭名称和首批成员开始，建立一个可持续维护的家族空间。</p>
-        </article>
+        </RouterLink>
         <div class="article-grid">
-          <article v-for="item in readingCards" :key="item.title" class="article-card" :class="item.tone">
+          <RouterLink v-for="item in readingCards" :key="item.title" class="article-card" :class="item.tone" :to="item.to">
             <span>{{ item.category }}</span>
             <h3>{{ item.title }}</h3>
             <p>{{ item.summary }}</p>
-          </article>
+          </RouterLink>
         </div>
       </div>
     </section>
@@ -136,19 +136,22 @@ const readingCards = [
     category: '家族故事',
     title: '一张老照片背后的迁徙记忆',
     summary: '把照片、地点和人物关系放在一起，留下可追溯的家庭线索。',
-    tone: 'story'
+    tone: 'story',
+    to: '/content/story-old-photo'
   },
   {
     category: '姓氏典故',
     title: '姓氏源流可以如何查证',
     summary: '从地方志、旧谱牒与口述资料中交叉印证，不急于给出唯一答案。',
-    tone: 'surname'
+    tone: 'surname',
+    to: '/content/surname-origin'
   },
   {
     category: '宗亲文章',
     title: '修谱前需要准备什么',
     summary: '整理旧谱、照片、口述和成员范围，让数字化修谱更有秩序。',
-    tone: 'article'
+    tone: 'article',
+    to: '/content/article-genealogy-prep'
   }
 ]
 
@@ -543,11 +546,14 @@ h1 span {
 
 .featured-article {
   position: relative;
+  display: block;
   min-height: 322px;
   border-radius: 30px;
   background: linear-gradient(142deg, rgba(31, 58, 95, 0.97) 0%, rgba(47, 107, 87, 0.92) 100%);
   padding: 28px;
   overflow: hidden;
+  color: inherit;
+  text-decoration: none;
   box-shadow: 0 20px 54px rgba(31, 58, 95, 0.13);
 }
 
@@ -596,10 +602,13 @@ h1 span {
 }
 
 .article-card {
+  display: block;
   min-height: 190px;
   border: 1px solid rgba(148, 163, 184, 0.12);
   border-radius: 26px;
   padding: 22px;
+  color: inherit;
+  text-decoration: none;
 }
 
 .article-card.story {

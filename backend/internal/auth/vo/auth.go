@@ -12,6 +12,7 @@ type UserInfo struct {
 	PhoneVerified bool    `json:"phoneVerified"`
 	Nickname      *string `json:"nickname,omitempty"`
 	Status        string  `json:"status"`
+	PasswordSet   bool    `json:"passwordSet"`
 }
 
 type LoginResponse struct {

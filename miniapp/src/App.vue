@@ -17,7 +17,7 @@ page {
   position: relative;
   min-height: 100vh;
   padding: var(--tree-space-page);
-  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  padding-bottom: calc(132rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   background: linear-gradient(180deg, var(--tree-bg-top) 0%, var(--tree-bg-mid) 50%, var(--tree-bg-bottom) 100%);
 }

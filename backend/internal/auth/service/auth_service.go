@@ -35,24 +35,26 @@ const (
 	ClientH5Web      = "H5_WEB"
 	ClientWechatMini = "WECHAT_MINI_PROGRAM"
 
-	authLogModule       = "USER_AUTH"
-	actionSendCode      = "SEND_CODE"
-	actionRegister      = "REGISTER_PHONE"
-	actionLogin         = "LOGIN_PHONE"
-	actionLogout        = "LOGOUT"
-	actionWechatLogin   = "WECHAT_MINI_LOGIN"
-	actionBindPhone     = "BIND_PHONE"
-	actionChangePhone   = "CHANGE_PHONE"
-	actionCancelAccount = "CANCEL_ACCOUNT"
-	actionMergeAccount  = "ACCOUNT_MERGE"
-	actionClaimAccount  = "ACCOUNT_CLAIM"
+	authLogModule          = "USER_AUTH"
+	actionSendCode         = "SEND_CODE"
+	actionRegister         = "REGISTER_PHONE"
+	actionLogin            = "LOGIN_PHONE"
+	actionLogout           = "LOGOUT"
+	actionWechatLogin      = "WECHAT_MINI_LOGIN"
+	actionWechatPhoneLogin = "WECHAT_MINI_PHONE_LOGIN"
+	actionBindPhone        = "BIND_PHONE"
+	actionChangePhone      = "CHANGE_PHONE"
+	actionCancelAccount    = "CANCEL_ACCOUNT"
+	actionMergeAccount     = "ACCOUNT_MERGE"
+	actionClaimAccount     = "ACCOUNT_CLAIM"
 
-	accountOriginPhoneRegister = "PHONE_REGISTER"
-	accountOriginWechatMini    = "WECHAT_MINI_PROGRAM"
-	providerWechatMini         = "WECHAT_MINI"
-	claimViaWechatBindPhone    = "WECHAT_MINI_PROGRAM_BIND_PHONE"
-	mergeSourceWechatBindPhone = "WECHAT_MINI_PROGRAM_BIND_PHONE"
-	errRollback                = "rollback"
+	accountOriginPhoneRegister   = "PHONE_REGISTER"
+	accountOriginWechatMini      = "WECHAT_MINI_PROGRAM"
+	accountOriginWechatMiniPhone = "WECHAT_MINI_PROGRAM_PHONE"
+	providerWechatMini           = "WECHAT_MINI"
+	claimViaWechatBindPhone      = "WECHAT_MINI_PROGRAM_BIND_PHONE"
+	mergeSourceWechatBindPhone   = "WECHAT_MINI_PROGRAM_BIND_PHONE"
+	errRollback                  = "rollback"
 )
 
 type SendCodeInput struct {
@@ -96,6 +98,13 @@ type WechatMiniLoginInput struct {
 	UserAgent  string
 }
 
+type WechatMiniPhoneLoginInput struct {
+	PhoneCode  string
+	ClientType string
+	IP         string
+	UserAgent  string
+}
+
 type BindPhoneInput struct {
 	UserID    uint64
 	TokenID   string
@@ -130,6 +139,7 @@ type AuthService interface {
 	LoginPhone(ctx context.Context, input LoginPhoneInput) (*vo.LoginResponse, *apperrors.BusinessError)
 	Logout(ctx context.Context, input LogoutInput) *apperrors.BusinessError
 	WechatMiniLogin(ctx context.Context, input WechatMiniLoginInput) (*vo.LoginResponse, *apperrors.BusinessError)
+	WechatMiniPhoneLogin(ctx context.Context, input WechatMiniPhoneLoginInput) (*vo.LoginResponse, *apperrors.BusinessError)
 	BindPhone(ctx context.Context, input BindPhoneInput) (*vo.LoginResponse, *apperrors.BusinessError)
 	ChangePhone(ctx context.Context, input ChangePhoneInput) *apperrors.BusinessError
 	CancelAccount(ctx context.Context, input CancelAccountInput) *apperrors.BusinessError
@@ -417,6 +427,60 @@ func (s *PhoneAuthService) WechatMiniLogin(ctx context.Context, input WechatMini
 
 	s.writeUserAction(ctx, created.ID, actionWechatLogin, input.IP, input.UserAgent, true, "")
 	return s.issueUserToken(created)
+}
+
+func (s *PhoneAuthService) WechatMiniPhoneLogin(ctx context.Context, input WechatMiniPhoneLoginInput) (*vo.LoginResponse, *apperrors.BusinessError) {
+	if input.PhoneCode == "" {
+		s.writeSystemAction(ctx, actionWechatPhoneLogin, input.IP, input.UserAgent, false, "phone code required")
+		return nil, apperrors.New(apperrors.CodeWechatPhoneCodeInvalid)
+	}
+	if input.ClientType != ClientWechatMini {
+		s.writeSystemAction(ctx, actionWechatPhoneLogin, input.IP, input.UserAgent, false, "invalid client type")
+		return nil, apperrors.New(apperrors.CodeInvalidParams)
+	}
+
+	phone, err := s.wechatClient.GetPhoneNumber(ctx, input.PhoneCode)
+	if err != nil {
+		s.writeSystemAction(ctx, actionWechatPhoneLogin, input.IP, input.UserAgent, false, "wechat phone fetch failed")
+		return nil, apperrors.New(apperrors.CodeWechatPhoneFetchFailed)
+	}
+	if !security.ValidPhone(phone) {
+		s.writeSystemAction(ctx, actionWechatPhoneLogin, input.IP, input.UserAgent, false, "invalid phone")
+		return nil, apperrors.New(apperrors.CodeVerificationPhoneInvalid)
+	}
+
+	phoneHash := security.PhoneHash(phone)
+	existing, findErr := s.userRepo.FindByPhoneHash(ctx, phoneHash)
+	if findErr == nil {
+		if businessErr := phoneLoginStatusError(existing); businessErr != nil {
+			s.writeUserAction(ctx, existing.ID, actionWechatPhoneLogin, input.IP, input.UserAgent, false, "status denied")
+			return nil, businessErr
+		}
+		if err := s.userRepo.RecordLoginSuccess(ctx, existing.ID, input.IP, input.ClientType, time.Now()); err != nil {
+			return nil, apperrors.New(apperrors.CodeSystemError)
+		}
+		s.writeUserAction(ctx, existing.ID, actionWechatPhoneLogin, input.IP, input.UserAgent, true, "")
+		return s.issueUserToken(existing)
+	}
+
+	user := &usermodel.User{
+		Phone:          &phone,
+		PhoneHash:      &phoneHash,
+		PhoneVerified:  true,
+		PasswordHash:   nil,
+		AccountOrigin:  accountOriginWechatMiniPhone,
+		RegisterClient: input.ClientType,
+		Status:         string(enums.StatusActive),
+	}
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		s.writeSystemAction(ctx, actionWechatPhoneLogin, input.IP, input.UserAgent, false, "create user failed")
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	if err := s.userRepo.RecordLoginSuccess(ctx, user.ID, input.IP, input.ClientType, time.Now()); err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	s.writeUserAction(ctx, user.ID, actionWechatPhoneLogin, input.IP, input.UserAgent, true, "")
+	return s.issueUserToken(user)
 }
 
 func (s *PhoneAuthService) BindPhone(ctx context.Context, input BindPhoneInput) (*vo.LoginResponse, *apperrors.BusinessError) {
@@ -802,6 +866,13 @@ func loginStatusError(user *usermodel.User) *apperrors.BusinessError {
 	}
 }
 
+func phoneLoginStatusError(user *usermodel.User) *apperrors.BusinessError {
+	if user.Status == string(enums.StatusActive) {
+		return nil
+	}
+	return apperrors.New(apperrors.CodeWechatPhoneLoginInvalid)
+}
+
 func userInfo(user *usermodel.User) vo.UserInfo {
 	return vo.UserInfo{
 		ID:            user.ID,
@@ -809,6 +880,7 @@ func userInfo(user *usermodel.User) vo.UserInfo {
 		PhoneVerified: user.PhoneVerified,
 		Nickname:      user.Nickname,
 		Status:        user.Status,
+		PasswordSet:   user.PasswordHash != nil && *user.PasswordHash != "",
 	}
 }
 

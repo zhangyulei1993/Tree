@@ -54,6 +54,9 @@ const (
 	CodeWechatIdentityExpired      Code = 40303
 	CodeWechatAccountInvalid       Code = 40304
 	CodeWechatConfigError          Code = 40305
+	CodeWechatPhoneCodeInvalid     Code = 40306
+	CodeWechatPhoneFetchFailed     Code = 40307
+	CodeWechatPhoneLoginInvalid    Code = 40308
 	CodeBindPhoneLoginRequired     Code = 40401
 	CodeBindPhoneCodeInvalid       Code = 40402
 	CodeBindPhoneStatusDenied      Code = 40403
@@ -82,6 +85,15 @@ const (
 	CodeOperationLogQueryInvalid       Code = 48003
 	CodeOperationLogTimeRangeInvalid   Code = 48004
 	CodeOperationLogDetailForbidden    Code = 48005
+)
+
+const (
+	CodeContentCategoryNotFound Code = 49001
+	CodeContentArticleNotFound  Code = 49002
+	CodeContentInvalidStatus    Code = 49003
+	CodeContentDuplicateKey     Code = 49004
+	CodeContentForbidden        Code = 49005
+	CodeContentInvalidInput     Code = 49006
 )
 
 var messages = map[Code]string{
@@ -127,6 +139,9 @@ var messages = map[Code]string{
 	CodeWechatIdentityExpired:          "微信身份已失效",
 	CodeWechatAccountInvalid:           "当前微信账号状态异常",
 	CodeWechatConfigError:              "小程序配置错误",
+	CodeWechatPhoneCodeInvalid:         "微信手机号 code 无效",
+	CodeWechatPhoneFetchFailed:         "微信手机号获取失败",
+	CodeWechatPhoneLoginInvalid:        "微信手机号登录账号状态异常",
 	CodeBindPhoneLoginRequired:         "请先登录",
 	CodeBindPhoneCodeInvalid:           "验证码错误或已过期",
 	CodeBindPhoneStatusDenied:          "当前账号不能绑定手机号",
@@ -152,6 +167,12 @@ var messages = map[Code]string{
 	CodeOperationLogQueryInvalid:       "日志查询参数错误",
 	CodeOperationLogTimeRangeInvalid:   "时间范围错误",
 	CodeOperationLogDetailForbidden:    "日志详情不可访问",
+	CodeContentCategoryNotFound:        "内容分类不存在",
+	CodeContentArticleNotFound:         "内容不存在",
+	CodeContentInvalidStatus:           "内容状态不可操作",
+	CodeContentDuplicateKey:            "内容标识已存在",
+	CodeContentForbidden:               "无权操作内容",
+	CodeContentInvalidInput:            "内容参数错误",
 }
 
 func Message(code Code) string {

@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page">
+    <MiniBackHome />
     <MiniSectionHeader title="加入家庭申请" subtitle="提交申请后，家庭管理员将审核你的身份。" />
 
     <MiniCard v-if="loading">
@@ -88,6 +89,7 @@ import { ref } from 'vue'
 import { apiErrorMessage } from '@/api/client'
 import { getPublicFamilyDetail } from '@/api/families'
 import { createJoinRequest } from '@/api/joinRequests'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'

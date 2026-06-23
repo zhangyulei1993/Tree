@@ -1,7 +1,12 @@
 <template>
   <view class="tree-page detail-page">
-    <MiniCard v-if="!article">
-      <MiniEmptyState title="内容不存在" description="请返回阅读页重新选择。" />
+    <MiniBackHome />
+    <MiniCard v-if="loading">
+      <MiniEmptyState title="正在加载" description="正在读取内容，请稍候。" />
+    </MiniCard>
+
+    <MiniCard v-else-if="!article">
+      <MiniEmptyState title="内容不存在" :description="error || '请返回阅读页重新选择。'" />
       <MiniButton variant="secondary" @click="goBack">返回阅读</MiniButton>
     </MiniCard>
 
@@ -29,17 +34,22 @@
 import { onLoad } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
+import { apiErrorMessage } from '@/api/client'
+import { getContentArticle } from '@/api/content'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
-import { getArticleById, getCategoryMeta } from '@/mock/content'
+import type { ContentArticleDetail } from '@/types/api'
 
 const articleId = ref('')
-const article = computed(() => (articleId.value ? getArticleById(articleId.value) : null))
+const article = ref<ContentArticleDetail | null>(null)
+const loading = ref(false)
+const error = ref('')
 
 const categoryTitle = computed(() => {
   if (!article.value) return ''
-  return getCategoryMeta(article.value.category)?.title || '内容'
+  return article.value.categoryName || '内容'
 })
 
 const bodyParagraphs = computed(() => {
@@ -56,7 +66,26 @@ function goBack() {
 
 onLoad((options) => {
   articleId.value = String(options?.id || '').trim()
+  void loadArticle()
 })
+
+async function loadArticle() {
+  if (!articleId.value) {
+    article.value = null
+    error.value = '内容信息缺失'
+    return
+  }
+  loading.value = true
+  error.value = ''
+  article.value = null
+  try {
+    article.value = await getContentArticle(articleId.value)
+  } catch (err) {
+    error.value = apiErrorMessage(err, '内容不存在或暂未发布')
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
 <style scoped>

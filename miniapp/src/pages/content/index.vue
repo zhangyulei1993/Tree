@@ -26,11 +26,10 @@
       </view>
     </scroll-view>
 
-    <navigator
+    <view
       v-if="spotlightArticle"
       class="spotlight-card"
-      hover-class="navigator-hover"
-      :url="articleUrl(spotlightArticle.id)"
+      @click="goArticle(spotlightArticle.id)"
     >
       <view class="spotlight-art">
         <view class="art-line art-line-a" />
@@ -42,131 +41,147 @@
       <view class="spotlight-copy">
         <view class="spotlight-meta">
           <text class="spotlight-badge">精选推荐</text>
-          <text class="spotlight-read">{{ readMinutes(spotlightArticle.body) }} 分钟</text>
+          <text class="spotlight-read">{{ readMinutes(spotlightArticle) }} 分钟</text>
         </view>
-        <text class="spotlight-category">{{ categoryLabel(spotlightArticle.category) }}</text>
+        <text class="spotlight-category">{{ spotlightArticle.categoryName }}</text>
         <text class="spotlight-title">{{ spotlightArticle.title }}</text>
         <text class="spotlight-summary">{{ spotlightArticle.summary }}</text>
       </view>
-    </navigator>
+    </view>
 
     <view class="article-section">
       <view class="section-head">
         <text class="section-title">{{ listTitle }}</text>
-        <text class="section-count">{{ displayArticles.length }} 篇</text>
+        <text class="section-count">{{ articles.length }} 篇</text>
       </view>
 
-      <navigator
-        v-for="article in displayArticles"
-        :key="article.id"
-        class="article-card"
-        hover-class="navigator-hover"
-        :url="articleUrl(article.id)"
-      >
-        <view class="article-leading" :class="`article-leading-${article.category}`">
-          <text>{{ categoryShort(article.category) }}</text>
+      <view v-if="loading" class="content-state">
+        <MiniEmptyState title="正在加载内容" description="正在读取阅读列表，请稍候。" />
+      </view>
+
+      <view v-else-if="error" class="content-state">
+        <MiniNotice tone="warm" title="阅读列表加载失败">{{ error }}</MiniNotice>
+        <MiniButton variant="secondary" class="retry-button" @click="loadArticles">重新加载</MiniButton>
+      </view>
+
+      <view v-else-if="articles.length === 0" class="content-state">
+        <MiniEmptyState title="暂无内容" description="当前分类暂时没有已发布文章。" />
+      </view>
+
+      <template v-else>
+        <view v-if="displayArticles.length === 0" class="content-note">
+          <text>当前分类暂无更多文章，可先阅读上方精选内容。</text>
         </view>
-        <view class="article-copy">
-          <view class="article-meta">
-            <text class="article-tag">{{ categoryLabel(article.category) }}</text>
-            <text class="article-read">{{ readMinutes(article.body) }} 分钟</text>
+        <view
+          v-for="article in displayArticles"
+          :key="article.id"
+          class="article-card"
+          @click="goArticle(article.id)"
+        >
+          <view class="article-leading" :class="`article-leading-${article.categoryKey}`">
+            <text>{{ categoryShort(article.categoryKey) }}</text>
           </view>
-          <text class="article-title">{{ article.title }}</text>
-          <text class="article-summary">{{ article.summary }}</text>
+          <view class="article-copy">
+            <view class="article-meta">
+              <text class="article-tag">{{ article.categoryName }}</text>
+              <text class="article-read">{{ readMinutes(article) }} 分钟</text>
+            </view>
+            <text class="article-title">{{ article.title }}</text>
+            <text class="article-summary">{{ article.summary }}</text>
+          </view>
         </view>
-      </navigator>
+      </template>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
-import {
-  contentArticles,
-  contentCategories,
-  getArticlesByCategory,
-  getCategoryMeta,
-  getSpotlightArticle,
-  type ContentArticle,
-  type ContentCategory
-} from '@/mock/content'
+import { apiErrorMessage } from '@/api/client'
+import { listContentArticles, listContentCategories } from '@/api/content'
+import MiniButton from '@/components/base/MiniButton.vue'
+import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
+import MiniNotice from '@/components/base/MiniNotice.vue'
+import type { ContentArticleSummary, ContentCategory } from '@/types/api'
 
-type FilterKey = ContentCategory | 'all'
+const activeCategory = ref('all')
+const categories = ref<ContentCategory[]>([])
+const articles = ref<ContentArticleSummary[]>([])
+const spotlightArticle = ref<ContentArticleSummary | null>(null)
+const loading = ref(false)
+const error = ref('')
 
-const categoryRoundOrder: ContentCategory[] = ['tutorial', 'story', 'surname', 'article']
+const categoryFilters = computed(() => [
+  { key: 'all', title: '全部' },
+  ...categories.value.map((item) => ({ key: item.key, title: item.name }))
+])
 
-const activeCategory = ref<FilterKey>('all')
-const spotlightArticle = getSpotlightArticle()
-
-const categoryFilters = [
-  { key: 'all' as const, title: '全部' },
-  ...contentCategories.map((item) => ({ key: item.key as FilterKey, title: item.title }))
-]
-
-function interleaveArticles(articles: ContentArticle[], excludeId?: string) {
-  const pool = articles.filter((item) => item.id !== excludeId)
-  const buckets = new Map<ContentCategory, ContentArticle[]>()
-
-  for (const key of categoryRoundOrder) {
-    buckets.set(key, [])
-  }
-
-  for (const article of pool) {
-    buckets.get(article.category)?.push(article)
-  }
-
-  const result: ContentArticle[] = []
-  let hasMore = true
-
-  while (hasMore) {
-    hasMore = false
-    for (const key of categoryRoundOrder) {
-      const bucket = buckets.get(key)
-      if (bucket && bucket.length > 0) {
-        result.push(bucket.shift()!)
-        hasMore = true
-      }
-    }
-  }
-
-  return result
-}
-
-const displayArticles = computed(() => {
-  const excludeId = spotlightArticle?.id
-  if (activeCategory.value === 'all') {
-    return interleaveArticles(contentArticles, excludeId)
-  }
-  return interleaveArticles(getArticlesByCategory(activeCategory.value), excludeId)
-})
+const displayArticles = computed(() => articles.value.filter((item) => item.id !== spotlightArticle.value?.id))
 
 const listTitle = computed(() => {
   if (activeCategory.value === 'all') return '精选内容'
-  return getCategoryMeta(activeCategory.value)?.title || '内容列表'
+  return categories.value.find((item) => item.key === activeCategory.value)?.name || '内容列表'
 })
 
-function categoryLabel(key: ContentCategory) {
-  return getCategoryMeta(key)?.title || '内容'
+onMounted(async () => {
+  await Promise.all([loadCategories(), loadArticles()])
+})
+
+watch(activeCategory, () => {
+  void loadArticles()
+})
+
+async function loadCategories() {
+  try {
+    categories.value = await listContentCategories()
+  } catch (err) {
+    error.value = apiErrorMessage(err)
+  }
 }
 
-function categoryShort(key: ContentCategory) {
-  const map: Record<ContentCategory, string> = {
+async function loadArticles() {
+  loading.value = true
+  error.value = ''
+  try {
+    const result = await listContentArticles({
+      categoryKey: activeCategory.value === 'all' ? undefined : activeCategory.value,
+      page: 1,
+      pageSize: 50
+    })
+    articles.value = result.items
+    spotlightArticle.value = result.items.find((item) => item.isFeatured) || result.items[0] || null
+  } catch (err) {
+    error.value = apiErrorMessage(err)
+    articles.value = []
+    spotlightArticle.value = null
+  } finally {
+    loading.value = false
+  }
+}
+
+function categoryShort(key: string) {
+  const map: Record<string, string> = {
     tutorial: '教',
     story: '故',
     surname: '姓',
     article: '文'
   }
-  return map[key]
+  return map[key] || '文'
 }
 
-function readMinutes(body: string) {
-  const chars = body.replace(/\s/g, '').length
+function readMinutes(article: ContentArticleSummary) {
+  const chars = `${article.title}${article.summary || ''}`.replace(/\s/g, '').length
   return Math.max(1, Math.round(chars / 400))
 }
 
-function articleUrl(id: string) {
-  return `/pages/content/detail?id=${encodeURIComponent(id)}`
+function articleUrl(id: number | string) {
+  const article = articles.value.find((item) => item.id === id)
+  return `/pages/content/detail?id=${encodeURIComponent(article?.slug || String(id))}`
+}
+
+function goArticle(id: number | string) {
+  uni.navigateTo({ url: articleUrl(id) })
 }
 </script>
 
@@ -446,6 +461,32 @@ function articleUrl(id: string) {
 .section-count {
   color: var(--tree-text-weak);
   font-size: 21rpx;
+}
+
+.content-state {
+  margin-top: 14rpx;
+  border: 1rpx solid rgba(148, 163, 184, 0.14);
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 16rpx;
+  box-shadow: 0 10rpx 28rpx rgba(31, 58, 95, 0.04);
+}
+
+.retry-button {
+  margin-top: 16rpx;
+}
+
+.content-note {
+  border: 1rpx solid rgba(216, 229, 220, 0.9);
+  border-radius: 24rpx;
+  background: rgba(244, 248, 245, 0.9);
+  padding: 22rpx;
+}
+
+.content-note text {
+  color: var(--tree-text-secondary);
+  font-size: 24rpx;
+  line-height: 1.7;
 }
 
 .article-card {

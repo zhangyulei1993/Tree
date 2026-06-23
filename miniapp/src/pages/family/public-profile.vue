@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page">
+    <MiniBackHome />
     <MiniCard v-if="loadingFamily">
       <MiniEmptyState symbol="…" title="正在加载" description="正在加载公开家庭信息..." />
     </MiniCard>
@@ -122,6 +123,7 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { apiErrorMessage } from '@/api/client'
 import { getPublicFamilyDetail } from '@/api/families'
 import { createVisitorMessage, listPublicVisitorMessages } from '@/api/visitorMessages'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'

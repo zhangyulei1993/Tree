@@ -7,7 +7,6 @@
   "transformPx": false,
   "mp-weixin": {
     "appid": "wx443accd1b2b899df",
-    "lazyCodeLoading": "requiredComponents",
     "setting": {
       "urlCheck": false,
       "minified": true

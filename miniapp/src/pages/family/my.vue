@@ -1,5 +1,6 @@
 <template>
   <view class="tree-page family-space-page">
+    <MiniBackHome />
     <view class="tree-space tree-pedigree-watermark">
       <view class="tree-space-head">
         <text class="tree-space-title">我的家庭</text>
@@ -52,6 +53,7 @@ import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { listMyFamilies } from '@/api/families'
+import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
