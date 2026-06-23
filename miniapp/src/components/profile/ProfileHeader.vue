@@ -1,6 +1,7 @@
 <template>
   <view class="profile-header">
-    <view class="avatar">{{ avatarText }}</view>
+    <image v-if="avatarUrl" class="avatar avatar-image" :src="avatarUrl" mode="aspectFill" />
+    <view v-else class="avatar">{{ avatarText }}</view>
     <view class="info">
       <text class="name">{{ name }}</text>
       <text v-if="subtitle" class="subtitle">{{ subtitle }}</text>
@@ -18,6 +19,7 @@ defineProps<{
   name: string
   subtitle?: string
   avatarText?: string
+  avatarUrl?: string
   tags?: Array<{ label: string; tone?: 'active' | 'pending' | 'danger' | 'muted' }>
 }>()
 </script>
@@ -40,6 +42,9 @@ defineProps<{
   color: #fff;
   font-size: 38rpx;
   font-weight: 600;
+}
+.avatar-image {
+  background: #eef4f1;
 }
 .name {
   display: block;

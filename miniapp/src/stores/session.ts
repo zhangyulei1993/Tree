@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 
 import { bindPhone, loginPhone, logoutUser, registerPhone, wechatMiniLogin } from '@/api/auth'
+import { getMe, updateProfile, uploadAvatar } from '@/api/profile'
 import {
   apiMode,
   pendingRouteKey,
@@ -83,6 +84,21 @@ export const useSessionStore = defineStore('session', {
     async bindPhone(input: BindPhoneInput) {
       const result = await bindPhone(input)
       this.persistSession(result.accessToken, result.user)
+    },
+    async refreshMe() {
+      const user = await getMe()
+      this.persistSession(this.token, user)
+      return user
+    },
+    async saveProfile(input: { nickname?: string }) {
+      const user = await updateProfile(input)
+      this.persistSession(this.token, user)
+      return user
+    },
+    async saveAvatar(filePath: string) {
+      const user = await uploadAvatar(filePath)
+      this.persistSession(this.token, user)
+      return user
     },
     async register(input: RegisterPhoneInput) {
       const result = await registerPhone(input)

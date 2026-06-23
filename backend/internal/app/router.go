@@ -143,6 +143,14 @@ func (s *Server) registerUserAuthRoutes(api *gin.RouterGroup) {
 	protected.POST("/wechat-mini/bind-phone", authHandler.BindPhone)
 	protected.POST("/change-phone", authHandler.ChangePhone)
 	protected.POST("/cancel-account", authHandler.CancelAccount)
+
+	users := api.Group("/users/me")
+	users.Use(userAuth)
+	users.GET("", authHandler.GetMe)
+	users.PATCH("/profile", authHandler.UpdateProfile)
+	users.POST("/avatar", authHandler.UploadAvatar)
+
+	api.Static("/static/avatars", authservice.AvatarStorageRoot())
 }
 
 func (s *Server) buildUserAuth() (*authhandler.AuthHandler, gin.HandlerFunc) {

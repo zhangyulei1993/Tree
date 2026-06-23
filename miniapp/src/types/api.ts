@@ -9,8 +9,13 @@ export interface UserInfo {
   phone?: string | null
   phoneVerified: boolean
   nickname?: string | null
+  avatarUrl?: string | null
   status: string
   passwordSet?: boolean
+}
+
+export interface UpdateProfileInput {
+  nickname?: string
 }
 
 export interface LoginResult {

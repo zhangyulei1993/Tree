@@ -6,8 +6,11 @@
   "scripts": {
     "dev:h5": "uni -p h5",
     "dev:mp-weixin": "uni -p mp-weixin",
+    "dev:mp-weixin:staging": "VITE_API_MODE=real VITE_API_BASE_URL=https://tapi.bigbigboy.cn/api uni -p mp-weixin --mode staging",
     "build:h5": "uni build -p h5",
-    "build:mp-weixin": "uni build -p mp-weixin"
+    "build:h5:real": "VITE_API_MODE=real VITE_API_BASE_URL=/api uni build -p h5",
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "build:mp-weixin:staging": "VITE_API_MODE=real VITE_API_BASE_URL=https://tapi.bigbigboy.cn/api uni build -p mp-weixin --mode staging"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-5010220260604001",

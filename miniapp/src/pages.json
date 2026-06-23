@@ -19,6 +19,7 @@
     {"path": "pages/join/apply", "style": {"navigationBarTitleText": "加入申请"}},
     {"path": "pages/join/my", "style": {"navigationBarTitleText": "我的加入申请"}},
     {"path": "pages/me/index", "style": {"navigationBarTitleText": "个人中心"}},
+    {"path": "pages/me/profile", "style": {"navigationBarTitleText": "完善资料"}},
     {"path": "pages/legal/user-agreement", "style": {"navigationBarTitleText": "用户协议"}},
     {"path": "pages/legal/privacy-policy", "style": {"navigationBarTitleText": "隐私政策"}},
     {"path": "pages/account/cancel", "style": {"navigationBarTitleText": "注销账号"}},

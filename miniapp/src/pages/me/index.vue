@@ -6,8 +6,16 @@
           :name="session.user.nickname || '未设置昵称'"
           :subtitle="maskedPhone"
           :avatar-text="avatarText"
+          :avatar-url="avatarUrl"
           :tags="profileTags"
         />
+      </MiniCard>
+
+      <MiniCard v-if="showProfileIncompleteNotice" variant="soft" class="bind-notice-card">
+        <MiniNotice tone="info">
+          完善头像和昵称，方便家人识别你。
+        </MiniNotice>
+        <MiniButton class="btn-top" @click="go('/pages/me/profile')">去完善资料</MiniButton>
       </MiniCard>
 
       <MiniCard v-if="showPhoneBindNotice" variant="soft" class="bind-notice-card">
@@ -74,7 +82,7 @@
 import { onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
-import { apiErrorMessage } from '@/api/client'
+import { apiErrorMessage, resolveAssetUrl } from '@/api/client'
 import MiniActionList from '@/components/base/MiniActionList.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
@@ -99,6 +107,15 @@ const avatarText = computed(() => {
   const name = session.user?.nickname?.trim()
   if (name) return name.slice(0, 1)
   return '我'
+})
+
+const avatarUrl = computed(() => resolveAssetUrl(session.user?.avatarUrl))
+
+const showProfileIncompleteNotice = computed(() => {
+  if (!session.isLoggedIn || !session.user) return false
+  const nicknameMissing = !session.user.nickname?.trim()
+  const avatarMissing = !session.user.avatarUrl
+  return nicknameMissing || avatarMissing
 })
 
 const profileTags = computed(() => {
@@ -130,6 +147,11 @@ const affairItems = [
 ]
 
 const securityItems = computed(() => [
+  {
+    key: 'profile',
+    title: '完善资料',
+    desc: showProfileIncompleteNotice.value ? '设置昵称和头像' : '更新昵称和头像'
+  },
   {
     key: 'bind-phone',
     title: '绑定手机号',
@@ -163,6 +185,9 @@ function onAffairSelect(key: string) {
 
 function onSecuritySelect(key: string) {
   switch (key) {
+    case 'profile':
+      go('/pages/me/profile')
+      break
     case 'bind-phone':
       go('/pages/auth/bind-phone')
       break
@@ -197,7 +222,12 @@ async function logout() {
   }
 }
 
-onShow(() => session.restoreSession())
+onShow(() => {
+  session.restoreSession()
+  if (session.isLoggedIn) {
+    session.refreshMe().catch(() => undefined)
+  }
+})
 </script>
 
 <style scoped>

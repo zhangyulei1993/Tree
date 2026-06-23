@@ -102,6 +102,14 @@ func (r *bindUserRepoFake) UpdateUser(_ context.Context, userID uint64, values m
 			user.PhoneVerified = false
 		}
 	}
+	if nickname, ok := values["nickname"].(*string); ok {
+		user.Nickname = nickname
+	} else if nickname, ok := values["nickname"].(string); ok {
+		user.Nickname = &nickname
+	}
+	if avatarURL, ok := values["avatar_url"].(string); ok {
+		user.AvatarURL = &avatarURL
+	}
 	if hash, ok := values["password_hash"].(string); ok {
 		user.PasswordHash = &hash
 	}

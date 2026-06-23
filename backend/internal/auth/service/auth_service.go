@@ -43,6 +43,7 @@ const (
 	actionWechatLogin      = "WECHAT_MINI_LOGIN"
 	actionWechatPhoneLogin = "WECHAT_MINI_PHONE_LOGIN"
 	actionBindPhone        = "BIND_PHONE"
+	actionUpdateProfile    = "UPDATE_USER_PROFILE"
 	actionChangePhone      = "CHANGE_PHONE"
 	actionCancelAccount    = "CANCEL_ACCOUNT"
 	actionMergeAccount     = "ACCOUNT_MERGE"
@@ -144,20 +145,24 @@ type AuthService interface {
 	BindPhone(ctx context.Context, input BindPhoneInput) (*vo.LoginResponse, *apperrors.BusinessError)
 	ChangePhone(ctx context.Context, input ChangePhoneInput) *apperrors.BusinessError
 	CancelAccount(ctx context.Context, input CancelAccountInput) *apperrors.BusinessError
+	GetMe(ctx context.Context, userID uint64) (*vo.UserInfo, *apperrors.BusinessError)
+	UpdateProfile(ctx context.Context, input UpdateProfileInput) (*vo.UserInfo, *apperrors.BusinessError)
+	UploadAvatar(ctx context.Context, input UploadAvatarInput) (*vo.UserInfo, *apperrors.BusinessError)
 }
 
 type PhoneAuthService struct {
-	db              *gorm.DB
-	userRepo        repository.UserRepository
-	codeRepo        repository.VerificationCodeRepository
-	wechatClient    wechat.Client
-	jwtManager      *commonjwt.Manager
-	blacklist       redis.TokenBlacklist
-	operationLog    operationlog.Service
-	appEnv          string
-	wechatAppID     string
-	expireSeconds   int
-	cooldownSeconds int
+	db                *gorm.DB
+	userRepo          repository.UserRepository
+	codeRepo          repository.VerificationCodeRepository
+	wechatClient      wechat.Client
+	jwtManager        *commonjwt.Manager
+	blacklist         redis.TokenBlacklist
+	operationLog      operationlog.Service
+	appEnv            string
+	wechatAppID       string
+	expireSeconds     int
+	cooldownSeconds   int
+	avatarStorageRoot string
 }
 
 func NewPhoneAuthService(
@@ -180,17 +185,18 @@ func NewPhoneAuthService(
 	}
 
 	return &PhoneAuthService{
-		db:              db,
-		userRepo:        userRepo,
-		codeRepo:        codeRepo,
-		wechatClient:    wechatClient,
-		jwtManager:      jwtManager,
-		blacklist:       blacklist,
-		operationLog:    operationLog,
-		appEnv:          cfg.App.Env,
-		wechatAppID:     cfg.Wechat.MiniAppID,
-		expireSeconds:   expireSeconds,
-		cooldownSeconds: cooldownSeconds,
+		db:                db,
+		userRepo:          userRepo,
+		codeRepo:          codeRepo,
+		wechatClient:      wechatClient,
+		jwtManager:        jwtManager,
+		blacklist:         blacklist,
+		operationLog:      operationLog,
+		appEnv:            cfg.App.Env,
+		wechatAppID:       cfg.Wechat.MiniAppID,
+		expireSeconds:     expireSeconds,
+		cooldownSeconds:   cooldownSeconds,
+		avatarStorageRoot: AvatarStorageRoot(),
 	}
 }
 
@@ -936,6 +942,7 @@ func userInfo(user *usermodel.User) vo.UserInfo {
 		Phone:         user.Phone,
 		PhoneVerified: user.PhoneVerified,
 		Nickname:      user.Nickname,
+		AvatarURL:     user.AvatarURL,
 		Status:        user.Status,
 		PasswordSet:   user.PasswordHash != nil && *user.PasswordHash != "",
 	}
