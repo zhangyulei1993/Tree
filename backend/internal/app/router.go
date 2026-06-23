@@ -135,6 +135,7 @@ func (s *Server) registerUserAuthRoutes(api *gin.RouterGroup) {
 	auth.POST("/register-phone", authHandler.RegisterPhone)
 	auth.POST("/login-phone", authHandler.LoginPhone)
 	auth.POST("/wechat-mini/login", authHandler.WechatMiniLogin)
+	auth.POST("/wechat-mini/phone-login", authHandler.WechatMiniPhoneLogin)
 
 	protected := auth.Group("")
 	protected.Use(userAuth)

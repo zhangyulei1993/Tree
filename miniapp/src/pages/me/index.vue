@@ -17,6 +17,9 @@
 
       <MiniCard>
         <MiniSectionHeader title="账号与安全" subtitle="手机号绑定与账号管理" />
+        <MiniNotice v-if="showPasswordUnsetNotice" tone="info" class="password-notice">
+          当前账号尚未设置登录密码。如需在电脑网页登录，请先设置登录密码。
+        </MiniNotice>
         <MiniActionList :items="securityItems" @select="onSecuritySelect" />
       </MiniCard>
 
@@ -67,6 +70,7 @@ import { apiErrorMessage } from '@/api/client'
 import MiniActionList from '@/components/base/MiniActionList.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
+import MiniNotice from '@/components/base/MiniNotice.vue'
 import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
 import { accountStatusText, statusTagTone } from '@/components/base/formatStatus'
 import ProfileHeader from '@/components/profile/ProfileHeader.vue'
@@ -102,6 +106,8 @@ const profileTags = computed(() => {
     }
   ] as Array<{ label: string; tone: 'active' | 'pending' | 'danger' | 'muted' }>
 })
+
+const showPasswordUnsetNotice = computed(() => session.user?.passwordSet === false)
 
 const affairItems = [
   { key: 'family', title: '我的家庭', desc: '查看和管理家族资料' },
@@ -187,6 +193,10 @@ onShow(() => session.restoreSession())
 
 .btn-top {
   margin-top: 24rpx;
+}
+
+.password-notice {
+  margin-bottom: 20rpx;
 }
 
 .guest-actions {

@@ -132,6 +132,27 @@ func (h *AuthHandler) WechatMiniLogin(ctx *gin.Context) {
 	response.OK(ctx, result)
 }
 
+func (h *AuthHandler) WechatMiniPhoneLogin(ctx *gin.Context) {
+	var req dto.WechatMiniPhoneLoginRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+
+	result, businessErr := h.service.WechatMiniPhoneLogin(ctx.Request.Context(), authservice.WechatMiniPhoneLoginInput{
+		PhoneCode:  req.PhoneCode,
+		ClientType: req.ClientType,
+		IP:         ctx.ClientIP(),
+		UserAgent:  ctx.Request.UserAgent(),
+	})
+	if businessErr != nil {
+		response.Error(ctx, http.StatusBadRequest, businessErr)
+		return
+	}
+
+	response.OK(ctx, result)
+}
+
 func (h *AuthHandler) BindPhone(ctx *gin.Context) {
 	userID, err := middleware.CurrentUserID(ctx)
 	if err != nil {

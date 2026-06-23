@@ -54,6 +54,9 @@ const (
 	CodeWechatIdentityExpired      Code = 40303
 	CodeWechatAccountInvalid       Code = 40304
 	CodeWechatConfigError          Code = 40305
+	CodeWechatPhoneCodeInvalid     Code = 40306
+	CodeWechatPhoneFetchFailed     Code = 40307
+	CodeWechatPhoneLoginInvalid    Code = 40308
 	CodeBindPhoneLoginRequired     Code = 40401
 	CodeBindPhoneCodeInvalid       Code = 40402
 	CodeBindPhoneStatusDenied      Code = 40403
@@ -136,6 +139,9 @@ var messages = map[Code]string{
 	CodeWechatIdentityExpired:          "微信身份已失效",
 	CodeWechatAccountInvalid:           "当前微信账号状态异常",
 	CodeWechatConfigError:              "小程序配置错误",
+	CodeWechatPhoneCodeInvalid:         "微信手机号 code 无效",
+	CodeWechatPhoneFetchFailed:         "微信手机号获取失败",
+	CodeWechatPhoneLoginInvalid:        "微信手机号登录账号状态异常",
 	CodeBindPhoneLoginRequired:         "请先登录",
 	CodeBindPhoneCodeInvalid:           "验证码错误或已过期",
 	CodeBindPhoneStatusDenied:          "当前账号不能绑定手机号",

@@ -10,6 +10,7 @@ export interface UserInfo {
   phoneVerified: boolean
   nickname?: string | null
   status: string
+  passwordSet?: boolean
 }
 
 export interface LoginResult {

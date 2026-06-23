@@ -59,6 +59,18 @@ export async function loginPhone(input: LoginPhoneInput) {
   )
 }
 
+export async function wechatPhoneLogin(phoneCode: string) {
+  if (!isRealApiMode) return mockLoginResult()
+  return request<LoginResult, { phoneCode: string; clientType: string }>(
+    '/auth/wechat-mini/phone-login',
+    {
+      method: 'POST',
+      public: true,
+      data: { phoneCode, clientType }
+    }
+  )
+}
+
 export async function logoutUser() {
   if (!isRealApiMode) return
   await request<{ status: string }>('/auth/logout', { method: 'POST' })
