@@ -4,7 +4,7 @@
     <view class="tree-tool-banner members-banner">
       <view class="banner-copy">
         <text class="tree-tool-banner-title">家庭成员</text>
-        <text class="tree-tool-banner-desc">查看成员、角色与绑定状态</text>
+        <text class="tree-tool-banner-desc">查看成员基本信息与账号绑定</text>
       </view>
       <view class="tree-pedigree-mark" aria-hidden="true">
         <view class="node node-root" />
@@ -45,12 +45,14 @@
             v-for="member in members"
             :key="member.memberId"
             :name="member.name"
-            :gender-label="genderText(member.gender)"
-            :status-label="memberStatusText(member.status)"
+            :age-text="formatMemberAge(member)"
+            :gender-text="formatMemberGender(member.gender)"
+            :living-text="formatMemberLiving(member.isAlive)"
+            :binding-text="formatMemberBindingNeed(member)"
+            :show-binding="true"
+            :status-label="member.status !== 'ACTIVE' ? memberStatusText(member.status) : undefined"
             :status-tone="memberStatusTone(member.status)"
             :role-label="roleText(member.boundFamilyRole)"
-            :bind-label="bindStatusText(member)"
-            :remark="`绑定要求：${bindingPolicyText(member.userBindingPolicy)}`"
           />
         </view>
       </view>
@@ -73,6 +75,12 @@ import { statusTagTone } from '@/components/base/formatStatus'
 import MemberMiniCard from '@/components/family/MemberMiniCard.vue'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyMember } from '@/types/api'
+import {
+  formatMemberAge,
+  formatMemberBindingNeed,
+  formatMemberGender,
+  formatMemberLiving
+} from '@/utils/memberFormat'
 
 const session = useSessionStore()
 const familyId = ref('')
@@ -95,17 +103,6 @@ async function loadMembers() {
     errorMessage.value = apiErrorMessage(error, '成员列表加载失败。')
   } finally {
     loading.value = false
-  }
-}
-
-function genderText(gender: string) {
-  switch (gender) {
-    case 'MALE':
-      return '男'
-    case 'FEMALE':
-      return '女'
-    default:
-      return '未知性别'
   }
 }
 
@@ -141,25 +138,7 @@ function roleText(role?: string | null) {
     case 'MEMBER':
       return '成员'
     default:
-      return role ? '未知角色' : '未绑定角色'
-  }
-}
-
-function bindStatusText(member: FamilyMember) {
-  if (member.userBindingPolicy === 'NOT_REQUIRED') return '无需绑定'
-  return member.boundUserId ? '已绑定' : '未绑定'
-}
-
-function bindingPolicyText(policy: string) {
-  switch (policy) {
-    case 'REQUIRED':
-      return '需要绑定'
-    case 'OPTIONAL':
-      return '可选择绑定'
-    case 'NOT_REQUIRED':
-      return '无需绑定'
-    default:
-      return '未设置'
+      return role ? '未知角色' : ''
   }
 }
 

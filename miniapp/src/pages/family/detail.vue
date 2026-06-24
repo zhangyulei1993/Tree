@@ -97,7 +97,7 @@
             </view>
             <view class="tree-action-tile-copy">
               <text class="tree-action-tile-title">成员列表</text>
-              <text class="tree-action-tile-desc">查看与管理家庭成员</text>
+              <text class="tree-action-tile-desc">查看成员基本信息与绑定状态</text>
             </view>
             <text class="feature-arrow">›</text>
           </view>
@@ -107,7 +107,7 @@
             </view>
             <view class="tree-action-tile-copy">
               <text class="tree-action-tile-title">私有家谱</text>
-              <text class="tree-action-tile-desc">查看成员与亲属关系</text>
+              <text class="tree-action-tile-desc">查看父母子女与配偶关系</text>
             </view>
             <text class="feature-arrow">›</text>
           </view>
