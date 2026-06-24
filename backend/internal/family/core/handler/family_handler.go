@@ -70,6 +70,23 @@ func (h *FamilyHandler) PublicDetail(ctx *gin.Context) {
 	})
 }
 
+func (h *FamilyHandler) ListPublicFamilies(ctx *gin.Context) {
+	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(ctx.DefaultQuery("pageSize", "20"))
+	result, businessErr := h.service.ListPublicFamilies(ctx.Request.Context(), dto.ListPublicFamiliesQuery{
+		Keyword:       ctx.Query("keyword"),
+		FamilySurname: ctx.Query("familySurname"),
+		RegionText:    ctx.Query("regionText"),
+		Page:          page,
+		PageSize:      pageSize,
+	})
+	if businessErr != nil {
+		response.Error(ctx, http.StatusInternalServerError, businessErr)
+		return
+	}
+	response.OK(ctx, result)
+}
+
 func (h *FamilyHandler) Update(ctx *gin.Context) {
 	h.withFamilyID(ctx, func(familyID uint64) {
 		userID, ok := currentUser(ctx)

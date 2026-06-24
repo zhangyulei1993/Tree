@@ -90,6 +90,18 @@ export interface PublicFamily {
   publicContactVisible: boolean
 }
 
+export interface PublicFamilyListItem extends PublicFamily {
+  publicApprovedAt?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface ListPublicFamiliesQuery extends PaginationQuery {
+  keyword?: string
+  familySurname?: string
+  regionText?: string
+}
+
 export interface PaginationQuery {
   page?: number
   pageSize?: number

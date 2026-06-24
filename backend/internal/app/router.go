@@ -197,6 +197,7 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	}
 
 	api.GET("/families/:familyId/public", handler.PublicDetail)
+	api.GET("/public/families", handler.ListPublicFamilies)
 	api.GET("/public/families/:familyId/tree", treeHandler.PublicTree)
 	api.POST("/public/families/:familyId/visitor-messages", visitorMessageHandler.CreatePublic)
 	api.GET("/public/families/:familyId/visitor-messages", visitorMessageHandler.ListPublic)

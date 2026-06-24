@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -19,6 +20,17 @@ type FamilyListRow struct {
 	FamilyRole string `gorm:"column:family_role"`
 }
 
+type PublicFamilySearchQuery struct {
+	Keyword       string
+	FamilySurname string
+	RegionText    string
+	Page          int
+	PageSize      int
+}
+
+const publicFamilyListSelect = "id, family_name, family_surname, native_place, region_text, description, avatar_url, " +
+	"public_contact_visible, public_contact_name, public_contact_note, public_approved_at, created_at, updated_at"
+
 type FamilyRepository interface {
 	WithTx(tx *gorm.DB) FamilyRepository
 	FindUserByID(ctx context.Context, userID uint64) (*usermodel.User, error)
@@ -28,6 +40,7 @@ type FamilyRepository interface {
 	FindFamilyByID(ctx context.Context, familyID uint64) (*familymodel.Family, error)
 	FindFamilyByIDForUpdate(ctx context.Context, familyID uint64) (*familymodel.Family, error)
 	FindPublicFamilyByID(ctx context.Context, familyID uint64) (*familymodel.Family, error)
+	SearchPublicFamilies(ctx context.Context, query PublicFamilySearchQuery) ([]familymodel.Family, int64, error)
 	ListByUser(ctx context.Context, userID uint64) ([]FamilyListRow, error)
 	UpdateFamily(ctx context.Context, familyID uint64, values map[string]any) error
 	CreateDissolutionRequest(ctx context.Context, request *dissolutionmodel.FamilyDissolutionRequest) error
@@ -95,6 +108,56 @@ func (r *GormFamilyRepository) FindPublicFamilyByID(ctx context.Context, familyI
 		return nil, err
 	}
 	return &family, nil
+}
+
+func (r *GormFamilyRepository) SearchPublicFamilies(ctx context.Context, query PublicFamilySearchQuery) ([]familymodel.Family, int64, error) {
+	page, pageSize := normalizePublicSearchPage(query.Page, query.PageSize)
+	db := r.db.WithContext(ctx).Model(&familymodel.Family{}).
+		Select(publicFamilyListSelect).
+		Where("deleted_at IS NULL").
+		Where("status = ?", "NORMAL").
+		Where("searchable = ?", true).
+		Where("public_display_status = ?", "APPROVED")
+
+	if keyword := strings.TrimSpace(query.Keyword); keyword != "" {
+		pattern := "%" + keyword + "%"
+		db = db.Where(
+			"(family_name LIKE ? OR family_surname LIKE ? OR COALESCE(region_text, '') LIKE ? OR COALESCE(native_place, '') LIKE ?)",
+			pattern, pattern, pattern, pattern,
+		)
+	}
+	if surname := strings.TrimSpace(query.FamilySurname); surname != "" {
+		db = db.Where("family_surname LIKE ?", "%"+surname+"%")
+	}
+	if region := strings.TrimSpace(query.RegionText); region != "" {
+		db = db.Where("COALESCE(region_text, '') LIKE ?", "%"+region+"%")
+	}
+
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var families []familymodel.Family
+	err := db.
+		Order("public_approved_at IS NULL, public_approved_at DESC, updated_at DESC, id DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Find(&families).Error
+	return families, total, err
+}
+
+func normalizePublicSearchPage(page, pageSize int) (int, int) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+	return page, pageSize
 }
 
 func (r *GormFamilyRepository) ListByUser(ctx context.Context, userID uint64) ([]FamilyListRow, error) {

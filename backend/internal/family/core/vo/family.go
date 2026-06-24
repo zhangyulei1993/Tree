@@ -51,6 +51,29 @@ type PublicFamily struct {
 	PublicContactVisible bool    `json:"publicContactVisible"`
 }
 
+type PublicFamilyListItem struct {
+	ID                   uint64     `json:"id"`
+	FamilyName           string     `json:"familyName"`
+	FamilySurname        string     `json:"familySurname"`
+	NativePlace          *string    `json:"nativePlace,omitempty"`
+	RegionText           *string    `json:"regionText,omitempty"`
+	Description          *string    `json:"description,omitempty"`
+	AvatarURL            *string    `json:"avatarUrl,omitempty"`
+	PublicContactVisible bool       `json:"publicContactVisible"`
+	PublicContactName    *string    `json:"publicContactName,omitempty"`
+	PublicContactNote    *string    `json:"publicContactNote,omitempty"`
+	PublicApprovedAt     *time.Time `json:"publicApprovedAt,omitempty"`
+	CreatedAt            time.Time  `json:"createdAt"`
+	UpdatedAt            time.Time  `json:"updatedAt"`
+}
+
+type ListPublicFamiliesResult struct {
+	Items    []PublicFamilyListItem `json:"items"`
+	Page     int                    `json:"page"`
+	PageSize int                    `json:"pageSize"`
+	Total    int64                  `json:"total"`
+}
+
 type DissolutionRequest struct {
 	ID                uint64     `json:"id"`
 	FamilyID          uint64     `json:"familyId"`

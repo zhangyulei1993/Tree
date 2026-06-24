@@ -55,6 +55,7 @@ type FamilyService interface {
 	List(context.Context, uint64) ([]vo.FamilySummary, *apperrors.BusinessError)
 	Detail(context.Context, uint64, uint64) (*vo.FamilyDetail, *apperrors.BusinessError)
 	PublicDetail(context.Context, uint64) (*vo.PublicFamily, *apperrors.BusinessError)
+	ListPublicFamilies(context.Context, dto.ListPublicFamiliesQuery) (*vo.ListPublicFamiliesResult, *apperrors.BusinessError)
 	Update(context.Context, uint64, uint64, dto.UpdateFamilyRequest, AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError)
 	CreateDissolutionRequest(context.Context, uint64, uint64, dto.CreateDissolutionRequest, AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	CurrentDissolutionRequest(context.Context, uint64, uint64) (*vo.DissolutionRequest, *apperrors.BusinessError)
@@ -219,6 +220,30 @@ func (s *familyService) PublicDetail(ctx context.Context, familyID uint64) (*vo.
 	return result, nil
 }
 
+func (s *familyService) ListPublicFamilies(ctx context.Context, req dto.ListPublicFamiliesQuery) (*vo.ListPublicFamiliesResult, *apperrors.BusinessError) {
+	page, pageSize := normalizePublicSearchPage(req.Page, req.PageSize)
+	rows, total, err := s.repo.SearchPublicFamilies(ctx, familyrepo.PublicFamilySearchQuery{
+		Keyword:       req.Keyword,
+		FamilySurname: req.FamilySurname,
+		RegionText:    req.RegionText,
+		Page:          page,
+		PageSize:      pageSize,
+	})
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	items := make([]vo.PublicFamilyListItem, 0, len(rows))
+	for i := range rows {
+		items = append(items, publicFamilyListItem(&rows[i]))
+	}
+	return &vo.ListPublicFamiliesResult{
+		Items:    items,
+		Page:     page,
+		PageSize: pageSize,
+		Total:    total,
+	}, nil
+}
+
 func (s *familyService) Update(ctx context.Context, userID uint64, familyID uint64, req dto.UpdateFamilyRequest, audit AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError) {
 	allowed, err := s.permissions.CanManageFamily(ctx, userID, familyID)
 	if err != nil || !allowed {
@@ -364,6 +389,40 @@ func (s *familyService) CancelDissolutionRequest(ctx context.Context, userID uin
 	request.CancelledAt = &now
 	request.CancelReason = reason
 	return dissolutionVO(request), nil
+}
+
+func publicFamilyListItem(family *familymodel.Family) vo.PublicFamilyListItem {
+	item := vo.PublicFamilyListItem{
+		ID:                   family.ID,
+		FamilyName:           family.FamilyName,
+		FamilySurname:        family.FamilySurname,
+		NativePlace:          family.NativePlace,
+		RegionText:           family.RegionText,
+		Description:          family.Description,
+		AvatarURL:            family.AvatarURL,
+		PublicContactVisible: family.PublicContactVisible,
+		PublicApprovedAt:     family.PublicApprovedAt,
+		CreatedAt:            family.CreatedAt,
+		UpdatedAt:            family.UpdatedAt,
+	}
+	if family.PublicContactVisible {
+		item.PublicContactName = family.PublicContactName
+		item.PublicContactNote = family.PublicContactNote
+	}
+	return item
+}
+
+func normalizePublicSearchPage(page, pageSize int) (int, int) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+	return page, pageSize
 }
 
 func familyDetail(family *familymodel.Family, role string) *vo.FamilyDetail {
