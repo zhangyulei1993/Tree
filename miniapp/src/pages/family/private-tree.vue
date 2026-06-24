@@ -15,7 +15,7 @@
         <view class="banner-copy">
           <text class="tree-tool-banner-title">私有家谱</text>
           <text class="tree-tool-banner-desc">
-            {{ treeViewLabel(tree.treeMode) }} · {{ tree.nodes.length }} 位成员 · {{ visibleEdges.length }} 条关系
+            {{ treeViewLabel(tree.treeMode) }} · {{ tree.nodes.length }} 位成员 · {{ edgeCount }} 条关系
           </text>
         </view>
         <view class="tree-pedigree-mark" aria-hidden="true">
@@ -31,40 +31,36 @@
 
       <view class="tree-space">
         <view class="tree-space-head">
-          <text class="tree-space-title">家族成员</text>
-          <text class="tree-space-subtitle">成员及其账号绑定状态</text>
+          <text class="tree-space-title">家谱结构</text>
+          <text class="tree-space-subtitle">夫妻单元向下展开，可滑动查看</text>
         </view>
         <view class="tree-space-body section-pad">
-          <MiniEmptyState
-            v-if="tree.nodes.length === 0"
-            symbol="谱"
-            title="暂无成员"
-            description="请先在家庭成员中添加成员后再查看家谱。"
-          />
-          <MemberMiniCard
-            v-for="node in tree.nodes"
-            :key="node.memberId"
-            :name="node.displayName"
-            :gender-label="genderText(node.gender)"
-            :life-info="livingText(node.isLiving)"
-            :bind-label="bindingStateText(node.userBindingState)"
-          />
-        </view>
-      </view>
+          <TreeViewModeSwitch v-model="viewMode" />
 
-      <view class="tree-space">
-        <view class="tree-space-head">
-          <text class="tree-space-title">亲属关系</text>
-          <text class="tree-space-subtitle">父母子女与配偶关系</text>
-        </view>
-        <view class="tree-space-body section-pad">
-          <MiniEmptyState
-            v-if="visibleEdges.length === 0"
-            symbol="亲"
-            title="暂无关系"
-            description="暂无父母子女或配偶关系。当前仅展示已维护的家庭关系。"
-          />
-          <RelationSentenceList v-else :items="relationSentences" />
+          <template v-if="viewMode === 'structure'">
+            <MiniEmptyState
+              v-if="tree.nodes.length === 0"
+              symbol="谱"
+              title="暂无成员"
+              description="请先在家庭成员中添加成员后再查看家谱。"
+            />
+            <FamilyTreeStructureView
+              v-else
+              :tree="tree"
+              :viewer-member-id="viewerMemberId"
+              show-binding
+            />
+          </template>
+
+          <template v-else>
+            <MiniEmptyState
+              v-if="edgeCount === 0"
+              symbol="亲"
+              title="暂无关系"
+              description="暂无父母子女或配偶关系。"
+            />
+            <RelationSentenceList v-else :items="relationSentences" />
+          </template>
         </view>
       </view>
     </template>
@@ -76,14 +72,23 @@ import { onLoad } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
+import { listFamilyMembers } from '@/api/members'
 import { getPrivateTree } from '@/api/tree'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import MemberMiniCard from '@/components/family/MemberMiniCard.vue'
+import FamilyTreeStructureView from '@/components/family/FamilyTreeStructureView.vue'
 import RelationSentenceList from '@/components/family/RelationSentenceList.vue'
+import TreeViewModeSwitch from '@/components/family/TreeViewModeSwitch.vue'
+import { resolveCurrentMemberId } from '@/features/family-tree/resolveCurrentMember'
+import {
+  buildRelationSentences,
+  countVisibleEdges,
+  treeViewLabel
+} from '@/features/family-tree/relationSentences'
+import type { FamilyTreeViewMode } from '@/features/family-tree/types'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyTreeResult } from '@/types/api'
 
@@ -92,14 +97,11 @@ const familyId = ref('')
 const tree = ref<FamilyTreeResult | null>(null)
 const loading = ref(false)
 const errorMessage = ref('')
-const visibleEdges = computed(() =>
-  (tree.value?.edges || []).filter((edge) => String(edge.relationshipType) !== 'SIBLING')
-)
-const nodeNameMap = computed(() => new Map((tree.value?.nodes || []).map((node) => [node.memberId, node.displayName])))
-const nodeGenderMap = computed(() => new Map((tree.value?.nodes || []).map((node) => [node.memberId, node.gender])))
-const relationSentences = computed(() =>
-  visibleEdges.value.map((edge) => buildRelationSentence(edge))
-)
+const viewMode = ref<FamilyTreeViewMode>('structure')
+const viewerMemberId = ref<number | null>(null)
+
+const edgeCount = computed(() => (tree.value ? countVisibleEdges(tree.value) : 0))
+const relationSentences = computed(() => (tree.value ? buildRelationSentences(tree.value) : []))
 
 async function loadTree() {
   if (!familyId.value) {
@@ -110,99 +112,21 @@ async function loadTree() {
   if (!session.requireLogin(route)) return
   loading.value = true
   errorMessage.value = ''
+  viewerMemberId.value = null
   try {
     tree.value = await getPrivateTree(familyId.value)
+    if (session.user?.id) {
+      try {
+        const members = await listFamilyMembers(familyId.value)
+        viewerMemberId.value = resolveCurrentMemberId(session.user.id, members)
+      } catch {
+        // Tree nodes lack userId; members list is the supported way to locate "me".
+      }
+    }
   } catch (error) {
     errorMessage.value = apiErrorMessage(error, '家庭树加载失败。')
   } finally {
     loading.value = false
-  }
-}
-
-function nodeName(memberId: number) {
-  return nodeNameMap.value.get(memberId) || '未知成员'
-}
-
-function treeViewLabel(mode: string) {
-  switch (mode) {
-    case 'LIST_TREE':
-      return '家谱列表'
-    case 'GRAPH_TREE':
-      return '家谱图谱'
-    default:
-      return '私有家谱'
-  }
-}
-
-function buildRelationSentence(edge: FamilyTreeResult['edges'][number]) {
-  const fromName = nodeName(edge.fromMemberId)
-  const toName = nodeName(edge.toMemberId)
-  if (edge.relationshipType === 'SPOUSE') {
-    let sentence = `${fromName} 与 ${toName} 是配偶`
-    if (edge.relationNote) sentence += `，${edge.relationNote}`
-    return sentence
-  }
-  const fromGender = nodeGenderMap.value.get(edge.fromMemberId)
-  let parentRole = '父母'
-  if (fromGender === 'MALE') parentRole = '父亲'
-  else if (fromGender === 'FEMALE') parentRole = '母亲'
-  let sentence = `${fromName} 是 ${toName} 的${parentRole}`
-  const linkLabel = parentLinkText(edge.parentLinkType)
-  if (linkLabel && linkLabel !== '父母子女') {
-    sentence += `（${linkLabel}）`
-  }
-  if (edge.relationNote) sentence += `，${edge.relationNote}`
-  return sentence
-}
-
-function parentLinkText(type?: string | null) {
-  switch (type) {
-    case 'PRIMARY':
-      return '亲生'
-    case 'STEP':
-      return '继亲'
-    case 'ADOPTIVE':
-      return '收养'
-    case 'SUCCESSION':
-      return '过继'
-    case 'NOTE_ONLY':
-      return '备注'
-    case 'OTHER':
-      return '其他'
-    default:
-      return '父母子女'
-  }
-}
-
-function genderText(gender: string) {
-  switch (gender) {
-    case 'MALE':
-      return '男'
-    case 'FEMALE':
-      return '女'
-    default:
-      return '未知性别'
-  }
-}
-
-function livingText(isLiving?: boolean | null) {
-  if (isLiving === false) return '已故'
-  if (isLiving === true) return '健在'
-  return '生卒未知'
-}
-
-function bindingStateText(state: string) {
-  switch (state) {
-    case 'BOUND':
-      return '已绑定'
-    case 'UNBOUND':
-      return '未绑定'
-    case 'INVITING':
-      return '邀请中'
-    case 'NOT_REQUIRED':
-      return '无需绑定'
-    default:
-      return '未绑定'
   }
 }
 

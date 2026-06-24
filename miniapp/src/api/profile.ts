@@ -68,7 +68,12 @@ export async function uploadAvatar(filePath: string) {
         }
       },
       fail(error) {
-        reject(new Error(error.errMsg || '头像上传失败'))
+        const errMsg = error.errMsg || ''
+        if (/url not in domain list/i.test(errMsg)) {
+          reject(new Error('头像上传域名未配置。请在微信公众平台为小程序添加 uploadFile 合法域名：https://tapi.bigbigboy.cn'))
+          return
+        }
+        reject(new Error(errMsg || '头像上传失败'))
       }
     })
   })

@@ -13,7 +13,7 @@
     {"path": "pages/family/my", "style": {"navigationBarTitleText": "我的家庭"}},
     {"path": "pages/family/detail", "style": {"navigationBarTitleText": "家庭详情"}},
     {"path": "pages/family/members", "style": {"navigationBarTitleText": "家庭成员"}},
-    {"path": "pages/family/private-tree", "style": {"navigationBarTitleText": "私有家庭树"}},
+    {"path": "pages/family/private-tree", "style": {"navigationBarTitleText": "私有家谱"}},
     {"path": "pages/invite/detail", "style": {"navigationBarTitleText": "邀请确认"}},
     {"path": "pages/invite/my", "style": {"navigationBarTitleText": "我的邀请"}},
     {"path": "pages/join/apply", "style": {"navigationBarTitleText": "加入申请"}},
