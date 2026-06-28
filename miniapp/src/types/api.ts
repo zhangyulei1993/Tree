@@ -194,7 +194,36 @@ export interface Invitation {
 
 export interface CreateJoinRequestInput {
   applicantRealName?: string
+  applicantGender: Gender
   applicantMessage?: string
+}
+
+export interface ApproveJoinRequestInput {
+  approveMode: 'BIND_EXISTING_MEMBER' | 'CREATE_NEW_MEMBER'
+  memberId?: number | string
+  newMember?: {
+    name: string
+    gender?: Gender
+    birthDate?: string
+    birthYear?: number
+    isAlive?: boolean
+    userBindingPolicy?: UserBindingPolicy
+  }
+  location?: {
+    baseMemberId: number | string
+    addType: RelationshipAddType
+    relationship: {
+      relationshipType?: RelationshipType
+      parentLinkType?: string
+      relationNoteType?: string
+      relationNote?: string
+    }
+  }
+  handleComment?: string
+}
+
+export interface RejectJoinRequestInput {
+  handleComment?: string
 }
 
 export interface CancelJoinRequestInput {
@@ -207,6 +236,7 @@ export interface JoinRequest {
   familyName?: string
   applicantUserId: number | string
   applicantRealName?: string | null
+  applicantGender?: Gender | null
   applicantMessage?: string | null
   requestStatus: string
   handleComment?: string | null
@@ -234,6 +264,18 @@ export interface FamilyMember {
   createdAt: string
   updatedAt: string
 }
+
+export type Gender = 'MALE' | 'FEMALE' | 'UNKNOWN'
+export type UserBindingPolicy = 'OPTIONAL' | 'REQUIRED' | 'NOT_REQUIRED'
+
+export type RelationshipAddType =
+  | 'ADD_FATHER'
+  | 'ADD_MOTHER'
+  | 'ADD_CHILD'
+  | 'ADD_SPOUSE'
+  | 'ADD_SIBLING'
+
+export type RelationshipType = 'PARENT_CHILD' | 'SPOUSE'
 
 export interface TreeNode {
   memberId: number

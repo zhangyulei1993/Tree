@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -17,6 +18,8 @@ import (
 	joinrepo "tree/backend/internal/family/joinrequest/repository"
 	"tree/backend/internal/family/joinrequest/vo"
 	membermodel "tree/backend/internal/family/member/model"
+	relationshipmodel "tree/backend/internal/family/relationship/model"
+	relationshipservice "tree/backend/internal/family/relationship/service"
 	rolemodel "tree/backend/internal/family/role/model"
 	operationlog "tree/backend/internal/operationlog/service"
 )
@@ -54,10 +57,15 @@ func NewService(repo joinrepo.Repository, uow joinrepo.UnitOfWork, permissions p
 }
 
 func (s *service) Create(ctx context.Context, actorID, familyID uint64, req dto.CreateJoinRequest, audit AuditInput) (*vo.JoinRequest, *apperrors.BusinessError) {
+	applicantGender, genderErr := normalizeApplicantGender(req.ApplicantGender)
+	if genderErr != nil {
+		return nil, joinError(CodeApproveModeInvalid, "申请人性别必须选择男或女")
+	}
 	value := &joinmodel.FamilyJoinRequest{
 		FamilyID: familyID, ApplicantUserID: actorID,
-		ApplicantRealName: clean(req.ApplicantRealName), ApplicantMessage: clean(req.ApplicantMessage),
-		RequestStatus: joinenum.StatusPending,
+		ApplicantRealName: clean(req.ApplicantRealName), ApplicantGender: &applicantGender,
+		ApplicantMessage: clean(req.ApplicantMessage),
+		RequestStatus:    joinenum.StatusPending,
 	}
 	err := s.uow.WithinTransaction(ctx, func(repo joinrepo.Repository) error {
 		family, err := repo.FindFamily(ctx, familyID, true)
@@ -119,8 +127,13 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 	if mode != joinenum.ApproveBindExisting && mode != joinenum.ApproveCreateNew {
 		return nil, joinError(CodeApproveModeInvalid, "批准模式不合法")
 	}
+	if mode == joinenum.ApproveBindExisting && req.Location != nil {
+		return nil, joinError(CodeApproveModeInvalid, "绑定已有成员时不能重复定位")
+	}
 	var graphVersion *int64
 	var memberID uint64
+	var createdMember *membermodel.FamilyMember
+	var createdRelationships []*relationshipmodel.FamilyRelationship
 	err := s.uow.WithinTransaction(ctx, func(repo joinrepo.Repository) error {
 		family, err := repo.FindFamily(ctx, familyID, true)
 		if err != nil || family.Status != string(enums.StatusNormal) {
@@ -169,10 +182,34 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 			if err != nil {
 				return errMode
 			}
+			if request.ApplicantGender != nil && member.Gender != strings.ToUpper(strings.TrimSpace(*request.ApplicantGender)) {
+				return errApplicantGenderMismatch
+			}
 			if err := repo.CreateMember(ctx, member); err != nil {
 				return err
 			}
+			createdMember = member
 			memberID = member.ID
+			if req.Location != nil {
+				placementRepo, ok := repo.(relationshipservice.PlacementRepository)
+				if !ok {
+					return errPlacementUnavailable
+				}
+				createdRelationships, err = relationshipservice.PlaceExistingMember(
+					ctx,
+					placementRepo,
+					familyID,
+					family.FamilySurname,
+					actorID,
+					req.Location.BaseMemberID,
+					member,
+					req.Location.AddType,
+					req.Location.Relationship,
+				)
+				if err != nil {
+					return relationshipservice.MapPlacementError(err)
+				}
+			}
 			version, err := repo.IncrementGraphVersion(ctx, familyID)
 			if err != nil {
 				return err
@@ -199,6 +236,16 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 		}
 		if err := repo.UpdateStatus(ctx, request.ID, joinenum.StatusPending, values); err != nil {
 			return err
+		}
+		if createdMember != nil {
+			if err := writeCreatedMemberLog(ctx, repo, actorID, familyID, createdMember.ID, audit); err != nil {
+				return err
+			}
+		}
+		if len(createdRelationships) > 0 {
+			if err := writeCreatedRelationshipLog(ctx, repo, actorID, familyID, createdRelationships, audit); err != nil {
+				return err
+			}
 		}
 		return writeLog(ctx, repo, actorID, familyID, request.ID, "APPROVE_JOIN_REQUEST", audit)
 	})
@@ -297,6 +344,17 @@ func newMember(familyID, actorID uint64, input dto.NewMemberInput) (*membermodel
 	}, nil
 }
 
+func normalizeApplicantGender(value *string) (string, error) {
+	if value == nil {
+		return "", errMode
+	}
+	gender := strings.ToUpper(strings.TrimSpace(*value))
+	if gender != string(enums.GenderMale) && gender != string(enums.GenderFemale) {
+		return "", errMode
+	}
+	return gender, nil
+}
+
 func parseDate(value *string, year *int) (*time.Time, error) {
 	if value != nil && strings.TrimSpace(*value) != "" {
 		parsed, err := time.Parse("2006-01-02", strings.TrimSpace(*value))
@@ -316,7 +374,7 @@ func requestVO(row *joinrepo.JoinRequestRow) vo.JoinRequest {
 	return vo.JoinRequest{
 		RequestID: row.ID, FamilyID: row.FamilyID, FamilyName: row.FamilyName,
 		ApplicantUserID: row.ApplicantUserID, ApplicantRealName: row.ApplicantRealName,
-		ApplicantMessage: row.ApplicantMessage, RequestStatus: row.RequestStatus,
+		ApplicantGender: row.ApplicantGender, ApplicantMessage: row.ApplicantMessage, RequestStatus: row.RequestStatus,
 		ApproveMode: row.ApproveMode, BoundMemberID: row.BoundMemberID,
 		CreatedMemberID: row.CreatedMemberID, HandleComment: row.HandleComment,
 		HandledAt: row.HandledAt, CancelledAt: row.CancelledAt,
@@ -336,6 +394,28 @@ func writeLog(ctx context.Context, repo joinrepo.Repository, actorID, familyID, 
 		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
 		Module: "FAMILY_JOIN_REQUEST", Action: action, TargetType: &targetType,
 		TargetID: &requestID, FamilyID: &familyID, IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
+	})
+}
+
+func writeCreatedMemberLog(ctx context.Context, repo joinrepo.Repository, actorID, familyID, memberID uint64, audit AuditInput) error {
+	targetType := "FAMILY_MEMBER"
+	return repo.WriteLog(ctx, operationlog.WriteInput{
+		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
+		Module: "FAMILY_MEMBER", Action: "CREATE_MEMBER", TargetType: &targetType,
+		TargetID: &memberID, FamilyID: &familyID, MemberID: &memberID,
+		IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
+	})
+}
+
+func writeCreatedRelationshipLog(ctx context.Context, repo joinrepo.Repository, actorID, familyID uint64, relationships []*relationshipmodel.FamilyRelationship, audit AuditInput) error {
+	targetType := "FAMILY_RELATIONSHIP"
+	targetID := relationships[0].ID
+	detail, _ := json.Marshal(map[string]any{"relationshipCount": len(relationships), "source": "JOIN_REQUEST_APPROVAL"})
+	return repo.WriteLog(ctx, operationlog.WriteInput{
+		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
+		Module: "FAMILY_RELATIONSHIP", Action: "CREATE_RELATIONSHIP", TargetType: &targetType,
+		TargetID: &targetID, FamilyID: &familyID, DetailJSON: detail,
+		IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
 	})
 }
 func clean(value *string) *string {
@@ -362,14 +442,16 @@ func joinError(code apperrors.Code, message string) *apperrors.BusinessError {
 }
 
 var (
-	errRequestMissing  = errors.New("join request missing")
-	errInvalidStatus   = errors.New("invalid join request status")
-	errDuplicate       = errors.New("duplicate join request")
-	errForbidden       = errors.New("forbidden")
-	errMode            = errors.New("invalid approval mode")
-	errApplicant       = errors.New("applicant unavailable")
-	errApplicantLinked = errors.New("applicant linked")
-	errMember          = errors.New("member unavailable")
+	errRequestMissing          = errors.New("join request missing")
+	errInvalidStatus           = errors.New("invalid join request status")
+	errDuplicate               = errors.New("duplicate join request")
+	errForbidden               = errors.New("forbidden")
+	errMode                    = errors.New("invalid approval mode")
+	errApplicant               = errors.New("applicant unavailable")
+	errApplicantLinked         = errors.New("applicant linked")
+	errApplicantGenderMismatch = errors.New("applicant gender mismatch")
+	errMember                  = errors.New("member unavailable")
+	errPlacementUnavailable    = errors.New("relationship placement unavailable")
 )
 
 func mapError(err error) *apperrors.BusinessError {
@@ -386,11 +468,19 @@ func mapError(err error) *apperrors.BusinessError {
 		return joinError(CodeJoinRequestForbidden, "无权处理加入申请")
 	case errors.Is(err, errMode):
 		return joinError(CodeApproveModeInvalid, "批准模式不合法")
+	case errors.Is(err, errApplicantGenderMismatch):
+		return joinError(CodeApproveModeInvalid, "新成员性别必须与申请性别一致")
+	case errors.Is(err, errPlacementUnavailable):
+		return apperrors.New(apperrors.CodeSystemError)
 	case errors.Is(err, errApplicant), errors.Is(err, errApplicantLinked):
 		return joinError(CodeApplicantUnavailable, "申请用户不可用或已加入家庭")
 	case errors.Is(err, errMember):
 		return joinError(CodeTargetMemberUnavailable, "目标成员不可绑定")
 	default:
+		var businessErr *apperrors.BusinessError
+		if errors.As(err, &businessErr) {
+			return businessErr
+		}
 		return apperrors.New(apperrors.CodeSystemError)
 	}
 }

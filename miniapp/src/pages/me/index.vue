@@ -149,13 +149,13 @@ const affairItems = [
 const securityItems = computed(() => [
   {
     key: 'profile',
-    title: '完善资料',
+    title: showProfileIncompleteNotice.value ? '完善资料' : '更新资料',
     desc: showProfileIncompleteNotice.value ? '设置昵称和头像' : '更新昵称和头像'
   },
   {
     key: 'bind-phone',
-    title: '绑定手机号',
-    desc: session.user?.phoneVerified ? '已完成手机号验证' : '完成验证后可使用完整功能'
+    title: session.user?.phoneVerified ? '更改手机号' : '绑定手机号',
+    desc: session.user?.phoneVerified ? '当前手机号已验证，可重新绑定' : '完成验证后可使用完整功能'
   },
   { key: 'cancel', title: '注销账号', desc: '注销后账号将不可继续登录', danger: true }
 ])

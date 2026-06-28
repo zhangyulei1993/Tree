@@ -1,79 +1,81 @@
 <template>
   <view class="tree-page">
     <MiniBackHome />
-    <MiniSectionHeader title="我的邀请" subtitle="查看并处理收到的家庭邀请。" />
+    <template v-if="authChecked">
+      <MiniSectionHeader title="我的邀请" subtitle="查看并处理收到的家庭邀请。" />
 
-    <MiniCard>
-      <MiniNotice tone="security">
-        邀请由家庭管理员发起，请核对家庭名称与成员身份后再接受。
-      </MiniNotice>
-      <MiniButton variant="secondary" size="sm" :disabled="loading" :loading="loading" @click="loadInvitations">
-        刷新列表
-      </MiniButton>
-      <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
-    </MiniCard>
-
-    <MiniCard v-if="loading">
-      <view class="state-block">
-        <text class="tree-muted">正在加载邀请...</text>
-      </view>
-    </MiniCard>
-
-    <MiniCard v-else-if="loadError">
-      <MiniEmptyState
-        symbol="!"
-        title="加载失败"
-        :description="loadError"
-        action-text="重新加载"
-        @action="loadInvitations"
-      />
-    </MiniCard>
-
-    <MiniCard v-else-if="invitations.length === 0">
-      <MiniEmptyState
-        symbol="邀"
-        title="暂无邀请"
-        description="收到家庭邀请后，会在这里显示。你可以请家人发送邀请，或在公开家庭主页提交加入申请。"
-        action-text="寻找家族"
-        @action="openSearch"
-      />
-    </MiniCard>
-
-    <template v-else>
-      <MiniCard v-for="item in invitations" :key="item.invitationId" variant="soft">
-      <view class="item-head">
-        <text class="item-name">{{ item.familyName }}</text>
-        <MiniStatusTag :status="item.status" :label="invitationStatusText(item.status)" />
-      </view>
-      <text class="tree-muted item-meta">邀请成员：{{ item.targetMemberName }}</text>
-      <text class="tree-muted item-meta">邀请方式：{{ inviteChannelText(item.inviteChannel) }}</text>
-      <text class="tree-muted item-meta">加入后角色：{{ roleText(item.familyRoleAfterAccept) }}</text>
-      <text v-if="item.inviteMessage" class="tree-muted item-meta">邀请说明：{{ item.inviteMessage }}</text>
-      <text class="tree-weak item-meta">有效期至：{{ formatDate(item.expiredAt) }}</text>
-      <view v-if="item.status === 'PENDING'" class="item-actions">
-        <MiniButton
-          :disabled="actingId === item.invitationId"
-          :loading="actingId === item.invitationId && actingType === 'accept'"
-          @click="confirmAccept(item)"
-        >
-          接受邀请
+      <MiniCard>
+        <MiniNotice tone="security">
+          邀请由家庭管理员发起，请核对家庭名称与成员身份后再接受。
+        </MiniNotice>
+        <MiniButton variant="secondary" size="sm" :disabled="loading" :loading="loading" @click="loadInvitations">
+          刷新列表
         </MiniButton>
-        <MiniButton
-          variant="secondary"
-          :disabled="actingId === item.invitationId"
-          :loading="actingId === item.invitationId && actingType === 'reject'"
-          @click="confirmReject(item)"
-        >
-          拒绝邀请
-        </MiniButton>
-      </view>
+        <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
       </MiniCard>
+
+      <MiniCard v-if="loading">
+        <view class="state-block">
+          <text class="tree-muted">正在加载邀请...</text>
+        </view>
+      </MiniCard>
+
+      <MiniCard v-else-if="loadError">
+        <MiniEmptyState
+          symbol="!"
+          title="加载失败"
+          :description="loadError"
+          action-text="重新加载"
+          @action="loadInvitations"
+        />
+      </MiniCard>
+
+      <MiniCard v-else-if="invitations.length === 0">
+        <MiniEmptyState
+          symbol="邀"
+          title="暂无邀请"
+          description="收到家庭邀请后，会在这里显示。你可以请家人发送邀请，或在公开家庭主页提交加入申请。"
+          action-text="寻找家族"
+          @action="openSearch"
+        />
+      </MiniCard>
+
+      <template v-else>
+        <MiniCard v-for="item in invitations" :key="item.invitationId" variant="soft">
+          <view class="item-head">
+            <text class="item-name">{{ item.familyName }}</text>
+            <MiniStatusTag :status="item.status" :label="invitationStatusText(item.status)" />
+          </view>
+          <text class="tree-muted item-meta">邀请成员：{{ item.targetMemberName }}</text>
+          <text class="tree-muted item-meta">邀请方式：{{ inviteChannelText(item.inviteChannel) }}</text>
+          <text class="tree-muted item-meta">加入后角色：{{ roleText(item.familyRoleAfterAccept) }}</text>
+          <text v-if="item.inviteMessage" class="tree-muted item-meta">邀请说明：{{ item.inviteMessage }}</text>
+          <text class="tree-weak item-meta">有效期至：{{ formatDate(item.expiredAt) }}</text>
+          <view v-if="item.status === 'PENDING'" class="item-actions">
+            <MiniButton
+              :disabled="actingId === item.invitationId"
+              :loading="actingId === item.invitationId && actingType === 'accept'"
+              @click="confirmAccept(item)"
+            >
+              接受邀请
+            </MiniButton>
+            <MiniButton
+              variant="secondary"
+              :disabled="actingId === item.invitationId"
+              :loading="actingId === item.invitationId && actingType === 'reject'"
+              @click="confirmReject(item)"
+            >
+              拒绝邀请
+            </MiniButton>
+          </view>
+        </MiniCard>
+      </template>
     </template>
   </view>
 </template>
 
 <script setup lang="ts">
-import { onLoad } from '@dcloudio/uni-app'
+import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
 import { ref } from 'vue'
 
 import { acceptInvitation, listMyInvitations, rejectInvitation } from '@/api/invitations'
@@ -96,6 +98,15 @@ const loadError = ref('')
 const actionError = ref('')
 const actingId = ref<number | string | null>(null)
 const actingType = ref<'' | 'accept' | 'reject'>('')
+const authChecked = ref(false)
+
+function resetAuthView() {
+  authChecked.value = false
+  loading.value = false
+  loadError.value = ''
+  actionError.value = ''
+  invitations.value = []
+}
 
 function formatDate(value: string) {
   const time = new Date(value)
@@ -118,7 +129,10 @@ function openSearch() {
 }
 
 async function loadInvitations() {
+  authChecked.value = false
+  invitations.value = []
   if (!session.requireLogin('/pages/invite/my')) return
+  authChecked.value = true
   loading.value = true
   loadError.value = ''
   actionError.value = ''
@@ -181,10 +195,12 @@ async function reject(invitationId: number | string) {
   }
 }
 
-onLoad(() => {
+onShow(() => {
   session.restoreSession()
   loadInvitations()
 })
+onHide(resetAuthView)
+onUnload(resetAuthView)
 </script>
 
 <style scoped>

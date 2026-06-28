@@ -9,6 +9,8 @@ import (
 	familymodel "tree/backend/internal/family/core/model"
 	joinmodel "tree/backend/internal/family/joinrequest/model"
 	membermodel "tree/backend/internal/family/member/model"
+	relationshipmodel "tree/backend/internal/family/relationship/model"
+	relationshiprepo "tree/backend/internal/family/relationship/repository"
 	rolemodel "tree/backend/internal/family/role/model"
 	operationlog "tree/backend/internal/operationlog/service"
 	usermodel "tree/backend/internal/user/model"
@@ -38,10 +40,15 @@ type Repository interface {
 	WriteLog(context.Context, operationlog.WriteInput) error
 }
 
-type GormRepository struct{ db *gorm.DB }
+type GormRepository struct {
+	db            *gorm.DB
+	relationships *relationshiprepo.GormRepository
+}
 
-func NewRepository(db *gorm.DB) *GormRepository         { return &GormRepository{db: db} }
-func (r *GormRepository) WithTx(tx *gorm.DB) Repository { return &GormRepository{db: tx} }
+func NewRepository(db *gorm.DB) *GormRepository {
+	return &GormRepository{db: db, relationships: relationshiprepo.NewRepository(db)}
+}
+func (r *GormRepository) WithTx(tx *gorm.DB) Repository { return NewRepository(tx) }
 
 func (r *GormRepository) FindFamily(ctx context.Context, id uint64, lock bool) (*familymodel.Family, error) {
 	var value familymodel.Family
@@ -123,6 +130,38 @@ func (r *GormRepository) UpdateStatus(ctx context.Context, id uint64, current st
 }
 func (r *GormRepository) CreateMember(ctx context.Context, value *membermodel.FamilyMember) error {
 	return r.db.WithContext(ctx).Create(value).Error
+}
+
+func (r *GormRepository) FindMemberForUpdate(ctx context.Context, familyID, memberID uint64) (*membermodel.FamilyMember, error) {
+	return r.relationships.FindMemberForUpdate(ctx, familyID, memberID)
+}
+
+func (r *GormRepository) FindDuplicate(ctx context.Context, familyID, fromMemberID, toMemberID uint64, relationshipType string) (*relationshipmodel.FamilyRelationship, error) {
+	return r.relationships.FindDuplicate(ctx, familyID, fromMemberID, toMemberID, relationshipType)
+}
+
+func (r *GormRepository) ListActiveParents(ctx context.Context, familyID, childMemberID uint64) ([]relationshipmodel.FamilyRelationship, error) {
+	return r.relationships.ListActiveParents(ctx, familyID, childMemberID)
+}
+
+func (r *GormRepository) FindPrimaryParentByGender(ctx context.Context, familyID, childMemberID uint64, gender string, excludeRelationshipID uint64) (*relationshipmodel.FamilyRelationship, error) {
+	return r.relationships.FindPrimaryParentByGender(ctx, familyID, childMemberID, gender, excludeRelationshipID)
+}
+
+func (r *GormRepository) FindPrimaryParentWithMemberByGender(ctx context.Context, familyID, childMemberID uint64, gender string, excludeRelationshipID uint64) (*relationshipmodel.FamilyRelationship, *membermodel.FamilyMember, error) {
+	return r.relationships.FindPrimaryParentWithMemberByGender(ctx, familyID, childMemberID, gender, excludeRelationshipID)
+}
+
+func (r *GormRepository) ListActiveSpouseRelationshipsByGender(ctx context.Context, familyID, baseMemberID uint64, gender string) ([]relationshiprepo.SpouseRelationshipRow, error) {
+	return r.relationships.ListActiveSpouseRelationshipsByGender(ctx, familyID, baseMemberID, gender)
+}
+
+func (r *GormRepository) CreateRelationship(ctx context.Context, value *relationshipmodel.FamilyRelationship) error {
+	return r.relationships.CreateRelationship(ctx, value)
+}
+
+func (r *GormRepository) UpdateRelationship(ctx context.Context, familyID, relationshipID uint64, values map[string]any) error {
+	return r.relationships.UpdateRelationship(ctx, familyID, relationshipID, values)
 }
 func (r *GormRepository) CreateLink(ctx context.Context, value *rolemodel.FamilyMemberUserLink) error {
 	return r.db.WithContext(ctx).Create(value).Error

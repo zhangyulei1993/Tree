@@ -257,6 +257,7 @@ export interface CreatedInvitation {
 
 export interface CreateJoinRequestInput {
   applicantRealName?: string
+  applicantGender: Gender
   applicantMessage?: string
 }
 
@@ -270,6 +271,7 @@ export interface JoinRequest {
   familyName?: string
   applicantUserId: number | string
   applicantRealName?: string | null
+  applicantGender?: Gender | null
   applicantMessage?: string | null
   requestStatus: string
   approveMode?: string | null

@@ -30,6 +30,7 @@ export async function createJoinRequest(
       familyName: `Mock 家庭 ${familyId}`,
       applicantUserId: 'user_001',
       applicantRealName: input.applicantRealName || null,
+      applicantGender: input.applicantGender,
       applicantMessage: input.applicantMessage || null,
       requestStatus: 'PENDING',
       createdAt: now,

@@ -56,6 +56,10 @@
           maxlength="100"
           placeholder="你的真实姓名"
         />
+        <text class="tree-field-label">申请人性别</text>
+        <picker mode="selector" :range="genderLabels" :value="genderIndex" @change="onSelectGender">
+          <view class="picker-field">{{ genderLabels[genderIndex] }}</view>
+        </picker>
         <text class="tree-field-label">申请说明</text>
         <textarea
           v-model.trim="applicantMessage"
@@ -98,12 +102,14 @@ import MiniNotice from '@/components/base/MiniNotice.vue'
 import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
 import FamilyMiniCard from '@/components/family/FamilyMiniCard.vue'
 import { useSessionStore } from '@/stores/session'
-import type { JoinRequest, PublicFamily } from '@/types/api'
+import type { Gender, JoinRequest, PublicFamily } from '@/types/api'
 
 const session = useSessionStore()
 const familyId = ref('')
 const family = ref<PublicFamily | null>(null)
 const applicantRealName = ref('')
+const applicantGender = ref<Gender>('MALE')
+const genderIndex = ref(0)
 const applicantMessage = ref('')
 const submittedRequest = ref<JoinRequest | null>(null)
 const loading = ref(false)
@@ -132,6 +138,14 @@ function goPhoneLogin() {
   uni.navigateTo({ url: '/pages/auth/phone-login' })
 }
 
+const genders: Gender[] = ['MALE', 'FEMALE']
+const genderLabels = ['男', '女']
+
+function onSelectGender(event: { detail: { value: number | string } }) {
+  genderIndex.value = Number(event.detail.value) || 0
+  applicantGender.value = genders[genderIndex.value] || 'MALE'
+}
+
 async function loadFamily() {
   if (!familyId.value) {
     familyError.value = '家庭信息缺失。'
@@ -157,6 +171,7 @@ async function submitApplication() {
   try {
     submittedRequest.value = await createJoinRequest(familyId.value, {
       applicantRealName: applicantRealName.value || undefined,
+      applicantGender: applicantGender.value,
       applicantMessage: applicantMessage.value || undefined
     })
   } catch (error) {
@@ -190,5 +205,18 @@ onLoad((options) => {
 .form-hint {
   display: block;
   margin-bottom: 8rpx;
+}
+
+.picker-field {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 84rpx;
+  margin-bottom: 18rpx;
+  padding: 22rpx 24rpx;
+  border: 1rpx solid var(--tree-border-warm, #ebe4d6);
+  border-radius: 16rpx;
+  background: #fff;
+  color: var(--tree-text, #1f2937);
+  font-size: 26rpx;
 }
 </style>

@@ -30,7 +30,7 @@
     <view class="primary-grid">
       <view
         class="primary-card primary-card-main"
-        @click="go('/pages/family/my')"
+        @click="goPhoneProtected('/pages/family/my')"
       >
         <view class="primary-card-glow" />
         <view class="primary-card-content">
@@ -62,12 +62,12 @@
         <text class="section-note">保持家庭资料同步</text>
       </view>
       <view class="task-grid">
-        <view class="task-card" @click="go('/pages/invite/my')">
+        <view class="task-card" @click="goLoginProtected('/pages/invite/my')">
           <view class="task-mark task-mark-blue" />
           <text class="task-title">我的邀请</text>
           <text class="task-desc">查看收到的家庭邀请</text>
         </view>
-        <view class="task-card" @click="go('/pages/join/my')">
+        <view class="task-card" @click="goLoginProtected('/pages/join/my')">
           <view class="task-mark task-mark-green" />
           <text class="task-title">加入申请</text>
           <text class="task-desc">查看申请处理进度</text>
@@ -146,7 +146,9 @@
 
 <script setup lang="ts">
 import { getCategoryMeta, getHomeReadHighlights, type ContentCategory } from '@/mock/content'
+import { useSessionStore } from '@/stores/session'
 
+const session = useSessionStore()
 const readHighlights = getHomeReadHighlights()
 const featuredRead = readHighlights.find((item) => item.category.key === 'tutorial')?.article || null
 const secondaryReadHighlights = readHighlights.filter((item) => item.article?.id !== featuredRead?.id)
@@ -161,6 +163,18 @@ function articleUrl(id: string) {
 
 function go(url: string) {
   uni.navigateTo({ url })
+}
+
+function goLoginProtected(url: string) {
+  if (session.requireLogin(url)) {
+    go(url)
+  }
+}
+
+function goPhoneProtected(url: string) {
+  if (session.requirePhoneBound(url)) {
+    go(url)
+  }
 }
 
 function goTab(url: string) {

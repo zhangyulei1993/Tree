@@ -1,7 +1,7 @@
 <template>
   <view class="tree-page family-space-page">
     <MiniBackHome />
-    <view class="tree-space tree-pedigree-watermark">
+    <view v-if="authChecked" class="tree-space tree-pedigree-watermark">
       <view class="tree-space-head">
         <text class="tree-space-title">我的家庭</text>
         <text class="tree-space-subtitle">你创建或加入的家族空间</text>
@@ -48,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { onShow } from '@dcloudio/uni-app'
+import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
 import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -67,9 +67,20 @@ const session = useSessionStore()
 const families = ref<FamilySummary[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
+const authChecked = ref(false)
+
+function resetAuthView() {
+  authChecked.value = false
+  loading.value = false
+  errorMessage.value = ''
+  families.value = []
+}
 
 async function loadFamilies() {
+  authChecked.value = false
+  families.value = []
   if (!session.requirePhoneBound('/pages/family/my')) return
+  authChecked.value = true
   loading.value = true
   errorMessage.value = ''
   try {
@@ -136,6 +147,8 @@ function familyStatusTone(status: string) {
 }
 
 onShow(loadFamilies)
+onHide(resetAuthView)
+onUnload(resetAuthView)
 </script>
 
 <style scoped>

@@ -89,71 +89,17 @@ func (s *relationshipService) Create(ctx context.Context, actorID uint64, family
 		if err != nil {
 			return errMemberUnavailable
 		}
-
-		var plans []relationshipPlan
-		switch addType {
-		case relationshipenum.AddTypeFather:
-			member.Gender = string(enums.GenderMale)
-			plans = []relationshipPlan{{from: member, to: baseMember, relationshipType: string(relationshipenum.RelationshipTypeParentChild), input: input}}
-			if err := ensurePrimaryParentAvailable(ctx, repo, familyID, baseMember.ID, member.Gender, input.parentLinkType, 0); err != nil {
-				return err
-			}
-		case relationshipenum.AddTypeMother:
-			member.Gender = string(enums.GenderFemale)
-			plans = []relationshipPlan{{from: member, to: baseMember, relationshipType: string(relationshipenum.RelationshipTypeParentChild), input: input}}
-			if err := ensurePrimaryParentAvailable(ctx, repo, familyID, baseMember.ID, member.Gender, input.parentLinkType, 0); err != nil {
-				return err
-			}
-		case relationshipenum.AddTypeChild:
-			plans = []relationshipPlan{{from: baseMember, to: member, relationshipType: string(relationshipenum.RelationshipTypeParentChild), input: input}}
-		case relationshipenum.AddTypeSpouse:
-			member.MemberType = "SPOUSE"
-			plans = []relationshipPlan{{from: baseMember, to: member, relationshipType: string(relationshipenum.RelationshipTypeSpouse), input: input}}
-		case relationshipenum.AddTypeSibling:
-			parents, err := repo.ListActiveParents(ctx, familyID, baseMember.ID)
-			if err != nil {
-				return err
-			}
-			if len(parents) == 0 {
-				return errSiblingParentRequired
-			}
-			plans = make([]relationshipPlan, 0, len(parents))
-			for i := range parents {
-				parent, err := repo.FindMemberForUpdate(ctx, familyID, parents[i].FromMemberID)
-				if err != nil {
-					return errMemberUnavailable
-				}
-				parentInput := input
-				parentInput.parentLinkType = parents[i].ParentLinkType
-				plans = append(plans, relationshipPlan{
-					from: parent, to: member, relationshipType: string(relationshipenum.RelationshipTypeParentChild), input: parentInput,
-				})
-			}
+		if err := validatePlacementMembers(baseMember, member, addType); err != nil {
+			return err
 		}
-
 		if err := repo.CreateMember(ctx, member); err != nil {
 			return err
 		}
-		for i := range plans {
-			if plans[i].from.ID == 0 {
-				plans[i].from.ID = member.ID
-			}
-			if plans[i].to.ID == 0 {
-				plans[i].to.ID = member.ID
-			}
-			if plans[i].from.ID == plans[i].to.ID {
-				return errSelfRelationship
-			}
-			if _, err := repo.FindDuplicate(ctx, familyID, plans[i].from.ID, plans[i].to.ID, plans[i].relationshipType); err == nil {
-				return errDuplicateRelationship
-			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
-			relationship := plans[i].model(familyID, actorID)
-			if err := repo.CreateRelationship(ctx, relationship); err != nil {
-				return err
-			}
-			createdRelationships = append(createdRelationships, relationship)
+		createdRelationships, err = placeExistingMember(
+			ctx, repo, familyID, family.FamilySurname, actorID, req.BaseMemberID, member, addType, input,
+		)
+		if err != nil {
+			return err
 		}
 		graphVersion, err = repo.IncrementGraphVersion(ctx, familyID)
 		if err != nil {
@@ -341,11 +287,11 @@ func newMember(familyID uint64, actorID uint64, addType relationshipenum.AddType
 			return nil, relationshipError(CodeRelationshipMember, "新成员性别错误")
 		}
 	}
-	if addType == relationshipenum.AddTypeFather && gender == string(enums.GenderFemale) {
-		return nil, relationshipError(CodeRelationshipMember, "父亲成员性别不能为 FEMALE")
+	if addType == relationshipenum.AddTypeFather && gender != string(enums.GenderMale) {
+		return nil, relationshipError(CodeRelationshipMember, "父亲成员性别必须为男")
 	}
-	if addType == relationshipenum.AddTypeMother && gender == string(enums.GenderMale) {
-		return nil, relationshipError(CodeRelationshipMember, "母亲成员性别不能为 MALE")
+	if addType == relationshipenum.AddTypeMother && gender != string(enums.GenderFemale) {
+		return nil, relationshipError(CodeRelationshipMember, "母亲成员性别必须为女")
 	}
 	birthDate, err := parseDateOrYear(input.BirthDate, input.BirthYear)
 	if err != nil {
@@ -369,7 +315,7 @@ func newMember(familyID uint64, actorID uint64, addType relationshipenum.AddType
 	}, nil
 }
 
-func ensurePrimaryParentAvailable(ctx context.Context, repo relationshiprepo.Repository, familyID uint64, childID uint64, gender string, parentLinkType *string, excludeRelationshipID uint64) error {
+func ensurePrimaryParentAvailable(ctx context.Context, repo PlacementRepository, familyID uint64, childID uint64, gender string, parentLinkType *string, excludeRelationshipID uint64) error {
 	if parentLinkType == nil || *parentLinkType != string(relationshipenum.ParentLinkTypePrimary) {
 		return nil
 	}
@@ -385,6 +331,93 @@ func ensurePrimaryParentAvailable(ctx context.Context, repo relationshiprepo.Rep
 		return err
 	}
 	return nil
+}
+
+func applyParentPlacement(ctx context.Context, repo PlacementRepository, familyID uint64, familySurname string, childID uint64, gender string, input normalizedRelationshipInput, noteType string, note string) normalizedRelationshipInput {
+	if input.parentLinkType == nil || *input.parentLinkType != string(relationshipenum.ParentLinkTypePrimary) {
+		return input
+	}
+	_, existingParent, err := repo.FindPrimaryParentWithMemberByGender(ctx, familyID, childID, gender, 0)
+	if err != nil || existingParent == nil || isLineageMember(existingParent, familySurname) {
+		return input
+	}
+	step := string(relationshipenum.ParentLinkTypeStep)
+	input.parentLinkType = &step
+	if input.relationNoteType == nil {
+		input.relationNoteType = &noteType
+	}
+	if input.relationNote == nil {
+		input.relationNote = &note
+	}
+	return input
+}
+
+func applySpousePlacement(ctx context.Context, repo PlacementRepository, familyID uint64, familySurname string, baseMemberID uint64, spouseGender string, input normalizedRelationshipInput) (normalizedRelationshipInput, error) {
+	spouses, err := repo.ListActiveSpouseRelationshipsByGender(ctx, familyID, baseMemberID, spouseGender)
+	if err != nil || len(spouses) == 0 {
+		return input, err
+	}
+	for i := range spouses {
+		if isLineageMember(&spouses[i].Spouse, familySurname) {
+			if spouseGender == string(enums.GenderMale) {
+				return input, errPrimaryHusbandExists
+			}
+			return input, errPrimaryWifeExists
+		}
+	}
+	noteType := "SECOND_WIFE"
+	note := "再婚妻子"
+	if spouseGender == string(enums.GenderMale) {
+		noteType = "SECOND_HUSBAND"
+		note = "再婚丈夫"
+	}
+	if input.relationNoteType == nil {
+		input.relationNoteType = &noteType
+	}
+	if input.relationNote == nil {
+		input.relationNote = &note
+	}
+	previousType := "EX_WIFE"
+	previousNote := "前妻"
+	if spouseGender == string(enums.GenderMale) {
+		previousType = "EX_HUSBAND"
+		previousNote = "前夫"
+	}
+	for i := range spouses {
+		values := map[string]any{"relation_note_type": &previousType, "relation_note": &previousNote}
+		if err := repo.UpdateRelationship(ctx, familyID, spouses[i].Relationship.ID, values); err != nil {
+			return input, err
+		}
+	}
+	return input, nil
+}
+
+func oppositeGender(gender string) string {
+	if gender == string(enums.GenderMale) {
+		return string(enums.GenderFemale)
+	}
+	return string(enums.GenderMale)
+}
+
+func isLineageMember(member *membermodel.FamilyMember, familySurname string) bool {
+	if strings.ToUpper(strings.TrimSpace(member.MemberType)) == "SPOUSE" {
+		return false
+	}
+	expected := strings.TrimSpace(familySurname)
+	if expected == "" {
+		return true
+	}
+	if member.Surname != nil && strings.TrimSpace(*member.Surname) != "" {
+		return strings.TrimSpace(*member.Surname) == expected
+	}
+	return firstRune(member.DisplayName) == expected
+}
+
+func firstRune(value string) string {
+	for _, r := range strings.TrimSpace(value) {
+		return string(r)
+	}
+	return ""
 }
 
 func updateValues(req dto.UpdateRelationshipRequest) (map[string]any, *apperrors.BusinessError) {
@@ -477,6 +510,9 @@ func writeOperationLog(ctx context.Context, repo relationshiprepo.Repository, ac
 }
 
 func mapRepositoryError(err error) *apperrors.BusinessError {
+	if businessErr := asPlacementBusinessError(err); businessErr != nil {
+		return businessErr
+	}
 	switch {
 	case err == nil:
 		return nil
@@ -490,6 +526,22 @@ func mapRepositoryError(err error) *apperrors.BusinessError {
 		return relationshipError(CodePrimaryFatherExists, "PRIMARY 父亲已存在")
 	case errors.Is(err, errPrimaryMotherExists):
 		return relationshipError(CodePrimaryMotherExists, "PRIMARY 母亲已存在")
+	case errors.Is(err, errPrimaryHusbandExists):
+		return relationshipError(CodeRelationshipType, "已有本家族丈夫，不能重复添加")
+	case errors.Is(err, errPrimaryWifeExists):
+		return relationshipError(CodeRelationshipType, "已有本家族妻子，不能重复添加")
+	case errors.Is(err, errBaseGenderRequired):
+		return relationshipError(CodeRelationshipMember, "请先完善基准成员性别")
+	case errors.Is(err, errFatherGenderRequired):
+		return relationshipError(CodeRelationshipMember, "父亲成员性别必须为男")
+	case errors.Is(err, errMotherGenderRequired):
+		return relationshipError(CodeRelationshipMember, "母亲成员性别必须为女")
+	case errors.Is(err, errSpouseGenderMismatch):
+		return relationshipError(CodeRelationshipMember, "配偶性别必须与基准成员相对")
+	case errors.Is(err, errChildGenderRequired):
+		return relationshipError(CodeRelationshipMember, "子女性别必须选择男或女")
+	case errors.Is(err, errSiblingGenderRequired):
+		return relationshipError(CodeRelationshipMember, "兄弟姐妹性别必须选择男或女")
 	case errors.Is(err, errUnsupportedRelationship):
 		return relationshipError(CodeRelationshipType, "不支持的关系类型或修改")
 	case errors.Is(err, errRelationshipNotFound):
@@ -553,6 +605,14 @@ var (
 	errDuplicateRelationship   = errors.New("duplicate relationship")
 	errPrimaryFatherExists     = errors.New("primary father exists")
 	errPrimaryMotherExists     = errors.New("primary mother exists")
+	errPrimaryHusbandExists    = errors.New("primary husband exists")
+	errPrimaryWifeExists       = errors.New("primary wife exists")
+	errBaseGenderRequired      = errors.New("base gender required")
+	errFatherGenderRequired    = errors.New("father gender required")
+	errMotherGenderRequired    = errors.New("mother gender required")
+	errSpouseGenderMismatch    = errors.New("spouse gender mismatch")
+	errChildGenderRequired     = errors.New("child gender required")
+	errSiblingGenderRequired   = errors.New("sibling gender required")
 	errUnsupportedRelationship = errors.New("unsupported relationship")
 	errRelationshipNotFound    = errors.New("relationship not found")
 	errSelfRelationship        = errors.New("self relationship")

@@ -36,6 +36,7 @@
           {{ cooldown > 0 ? `${cooldown}s` : '发送验证码' }}
         </MiniButton>
       </view>
+      <text v-if="showTestCodeHint" class="tree-field-hint">测试阶段验证码为 123456。</text>
       <text class="tree-field-label">昵称（可选）</text>
       <input v-model.trim="nickname" class="input" maxlength="30" placeholder="昵称（可选）" />
       <text class="tree-field-label">密码</text>
@@ -80,6 +81,7 @@ const submitting = ref(false)
 const cooldown = ref(0)
 const errorMessage = ref('')
 const sendResult = ref('')
+const showTestCodeHint = import.meta.env.MODE !== 'production'
 let timer: ReturnType<typeof setInterval> | undefined
 
 async function send() {

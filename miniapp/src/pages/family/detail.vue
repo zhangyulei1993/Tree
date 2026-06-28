@@ -1,7 +1,11 @@
 <template>
   <view class="tree-page">
     <MiniBackHome />
-    <MiniCard v-if="loading">
+    <MiniCard v-if="!authChecked">
+      <MiniEmptyState symbol="…" title="正在确认登录状态" description="请稍候..." />
+    </MiniCard>
+
+    <MiniCard v-else-if="loading">
       <MiniEmptyState symbol="…" title="正在加载" description="正在加载家庭详情..." />
     </MiniCard>
 
@@ -111,6 +115,16 @@
             </view>
             <text class="feature-arrow">›</text>
           </view>
+          <view v-if="canManageFamily" class="tree-action-tile" @click="openJoinRequests">
+            <view class="tree-action-tile-icon">
+              <view class="tree-symbol tree-symbol-users" />
+            </view>
+            <view class="tree-action-tile-copy">
+              <text class="tree-action-tile-title">加入申请</text>
+              <text class="tree-action-tile-desc">查看并处理申请加入该家庭的记录</text>
+            </view>
+            <text class="feature-arrow">›</text>
+          </view>
         </view>
       </view>
     </template>
@@ -118,7 +132,7 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad } from '@dcloudio/uni-app'
+import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -138,6 +152,7 @@ const familyId = ref('')
 const family = ref<FamilyDetail | null>(null)
 const loading = ref(false)
 const errorMessage = ref('')
+const authChecked = ref(false)
 const publicContactText = computed(() => {
   if (!family.value?.publicContactVisible) return '未公开'
   const contacts = [
@@ -149,13 +164,21 @@ const publicContactText = computed(() => {
   return contacts.length > 0 ? contacts.join(' / ') : '未设置'
 })
 
+const canManageFamily = computed(() =>
+  family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
+)
+
 async function loadFamily() {
+  authChecked.value = false
+  family.value = null
   if (!familyId.value) {
+    authChecked.value = true
     errorMessage.value = '缺少家庭信息。'
     return
   }
   const route = `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}`
   if (!session.requireLogin(route)) return
+  authChecked.value = true
   loading.value = true
   errorMessage.value = ''
   try {
@@ -167,6 +190,13 @@ async function loadFamily() {
   }
 }
 
+function resetAuthView() {
+  authChecked.value = false
+  loading.value = false
+  errorMessage.value = ''
+  family.value = null
+}
+
 function openMembers() {
   uni.navigateTo({
     url: `/pages/family/members?familyId=${encodeURIComponent(familyId.value)}`
@@ -176,6 +206,12 @@ function openMembers() {
 function openTree() {
   uni.navigateTo({
     url: `/pages/family/private-tree?familyId=${encodeURIComponent(familyId.value)}`
+  })
+}
+
+function openJoinRequests() {
+  uni.navigateTo({
+    url: `/pages/join/family?familyId=${encodeURIComponent(familyId.value)}`
   })
 }
 
@@ -238,8 +274,10 @@ function publicStatusText(status: string) {
 
 onLoad((options) => {
   familyId.value = String(options?.familyId || '')
-  loadFamily()
 })
+onShow(loadFamily)
+onHide(resetAuthView)
+onUnload(resetAuthView)
 </script>
 
 <style scoped>

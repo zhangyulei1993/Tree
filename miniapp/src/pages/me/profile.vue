@@ -2,8 +2,8 @@
   <view class="tree-page auth-page">
     <MiniBackHome />
     <view class="tree-auth-brand">
-      <text class="tree-auth-brand-title">完善资料</text>
-      <text class="tree-auth-brand-desc">设置昵称和头像，方便家人识别你</text>
+      <text class="tree-auth-brand-title">{{ profileTitle }}</text>
+      <text class="tree-auth-brand-desc">{{ profileDesc }}</text>
     </view>
 
     <MiniCard variant="soft" class="tree-auth-card">
@@ -34,13 +34,14 @@
       <text v-if="successMessage" class="tree-field-success">{{ successMessage }}</text>
 
       <MiniButton class="btn-top" :disabled="saving" :loading="saving" @click="saveNickname">
-        保存昵称
+        保存资料
       </MiniButton>
     </MiniCard>
   </view>
 </template>
 
 <script setup lang="ts">
+import { onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage, resolveAssetUrl } from '@/api/client'
@@ -57,6 +58,14 @@ const saving = ref(false)
 const uploading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+
+const profileComplete = computed(() =>
+  Boolean(session.user?.nickname?.trim()) && Boolean(session.user?.avatarUrl)
+)
+const profileTitle = computed(() => (profileComplete.value ? '更新资料' : '完善资料'))
+const profileDesc = computed(() =>
+  profileComplete.value ? '更新昵称和头像，保持家人可识别' : '设置昵称和头像，方便家人识别你'
+)
 
 const avatarPreview = computed(() => {
   if (localAvatarPath.value) return localAvatarPath.value
@@ -82,6 +91,7 @@ async function onChooseAvatar(event: ChooseAvatarEvent) {
   uploading.value = true
   try {
     await session.saveAvatar(filePath)
+    await session.refreshMe().catch(() => undefined)
     successMessage.value = '头像已保存。'
     uni.showToast({ title: '头像已更新', icon: 'success' })
   } catch (error) {
@@ -103,6 +113,7 @@ async function saveNickname() {
   saving.value = true
   try {
     await session.saveProfile({ nickname: value })
+    await session.refreshMe().catch(() => undefined)
     successMessage.value = '昵称已保存。'
     uni.showToast({ title: '保存成功', icon: 'success' })
   } catch (error) {
@@ -111,6 +122,13 @@ async function saveNickname() {
     saving.value = false
   }
 }
+
+onShow(() => {
+  session.restoreSession()
+  if (session.isLoggedIn) {
+    session.refreshMe().catch(() => undefined)
+  }
+})
 </script>
 
 <style scoped>

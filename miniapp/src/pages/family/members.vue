@@ -17,7 +17,11 @@
       </view>
     </view>
 
-    <MiniCard v-if="errorMessage">
+    <MiniCard v-if="!authChecked">
+      <MiniEmptyState symbol="…" title="正在确认登录状态" description="请稍候..." />
+    </MiniCard>
+
+    <MiniCard v-else-if="errorMessage">
       <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
       <MiniButton variant="secondary" @click="loadMembers">重新加载</MiniButton>
     </MiniCard>
@@ -61,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad } from '@dcloudio/uni-app'
+import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -87,14 +91,26 @@ const familyId = ref('')
 const members = ref<FamilyMember[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
+const authChecked = ref(false)
+
+function resetAuthView() {
+  authChecked.value = false
+  loading.value = false
+  errorMessage.value = ''
+  members.value = []
+}
 
 async function loadMembers() {
+  authChecked.value = false
+  members.value = []
   if (!familyId.value) {
+    authChecked.value = true
     errorMessage.value = '缺少家庭信息。'
     return
   }
   const route = `/pages/family/members?familyId=${encodeURIComponent(familyId.value)}`
   if (!session.requireLogin(route)) return
+  authChecked.value = true
   loading.value = true
   errorMessage.value = ''
   try {
@@ -144,8 +160,10 @@ function roleText(role?: string | null) {
 
 onLoad((options) => {
   familyId.value = String(options?.familyId || '')
-  loadMembers()
 })
+onShow(loadMembers)
+onHide(resetAuthView)
+onUnload(resetAuthView)
 </script>
 
 <style scoped>

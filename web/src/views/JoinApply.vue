@@ -32,6 +32,13 @@
             />
           </label>
           <label>
+            <span>申请人性别</span>
+            <select v-model="applicantGender" class="field">
+              <option value="MALE">男</option>
+              <option value="FEMALE">女</option>
+            </select>
+          </label>
+          <label>
             <span>申请理由</span>
             <textarea
               v-model.trim="applicantMessage"
@@ -66,7 +73,7 @@ import { getPublicFamilyDetail } from '@/api/families'
 import { createJoinRequest } from '@/api/joinRequests'
 import PageShell from '@/components/PageShell.vue'
 import { useSessionStore } from '@/stores/session'
-import type { JoinRequest, PublicFamily } from '@/types/api'
+import type { Gender, JoinRequest, PublicFamily } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -74,6 +81,7 @@ const session = useSessionStore()
 const familyId = computed(() => String(route.params.familyId))
 const family = ref<PublicFamily | null>(null)
 const applicantRealName = ref('')
+const applicantGender = ref<Gender>('MALE')
 const applicantMessage = ref('')
 const submittedRequest = ref<JoinRequest | null>(null)
 const loading = ref(true)
@@ -104,6 +112,7 @@ async function submit() {
   try {
     submittedRequest.value = await createJoinRequest(familyId.value, {
       applicantRealName: applicantRealName.value || undefined,
+      applicantGender: applicantGender.value,
       applicantMessage: applicantMessage.value || undefined
     })
   } catch (requestError) {
