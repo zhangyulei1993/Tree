@@ -25,6 +25,13 @@ type CreateRelationshipRequest struct {
 	Relationship RelationshipInput `json:"relationship"`
 }
 
+type PlaceExistingMemberRequest struct {
+	BaseMemberID uint64            `json:"baseMemberId" binding:"required"`
+	MemberID     uint64            `json:"memberId" binding:"required"`
+	AddType      string            `json:"addType" binding:"required"`
+	Relationship RelationshipInput `json:"relationship"`
+}
+
 type UpdateRelationshipRequest struct {
 	ParentLinkType   *string `json:"parentLinkType"`
 	RelationNoteType *string `json:"relationNoteType"`

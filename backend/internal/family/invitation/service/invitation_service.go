@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -50,6 +51,8 @@ type Service interface {
 	Reject(context.Context, uint64, uint64, dto.RejectInvitationRequest, AuditInput) (*vo.Invitation, *apperrors.BusinessError)
 	Cancel(context.Context, uint64, uint64, dto.CancelInvitationRequest, AuditInput) (*vo.Invitation, *apperrors.BusinessError)
 	ListMine(context.Context, uint64) ([]vo.Invitation, *apperrors.BusinessError)
+	ListFamily(context.Context, uint64, uint64) ([]vo.Invitation, *apperrors.BusinessError)
+	Regenerate(context.Context, uint64, uint64, AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError)
 }
 
 type service struct {
@@ -232,6 +235,15 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 		}); err != nil {
 			return err
 		}
+		cancelled, err := repo.CancelPendingJoinRequestsForUser(ctx, invitation.FamilyID, actorID, now)
+		if err != nil {
+			return err
+		}
+		if cancelled > 0 {
+			if err := writeAutoResolutionLog(ctx, repo, actorID, invitation.FamilyID, "AUTO_CANCEL_JOIN_REQUESTS", cancelled, audit); err != nil {
+				return err
+			}
+		}
 		return writeLog(ctx, repo, actorID, invitation.FamilyID, invitation.TargetMemberID, invitation.ID, "ACCEPT_INVITATION", audit)
 	})
 	if businessErr := mapError(err); businessErr != nil {
@@ -317,6 +329,86 @@ func (s *service) ListMine(ctx context.Context, actorID uint64) ([]vo.Invitation
 	return result, nil
 }
 
+func (s *service) ListFamily(ctx context.Context, actorID, familyID uint64) ([]vo.Invitation, *apperrors.BusinessError) {
+	allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID)
+	if err != nil || !allowed {
+		return nil, inviteError(CodeInvitationForbidden, "无权查看家庭邀请")
+	}
+	rows, err := s.repo.ListForFamily(ctx, familyID)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	result := make([]vo.Invitation, 0, len(rows))
+	for i := range rows {
+		item := invitationVO(&rows[i])
+		if item.Status == inviteenum.StatusPending && !item.ExpiredAt.After(s.now()) {
+			item.Status = inviteenum.StatusExpired
+		}
+		result = append(result, item)
+	}
+	return result, nil
+}
+
+func (s *service) Regenerate(ctx context.Context, actorID, invitationID uint64, audit AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError) {
+	current, err := s.repo.FindByID(ctx, invitationID, false)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, inviteError(CodeInvitationNotFound, "邀请不存在")
+	}
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	allowed, err := s.permissions.CanManageFamily(ctx, actorID, current.FamilyID)
+	if err != nil || !allowed {
+		return nil, inviteError(CodeInvitationForbidden, "无权重新生成邀请")
+	}
+	if current.InviteChannel != inviteenum.ChannelShareLink {
+		return nil, inviteError(CodeMemberNotInvitable, "仅分享邀请可以重新生成")
+	}
+	rawToken, err := s.token()
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	now := s.now()
+	replacement := &invitationmodel.FamilyInvitation{}
+	err = s.uow.WithinTransaction(ctx, func(repo inviterepo.Repository) error {
+		value, err := repo.FindByID(ctx, invitationID, true)
+		if err != nil {
+			return errInvitationMissing
+		}
+		if value.Status != inviteenum.StatusPending {
+			return errInvalidStatus
+		}
+		if err := repo.UpdateStatus(ctx, value.ID, inviteenum.StatusPending, map[string]any{
+			"status":               inviteenum.StatusCancelled,
+			"cancelled_by_user_id": actorID,
+			"cancelled_at":         now,
+			"cancel_reason":        "重新生成分享邀请",
+		}); err != nil {
+			return err
+		}
+		replacement = &invitationmodel.FamilyInvitation{
+			FamilyID: value.FamilyID, TargetMemberID: value.TargetMemberID,
+			InviterUserID: &actorID, InviteType: value.InviteType,
+			InviteChannel: inviteenum.ChannelShareLink, InviteActorType: value.InviteActorType,
+			FamilyRoleAfterAccept: value.FamilyRoleAfterAccept,
+			InviteToken:           stringPtr(tokenHash(rawToken)), InviteMessage: value.InviteMessage,
+			Status: inviteenum.StatusPending, ExpiredAt: now.Add(invitationTTL),
+		}
+		if err := repo.Create(ctx, replacement); err != nil {
+			return err
+		}
+		return writeLog(ctx, repo, actorID, value.FamilyID, value.TargetMemberID, replacement.ID, "REGENERATE_INVITATION", audit)
+	})
+	if businessErr := mapError(err); businessErr != nil {
+		return nil, businessErr
+	}
+	row, err := s.repo.FindByTokenHash(ctx, tokenHash(rawToken))
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	return &vo.CreatedInvitation{Invitation: invitationVO(row), InviteToken: rawToken}, nil
+}
+
 func (s *service) resultByID(ctx context.Context, id uint64) (*vo.Invitation, *apperrors.BusinessError) {
 	row, err := s.repo.FindRowByID(ctx, id)
 	if err != nil {
@@ -330,6 +422,7 @@ func invitationVO(row *inviterepo.InvitationRow) vo.Invitation {
 	return vo.Invitation{
 		InvitationID: row.ID, FamilyID: row.FamilyID, FamilyName: row.FamilyName,
 		TargetMemberID: row.TargetMemberID, TargetMemberName: row.TargetMemberName,
+		InviterDisplayName: row.InviterDisplayName, InviterRole: row.InviteActorType,
 		InviteChannel: row.InviteChannel, InviteMessage: row.InviteMessage,
 		FamilyRoleAfterAccept: row.FamilyRoleAfterAccept, Status: row.Status,
 		ExpiredAt: row.ExpiredAt, AcceptedAt: row.AcceptedAt, RejectedAt: row.RejectedAt,
@@ -343,6 +436,17 @@ func writeLog(ctx context.Context, repo inviterepo.Repository, actorID, familyID
 		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
 		Module: "FAMILY_INVITATION", Action: action, TargetType: &targetType,
 		TargetID: &invitationID, FamilyID: &familyID, MemberID: &memberID,
+		IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
+	})
+}
+
+func writeAutoResolutionLog(ctx context.Context, repo inviterepo.Repository, actorID, familyID uint64, action string, count int64, audit AuditInput) error {
+	targetType := "FAMILY"
+	detail, _ := json.Marshal(map[string]any{"resolvedCount": count})
+	return repo.WriteLog(ctx, operationlog.WriteInput{
+		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
+		Module: "FAMILY_INVITATION", Action: action, TargetType: &targetType,
+		TargetID: &familyID, FamilyID: &familyID, DetailJSON: detail,
 		IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
 	})
 }

@@ -1,9 +1,16 @@
 <template>
-  <view class="tree-page">
+  <view class="tree-page family-join-review-page">
     <MiniBackHome />
-    <MiniSectionHeader title="加入申请" subtitle="查看申请加入该家庭的记录。" />
+    <FamilyContextHeader
+      v-if="familyName"
+      :family-name="familyName"
+      section="收到的加入申请"
+      subtitle="审核外部用户提交给该家庭的加入申请"
+      :role-label="familyRoleLabel"
+      @back="openFamilyOverview"
+    />
 
-    <MiniCard>
+    <MiniCard variant="hero" class="review-hero">
       <MiniNotice tone="security">
         仅家庭创建者和管理员可查看与处理。通过前请确认申请人在家谱中的位置。
       </MiniNotice>
@@ -44,7 +51,9 @@
     </MiniCard>
 
     <template v-else>
-      <MiniCard v-for="item in requests" :key="item.requestId" variant="soft">
+      <view v-for="group in requestGroups" :key="group.key" class="request-group">
+        <MiniSectionHeader :title="group.title" :subtitle="group.subtitle" />
+        <MiniCard v-for="item in group.items" :key="item.requestId" variant="soft" class="review-card">
         <view class="item-head">
           <view class="item-title-block">
             <text class="item-name">{{ item.applicantRealName || '未填写姓名' }}</text>
@@ -179,7 +188,8 @@
             </MiniButton>
           </template>
         </view>
-      </MiniCard>
+        </MiniCard>
+      </view>
     </template>
   </view>
 </template>
@@ -205,6 +215,7 @@ import { joinRequestStatusText } from '@/components/base/formatStatus'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
 import MiniStatusTag from '@/components/base/MiniStatusTag.vue'
+import FamilyContextHeader from '@/components/family/FamilyContextHeader.vue'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyMember, Gender, JoinRequest, RelationshipAddType, TreeEdge, TreeNode } from '@/types/api'
 
@@ -223,7 +234,9 @@ interface RelationOption {
 
 const session = useSessionStore()
 const familyId = ref('')
+const familyName = ref('')
 const familySurname = ref('')
+const familyRole = ref('')
 const requests = ref<JoinRequest[]>([])
 const members = ref<FamilyMember[]>([])
 const treeNodes = ref<TreeNode[]>([])
@@ -270,9 +283,18 @@ const relationOptionLabels = computed(() => relationOptions.value.map((option) =
 const selectedRelationOption = computed(() => relationOptions.value[addTypeIndex.value] || relationOptions.value[0])
 const selectedAddType = computed(() => selectedRelationOption.value?.addType || relationFallback)
 const selectedAddTypeLabel = computed(() => selectedRelationOption.value?.label || '关系')
+const familyRoleLabel = computed(() => familyRole.value === 'FOUNDER' ? '创建者' : '管理员')
 const treeNodeMap = computed(() => new Map(treeNodes.value.map((node) => [Number(node.memberId), node])))
 const selectedPlacement = computed(() => placementState(selectedBaseMember.value, selectedAddType.value))
 const placementTone = computed(() => selectedPlacement.value.blocked || selectedPlacement.value.relationNoteType ? 'warm' : 'security')
+const requestGroups = computed(() => {
+  const pending = requests.value.filter((item) => item.requestStatus === 'PENDING')
+  const history = requests.value.filter((item) => item.requestStatus !== 'PENDING')
+  return [
+    { key: 'pending', title: '待我审核', subtitle: '需要确认申请人身份和家谱位置', items: pending },
+    { key: 'history', title: '历史申请', subtitle: '已通过或驳回的处理记录', items: history }
+  ].filter((group) => group.items.length > 0)
+})
 
 function resetAuthView() {
   authChecked.value = false
@@ -284,6 +306,8 @@ function resetAuthView() {
   treeNodes.value = []
   treeEdges.value = []
   familySurname.value = ''
+  familyName.value = ''
+  familyRole.value = ''
   activeRequestId.value = null
 }
 
@@ -317,6 +341,8 @@ async function loadRequests() {
     ])
     const tree = await getPrivateTree(familyId.value)
     familySurname.value = family.familySurname || ''
+    familyName.value = family.familyName || '当前家庭'
+    familyRole.value = family.role
     requests.value = requestRows
     members.value = memberRows
     treeNodes.value = tree.nodes
@@ -328,6 +354,10 @@ async function loadRequests() {
   } finally {
     loading.value = false
   }
+}
+
+function openFamilyOverview() {
+  uni.redirectTo({ url: `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}` })
 }
 
 function memberLabel(member: FamilyMember) {
@@ -690,6 +720,20 @@ onUnload(resetAuthView)
 </script>
 
 <style scoped>
+.family-join-review-page {
+  background:
+    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
+    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
+}
+
+.review-hero {
+  margin-bottom: 26rpx;
+}
+
+.review-hero :deep(.mini-notice) {
+  margin-bottom: 18rpx;
+}
+
 .state-block {
   padding: 32rpx 0;
   text-align: center;
@@ -700,7 +744,7 @@ onUnload(resetAuthView)
   align-items: flex-start;
   justify-content: space-between;
   gap: 16rpx;
-  margin-bottom: 12rpx;
+  margin-bottom: 18rpx;
 }
 
 .item-title-block {
@@ -710,29 +754,54 @@ onUnload(resetAuthView)
 
 .item-name {
   display: block;
-  color: #1f2937;
-  font-size: 30rpx;
-  font-weight: 700;
+  color: var(--tree-text-primary);
+  font-size: 34rpx;
+  font-weight: 800;
 }
 
 .item-meta {
   display: block;
   margin-top: 8rpx;
+  color: var(--tree-text-secondary);
+  font-size: 24rpx;
+  line-height: 1.55;
 }
 
 .item-actions {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 12rpx;
   margin-top: 20rpx;
 }
 
+.review-card {
+  position: relative;
+  border-color: rgba(255, 255, 255, 0.72);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.12), transparent 160rpx),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 250, 247, 0.94) 100%);
+  box-shadow: 0 16rpx 40rpx rgba(24, 54, 83, 0.07);
+}
+
+.review-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 26rpx;
+  bottom: 26rpx;
+  width: 7rpx;
+  border-radius: 0 999rpx 999rpx 0;
+  background: linear-gradient(180deg, var(--tree-green) 0%, var(--tree-primary) 100%);
+}
+
 .resolve-panel {
   margin-top: 20rpx;
-  padding: 20rpx;
-  border: 1rpx solid var(--tree-border-subtle, #f0ebe3);
-  border-radius: 20rpx;
-  background: rgba(247, 250, 249, 0.76);
+  padding: 22rpx;
+  border: 1rpx solid rgba(47, 107, 87, 0.16);
+  border-radius: 24rpx;
+  background:
+    linear-gradient(135deg, rgba(243, 250, 247, 0.98) 0%, rgba(255, 255, 255, 0.96) 100%);
+  box-shadow: 0 12rpx 30rpx rgba(24, 54, 83, 0.06);
 }
 
 .panel-title {
@@ -754,10 +823,11 @@ onUnload(resetAuthView)
   min-height: 84rpx;
   margin-bottom: 18rpx;
   padding: 22rpx 24rpx;
-  border: 1rpx solid var(--tree-border-warm, #ebe4d6);
-  border-radius: 16rpx;
-  background: #fff;
+  border: 1rpx solid rgba(226, 232, 240, 0.88);
+  border-radius: 20rpx;
+  background: rgba(255, 255, 255, 0.94);
   color: var(--tree-text, #1f2937);
   font-size: 26rpx;
+  box-shadow: 0 6rpx 18rpx rgba(24, 54, 83, 0.035);
 }
 </style>

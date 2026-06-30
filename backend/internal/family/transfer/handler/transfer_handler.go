@@ -31,6 +31,15 @@ func (h *Handler) Create(ctx *gin.Context) {
 	write(ctx, http.StatusCreated, result, err)
 }
 
+func (h *Handler) Current(ctx *gin.Context) {
+	userID, familyID, ok := userAndFamily(ctx)
+	if !ok {
+		return
+	}
+	result, err := h.service.Current(ctx.Request.Context(), userID, familyID)
+	write(ctx, http.StatusOK, result, err)
+}
+
 func (h *Handler) Cancel(ctx *gin.Context) {
 	userID, familyID, ok := userAndFamily(ctx)
 	if !ok {

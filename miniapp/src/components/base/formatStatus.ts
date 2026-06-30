@@ -38,6 +38,8 @@ export function publicStatusText(status?: string): string {
       return '已驳回'
     case 'PRIVATE':
       return '私密'
+    case 'TAKEN_DOWN':
+      return '已下架'
     default:
       return '未知'
   }
@@ -142,9 +144,9 @@ export function statusTagTone(
   status?: string
 ): 'active' | 'pending' | 'danger' | 'muted' {
   const key = status?.toUpperCase() || ''
-  if (['ACTIVE', 'NORMAL', 'APPROVED', 'ACCEPTED'].includes(key)) return 'active'
-  if (['PENDING', 'PENDING_PHONE_BIND', 'DISSOLUTION_PENDING'].includes(key)) return 'pending'
-  if (['DISABLED', 'REJECTED', 'CANCELLED', 'DELETED', 'DISSOLVED', 'EXPIRED'].includes(key))
+  if (['ACTIVE', 'NORMAL', 'APPROVED', 'ACCEPTED', 'PUBLISHED'].includes(key)) return 'active'
+  if (['PENDING', 'PENDING_PHONE_BIND', 'DISSOLUTION_PENDING', 'DRAFT'].includes(key)) return 'pending'
+  if (['DISABLED', 'REJECTED', 'CANCELLED', 'DELETED', 'DISSOLVED', 'EXPIRED', 'TAKEN_DOWN'].includes(key))
     return 'danger'
   return 'muted'
 }

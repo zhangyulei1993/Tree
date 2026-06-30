@@ -27,23 +27,34 @@ defineProps<{
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
+  padding: 8px 2px 4px;
 }
 
 h1 {
   margin: 10px 0 0;
-  font-size: 22px;
+  color: var(--color-primary);
+  font-size: 28px;
   font-weight: 700;
-  letter-spacing: 0;
+  letter-spacing: -0.02em;
 }
 
 p {
   margin: 8px 0 0;
   color: var(--color-text-secondary);
-  font-size: 13px;
+  max-width: 720px;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .extra {
   display: flex;
   gap: 8px;
+}
+
+@media (max-width: 860px) {
+  .page-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 </style>

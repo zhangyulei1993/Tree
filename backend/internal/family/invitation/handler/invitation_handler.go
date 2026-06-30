@@ -90,6 +90,28 @@ func (h *Handler) ListMine(ctx *gin.Context) {
 	write(ctx, http.StatusOK, result, err)
 }
 
+func (h *Handler) ListFamily(ctx *gin.Context) {
+	actor, ok := userID(ctx)
+	if !ok {
+		return
+	}
+	family, ok := pathID(ctx, "familyId")
+	if !ok {
+		return
+	}
+	result, err := h.service.ListFamily(ctx, actor, family)
+	write(ctx, http.StatusOK, result, err)
+}
+
+func (h *Handler) Regenerate(ctx *gin.Context) {
+	actor, invitation, ok := actorAndInvitation(ctx)
+	if !ok {
+		return
+	}
+	result, err := h.service.Regenerate(ctx, actor, invitation, audit(ctx))
+	write(ctx, http.StatusCreated, result, err)
+}
+
 func actorAndInvitation(ctx *gin.Context) (uint64, uint64, bool) {
 	actor, ok := userID(ctx)
 	if !ok {

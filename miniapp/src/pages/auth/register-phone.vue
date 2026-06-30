@@ -1,13 +1,12 @@
 <template>
-  <view class="tree-page auth-page tree-page-lineage">
-    <MiniBackHome />
+  <view class="tree-page auth-page">
     <view class="tree-auth-brand">
       <text class="tree-auth-brand-eyebrow">Tree</text>
       <text class="tree-auth-brand-title">注册账号</text>
       <text class="tree-auth-brand-desc">填写手机号与验证码，完成注册后即可登录</text>
     </view>
 
-    <MiniCard variant="info" class="tree-auth-card paper-surface">
+    <MiniCard variant="info" class="tree-auth-card">
       <text class="tree-field-label">手机号</text>
       <input
         v-model.trim="phone"
@@ -66,7 +65,6 @@ import { onUnmounted, ref } from 'vue'
 
 import { sendCode } from '@/api/auth'
 import { apiErrorMessage } from '@/api/client'
-import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import { useSessionStore } from '@/stores/session'

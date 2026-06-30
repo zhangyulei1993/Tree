@@ -209,6 +209,20 @@ func TestTransferCreateRules(t *testing.T) {
 			t.Fatalf("unexpected %#v", err)
 		}
 	})
+	t.Run("active family member reads current request", func(t *testing.T) {
+		repo := newFakeRepo()
+		created, _ := newTestService(repo).Create(context.Background(), 8, 2, transferdto.CreateTransferRequest{ToMemberID: 4}, AuditInput{})
+		result, err := newTestService(repo).Current(context.Background(), 9, 2)
+		if err != nil || result.RequestID != created.RequestID || result.RequestStatus != transferenum.StatusPending {
+			t.Fatalf("unexpected %#v %#v", result, err)
+		}
+	})
+	t.Run("outsider cannot read current request", func(t *testing.T) {
+		repo := newFakeRepo()
+		if _, err := newTestService(repo).Current(context.Background(), 99, 2); err == nil || err.Code != CodeTransferForbidden {
+			t.Fatalf("unexpected %#v", err)
+		}
+	})
 }
 
 func TestTransferReviewRules(t *testing.T) {

@@ -166,6 +166,10 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 			if err != nil || member.UserBindingPolicy == string(enums.UserBindingNotRequired) {
 				return errMember
 			}
+			if request.ApplicantGender == nil ||
+				member.Gender != strings.ToUpper(strings.TrimSpace(*request.ApplicantGender)) {
+				return errApplicantGenderMismatch
+			}
 			linked, err := linkExists(repo.FindActiveLinkByMember(ctx, familyID, member.ID))
 			if err != nil {
 				return err
@@ -236,6 +240,15 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 		}
 		if err := repo.UpdateStatus(ctx, request.ID, joinenum.StatusPending, values); err != nil {
 			return err
+		}
+		cancelledInvitations, err := repo.CancelPendingInvitations(ctx, familyID, request.ApplicantUserID, memberID, now)
+		if err != nil {
+			return err
+		}
+		if cancelledInvitations > 0 {
+			if err := writeAutoCancelledInvitationsLog(ctx, repo, actorID, familyID, cancelledInvitations, audit); err != nil {
+				return err
+			}
 		}
 		if createdMember != nil {
 			if err := writeCreatedMemberLog(ctx, repo, actorID, familyID, createdMember.ID, audit); err != nil {
@@ -418,6 +431,17 @@ func writeCreatedRelationshipLog(ctx context.Context, repo joinrepo.Repository, 
 		IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
 	})
 }
+
+func writeAutoCancelledInvitationsLog(ctx context.Context, repo joinrepo.Repository, actorID, familyID uint64, count int64, audit AuditInput) error {
+	targetType := "FAMILY"
+	detail, _ := json.Marshal(map[string]any{"resolvedCount": count})
+	return repo.WriteLog(ctx, operationlog.WriteInput{
+		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
+		Module: "FAMILY_JOIN_REQUEST", Action: "AUTO_CANCEL_INVITATIONS", TargetType: &targetType,
+		TargetID: &familyID, FamilyID: &familyID, DetailJSON: detail,
+		IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
+	})
+}
 func clean(value *string) *string {
 	if value == nil {
 		return nil
@@ -469,7 +493,7 @@ func mapError(err error) *apperrors.BusinessError {
 	case errors.Is(err, errMode):
 		return joinError(CodeApproveModeInvalid, "批准模式不合法")
 	case errors.Is(err, errApplicantGenderMismatch):
-		return joinError(CodeApproveModeInvalid, "新成员性别必须与申请性别一致")
+		return joinError(CodeApproveModeInvalid, "成员节点性别必须与申请人性别一致")
 	case errors.Is(err, errPlacementUnavailable):
 		return apperrors.New(apperrors.CodeSystemError)
 	case errors.Is(err, errApplicant), errors.Is(err, errApplicantLinked):

@@ -39,10 +39,44 @@ type Service interface {
 	Submit(context.Context, uint64, uint64, dto.CreatePublicApplicationRequest, AuditInput) (*vo.PublicApplication, *apperrors.BusinessError)
 	ListFamily(context.Context, uint64, uint64, dto.ListApplicationsQuery) (*vo.ListResult, *apperrors.BusinessError)
 	Cancel(context.Context, uint64, uint64, uint64, dto.CancelPublicApplicationRequest, AuditInput) (*vo.PublicApplication, *apperrors.BusinessError)
+	TakeDownUser(context.Context, uint64, uint64, dto.TakeDownPublicFamilyRequest, AuditInput) (*vo.FamilyPublicStatus, *apperrors.BusinessError)
 	ListAdmin(context.Context, uint64, string, dto.ListApplicationsQuery) (*vo.ListResult, *apperrors.BusinessError)
 	Approve(context.Context, uint64, string, uint64, dto.ReviewPublicApplicationRequest, AuditInput) (*vo.PublicApplication, *apperrors.BusinessError)
 	Reject(context.Context, uint64, string, uint64, dto.ReviewPublicApplicationRequest, AuditInput) (*vo.PublicApplication, *apperrors.BusinessError)
 	TakeDown(context.Context, uint64, string, uint64, dto.TakeDownPublicFamilyRequest, AuditInput) (*vo.FamilyPublicStatus, *apperrors.BusinessError)
+}
+
+func (s *service) TakeDownUser(ctx context.Context, actorID uint64, familyID uint64, req dto.TakeDownPublicFamilyRequest, audit AuditInput) (*vo.FamilyPublicStatus, *apperrors.BusinessError) {
+	allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID)
+	if err != nil || !allowed {
+		return nil, publicError(CodePublicApplicationForbidden, "无权关闭家庭公开展示")
+	}
+	var status *vo.FamilyPublicStatus
+	err = s.uow.WithinTransaction(ctx, func(repo publicrepo.Repository) error {
+		family, err := repo.FindFamily(ctx, familyID, true)
+		if err != nil || family.Status != string(enums.StatusNormal) {
+			return errFamilyUnavailable
+		}
+		if family.PublicDisplayStatus != publicenum.PublicApproved {
+			return errTakeDown
+		}
+		now := s.now()
+		if err := repo.UpdateFamilyPublicStatus(ctx, familyID, map[string]any{
+			"public_display_status": publicenum.PublicTakenDown,
+			"public_taken_down_at":  now,
+		}); err != nil {
+			return err
+		}
+		status = &vo.FamilyPublicStatus{
+			FamilyID: familyID, PublicDisplayStatus: publicenum.PublicTakenDown,
+			PublicTakenDownAt: &now,
+		}
+		return writeUserFamilyLog(ctx, repo, actorID, familyID, "CLOSE_PUBLIC_FAMILY", audit)
+	})
+	if businessErr := mapError(err); businessErr != nil {
+		return nil, businessErr
+	}
+	return status, nil
 }
 
 type service struct {
@@ -267,12 +301,23 @@ func rowsVO(rows []publicrepo.ApplicationRow) []vo.PublicApplication {
 func appVO(row *publicrepo.ApplicationRow) vo.PublicApplication {
 	return vo.PublicApplication{
 		ApplicationID: row.ID, FamilyID: row.FamilyID, FamilyName: row.FamilyName,
-		ApplicantUserID: row.ApplicantUserID, ApplicantAdminID: row.ApplicantAdminID,
+		FamilyPublicDisplayStatus: row.FamilyPublicDisplayStatus,
+		ApplicantUserID:           row.ApplicantUserID, ApplicantAdminID: row.ApplicantAdminID,
 		Status: row.ApplicationStatus, Reason: row.ApplicationReason, ReviewResult: row.ReviewResult,
 		ReviewedByAdminID: row.ReviewedByAdminID, ReviewedAt: row.ReviewedAt,
 		ReviewComment: row.ReviewComment, CancelledAt: row.CancelledAt,
 		CancelReason: row.CancelReason, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
+}
+
+func writeUserFamilyLog(ctx context.Context, repo publicrepo.Repository, actorID uint64, familyID uint64, action string, audit AuditInput) error {
+	targetType := "FAMILY"
+	return repo.WriteLog(ctx, operationlog.WriteInput{
+		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
+		Module: "FAMILY_PUBLIC_APPLICATION", Action: action, TargetType: &targetType,
+		TargetID: &familyID, FamilyID: &familyID,
+		IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
+	})
 }
 
 func writeUserLog(ctx context.Context, repo publicrepo.Repository, actorID uint64, familyID uint64, applicationID uint64, action string, audit AuditInput) error {

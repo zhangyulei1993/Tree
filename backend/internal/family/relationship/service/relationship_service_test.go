@@ -86,6 +86,16 @@ func (r *fakeRepository) FindActiveRelationship(_ context.Context, familyID uint
 	return relationship, nil
 }
 
+func (r *fakeRepository) HasActiveRelationships(_ context.Context, familyID uint64, memberID uint64) (bool, error) {
+	for _, relationship := range r.relationships {
+		if relationship.FamilyID == familyID && relationship.Status == string(enums.StatusActive) && relationship.DeletedAt == nil &&
+			(relationship.FromMemberID == memberID || relationship.ToMemberID == memberID) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (r *fakeRepository) FindDuplicate(_ context.Context, familyID uint64, fromMemberID uint64, toMemberID uint64, relationshipType string) (*relationshipmodel.FamilyRelationship, error) {
 	for _, relationship := range r.relationships {
 		if relationship.FamilyID != familyID || relationship.RelationshipType != relationshipType ||
@@ -618,6 +628,50 @@ func TestPermissionDenied(t *testing.T) {
 	}
 	if len(repo.members) != 1 || repo.graphVersion != 1 {
 		t.Fatalf("permission denial changed data")
+	}
+}
+
+func TestPlaceExistingMemberCreatesRelationshipAndIncrementsVersion(t *testing.T) {
+	repo := newFakeRepository()
+	repo.members[4] = &membermodel.FamilyMember{
+		ID: 4, FamilyID: 2, DisplayName: "Existing Child", Gender: string(enums.GenderFemale), Status: string(enums.StatusActive),
+	}
+	result, businessErr := testService(repo, true).PlaceExisting(context.Background(), 8, 2, dto.PlaceExistingMemberRequest{
+		BaseMemberID: 3,
+		MemberID:     4,
+		AddType:      "ADD_CHILD",
+	}, AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("PlaceExisting returned error: %v", businessErr)
+	}
+	if result.CreatedMember == nil || result.CreatedMember.MemberID != 4 || len(result.Relationships) != 1 {
+		t.Fatalf("unexpected placement result: %#v", result)
+	}
+	if result.GraphVersion != 2 || repo.logActions[len(repo.logActions)-1] != "PLACE_EXISTING_MEMBER" {
+		t.Fatalf("placement did not update version/log: %#v %#v", result, repo.logActions)
+	}
+}
+
+func TestPlaceExistingMemberRejectsAlreadyLocatedMember(t *testing.T) {
+	repo := newFakeRepository()
+	repo.members[4] = &membermodel.FamilyMember{
+		ID: 4, FamilyID: 2, DisplayName: "Located", Gender: string(enums.GenderFemale), Status: string(enums.StatusActive),
+	}
+	primary := "PRIMARY"
+	repo.relationships[21] = &relationshipmodel.FamilyRelationship{
+		ID: 21, FamilyID: 2, FromMemberID: 3, ToMemberID: 4,
+		RelationshipType: "PARENT_CHILD", ParentLinkType: &primary, Status: string(enums.StatusActive),
+	}
+	_, businessErr := testService(repo, true).PlaceExisting(context.Background(), 8, 2, dto.PlaceExistingMemberRequest{
+		BaseMemberID: 3,
+		MemberID:     4,
+		AddType:      "ADD_CHILD",
+	}, AuditInput{})
+	if businessErr == nil || businessErr.Code != CodeRelationshipDuplicate {
+		t.Fatalf("expected located member rejection, got %#v", businessErr)
+	}
+	if repo.graphVersion != 1 || len(repo.relationships) != 1 {
+		t.Fatalf("rejected placement changed data")
 	}
 }
 

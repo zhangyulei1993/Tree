@@ -6,6 +6,7 @@ type DissolutionRequest struct {
 	RequestID         uint64     `json:"requestId"`
 	FamilyID          uint64     `json:"familyId"`
 	FamilyName        string     `json:"familyName,omitempty"`
+	FamilyStatus      string     `json:"familyStatus,omitempty"`
 	RequesterMemberID uint64     `json:"requesterMemberId"`
 	RequesterUserID   uint64     `json:"requesterUserId"`
 	RequestStatus     string     `json:"requestStatus"`

@@ -33,23 +33,23 @@
 
         <DataTable>
           <el-table v-loading="articleLoading" :data="articles" stripe empty-text="暂无文章">
-            <el-table-column prop="id" label="ID" width="80" />
-            <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
-            <el-table-column prop="categoryName" label="分类" width="120" />
-            <el-table-column prop="slug" label="路径" min-width="180" show-overflow-tooltip />
-            <el-table-column label="状态" width="110">
+            <el-table-column prop="id" label="ID" width="60" />
+            <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip />
+            <el-table-column prop="categoryName" label="分类" width="100" />
+            <el-table-column prop="slug" label="路径" min-width="150" show-overflow-tooltip />
+            <el-table-column label="状态" width="90">
               <template #default="{ row }"><StatusTag :status="row.status" /></template>
             </el-table-column>
-            <el-table-column label="精选" width="90">
+            <el-table-column label="精选" width="70">
               <template #default="{ row }">
                 <el-tag v-if="row.isFeatured" type="success">精选</el-tag>
                 <span v-else class="muted">否</span>
               </template>
             </el-table-column>
-            <el-table-column label="发布时间" width="180">
+            <el-table-column label="发布时间" width="150">
               <template #default="{ row }">{{ formatTime(row.publishedAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="260" fixed="right">
+            <el-table-column label="操作" width="230">
               <template #default="{ row }">
                 <div class="table-actions">
                   <el-button size="small" @click="openArticleEdit(row.id)">编辑</el-button>
@@ -94,7 +94,7 @@
                 <el-tag :type="row.isActive ? 'success' : 'info'">{{ row.isActive ? '启用' : '停用' }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="170" fixed="right">
+            <el-table-column label="操作" min-width="180">
               <template #default="{ row }">
                 <el-button size="small" @click="openCategoryEdit(row)">编辑</el-button>
                 <el-popconfirm title="确认删除该分类？已有文章可能无法继续归类。" @confirm="removeCategory(row.id)">

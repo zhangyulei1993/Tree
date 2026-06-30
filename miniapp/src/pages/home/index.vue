@@ -46,32 +46,10 @@
       >
         <view class="primary-card-content">
           <view class="primary-icon primary-icon-search" />
-          <text class="primary-title">寻找家族</text>
+          <text class="primary-title">寻找家庭</text>
           <text class="primary-desc">浏览公开主页</text>
         </view>
         <text class="primary-arrow">›</text>
-      </view>
-    </view>
-
-    <view class="dashboard-card">
-      <view class="section-row">
-        <view>
-          <text class="section-kicker">今日事项</text>
-          <text class="section-title">处理邀请与申请</text>
-        </view>
-        <text class="section-note">保持家庭资料同步</text>
-      </view>
-      <view class="task-grid">
-        <view class="task-card" @click="goLoginProtected('/pages/invite/my')">
-          <view class="task-mark task-mark-blue" />
-          <text class="task-title">我的邀请</text>
-          <text class="task-desc">查看收到的家庭邀请</text>
-        </view>
-        <view class="task-card" @click="goLoginProtected('/pages/join/my')">
-          <view class="task-mark task-mark-green" />
-          <text class="task-title">加入申请</text>
-          <text class="task-desc">查看申请处理进度</text>
-        </view>
       </view>
     </view>
 
@@ -97,7 +75,7 @@
           <text class="section-kicker">阅读精选</text>
           <text class="section-title">故事、典故与使用指南</text>
         </view>
-        <text class="read-more">进入阅读</text>
+        <text class="read-more">›</text>
       </view>
 
       <view
@@ -124,18 +102,16 @@
       </view>
     </view>
 
-    <view
-      class="public-card"
-      @click="goTab('/pages/family/search')"
-    >
+    <view class="public-card section-entry-card" @click="goTab('/pages/family/search')">
       <view class="public-copy">
-        <text class="section-kicker">公开家族</text>
-        <text class="public-title">看看别人如何展示家族主页</text>
-        <text class="public-desc">浏览已审核公开的家族简介、公开树与留言。</text>
+        <text class="section-kicker">公开家庭</text>
+        <text class="public-title">看看别人如何展示家庭主页</text>
+        <text class="public-desc">浏览已审核公开的家庭简介、公开树与留言。</text>
       </view>
       <view class="public-avatar">
         <text>张</text>
       </view>
+      <text class="section-entry-arrow">›</text>
     </view>
 
     <view class="home-privacy">
@@ -145,30 +121,56 @@
 </template>
 
 <script setup lang="ts">
-import { getCategoryMeta, getHomeReadHighlights, type ContentCategory } from '@/mock/content'
+import { onLoad } from '@dcloudio/uni-app'
+import { computed, ref } from 'vue'
+
+import { listContentArticles, listContentCategories } from '@/api/content'
 import { useSessionStore } from '@/stores/session'
+import type { ContentArticleSummary, ContentCategory } from '@/types/api'
 
 const session = useSessionStore()
-const readHighlights = getHomeReadHighlights()
-const featuredRead = readHighlights.find((item) => item.category.key === 'tutorial')?.article || null
-const secondaryReadHighlights = readHighlights.filter((item) => item.article?.id !== featuredRead?.id)
+const categories = ref<ContentCategory[]>([])
+const articles = ref<ContentArticleSummary[]>([])
+const featuredRead = computed(() => articles.value.find((item) => item.isFeatured) || articles.value[0] || null)
+const secondaryReadHighlights = computed(() => {
+  const selected: Array<{ category: { key: string; title: string; desc: string }; article: ContentArticleSummary | null }> = []
+  for (const category of categories.value) {
+    const article = articles.value.find((item) => item.id !== featuredRead.value?.id && item.categoryKey === category.key) || null
+    if (article || selected.length < 3) {
+      selected.push({
+        category: { key: category.key, title: category.name, desc: category.description || '浏览更多内容' },
+        article
+      })
+    }
+    if (selected.length === 3) break
+  }
+  return selected
+})
 
-function categoryTitle(key: ContentCategory) {
-  return getCategoryMeta(key)?.title || '内容'
+function categoryTitle(key: string) {
+  return categories.value.find((item) => item.key === key)?.name || '内容'
 }
 
-function articleUrl(id: string) {
+function articleUrl(id: number | string) {
   return `/pages/content/detail?id=${encodeURIComponent(id)}`
+}
+
+async function loadReading() {
+  try {
+    const [categoryResult, articleResult] = await Promise.all([
+      listContentCategories(),
+      listContentArticles({ page: 1, pageSize: 12 })
+    ])
+    categories.value = categoryResult
+    articles.value = articleResult.items
+  } catch {
+    categories.value = []
+    articles.value = []
+  }
 }
 
 function go(url: string) {
   uni.navigateTo({ url })
-}
-
-function goLoginProtected(url: string) {
-  if (session.requireLogin(url)) {
-    go(url)
-  }
 }
 
 function goPhoneProtected(url: string) {
@@ -180,6 +182,8 @@ function goPhoneProtected(url: string) {
 function goTab(url: string) {
   uni.switchTab({ url })
 }
+
+onLoad(loadReading)
 </script>
 
 <style scoped>
@@ -187,23 +191,26 @@ function goTab(url: string) {
   min-height: auto;
   padding-bottom: calc(180rpx + env(safe-area-inset-bottom));
   background:
-    radial-gradient(circle at 90% 4%, rgba(47, 107, 87, 0.08), transparent 240rpx),
-    radial-gradient(circle at 10% 18%, rgba(39, 76, 119, 0.07), transparent 260rpx);
+    radial-gradient(circle at 96% 2%, rgba(216, 175, 104, 0.18), transparent 280rpx),
+    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.11), transparent 320rpx),
+    linear-gradient(180deg, #f8f1e7 0%, #f4f7f3 42%, #eef4f6 100%);
 }
 
 .hero-card {
   position: relative;
   display: flex;
   align-items: center;
-  min-height: 230rpx;
-  margin-bottom: 24rpx;
-  border: 1rpx solid rgba(148, 163, 184, 0.16);
-  border-radius: 32rpx;
+  min-height: 280rpx;
+  margin: 4rpx 0 28rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
+  border-radius: 40rpx;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(242, 250, 247, 0.94) 52%, rgba(238, 246, 252, 0.94) 100%);
-  padding: 34rpx 30rpx;
+    radial-gradient(circle at 82% 10%, rgba(216, 175, 104, 0.28), transparent 250rpx),
+    radial-gradient(circle at 12% 100%, rgba(87, 139, 119, 0.24), transparent 260rpx),
+    linear-gradient(135deg, #172f4a 0%, #244f54 58%, #2f6b57 100%);
+  padding: 42rpx 34rpx;
   overflow: hidden;
-  box-shadow: 0 18rpx 48rpx rgba(31, 58, 95, 0.08);
+  box-shadow: 0 30rpx 72rpx rgba(24, 54, 83, 0.22);
 }
 
 .hero-card::after {
@@ -214,7 +221,7 @@ function goTab(url: string) {
   width: 260rpx;
   height: 260rpx;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(47, 107, 87, 0.12), transparent 68%);
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.13), transparent 68%);
 }
 
 .hero-copy {
@@ -226,7 +233,7 @@ function goTab(url: string) {
 
 .hero-brand {
   display: block;
-  color: var(--tree-green);
+  color: rgba(248, 231, 194, 0.9);
   font-size: 22rpx;
   font-weight: 800;
   letter-spacing: 5rpx;
@@ -237,8 +244,8 @@ function goTab(url: string) {
   flex-direction: column;
   margin-top: 14rpx;
   max-width: 410rpx;
-  color: var(--tree-text-primary);
-  font-size: 45rpx;
+  color: #fff;
+  font-size: 50rpx;
   font-weight: 800;
   line-height: 1.22;
 }
@@ -251,7 +258,7 @@ function goTab(url: string) {
   display: block;
   margin-top: 14rpx;
   max-width: 400rpx;
-  color: var(--tree-text-secondary);
+  color: rgba(255, 255, 255, 0.74);
   font-size: 25rpx;
   line-height: 1.55;
 }
@@ -264,10 +271,10 @@ function goTab(url: string) {
 }
 
 .hero-badge {
-  border: 1rpx solid rgba(47, 107, 87, 0.14);
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--tree-green);
+  background: rgba(255, 255, 255, 0.11);
+  color: rgba(255, 255, 255, 0.88);
   padding: 7rpx 15rpx;
   font-size: 20rpx;
   font-weight: 600;
@@ -288,7 +295,7 @@ function goTab(url: string) {
 
 .visual-ring-a {
   inset: 8rpx 0 2rpx 0;
-  border: 2rpx dashed rgba(31, 58, 95, 0.14);
+  border: 2rpx dashed rgba(255, 255, 255, 0.22);
 }
 
 .visual-ring-b {
@@ -296,15 +303,15 @@ function goTab(url: string) {
   left: 46rpx;
   width: 66rpx;
   height: 66rpx;
-  border: 1rpx solid rgba(47, 107, 87, 0.12);
-  background: rgba(255, 255, 255, 0.56);
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.10);
 }
 
 .visual-line {
   position: absolute;
   height: 3rpx;
   border-radius: 999rpx;
-  background: rgba(100, 116, 139, 0.22);
+  background: rgba(255, 255, 255, 0.28);
   transform-origin: center;
 }
 
@@ -332,7 +339,7 @@ function goTab(url: string) {
 .visual-node {
   position: absolute;
   border-radius: 50%;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.92);
   box-sizing: border-box;
 }
 
@@ -341,8 +348,8 @@ function goTab(url: string) {
   left: 64rpx;
   width: 42rpx;
   height: 42rpx;
-  border: 4rpx solid var(--tree-primary);
-  box-shadow: 0 0 0 10rpx rgba(31, 58, 95, 0.08);
+  border: 4rpx solid rgba(255, 255, 255, 0.96);
+  box-shadow: 0 0 0 10rpx rgba(255, 255, 255, 0.12);
 }
 
 .visual-node-top {
@@ -350,7 +357,7 @@ function goTab(url: string) {
   left: 76rpx;
   width: 18rpx;
   height: 18rpx;
-  border: 3rpx solid var(--tree-green);
+  border: 3rpx solid rgba(248, 231, 194, 0.95);
 }
 
 .visual-node-left,
@@ -363,19 +370,19 @@ function goTab(url: string) {
 .visual-node-left {
   left: 24rpx;
   top: 116rpx;
-  border: 3rpx solid var(--tree-accent-blue);
+  border: 3rpx solid rgba(160, 197, 231, 0.95);
 }
 
 .visual-node-right {
   right: 16rpx;
   top: 106rpx;
-  border: 3rpx solid #7fb7a4;
+  border: 3rpx solid rgba(167, 216, 198, 0.95);
 }
 
 .visual-node-bottom {
   left: 76rpx;
   bottom: 8rpx;
-  border: 3rpx solid #d6af68;
+  border: 3rpx solid rgba(216, 175, 104, 0.95);
 }
 
 .primary-grid {
@@ -396,7 +403,6 @@ function goTab(url: string) {
 }
 
 .primary-card:active,
-.task-card:active,
 .kinship-card:active,
 .featured-read:active,
 .read-mini:active,
@@ -528,7 +534,6 @@ function goTab(url: string) {
   color: var(--tree-text-weak);
 }
 
-.dashboard-card,
 .read-card,
 .public-card,
 .kinship-card {
@@ -540,11 +545,36 @@ function goTab(url: string) {
   box-shadow: 0 10rpx 34rpx rgba(31, 58, 95, 0.055);
 }
 
+.read-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.92) 100%);
+}
+
 .section-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 18rpx;
+}
+
+.section-entry-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.section-entry-arrow {
+  position: absolute;
+  right: 24rpx;
+  top: 24rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 999rpx;
+  background: var(--tree-accent-blue-light, #eef4fb);
+  color: var(--tree-accent-blue, #3b6ea8);
+  font-size: 28rpx;
+  font-weight: 700;
 }
 
 .section-kicker {
@@ -564,61 +594,19 @@ function goTab(url: string) {
   line-height: 1.35;
 }
 
-.section-note,
 .read-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  margin-top: 8rpx;
-  color: var(--tree-text-secondary);
-  font-size: 22rpx;
-}
-
-.read-more {
-  color: var(--tree-green);
+  width: 40rpx;
+  height: 40rpx;
+  margin-top: 4rpx;
+  border-radius: 999rpx;
+  background: var(--tree-accent-blue-light, #eef4fb);
+  color: var(--tree-accent-blue, #3b6ea8);
+  font-size: 28rpx;
   font-weight: 700;
-}
-
-.task-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14rpx;
-  margin-top: 22rpx;
-}
-
-.task-card {
-  border-radius: 22rpx;
-  background: var(--tree-surface-muted);
-  padding: 20rpx;
-  box-sizing: border-box;
-}
-
-.task-mark {
-  width: 34rpx;
-  height: 34rpx;
-  margin-bottom: 18rpx;
-  border-radius: 12rpx;
-}
-
-.task-mark-blue {
-  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-}
-
-.task-mark-green {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-}
-
-.task-title {
-  display: block;
-  color: var(--tree-text-primary);
-  font-size: 26rpx;
-  font-weight: 800;
-}
-
-.task-desc {
-  display: block;
-  margin-top: 7rpx;
-  color: var(--tree-text-secondary);
-  font-size: 21rpx;
-  line-height: 1.45;
 }
 
 .kinship-card {
@@ -689,8 +677,16 @@ function goTab(url: string) {
 }
 
 .kinship-arrow {
-  color: var(--tree-text-weak);
-  font-size: 34rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40rpx;
+  height: 40rpx;
+  border-radius: 999rpx;
+  background: rgba(59, 110, 168, 0.10);
+  color: var(--tree-accent-blue, #3b6ea8);
+  font-size: 28rpx;
+  font-weight: 700;
 }
 
 .read-head {
@@ -700,6 +696,7 @@ function goTab(url: string) {
 .featured-read {
   position: relative;
   margin-bottom: 14rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.08);
   border-radius: 26rpx;
   background:
     linear-gradient(140deg, rgba(31, 58, 95, 0.94) 0%, rgba(47, 107, 87, 0.92) 100%);
@@ -716,6 +713,24 @@ function goTab(url: string) {
   height: 170rpx;
   border-radius: 50%;
   border: 1rpx solid rgba(255, 255, 255, 0.16);
+}
+
+.featured-read::before {
+  content: '›';
+  position: absolute;
+  right: 20rpx;
+  top: 20rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38rpx;
+  height: 38rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 26rpx;
+  font-weight: 700;
+  z-index: 1;
 }
 
 .featured-label {
@@ -759,9 +774,22 @@ function goTab(url: string) {
 
 .read-mini {
   min-height: 128rpx;
+  position: relative;
+  border: 1rpx solid rgba(31, 58, 95, 0.05);
   border-radius: 24rpx;
   padding: 18rpx;
   box-sizing: border-box;
+  box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.04);
+}
+
+.read-mini::after {
+  content: '›';
+  position: absolute;
+  right: 16rpx;
+  bottom: 14rpx;
+  color: rgba(59, 110, 168, 0.52);
+  font-size: 24rpx;
+  font-weight: 700;
 }
 
 .read-mini-story {
@@ -800,6 +828,7 @@ function goTab(url: string) {
   display: flex;
   align-items: center;
   gap: 18rpx;
+  padding-right: 82rpx;
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.92) 100%);
 }

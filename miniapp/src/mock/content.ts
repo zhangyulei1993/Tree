@@ -27,9 +27,9 @@ export const contentArticles: ContentArticle[] = [
     id: 'tutorial-create-family',
     category: 'tutorial',
     title: '如何创建第一个家庭',
-    summary: '从填写姓氏与家庭名称开始，建立你的家族空间。',
+    summary: '从填写姓氏与家庭名称开始，建立你的家庭空间。',
     featured: true,
-    body: `在 Tree 中，每个家庭对应一个独立的家族空间。创建时建议先确认本族主要姓氏与家庭名称，便于后续邀请亲人识别。
+    body: `在 Tree 中，每个家庭对应一个独立的家庭空间。创建时建议先确认本族主要姓氏与家庭名称，便于后续邀请亲人识别。
 
 创建完成后，你可以先添加自己或长辈作为首批成员，再逐步补充父母、配偶与子女关系。成员资料与账号绑定分开管理，没有账号的亲属也可以先录入为成员节点。
 

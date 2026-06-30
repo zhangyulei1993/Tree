@@ -22,6 +22,99 @@ export interface PageResult<T> {
   total: number
 }
 
+export interface DashboardStats {
+  users: number
+  families: number
+  pendingPublicApplications: number
+  pendingVisitorMessages: number
+  pendingFounderTransfers: number
+  pendingDissolutions: number
+}
+
+export interface ManagedUser {
+  id: number
+  phone?: string | null
+  nickname?: string | null
+  realName?: string | null
+  accountOrigin: string
+  registerClient: string
+  phoneVerified: boolean
+  status: string
+  lastLoginAt?: string | null
+  createdAt: string
+}
+
+export interface UserFamilyLink {
+  familyId: number
+  familyName: string
+  memberId: number
+  memberName: string
+  familyRole: string
+}
+
+export interface ManagedUserDetail { user: ManagedUser; families: UserFamilyLink[] }
+
+export interface ManagedFamily {
+  id: number
+  familyName: string
+  familySurname: string
+  nativePlace?: string | null
+  regionText?: string | null
+  description?: string | null
+  status: string
+  searchable: boolean
+  publicDisplayStatus: string
+  currentFounderMemberId?: number | null
+  graphVersion: number
+  memberCount: number
+  createdAt: string
+}
+
+export interface ManagedFamilyMember {
+  id: number
+  familyId: number
+  displayName: string
+  gender: string
+  status: string
+  isLiving?: boolean | null
+  userBindingPolicy: string
+  boundUserId?: number | null
+  familyRole?: string | null
+}
+
+export interface ManagedAdmin {
+  id: number
+  username: string
+  displayName?: string | null
+  phone?: string | null
+  email?: string | null
+  role: AdminRole
+  status: string
+  lockedUntil?: string | null
+  lastLoginAt?: string | null
+  createdAt: string
+}
+
+export interface OperationLogRecord {
+  id: number
+  operatorType: string
+  operatorAdminId?: number
+  operatorUserId?: number
+  operatorRole?: string
+  module: string
+  action: string
+  targetType?: string
+  targetId?: number
+  familyId?: number
+  memberId?: number
+  userId?: number
+  detailJson?: unknown
+  result: string
+  errorMessage?: string
+  ip?: string
+  createdAt: string
+}
+
 export type AdminRole = 'ROOT_ADMIN' | 'SUPER_ADMIN' | 'PLATFORM_ADMIN'
 
 export interface AdminInfo {
@@ -69,6 +162,7 @@ export interface DissolutionRequest {
   requestId: number
   familyId: number
   familyName?: string
+  familyStatus?: string
   requesterMemberId: number
   requesterUserId: number
   requestStatus: string
@@ -117,6 +211,7 @@ export interface PublicApplication {
   applicationId: number
   familyId: number
   familyName?: string
+  familyPublicDisplayStatus?: string
   applicantUserId?: number
   applicantAdminId?: number
   status: string

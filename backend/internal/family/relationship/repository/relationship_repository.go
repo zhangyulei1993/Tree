@@ -25,6 +25,7 @@ type Repository interface {
 	FindMemberForUpdate(context.Context, uint64, uint64) (*membermodel.FamilyMember, error)
 	CreateMember(context.Context, *membermodel.FamilyMember) error
 	FindActiveRelationship(context.Context, uint64, uint64) (*relationshipmodel.FamilyRelationship, error)
+	HasActiveRelationships(context.Context, uint64, uint64) (bool, error)
 	FindDuplicate(context.Context, uint64, uint64, uint64, string) (*relationshipmodel.FamilyRelationship, error)
 	ListActiveParents(context.Context, uint64, uint64) ([]relationshipmodel.FamilyRelationship, error)
 	FindPrimaryParentByGender(context.Context, uint64, uint64, string, uint64) (*relationshipmodel.FamilyRelationship, error)
@@ -76,6 +77,15 @@ func (r *GormRepository) FindActiveRelationship(ctx context.Context, familyID ui
 		Where("id = ? AND family_id = ? AND status = ? AND deleted_at IS NULL", relationshipID, familyID, string(enums.StatusActive)).
 		First(&relationship).Error
 	return &relationship, err
+}
+
+func (r *GormRepository) HasActiveRelationships(ctx context.Context, familyID uint64, memberID uint64) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&relationshipmodel.FamilyRelationship{}).
+		Where("family_id = ? AND status = ? AND deleted_at IS NULL", familyID, string(enums.StatusActive)).
+		Where("from_member_id = ? OR to_member_id = ?", memberID, memberID).
+		Count(&count).Error
+	return count > 0, err
 }
 
 func (r *GormRepository) FindDuplicate(ctx context.Context, familyID uint64, fromMemberID uint64, toMemberID uint64, relationshipType string) (*relationshipmodel.FamilyRelationship, error) {

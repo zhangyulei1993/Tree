@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"tree/backend/internal/common/enums"
 	familymodel "tree/backend/internal/family/core/model"
 	dissolutionmodel "tree/backend/internal/family/dissolution/model"
 	membermodel "tree/backend/internal/family/member/model"
@@ -37,6 +38,8 @@ type FamilyRepository interface {
 	CreateFamily(ctx context.Context, family *familymodel.Family) error
 	CreateMember(ctx context.Context, member *membermodel.FamilyMember) error
 	CreateLink(ctx context.Context, link *rolemodel.FamilyMemberUserLink) error
+	FindActiveLinkForUpdate(ctx context.Context, familyID uint64, userID uint64) (*rolemodel.FamilyMemberUserLink, error)
+	DeactivateLink(ctx context.Context, linkID uint64, userID uint64, reason *string, at time.Time) error
 	FindFamilyByID(ctx context.Context, familyID uint64) (*familymodel.Family, error)
 	FindFamilyByIDForUpdate(ctx context.Context, familyID uint64) (*familymodel.Family, error)
 	FindPublicFamilyByID(ctx context.Context, familyID uint64) (*familymodel.Family, error)
@@ -79,6 +82,27 @@ func (r *GormFamilyRepository) CreateMember(ctx context.Context, member *memberm
 
 func (r *GormFamilyRepository) CreateLink(ctx context.Context, link *rolemodel.FamilyMemberUserLink) error {
 	return r.db.WithContext(ctx).Create(link).Error
+}
+
+func (r *GormFamilyRepository) FindActiveLinkForUpdate(ctx context.Context, familyID uint64, userID uint64) (*rolemodel.FamilyMemberUserLink, error) {
+	var link rolemodel.FamilyMemberUserLink
+	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("family_id = ? AND user_id = ? AND link_status = ?", familyID, userID, string(enums.StatusActive)).
+		First(&link).Error
+	return &link, err
+}
+
+func (r *GormFamilyRepository) DeactivateLink(ctx context.Context, linkID uint64, userID uint64, reason *string, at time.Time) error {
+	return r.db.WithContext(ctx).Model(&rolemodel.FamilyMemberUserLink{}).
+		Where("id = ? AND user_id = ? AND link_status = ?", linkID, userID, string(enums.StatusActive)).
+		Updates(map[string]any{
+			"link_status":         "INACTIVE",
+			"family_role":         string(enums.FamilyRoleMember),
+			"unlinked_at":         at,
+			"unlinked_reason":     reason,
+			"unlinked_by_user_id": userID,
+			"updated_at":          at,
+		}).Error
 }
 
 func (r *GormFamilyRepository) FindFamilyByID(ctx context.Context, familyID uint64) (*familymodel.Family, error) {

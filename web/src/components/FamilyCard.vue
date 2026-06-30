@@ -12,7 +12,7 @@
       <div><dt>姓氏</dt><dd>{{ family.surname }}</dd></div>
       <div><dt>籍贯</dt><dd>{{ family.nativePlace }}</dd></div>
       <div><dt>地区</dt><dd>{{ family.regionText }}</dd></div>
-      <div><dt>创始人</dt><dd>{{ family.founderName }}</dd></div>
+      <div v-if="family.founderName"><dt>创建者</dt><dd>{{ family.founderName }}</dd></div>
     </dl>
     <p class="muted">{{ family.publicContact || '该家庭未设置公开联系方式，如需联系请通过平台协助。' }}</p>
     <div class="actions">
@@ -26,7 +26,7 @@
 <script setup lang="ts">
 import type { PublicFamily } from '@/mock/data'
 
-defineProps<{ family: PublicFamily }>()
+defineProps<{ family: Omit<PublicFamily, 'founderName'> & { founderName?: string } }>()
 </script>
 
 <style scoped>
@@ -35,7 +35,7 @@ defineProps<{ family: PublicFamily }>()
   position: relative;
   gap: 16px;
   min-height: 100%;
-  padding: 24px;
+  padding: 26px;
   overflow: hidden;
   transition:
     border-color 0.18s ease,
@@ -61,6 +61,14 @@ defineProps<{ family: PublicFamily }>()
   pointer-events: none;
 }
 
+.family-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 30%);
+  pointer-events: none;
+}
+
 .card-head {
   display: flex;
   gap: 16px;
@@ -73,11 +81,13 @@ defineProps<{ family: PublicFamily }>()
   width: 58px;
   height: 58px;
   place-items: center;
+  border: 1px solid rgba(47, 107, 87, 0.08);
   border-radius: 20px;
   background: linear-gradient(145deg, #eef7f2 0%, #f8f3e8 100%);
   color: var(--color-primary);
   font-size: 24px;
   font-weight: 900;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 h3 {
@@ -97,9 +107,9 @@ dl {
   grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   border: 1px solid rgba(31, 58, 95, 0.05);
-  border-radius: 18px;
+  border-radius: 20px;
   background: linear-gradient(135deg, rgba(247, 250, 248, 0.9) 0%, rgba(251, 250, 246, 0.9) 100%);
-  padding: 14px;
+  padding: 16px;
   margin: 0;
 }
 

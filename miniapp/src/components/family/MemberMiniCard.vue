@@ -86,7 +86,7 @@ const metaItems = computed<MetaItem[]>(() => {
   margin-bottom: 10rpx;
   border: 1rpx solid var(--tree-border-subtle, #eef1f4);
   border-radius: var(--tree-radius-md, 18rpx);
-  background: var(--tree-surface, #fff);
+  background: var(--tree-surface-elevated, #fff);
   padding: 16rpx 18rpx;
   box-shadow: var(--tree-shadow-sm, 0 2rpx 12rpx rgba(15, 23, 42, 0.04));
 }
@@ -107,6 +107,7 @@ const metaItems = computed<MetaItem[]>(() => {
   color: var(--tree-green);
   font-size: 24rpx;
   font-weight: 600;
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.86);
 }
 .card-body {
   flex: 1;
@@ -120,7 +121,7 @@ const metaItems = computed<MetaItem[]>(() => {
 }
 .name {
   flex-shrink: 0;
-  color: var(--tree-text);
+  color: var(--tree-text-primary);
   font-size: 28rpx;
   font-weight: 600;
   line-height: 1.35;

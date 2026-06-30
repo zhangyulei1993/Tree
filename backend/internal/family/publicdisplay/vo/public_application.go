@@ -3,21 +3,22 @@ package vo
 import "time"
 
 type PublicApplication struct {
-	ApplicationID     uint64     `json:"applicationId"`
-	FamilyID          uint64     `json:"familyId"`
-	FamilyName        string     `json:"familyName,omitempty"`
-	ApplicantUserID   *uint64    `json:"applicantUserId,omitempty"`
-	ApplicantAdminID  *uint64    `json:"applicantAdminId,omitempty"`
-	Status            string     `json:"status"`
-	Reason            *string    `json:"reason,omitempty"`
-	ReviewResult      *string    `json:"reviewResult,omitempty"`
-	ReviewedByAdminID *uint64    `json:"reviewedByAdminId,omitempty"`
-	ReviewedAt        *time.Time `json:"reviewedAt,omitempty"`
-	ReviewComment     *string    `json:"reviewComment,omitempty"`
-	CancelledAt       *time.Time `json:"cancelledAt,omitempty"`
-	CancelReason      *string    `json:"cancelReason,omitempty"`
-	CreatedAt         time.Time  `json:"createdAt"`
-	UpdatedAt         time.Time  `json:"updatedAt"`
+	ApplicationID             uint64     `json:"applicationId"`
+	FamilyID                  uint64     `json:"familyId"`
+	FamilyName                string     `json:"familyName,omitempty"`
+	FamilyPublicDisplayStatus string     `json:"familyPublicDisplayStatus,omitempty"`
+	ApplicantUserID           *uint64    `json:"applicantUserId,omitempty"`
+	ApplicantAdminID          *uint64    `json:"applicantAdminId,omitempty"`
+	Status                    string     `json:"status"`
+	Reason                    *string    `json:"reason,omitempty"`
+	ReviewResult              *string    `json:"reviewResult,omitempty"`
+	ReviewedByAdminID         *uint64    `json:"reviewedByAdminId,omitempty"`
+	ReviewedAt                *time.Time `json:"reviewedAt,omitempty"`
+	ReviewComment             *string    `json:"reviewComment,omitempty"`
+	CancelledAt               *time.Time `json:"cancelledAt,omitempty"`
+	CancelReason              *string    `json:"cancelReason,omitempty"`
+	CreatedAt                 time.Time  `json:"createdAt"`
+	UpdatedAt                 time.Time  `json:"updatedAt"`
 }
 
 type ListResult struct {

@@ -51,7 +51,11 @@ func (r *fakeRepo) FindByID(_ context.Context, id uint64, _ bool) (*dissolutionm
 func (r *fakeRepo) List(_ context.Context, _ dissolutionrepo.ListQuery) ([]dissolutionrepo.DissolutionRow, int64, error) {
 	rows := make([]dissolutionrepo.DissolutionRow, 0)
 	for _, v := range r.requests {
-		rows = append(rows, dissolutionrepo.DissolutionRow{FamilyDissolutionRequest: *v, FamilyName: r.family.FamilyName})
+		rows = append(rows, dissolutionrepo.DissolutionRow{
+			FamilyDissolutionRequest: *v,
+			FamilyName:               r.family.FamilyName,
+			FamilyStatus:             r.family.Status,
+		})
 	}
 	return rows, int64(len(rows)), nil
 }

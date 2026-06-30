@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -36,6 +37,7 @@ type Repository interface {
 	UpdateStatus(context.Context, uint64, string, map[string]any) error
 	CreateMember(context.Context, *membermodel.FamilyMember) error
 	CreateLink(context.Context, *rolemodel.FamilyMemberUserLink) error
+	CancelPendingInvitations(context.Context, uint64, uint64, uint64, time.Time) (int64, error)
 	IncrementGraphVersion(context.Context, uint64) (int64, error)
 	WriteLog(context.Context, operationlog.WriteInput) error
 }
@@ -165,6 +167,19 @@ func (r *GormRepository) UpdateRelationship(ctx context.Context, familyID, relat
 }
 func (r *GormRepository) CreateLink(ctx context.Context, value *rolemodel.FamilyMemberUserLink) error {
 	return r.db.WithContext(ctx).Create(value).Error
+}
+func (r *GormRepository) CancelPendingInvitations(ctx context.Context, familyID, userID, memberID uint64, now time.Time) (int64, error) {
+	result := r.db.WithContext(ctx).Table("family_invitations").
+		Where(
+			"family_id = ? AND status = ? AND (target_member_id = ? OR (invite_channel = ? AND target_user_id = ?))",
+			familyID, "PENDING", memberID, "IN_APP", userID,
+		).
+		Updates(map[string]any{
+			"status":        "CANCELLED",
+			"cancelled_at":  now,
+			"cancel_reason": "已通过加入申请加入",
+		})
+	return result.RowsAffected, result.Error
 }
 func (r *GormRepository) IncrementGraphVersion(ctx context.Context, familyID uint64) (int64, error) {
 	if err := r.db.WithContext(ctx).Model(&familymodel.Family{}).Where("id = ?", familyID).

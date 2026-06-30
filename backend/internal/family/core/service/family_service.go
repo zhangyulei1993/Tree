@@ -35,14 +35,18 @@ const (
 	CodeFamilyDetailForbidden         apperrors.Code = 42104
 	CodeFamilyUpdateForbidden         apperrors.Code = 42201
 	CodeFamilyUpdateStatusDenied      apperrors.Code = 42202
+	CodeFamilyLeaveForbidden          apperrors.Code = 42203
+	CodeFamilyLeaveNotLinked          apperrors.Code = 42204
 	CodeFamilyDissolutionForbidden    apperrors.Code = 46301
 	CodeFamilyDissolutionStatusDenied apperrors.Code = 46302
 	CodeFamilyDissolutionPending      apperrors.Code = 46303
 )
 
 var (
-	errDissolutionFamilyStatus = errors.New("family status disallows dissolution")
-	errDissolutionPending      = errors.New("pending dissolution request exists")
+	errDissolutionFamilyStatus   = errors.New("family status disallows dissolution")
+	errDissolutionPending        = errors.New("pending dissolution request exists")
+	errFamilyLeaveForbidden      = errors.New("family status disallows leave")
+	errFamilyFounderMustTransfer = errors.New("founder must transfer before leave")
 )
 
 type AuditInput struct {
@@ -60,6 +64,7 @@ type FamilyService interface {
 	CreateDissolutionRequest(context.Context, uint64, uint64, dto.CreateDissolutionRequest, AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	CurrentDissolutionRequest(context.Context, uint64, uint64) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	CancelDissolutionRequest(context.Context, uint64, uint64, uint64, dto.CancelDissolutionRequest, AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError)
+	Leave(context.Context, uint64, uint64, dto.LeaveFamilyRequest, AuditInput) (*vo.LeaveFamilyResult, *apperrors.BusinessError)
 }
 
 type familyService struct {
@@ -88,6 +93,13 @@ func (s *familyService) Create(ctx context.Context, userID uint64, req dto.Creat
 	displayName := surname + "氏创建者"
 	if user.Nickname != nil && strings.TrimSpace(*user.Nickname) != "" {
 		displayName = strings.TrimSpace(*user.Nickname)
+	}
+	founderGender := string(enums.GenderUnknown)
+	if req.FounderGender != nil {
+		founderGender = strings.ToUpper(strings.TrimSpace(*req.FounderGender))
+		if founderGender != string(enums.GenderMale) && founderGender != string(enums.GenderFemale) {
+			return nil, familyError(CodeFamilyCreateStatusDenied, "创建者性别必须选择男或女")
+		}
 	}
 
 	family := &familymodel.Family{
@@ -127,7 +139,7 @@ func (s *familyService) Create(ctx context.Context, userID uint64, req dto.Creat
 			MemberType:        string(enums.StatusLineageMember),
 			Surname:           &surname,
 			DisplayName:       displayName,
-			Gender:            string(enums.GenderUnknown),
+			Gender:            founderGender,
 			UserBindingPolicy: string(enums.UserBindingOptional),
 			Status:            string(enums.StatusActive),
 			CreatedByUserID:   &userID,
@@ -279,6 +291,48 @@ func (s *familyService) Update(ctx context.Context, userID uint64, familyID uint
 	}
 	link, _ := s.permissions.GetActiveLink(ctx, userID, familyID)
 	return familyDetail(family, link.FamilyRole), nil
+}
+
+func (s *familyService) Leave(ctx context.Context, userID uint64, familyID uint64, req dto.LeaveFamilyRequest, audit AuditInput) (*vo.LeaveFamilyResult, *apperrors.BusinessError) {
+	var memberID uint64
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		repo := s.repo.WithTx(tx)
+		family, err := repo.FindFamilyByIDForUpdate(ctx, familyID)
+		if err != nil {
+			return err
+		}
+		if family.Status != familyStatusNormal {
+			return errFamilyLeaveForbidden
+		}
+		link, err := repo.FindActiveLinkForUpdate(ctx, familyID, userID)
+		if err != nil {
+			return err
+		}
+		if link.FamilyRole == string(enums.FamilyRoleFounder) {
+			return errFamilyFounderMustTransfer
+		}
+		memberID = link.MemberID
+		now := time.Now()
+		if err := repo.DeactivateLink(ctx, link.ID, userID, cleanString(req.Reason), now); err != nil {
+			return err
+		}
+		return operationlog.NewGormService(tx).WriteSuccess(ctx, userOperationLog(
+			userID, "LEAVE_FAMILY", "FAMILY_MEMBER_USER_LINK", link.ID, familyID, &memberID, audit,
+		))
+	})
+	if err == nil {
+		return &vo.LeaveFamilyResult{FamilyID: familyID, MemberID: memberID, Status: "LEFT"}, nil
+	}
+	switch {
+	case errors.Is(err, errFamilyFounderMustTransfer):
+		return nil, familyError(CodeFamilyLeaveForbidden, "家庭创建者需先转让创建者身份后才能退出")
+	case errors.Is(err, errFamilyLeaveForbidden):
+		return nil, familyError(CodeFamilyLeaveForbidden, "当前家庭状态不允许退出")
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		return nil, familyError(CodeFamilyLeaveNotLinked, "当前账号不在该家庭中")
+	default:
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
 }
 
 func (s *familyService) CreateDissolutionRequest(ctx context.Context, userID uint64, familyID uint64, req dto.CreateDissolutionRequest, audit AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError) {

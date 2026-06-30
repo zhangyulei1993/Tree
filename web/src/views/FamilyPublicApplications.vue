@@ -9,8 +9,54 @@
         <RouterLink class="button secondary" :to="`/families/${familyId}`">返回家庭详情</RouterLink>
       </div>
 
-      <section class="card form-card">
+      <section v-if="loading" class="card state-panel">正在确认家庭公开状态...</section>
+
+      <section v-else-if="error" class="card state-panel error" role="alert">
+        <strong>公开状态加载失败</strong>
+        <span>{{ error }}</span>
+        <button class="button secondary" @click="loadApplications">重新加载</button>
+      </section>
+
+      <section v-else-if="family?.status !== 'NORMAL'" class="card form-card">
+        <h2>公开展示暂不可调整</h2>
+        <p class="muted">家庭当前为{{ familyStatusText(family?.status) }}状态，请先完成当前家庭状态处理。</p>
+      </section>
+
+      <section v-else-if="family?.publicDisplayStatus === 'APPROVED'" class="card form-card public-active">
+        <h2>家庭当前已公开</h2>
+        <p class="muted">公开家庭主页和公开家谱可被匿名访问。</p>
+        <div class="public-actions">
+          <RouterLink class="button secondary" :to="`/families/${familyId}/public`">查看公开主页</RouterLink>
+          <RouterLink class="button secondary" :to="`/families/${familyId}/tree/public`">查看公开家谱</RouterLink>
+        </div>
+        <label>
+          <span>关闭说明</span>
+          <textarea
+            v-model.trim="takeDownReason"
+            class="field textarea"
+            maxlength="500"
+            placeholder="可选，仅用于操作记录"
+          />
+        </label>
+        <p class="privacy-note">家庭主动关闭公开展示会立即生效，无需再次等待后台审核；重新公开时需要重新提交申请。</p>
+        <button class="button danger" :disabled="takingDown" @click="closePublicDisplay">
+          {{ takingDown ? '关闭中...' : '关闭公开展示' }}
+        </button>
+      </section>
+
+      <section v-else-if="family?.publicDisplayStatus === 'PENDING'" class="card form-card">
+        <h2>公开申请审核中</h2>
+        <p class="muted">后台审核完成前，公开主页和公开家谱不会对外开放。你可以在下方申请记录中取消待审核申请。</p>
+      </section>
+
+      <section v-else class="card form-card">
         <h2>提交申请</h2>
+        <p v-if="family?.publicDisplayStatus === 'REJECTED'" class="feedback error">
+          上次公开申请未通过，请查看审核意见后重新提交。
+        </p>
+        <p v-else-if="family?.publicDisplayStatus === 'TAKEN_DOWN'" class="feedback">
+          该家庭当前已关闭公开展示，如需重新公开请再次提交审核。
+        </p>
         <p class="muted">审核通过后，公开家庭主页和公开家庭树才可匿名访问。</p>
         <form @submit.prevent="submitApplication">
           <label>
@@ -26,9 +72,9 @@
             {{ submitting ? '提交中...' : '提交公开申请' }}
           </button>
         </form>
-        <p v-if="submitError" class="feedback error" role="alert">{{ submitError }}</p>
-        <p v-if="submitSuccess" class="feedback success" role="status">{{ submitSuccess }}</p>
       </section>
+      <p v-if="submitError" class="feedback error" role="alert">{{ submitError }}</p>
+      <p v-if="submitSuccess" class="feedback success" role="status">{{ submitSuccess }}</p>
 
       <section class="records">
         <div class="section-heading">
@@ -36,11 +82,6 @@
           <button class="button secondary" :disabled="loading" @click="loadApplications">刷新</button>
         </div>
         <div v-if="loading" class="card state-panel">正在加载申请记录...</div>
-        <div v-else-if="error" class="card state-panel error" role="alert">
-          <strong>申请记录加载失败</strong>
-          <span>{{ error }}</span>
-          <button class="button secondary" @click="loadApplications">重新加载</button>
-        </div>
         <div v-else-if="applications.length === 0" class="card state-panel">
           暂无公开展示申请。
         </div>
@@ -80,20 +121,25 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 
 import { apiErrorMessage } from '@/api/client'
+import { getFamilyDetail } from '@/api/families'
 import {
   cancelPublicApplication,
+  closePublicFamily,
   listPublicApplications,
   submitPublicApplication
 } from '@/api/publicApplications'
 import PageShell from '@/components/PageShell.vue'
-import type { PublicApplication } from '@/types/api'
+import type { FamilyDetail, PublicApplication } from '@/types/api'
 
 const route = useRoute()
 const familyId = computed(() => String(route.params.familyId))
+const family = ref<FamilyDetail | null>(null)
 const applications = ref<PublicApplication[]>([])
 const applicationReason = ref('')
+const takeDownReason = ref('')
 const loading = ref(true)
 const submitting = ref(false)
+const takingDown = ref(false)
 const cancellingId = ref<number | null>(null)
 const error = ref('')
 const submitError = ref('')
@@ -107,13 +153,37 @@ async function loadApplications() {
   loading.value = true
   error.value = ''
   try {
-    const result = await listPublicApplications(familyId.value, { page: 1, pageSize: 50 })
+    const [familyResult, result] = await Promise.all([
+      getFamilyDetail(familyId.value),
+      listPublicApplications(familyId.value, { page: 1, pageSize: 50 })
+    ])
+    family.value = familyResult
     applications.value = result.items
   } catch (requestError) {
+    family.value = null
     applications.value = []
     error.value = apiErrorMessage(requestError, '无法加载公开申请记录。')
   } finally {
     loading.value = false
+  }
+}
+
+async function closePublicDisplay() {
+  if (!window.confirm('关闭后公开主页和公开家谱将立即不可访问。确定关闭公开展示吗？')) return
+  takingDown.value = true
+  submitError.value = ''
+  submitSuccess.value = ''
+  try {
+    await closePublicFamily(familyId.value, {
+      reason: takeDownReason.value || undefined
+    })
+    takeDownReason.value = ''
+    submitSuccess.value = '公开展示已关闭。'
+    await loadApplications()
+  } catch (requestError) {
+    submitError.value = apiErrorMessage(requestError, '关闭公开展示失败。')
+  } finally {
+    takingDown.value = false
   }
 }
 
@@ -158,6 +228,14 @@ function applicationStatusText(status?: string) {
   if (status === 'CANCELLED') return '已取消'
   return '未知'
 }
+
+function familyStatusText(status?: string) {
+  if (status === 'DISSOLUTION_PENDING') return '解散待审核'
+  if (status === 'DISSOLVED') return '已解散'
+  if (status === 'DISABLED') return '已停用'
+  if (status === 'NORMAL') return '正常'
+  return '不可用'
+}
 </script>
 
 <style scoped>
@@ -191,6 +269,25 @@ p {
 
 .form-card {
   padding: 22px;
+}
+
+.public-active {
+  border-color: rgba(47, 107, 87, 0.35);
+}
+
+.public-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.privacy-note {
+  border-left: 3px solid var(--color-warning);
+  background: #fff8e9;
+  padding: 10px 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
 }
 
 form,

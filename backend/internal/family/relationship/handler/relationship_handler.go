@@ -35,6 +35,20 @@ func (h *RelationshipHandler) Create(ctx *gin.Context) {
 	writeResult(ctx, http.StatusCreated, result, businessErr)
 }
 
+func (h *RelationshipHandler) PlaceExisting(ctx *gin.Context) {
+	actorID, familyID, ok := actorAndFamily(ctx)
+	if !ok {
+		return
+	}
+	var req dto.PlaceExistingMemberRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	result, businessErr := h.service.PlaceExisting(ctx.Request.Context(), actorID, familyID, req, audit(ctx))
+	writeResult(ctx, http.StatusCreated, result, businessErr)
+}
+
 func (h *RelationshipHandler) Update(ctx *gin.Context) {
 	actorID, familyID, relationshipID, ok := actorFamilyRelationship(ctx)
 	if !ok {

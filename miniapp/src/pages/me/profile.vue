@@ -125,9 +125,11 @@ async function saveNickname() {
 
 onShow(() => {
   session.restoreSession()
-  if (session.isLoggedIn) {
-    session.refreshMe().catch(() => undefined)
+  if (!session.isLoggedIn) {
+    uni.reLaunch({ url: '/pages/auth/wechat-login' })
+    return
   }
+  session.refreshMe().catch(() => undefined)
 })
 </script>
 

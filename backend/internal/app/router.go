@@ -19,6 +19,7 @@ import (
 	"tree/backend/internal/common/permission"
 	commonredis "tree/backend/internal/common/redis"
 	"tree/backend/internal/common/response"
+	"tree/backend/internal/common/version"
 	"tree/backend/internal/common/wechat"
 	contenthandler "tree/backend/internal/content/handler"
 	contentrepo "tree/backend/internal/content/repository"
@@ -62,6 +63,7 @@ import (
 func (s *Server) RegisterRoutes() {
 	api := s.engine.Group("/api")
 	api.GET("/health", s.health)
+	api.GET("/version", s.version)
 
 	s.registerAdminRoutes(api)
 	s.registerUserAuthRoutes(api)
@@ -73,6 +75,10 @@ func (s *Server) health(ctx response.Context) {
 	response.Success(ctx, http.StatusOK, map[string]string{
 		"status": "ok",
 	})
+}
+
+func (s *Server) version(ctx response.Context) {
+	response.Success(ctx, http.StatusOK, version.Current(s.cfg.App.Env))
 }
 
 func (s *Server) registerAdminRoutes(api *gin.RouterGroup) {
@@ -90,6 +96,20 @@ func (s *Server) registerAdminRoutes(api *gin.RouterGroup) {
 	protected.POST("/auth/logout", authHandler.Logout)
 	protected.GET("/me", authHandler.Me)
 	protected.PUT("/me/password", authHandler.ChangePassword)
+	managementDB, err := database.Init(context.Background(), s.cfg.MySQL)
+	if err != nil {
+		s.logger.Error("init mysql for admin management", zap.Error(err))
+		return
+	}
+	management := adminhandler.NewManagementHandler(adminservice.NewManagementService(adminrepo.NewManagementRepository(managementDB)))
+	protected.GET("/dashboard", management.Dashboard)
+	protected.GET("/users", management.Users)
+	protected.GET("/users/:userId", management.User)
+	protected.GET("/families", management.Families)
+	protected.GET("/families/:familyId", management.Family)
+	protected.GET("/families/:familyId/members", management.Members)
+	protected.GET("/admin-users", management.Admins)
+	protected.GET("/operation-logs", management.Logs)
 }
 
 func (s *Server) buildAdminAuth() (*adminhandler.AuthHandler, gin.HandlerFunc) {
@@ -209,6 +229,7 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.GET("", handler.List)
 	families.GET("/:familyId", handler.Detail)
 	families.PUT("/:familyId", handler.Update)
+	families.POST("/:familyId/leave", handler.Leave)
 	families.POST("/:familyId/dissolution-requests", handler.CreateDissolutionRequest)
 	families.GET("/:familyId/dissolution-requests/current", handler.CurrentDissolutionRequest)
 	families.POST("/:familyId/dissolution-requests/:requestId/cancel", handler.CancelDissolutionRequest)
@@ -220,9 +241,11 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.POST("/:familyId/members/:memberId/bind-user", memberHandler.BindUser)
 	families.POST("/:familyId/members/:memberId/unbind-user", memberHandler.UnbindUser)
 	families.POST("/:familyId/members/:memberId/invite", invitationHandler.Create)
+	families.GET("/:familyId/invitations", invitationHandler.ListFamily)
 	families.POST("/:familyId/members/:memberId/set-admin", roleHandler.SetAdmin)
 	families.POST("/:familyId/members/:memberId/unset-admin", roleHandler.UnsetAdmin)
 	families.POST("/:familyId/relationships", relationshipHandler.Create)
+	families.POST("/:familyId/relationships/place-existing", relationshipHandler.PlaceExisting)
 	families.PUT("/:familyId/relationships/:relationshipId", relationshipHandler.Update)
 	families.DELETE("/:familyId/relationships/:relationshipId", relationshipHandler.Delete)
 	families.GET("/:familyId/tree", treeHandler.PrivateTree)
@@ -234,7 +257,9 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.POST("/:familyId/public-applications", publicApplicationHandler.Submit)
 	families.GET("/:familyId/public-applications", publicApplicationHandler.ListFamily)
 	families.POST("/:familyId/public-applications/:applicationId/cancel", publicApplicationHandler.Cancel)
+	families.POST("/:familyId/take-down-public", publicApplicationHandler.TakeDownUser)
 	families.POST("/:familyId/founder-transfer-requests", transferHandler.Create)
+	families.GET("/:familyId/founder-transfer-requests/current", transferHandler.Current)
 	families.POST("/:familyId/founder-transfer-requests/:requestId/cancel", transferHandler.Cancel)
 
 	invitations := api.Group("/invitations")
@@ -242,6 +267,7 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	invitations.POST("/:invitationId/accept", invitationHandler.Accept)
 	invitations.POST("/:invitationId/reject", invitationHandler.Reject)
 	invitations.POST("/:invitationId/cancel", invitationHandler.Cancel)
+	invitations.POST("/:invitationId/regenerate", invitationHandler.Regenerate)
 
 	users := api.Group("/users/me")
 	users.Use(userAuth)

@@ -118,7 +118,11 @@ func (r *fakeRepo) List(_ context.Context, q publicrepo.ListQuery) ([]publicrepo
 		if q.Status != "" && app.ApplicationStatus != q.Status {
 			continue
 		}
-		rows = append(rows, publicrepo.ApplicationRow{FamilyPublicApplication: *app, FamilyName: r.family.FamilyName})
+		rows = append(rows, publicrepo.ApplicationRow{
+			FamilyPublicApplication:   *app,
+			FamilyName:                r.family.FamilyName,
+			FamilyPublicDisplayStatus: r.family.PublicDisplayStatus,
+		})
 	}
 	return rows, int64(len(rows)), nil
 }
@@ -215,6 +219,38 @@ func TestPublicApplicationFlow(t *testing.T) {
 		actor := uint64(8)
 		repo.applications[1] = &publicmodel.FamilyPublicApplication{ID: 1, FamilyID: 2, ApplicantUserID: &actor, ApplicationStatus: publicenum.StatusPending}
 		if _, err := newTestService(repo, false, now).Cancel(context.Background(), 9, 2, 1, publicdto.CancelPublicApplicationRequest{}, AuditInput{}); err == nil || err.Code != CodePublicApplicationForbidden {
+			t.Fatalf("unexpected %#v", err)
+		}
+	})
+	t.Run("family manager closes approved public display immediately", func(t *testing.T) {
+		repo := newFakeRepo()
+		repo.family.PublicDisplayStatus = publicenum.PublicApproved
+		before := repo.family.GraphVersion
+		result, err := newTestService(repo, true, now).TakeDownUser(
+			context.Background(), 8, 2, publicdto.TakeDownPublicFamilyRequest{}, AuditInput{},
+		)
+		if err != nil || result.PublicDisplayStatus != publicenum.PublicTakenDown {
+			t.Fatalf("unexpected %#v %#v", result, err)
+		}
+		if repo.family.GraphVersion != before || len(repo.logs) != 1 ||
+			repo.logs[0].OperatorUserID == nil || repo.logs[0].Action != "CLOSE_PUBLIC_FAMILY" {
+			t.Fatal("user take down must preserve graph version and write user operation log")
+		}
+	})
+	t.Run("non-manager cannot close public display", func(t *testing.T) {
+		repo := newFakeRepo()
+		repo.family.PublicDisplayStatus = publicenum.PublicApproved
+		if _, err := newTestService(repo, false, now).TakeDownUser(
+			context.Background(), 8, 2, publicdto.TakeDownPublicFamilyRequest{}, AuditInput{},
+		); err == nil || err.Code != CodePublicApplicationForbidden {
+			t.Fatalf("unexpected %#v", err)
+		}
+	})
+	t.Run("private family cannot be closed again", func(t *testing.T) {
+		repo := newFakeRepo()
+		if _, err := newTestService(repo, true, now).TakeDownUser(
+			context.Background(), 8, 2, publicdto.TakeDownPublicFamilyRequest{}, AuditInput{},
+		); err == nil || err.Code != CodePublicFamilyTakeDownDenied {
 			t.Fatalf("unexpected %#v", err)
 		}
 	})

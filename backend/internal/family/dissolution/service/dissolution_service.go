@@ -181,6 +181,7 @@ func rowsVO(rows []dissolutionrepo.DissolutionRow) []vo.DissolutionRequest {
 func requestVO(row *dissolutionrepo.DissolutionRow) vo.DissolutionRequest {
 	return vo.DissolutionRequest{
 		RequestID: row.ID, FamilyID: row.FamilyID, FamilyName: row.FamilyName,
+		FamilyStatus:      row.FamilyStatus,
 		RequesterMemberID: row.RequesterMemberID, RequesterUserID: row.RequesterUserID,
 		RequestStatus: row.RequestStatus, RequestReason: row.RequestReason, ReviewResult: row.ReviewResult,
 		ReviewedByAdminID: row.ReviewedByAdminID, ReviewedAt: row.ReviewedAt, ReviewComment: row.ReviewComment,

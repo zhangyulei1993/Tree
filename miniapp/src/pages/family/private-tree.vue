@@ -15,9 +15,17 @@
     </MiniCard>
 
     <template v-else-if="tree">
+      <FamilyContextHeader
+        v-if="family"
+        :family-name="family.familyName"
+        section="私有家谱"
+        subtitle="查看家庭内部成员和亲属关系"
+        :role-label="family.role === 'FOUNDER' ? '创建者' : family.role === 'FAMILY_ADMIN' ? '管理员' : '成员'"
+        @back="openFamilyOverview"
+      />
       <view class="tree-tool-banner tree-banner">
         <view class="banner-copy">
-          <text class="tree-tool-banner-title">私有家谱</text>
+          <text class="tree-tool-banner-title">家谱概览</text>
           <text class="tree-tool-banner-desc">
             {{ treeViewLabel(tree.treeMode) }} · {{ tree.nodes.length }} 位成员 · {{ edgeCount }} 条关系
           </text>
@@ -40,6 +48,9 @@
         </view>
         <view class="tree-space-body section-pad">
           <TreeViewModeSwitch v-model="viewMode" />
+          <MiniNotice v-if="canManageFamily && viewMode === 'structure'" tone="security" title="可直接管理家谱节点">
+            带“管理”标记的成员节点可点击。你可以编辑该成员，或以其为起点添加父母、子女、配偶和兄弟姐妹。
+          </MiniNotice>
 
           <template v-if="viewMode === 'structure'">
             <MiniEmptyState
@@ -53,6 +64,8 @@
               :tree="tree"
               :viewer-member-id="viewerMemberId"
               show-binding
+              :interactive="canManageFamily"
+              @select="openNodeActions"
             />
           </template>
 
@@ -76,6 +89,7 @@ import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
+import { getFamilyDetail } from '@/api/families'
 import { listFamilyMembers } from '@/api/members'
 import { getPrivateTree } from '@/api/tree'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
@@ -83,6 +97,7 @@ import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
+import FamilyContextHeader from '@/components/family/FamilyContextHeader.vue'
 import FamilyTreeStructureView from '@/components/family/FamilyTreeStructureView.vue'
 import RelationSentenceList from '@/components/family/RelationSentenceList.vue'
 import TreeViewModeSwitch from '@/components/family/TreeViewModeSwitch.vue'
@@ -94,10 +109,11 @@ import {
 } from '@/features/family-tree/relationSentences'
 import type { FamilyTreeViewMode } from '@/features/family-tree/types'
 import { useSessionStore } from '@/stores/session'
-import type { FamilyTreeResult } from '@/types/api'
+import type { FamilyDetail, FamilyTreeResult, RelationshipAddType, TreeNode } from '@/types/api'
 
 const session = useSessionStore()
 const familyId = ref('')
+const family = ref<FamilyDetail | null>(null)
 const tree = ref<FamilyTreeResult | null>(null)
 const loading = ref(false)
 const errorMessage = ref('')
@@ -107,12 +123,24 @@ const viewerMemberId = ref<number | null>(null)
 
 const edgeCount = computed(() => (tree.value ? countVisibleEdges(tree.value) : 0))
 const relationSentences = computed(() => (tree.value ? buildRelationSentences(tree.value) : []))
+const canManageFamily = computed(() =>
+  family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
+)
+
+const nodeActionTypes: RelationshipAddType[] = [
+  'ADD_FATHER',
+  'ADD_MOTHER',
+  'ADD_CHILD',
+  'ADD_SPOUSE',
+  'ADD_SIBLING'
+]
 
 function resetAuthView() {
   authChecked.value = false
   loading.value = false
   errorMessage.value = ''
   tree.value = null
+  family.value = null
   viewerMemberId.value = null
 }
 
@@ -131,7 +159,12 @@ async function loadTree() {
   errorMessage.value = ''
   viewerMemberId.value = null
   try {
-    tree.value = await getPrivateTree(familyId.value)
+    const [familyResult, treeResult] = await Promise.all([
+      getFamilyDetail(familyId.value),
+      getPrivateTree(familyId.value)
+    ])
+    family.value = familyResult
+    tree.value = treeResult
     if (session.user?.id) {
       try {
         const members = await listFamilyMembers(familyId.value)
@@ -145,6 +178,30 @@ async function loadTree() {
   } finally {
     loading.value = false
   }
+}
+
+function openFamilyOverview() {
+  uni.redirectTo({ url: `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}` })
+}
+
+function openNodeActions(node: TreeNode) {
+  if (!canManageFamily.value) return
+  uni.showActionSheet({
+    itemList: ['编辑成员资料', '添加父亲', '添加母亲', '添加子女', '添加配偶', '添加兄弟姐妹'],
+    success: (result) => {
+      if (result.tapIndex === 0) {
+        uni.navigateTo({
+          url: `/pages/family/member-edit?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(String(node.memberId))}`
+        })
+        return
+      }
+      const addType = nodeActionTypes[result.tapIndex - 1]
+      if (!addType) return
+      uni.navigateTo({
+        url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=create&baseMemberId=${encodeURIComponent(String(node.memberId))}&addType=${encodeURIComponent(addType)}`
+      })
+    }
+  })
 }
 
 onLoad((options) => {
@@ -161,6 +218,15 @@ onUnload(resetAuthView)
   align-items: center;
   justify-content: space-between;
   gap: 16rpx;
+  margin-bottom: 24rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.18);
+  border-radius: 36rpx;
+  background:
+    radial-gradient(circle at 90% 12%, rgba(216, 175, 104, 0.22), transparent 220rpx),
+    linear-gradient(135deg, #17304c 0%, #245653 100%);
+  padding: 32rpx;
+  color: #fff;
+  box-shadow: 0 24rpx 60rpx rgba(24, 54, 83, 0.18);
 }
 
 .banner-copy {
@@ -168,7 +234,21 @@ onUnload(resetAuthView)
   min-width: 0;
 }
 
+.tree-banner .tree-tool-banner-title {
+  color: #fff;
+}
+
+.tree-banner .tree-tool-banner-desc {
+  color: rgba(255, 255, 255, 0.72);
+}
+
 .section-pad {
-  padding: 8rpx 24rpx 16rpx;
+  padding: 12rpx 20rpx 20rpx;
+}
+
+.private-tree-page {
+  background:
+    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
+    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
 }
 </style>

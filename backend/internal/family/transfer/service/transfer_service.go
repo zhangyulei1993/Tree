@@ -34,6 +34,7 @@ type AuditInput struct {
 
 type Service interface {
 	Create(context.Context, uint64, uint64, transferdto.CreateTransferRequest, AuditInput) (*vo.TransferRequest, *apperrors.BusinessError)
+	Current(context.Context, uint64, uint64) (*vo.TransferRequest, *apperrors.BusinessError)
 	Cancel(context.Context, uint64, uint64, uint64, transferdto.CancelTransferRequest, AuditInput) (*vo.TransferRequest, *apperrors.BusinessError)
 	ListAdmin(context.Context, uint64, string, transferdto.ListTransferQuery) (*vo.ListResult, *apperrors.BusinessError)
 	Approve(context.Context, uint64, string, uint64, transferdto.ReviewTransferRequest, AuditInput) (*vo.TransferRequest, *apperrors.BusinessError)
@@ -90,6 +91,23 @@ func (s *service) Create(ctx context.Context, actorID uint64, familyID uint64, r
 		return nil, businessErr
 	}
 	return s.result(ctx, requestID)
+}
+
+func (s *service) Current(ctx context.Context, actorID uint64, familyID uint64) (*vo.TransferRequest, *apperrors.BusinessError) {
+	link, err := s.repo.FindActiveLinkByUser(ctx, familyID, actorID, false)
+	if err != nil || link.LinkStatus != string(enums.StatusActive) {
+		return nil, transferError(CodeTransferForbidden, "无权查看创始人转让申请")
+	}
+	request, err := s.repo.FindPendingByFamily(ctx, familyID)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, transferError(CodeTransferNotFound, "当前没有待审核创始人转让申请")
+	}
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	row := transferrepo.TransferRow{FamilyFounderTransferRequest: *request}
+	result := requestVO(&row)
+	return &result, nil
 }
 
 func (s *service) Cancel(ctx context.Context, actorID uint64, familyID uint64, requestID uint64, req transferdto.CancelTransferRequest, audit AuditInput) (*vo.TransferRequest, *apperrors.BusinessError) {

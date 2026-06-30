@@ -40,8 +40,58 @@ type AuditInput struct {
 
 type RelationshipService interface {
 	Create(context.Context, uint64, uint64, dto.CreateRelationshipRequest, AuditInput) (*vo.MutationResult, *apperrors.BusinessError)
+	PlaceExisting(context.Context, uint64, uint64, dto.PlaceExistingMemberRequest, AuditInput) (*vo.MutationResult, *apperrors.BusinessError)
 	Update(context.Context, uint64, uint64, uint64, dto.UpdateRelationshipRequest, AuditInput) (*vo.MutationResult, *apperrors.BusinessError)
 	Delete(context.Context, uint64, uint64, uint64, dto.DeleteRelationshipRequest, AuditInput) (*vo.MutationResult, *apperrors.BusinessError)
+}
+
+func (s *relationshipService) PlaceExisting(ctx context.Context, actorID uint64, familyID uint64, req dto.PlaceExistingMemberRequest, audit AuditInput) (*vo.MutationResult, *apperrors.BusinessError) {
+	if allowed, err := s.permissions.CanManageRelationships(ctx, actorID, familyID); err != nil || !allowed {
+		return nil, relationshipError(CodeRelationshipForbidden, "无权修改家庭关系")
+	}
+	if req.BaseMemberID == req.MemberID {
+		return nil, relationshipError(CodeRelationshipSelf, "不能与自己建立关系")
+	}
+
+	var member *membermodel.FamilyMember
+	var createdRelationships []*relationshipmodel.FamilyRelationship
+	var graphVersion int64
+	err := s.unitOfWork.WithinTransaction(ctx, func(repo relationshiprepo.Repository) error {
+		family, err := repo.LockFamily(ctx, familyID)
+		if err != nil {
+			return err
+		}
+		if family.Status != string(enums.StatusNormal) {
+			return errFamilyUnavailable
+		}
+		member, err = repo.FindMemberForUpdate(ctx, familyID, req.MemberID)
+		if err != nil {
+			return errMemberUnavailable
+		}
+		located, err := repo.HasActiveRelationships(ctx, familyID, req.MemberID)
+		if err != nil {
+			return err
+		}
+		if located {
+			return errMemberAlreadyLocated
+		}
+		createdRelationships, err = PlaceExistingMember(
+			ctx, repo, familyID, family.FamilySurname, actorID,
+			req.BaseMemberID, member, req.AddType, req.Relationship,
+		)
+		if err != nil {
+			return err
+		}
+		graphVersion, err = repo.IncrementGraphVersion(ctx, familyID)
+		if err != nil {
+			return err
+		}
+		return writeOperationLog(ctx, repo, actorID, familyID, "PLACE_EXISTING_MEMBER", createdRelationships, audit)
+	})
+	if businessErr := mapRepositoryError(err); businessErr != nil {
+		return nil, businessErr
+	}
+	return mutationResult(member, createdRelationships, graphVersion), nil
 }
 
 type familyPermission interface {
@@ -520,6 +570,8 @@ func mapRepositoryError(err error) *apperrors.BusinessError {
 		return relationshipError(CodeSiblingParentRequired, "请先创建父亲或母亲节点，再添加兄弟姐妹")
 	case errors.Is(err, errMemberUnavailable), errors.Is(err, gorm.ErrRecordNotFound):
 		return relationshipError(CodeRelationshipMember, "关系成员不存在或不属于该家庭")
+	case errors.Is(err, errMemberAlreadyLocated):
+		return relationshipError(CodeRelationshipDuplicate, "该成员已在家谱中，无需重复定位")
 	case errors.Is(err, errDuplicateRelationship):
 		return relationshipError(CodeRelationshipDuplicate, "当前关系已存在")
 	case errors.Is(err, errPrimaryFatherExists):
@@ -602,6 +654,7 @@ func relationshipError(code apperrors.Code, message string) *apperrors.BusinessE
 var (
 	errSiblingParentRequired   = errors.New("sibling parent required")
 	errMemberUnavailable       = errors.New("relationship member unavailable")
+	errMemberAlreadyLocated    = errors.New("member already located")
 	errDuplicateRelationship   = errors.New("duplicate relationship")
 	errPrimaryFatherExists     = errors.New("primary father exists")
 	errPrimaryMotherExists     = errors.New("primary mother exists")

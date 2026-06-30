@@ -85,3 +85,9 @@ type DissolutionRequest struct {
 	CancelReason      *string    `json:"cancelReason,omitempty"`
 	CreatedAt         time.Time  `json:"createdAt"`
 }
+
+type LeaveFamilyResult struct {
+	FamilyID uint64 `json:"familyId"`
+	MemberID uint64 `json:"memberId"`
+	Status   string `json:"status"`
+}

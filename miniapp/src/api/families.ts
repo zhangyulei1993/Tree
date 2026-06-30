@@ -1,13 +1,18 @@
 import { isRealApiMode, request } from '@/api/client'
 import { families, myFamilies } from '@/mock/data'
 import type {
+  CreateFamilyInput,
   FamilyDetail,
   FamilySummary,
   ListPublicFamiliesQuery,
+  LeaveFamilyResult,
   PaginatedResult,
   PublicFamily,
-  PublicFamilyListItem
+  PublicFamilyListItem,
+  UpdateFamilyInput
 } from '@/types/api'
+
+const mockFamilyOverrides = new Map<string, Partial<FamilyDetail>>()
 
 export async function listMyFamilies(): Promise<FamilySummary[]> {
   if (!isRealApiMode) {
@@ -28,11 +33,21 @@ export async function listMyFamilies(): Promise<FamilySummary[]> {
   return request<FamilySummary[]>('/families')
 }
 
+export async function leaveFamily(
+  familyId: number | string,
+  reason?: string
+): Promise<LeaveFamilyResult> {
+  return request<LeaveFamilyResult, { reason?: string }>(`/families/${familyId}/leave`, {
+    method: 'POST',
+    data: reason ? { reason } : {}
+  })
+}
+
 export async function getFamilyDetail(familyId: number | string): Promise<FamilyDetail> {
   if (!isRealApiMode) {
     const source = families.find((item) => item.id === String(familyId)) || families[0]
     const mine = myFamilies.find((item) => item.id === source.id)
-    return {
+    const detail: FamilyDetail = {
       id: source.id,
       familyName: source.name,
       familySurname: source.surname,
@@ -48,8 +63,50 @@ export async function getFamilyDetail(familyId: number | string): Promise<Family
       currentFounderMemberId: 1,
       graphVersion: source.graphVersion
     }
+    return { ...detail, ...mockFamilyOverrides.get(String(familyId)) }
   }
   return request<FamilyDetail>(`/families/${familyId}`)
+}
+
+export async function createFamily(input: CreateFamilyInput): Promise<FamilyDetail> {
+  if (!isRealApiMode) {
+    const now = Date.now()
+    return {
+      id: `mock_family_${now}`,
+      familyName: input.familyName || `${input.surname}氏家族`,
+      familySurname: input.surname,
+      nativePlace: input.nativePlace || null,
+      regionText: input.regionText || null,
+      description: input.description || null,
+      status: 'NORMAL',
+      publicDisplayStatus: 'PRIVATE',
+      role: 'FOUNDER',
+      searchable: true,
+      publicContactVisible: false,
+      currentFounderMemberId: now,
+      graphVersion: 1
+    }
+  }
+  return request<FamilyDetail, CreateFamilyInput>('/families', {
+    method: 'POST',
+    data: input
+  })
+}
+
+export async function updateFamily(
+  familyId: number | string,
+  input: UpdateFamilyInput
+): Promise<FamilyDetail> {
+  if (!isRealApiMode) {
+    const current = await getFamilyDetail(familyId)
+    const updated = { ...current, ...input }
+    mockFamilyOverrides.set(String(familyId), updated)
+    return updated
+  }
+  return request<FamilyDetail, UpdateFamilyInput>(`/families/${familyId}`, {
+    method: 'PUT',
+    data: input
+  })
 }
 
 export async function getPublicFamilyDetail(familyId: number | string): Promise<PublicFamily> {

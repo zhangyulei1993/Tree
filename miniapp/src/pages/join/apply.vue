@@ -1,8 +1,6 @@
 <template>
   <view class="tree-page">
     <MiniBackHome />
-    <MiniSectionHeader title="加入家庭申请" subtitle="提交申请后，家庭管理员将审核你的身份。" />
-
     <MiniCard v-if="loading">
       <view class="state-block">
         <text class="tree-muted">正在加载家庭信息...</text>
@@ -46,6 +44,26 @@
         <MiniButton @click="requirePhoneBound">去绑定手机号</MiniButton>
       </MiniCard>
 
+      <MiniCard v-else-if="alreadyMember" variant="soft">
+        <MiniEmptyState
+          symbol="✓"
+          title="你已经是该家庭成员"
+          description="无需重复提交申请，可以直接进入“我的家庭”查看。"
+          action-text="查看我的家庭"
+          @action="go('/pages/family/my')"
+        />
+      </MiniCard>
+
+      <MiniCard v-else-if="submittedRequest?.requestStatus === 'PENDING'" variant="soft">
+        <MiniEmptyState
+          symbol="…"
+          title="加入申请审核中"
+          description="家庭管理员尚未处理，请勿重复提交。"
+          action-text="查看或取消申请"
+          @action="go('/pages/me/family-affairs?tab=requests')"
+        />
+      </MiniCard>
+
       <MiniCard v-else-if="!submittedRequest">
         <text class="form-title">填写申请信息</text>
         <text class="tree-weak form-hint">请如实填写，方便管理员快速审核。</text>
@@ -78,7 +96,7 @@
           title="申请已提交"
           description="请等待家庭管理员审核。你可以在「我的加入申请」中查看审核进度。"
           action-text="查看我的加入申请"
-          @action="go('/pages/join/my')"
+          @action="go('/pages/me/family-affairs?tab=requests')"
         />
       </MiniCard>
 
@@ -92,14 +110,13 @@ import { onLoad } from '@dcloudio/uni-app'
 import { ref } from 'vue'
 
 import { apiErrorMessage, pendingRouteKey } from '@/api/client'
-import { getPublicFamilyDetail } from '@/api/families'
-import { createJoinRequest } from '@/api/joinRequests'
+import { getPublicFamilyDetail, listMyFamilies } from '@/api/families'
+import { createJoinRequest, listMyJoinRequests } from '@/api/joinRequests'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
 import FamilyMiniCard from '@/components/family/FamilyMiniCard.vue'
 import { useSessionStore } from '@/stores/session'
 import type { Gender, JoinRequest, PublicFamily } from '@/types/api'
@@ -112,6 +129,7 @@ const applicantGender = ref<Gender>('MALE')
 const genderIndex = ref(0)
 const applicantMessage = ref('')
 const submittedRequest = ref<JoinRequest | null>(null)
+const alreadyMember = ref(false)
 const loading = ref(false)
 const submitting = ref(false)
 const familyError = ref('')
@@ -154,8 +172,20 @@ async function loadFamily() {
   loading.value = true
   familyError.value = ''
   submitError.value = ''
+  submittedRequest.value = null
+  alreadyMember.value = false
   try {
     family.value = await getPublicFamilyDetail(familyId.value)
+    if (session.isLoggedIn && session.isPhoneBound) {
+      const [requests, myFamilies] = await Promise.all([
+        listMyJoinRequests(),
+        listMyFamilies()
+      ])
+      alreadyMember.value = myFamilies.some((item) => String(item.id) === familyId.value)
+      submittedRequest.value = requests.find(
+        (item) => String(item.familyId) === familyId.value && item.requestStatus === 'PENDING'
+      ) || null
+    }
   } catch (error) {
     family.value = null
     familyError.value = apiErrorMessage(error, '家庭公开信息加载失败。')

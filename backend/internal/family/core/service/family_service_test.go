@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -48,8 +49,9 @@ func TestCreateFamilyInitializesFounderAndGraphVersion(t *testing.T) {
 	}
 
 	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil)
+	founderGender := string(enums.GenderMale)
 	result, businessErr := service.Create(ctx, user.ID, dto.CreateFamilyRequest{
-		Surname: "测",
+		Surname: "测", FounderGender: &founderGender,
 	}, AuditInput{IP: "127.0.0.1", UserAgent: "p0-test"})
 	if businessErr != nil {
 		t.Fatalf("Create: %v", businessErr)
@@ -72,7 +74,8 @@ func TestCreateFamilyInitializesFounderAndGraphVersion(t *testing.T) {
 	if err := tx.WithContext(ctx).First(&member, *family.CurrentFounderMemberID).Error; err != nil {
 		t.Fatalf("load founder member: %v", err)
 	}
-	if member.FamilyID != family.ID || member.Status != string(enums.StatusActive) {
+	if member.FamilyID != family.ID || member.Status != string(enums.StatusActive) ||
+		member.Gender != string(enums.GenderMale) {
 		t.Fatalf("invalid founder member: %#v", member)
 	}
 
@@ -102,5 +105,80 @@ func TestNonFounderCannotCreateDissolutionRequest(t *testing.T) {
 	)
 	if result != nil || businessErr == nil || businessErr.Code != CodeFamilyDissolutionForbidden {
 		t.Fatalf("unexpected result/error: %#v %#v", result, businessErr)
+	}
+}
+
+func TestMemberCanLeaveWithoutDeletingTreeNodeOrChangingGraphVersion(t *testing.T) {
+	ctx := context.Background()
+	tx := transactionalTestDB(t)
+	founder := &usermodel.User{PhoneVerified: true, AccountOrigin: "P0_TEST", RegisterClient: "P0_TEST", Status: string(enums.StatusActive)}
+	memberUser := &usermodel.User{PhoneVerified: true, AccountOrigin: "P0_TEST", RegisterClient: "P0_TEST", Status: string(enums.StatusActive)}
+	if err := tx.WithContext(ctx).Create(founder).Error; err != nil {
+		t.Fatalf("create founder: %v", err)
+	}
+	if err := tx.WithContext(ctx).Create(memberUser).Error; err != nil {
+		t.Fatalf("create member user: %v", err)
+	}
+	repo := familyrepo.NewFamilyRepository(tx)
+	service := NewFamilyService(tx, repo, nil)
+	created, businessErr := service.Create(ctx, founder.ID, dto.CreateFamilyRequest{Surname: "退"}, AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("create family: %v", businessErr)
+	}
+	member := &membermodel.FamilyMember{
+		FamilyID: created.ID, MemberType: "LINEAGE_MEMBER", DisplayName: "保留节点", Gender: "FEMALE",
+		UserBindingPolicy: "OPTIONAL", Status: string(enums.StatusActive),
+	}
+	if err := tx.WithContext(ctx).Create(member).Error; err != nil {
+		t.Fatalf("create member: %v", err)
+	}
+	now := time.Now()
+	link := &rolemodel.FamilyMemberUserLink{
+		FamilyID: created.ID, MemberID: member.ID, UserID: memberUser.ID,
+		LinkStatus: string(enums.StatusActive), LinkSource: "P0_TEST", FamilyRole: string(enums.FamilyRoleMember), RoleGrantedAt: &now,
+	}
+	if err := tx.WithContext(ctx).Create(link).Error; err != nil {
+		t.Fatalf("create link: %v", err)
+	}
+
+	result, businessErr := service.Leave(ctx, memberUser.ID, created.ID, dto.LeaveFamilyRequest{}, AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("Leave: %v", businessErr)
+	}
+	if result.MemberID != member.ID || result.Status != "LEFT" {
+		t.Fatalf("unexpected leave result: %#v", result)
+	}
+	var savedLink rolemodel.FamilyMemberUserLink
+	if err := tx.WithContext(ctx).First(&savedLink, link.ID).Error; err != nil {
+		t.Fatalf("load link: %v", err)
+	}
+	if savedLink.LinkStatus != "INACTIVE" || savedLink.UnlinkedAt == nil {
+		t.Fatalf("link was not deactivated: %#v", savedLink)
+	}
+	var savedMember membermodel.FamilyMember
+	if err := tx.WithContext(ctx).First(&savedMember, member.ID).Error; err != nil || savedMember.Status != string(enums.StatusActive) {
+		t.Fatalf("tree node must remain active: %#v %v", savedMember, err)
+	}
+	var savedFamily familymodel.Family
+	if err := tx.WithContext(ctx).First(&savedFamily, created.ID).Error; err != nil || savedFamily.GraphVersion != created.GraphVersion {
+		t.Fatalf("leave must not change graph version: %#v %v", savedFamily, err)
+	}
+}
+
+func TestFounderMustTransferBeforeLeave(t *testing.T) {
+	ctx := context.Background()
+	tx := transactionalTestDB(t)
+	user := &usermodel.User{PhoneVerified: true, AccountOrigin: "P0_TEST", RegisterClient: "P0_TEST", Status: string(enums.StatusActive)}
+	if err := tx.WithContext(ctx).Create(user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil)
+	created, businessErr := service.Create(ctx, user.ID, dto.CreateFamilyRequest{Surname: "创"}, AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("create family: %v", businessErr)
+	}
+	_, businessErr = service.Leave(ctx, user.ID, created.ID, dto.LeaveFamilyRequest{}, AuditInput{})
+	if businessErr == nil || businessErr.Code != CodeFamilyLeaveForbidden {
+		t.Fatalf("expected founder leave rejection, got %#v", businessErr)
 	}
 }

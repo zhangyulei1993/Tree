@@ -26,6 +26,7 @@
           <RouterLink class="button" to="/me/families">我的家庭</RouterLink>
           <RouterLink class="button secondary" to="/me/invitations">我的邀请</RouterLink>
           <RouterLink class="button secondary" to="/me/join-requests">我的加入申请</RouterLink>
+          <RouterLink class="button secondary" to="/me/settings">账号设置</RouterLink>
           <button class="button secondary" :disabled="loggingOut" @click="logout">
             {{ loggingOut ? '退出中...' : '退出登录' }}
           </button>

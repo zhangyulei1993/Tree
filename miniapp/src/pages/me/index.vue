@@ -26,12 +26,16 @@
       </MiniCard>
 
       <MiniCard>
-        <MiniSectionHeader title="我的事务" subtitle="家庭、邀请与加入申请" />
+        <MiniSectionHeader
+          title="我的家庭事务"
+          subtitle="查看所属家庭和个人申请进度"
+          accent
+        />
         <MiniActionList :items="affairItems" @select="onAffairSelect" />
       </MiniCard>
 
       <MiniCard>
-        <MiniSectionHeader title="账号与安全" subtitle="手机号绑定与账号管理" />
+        <MiniSectionHeader title="账号与安全" subtitle="手机号绑定与账号管理" accent />
         <MiniNotice v-if="showPasswordUnsetNotice" tone="info" class="password-notice">
           建议设置登录密码，方便电脑网页登录。
         </MiniNotice>
@@ -39,7 +43,7 @@
       </MiniCard>
 
       <MiniCard>
-        <MiniSectionHeader title="协议与隐私" />
+        <MiniSectionHeader title="协议与隐私" accent />
         <MiniActionList :items="legalItems" @select="onLegalSelect" />
         <MiniButton
           variant="secondary"
@@ -51,6 +55,28 @@
           退出登录
         </MiniButton>
         <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
+      </MiniCard>
+
+      <MiniCard variant="soft" class="build-card">
+        <MiniSectionHeader title="版本信息" subtitle="用于确认当前小程序包和接口环境" accent />
+        <view class="build-grid">
+          <view>
+            <text>小程序</text>
+            <text>{{ buildInfo.version }}</text>
+          </view>
+          <view>
+            <text>提交</text>
+            <text>{{ buildInfo.commit }}{{ buildInfo.dirty ? ' dirty' : '' }}</text>
+          </view>
+          <view>
+            <text>环境</text>
+            <text>{{ buildInfo.environment }}</text>
+          </view>
+          <view>
+            <text>接口</text>
+            <text>{{ buildInfo.apiBaseUrl || '未配置' }}</text>
+          </view>
+        </view>
       </MiniCard>
     </template>
 
@@ -71,8 +97,30 @@
       </MiniCard>
 
       <MiniCard>
-        <MiniSectionHeader title="协议与隐私" />
+        <MiniSectionHeader title="协议与隐私" accent />
         <MiniActionList :items="legalItems" @select="onLegalSelect" />
+      </MiniCard>
+
+      <MiniCard variant="soft" class="build-card">
+        <MiniSectionHeader title="版本信息" subtitle="用于确认当前小程序包和接口环境" accent />
+        <view class="build-grid">
+          <view>
+            <text>小程序</text>
+            <text>{{ buildInfo.version }}</text>
+          </view>
+          <view>
+            <text>提交</text>
+            <text>{{ buildInfo.commit }}{{ buildInfo.dirty ? ' dirty' : '' }}</text>
+          </view>
+          <view>
+            <text>环境</text>
+            <text>{{ buildInfo.environment }}</text>
+          </view>
+          <view>
+            <text>接口</text>
+            <text>{{ buildInfo.apiBaseUrl || '未配置' }}</text>
+          </view>
+        </view>
       </MiniCard>
     </template>
   </view>
@@ -83,6 +131,7 @@ import { onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage, resolveAssetUrl } from '@/api/client'
+import { buildInfo } from '@/buildInfo'
 import MiniActionList from '@/components/base/MiniActionList.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
@@ -141,9 +190,8 @@ const showPhoneBindNotice = computed(() =>
 )
 
 const affairItems = [
-  { key: 'family', title: '我的家庭', desc: '查看和管理家族资料' },
-  { key: 'invite', title: '我的邀请', desc: '查看邀请状态' },
-  { key: 'join', title: '我的加入申请', desc: '管理申请记录' }
+  { key: 'family', title: '我的家庭', desc: '查看和管理家庭资料' },
+  { key: 'affairs', title: '邀请与加入申请', desc: '处理收到的邀请，查看我提交的申请' }
 ]
 
 const securityItems = computed(() => [
@@ -174,11 +222,8 @@ function onAffairSelect(key: string) {
     case 'family':
       go('/pages/family/my')
       break
-    case 'invite':
-      go('/pages/invite/my')
-      break
-    case 'join':
-      go('/pages/join/my')
+    case 'affairs':
+      go('/pages/me/family-affairs')
       break
   }
 }
@@ -189,7 +234,7 @@ function onSecuritySelect(key: string) {
       go('/pages/me/profile')
       break
     case 'bind-phone':
-      go('/pages/auth/bind-phone')
+      go(session.user?.phoneVerified ? '/pages/account/change-phone' : '/pages/auth/bind-phone')
       break
     case 'cancel':
       go('/pages/account/cancel')
@@ -232,7 +277,31 @@ onShow(() => {
 
 <style scoped>
 .profile-hero {
-  margin-bottom: 20rpx;
+  margin-bottom: 26rpx;
+  padding-top: 34rpx;
+  padding-bottom: 34rpx;
+}
+
+.profile-hero :deep(.profile-header) {
+  align-items: flex-start;
+}
+
+.profile-hero :deep(.avatar) {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  box-shadow:
+    0 0 0 1rpx rgba(255, 255, 255, 0.22) inset,
+    0 14rpx 34rpx rgba(0, 0, 0, 0.14);
+}
+
+.profile-hero :deep(.name) {
+  color: #fff;
+  font-size: 38rpx;
+  font-weight: 800;
+}
+
+.profile-hero :deep(.subtitle) {
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .btn-top {
@@ -252,5 +321,54 @@ onShow(() => {
   flex-direction: column;
   gap: 14rpx;
   margin-top: 28rpx;
+}
+
+.bind-notice-card :deep(.mini-notice) {
+  margin-bottom: 20rpx;
+}
+
+.build-card {
+  margin-top: 20rpx;
+}
+
+.build-grid {
+  display: grid;
+  gap: 14rpx;
+}
+
+.build-grid view {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
+  border-bottom: 1rpx solid rgba(148, 163, 184, 0.14);
+  padding-bottom: 14rpx;
+}
+
+.build-grid view:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.build-grid text:first-child {
+  flex: 0 0 96rpx;
+  color: var(--tree-text-muted);
+  font-size: 24rpx;
+}
+
+.build-grid text:last-child {
+  min-width: 0;
+  color: var(--tree-text);
+  font-size: 24rpx;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.tree-page {
+  background:
+    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.16), transparent 260rpx),
+    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
 }
 </style>

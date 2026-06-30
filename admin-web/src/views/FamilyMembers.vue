@@ -1,46 +1,4 @@
-<template>
-  <div class="page-stack">
-    <PageHeader title="家庭成员管理" description="左侧成员树、右侧成员详情和关系操作区。">
-      <el-button type="primary">新增成员</el-button>
-    </PageHeader>
-    <section class="surface family-summary">
-      <span>张氏家族</span>
-      <span>姓氏：张</span>
-      <span>地区：山东济南</span>
-      <span>状态：正常</span>
-      <span>graph_version：14</span>
-    </section>
-    <div class="split-grid">
-      <MemberTreePanel :nodes="memberTree" @select="selected = $event" />
-      <MemberDetailPanel :member="selected" />
-    </div>
-    <StateBlock description="存在下级成员时禁止删除；ADD_SIBLING 无父母节点时提示先创建父亲或母亲节点。" />
-  </div>
-</template>
-
+<template><div class="page-stack"><PageHeader title="家庭成员" description="成员档案、账号绑定与家庭角色只读视图。"/><el-alert v-if="error" :title="error" type="error" show-icon/><DataTable><el-table v-loading="loading" :data="items" stripe><el-table-column prop="id" label="成员 ID" width="100"/><el-table-column prop="displayName" label="姓名"/><el-table-column prop="gender" label="性别"><template #default="{row}">{{row.gender==='MALE'?'男':row.gender==='FEMALE'?'女':'未知'}}</template></el-table-column><el-table-column prop="familyRole" label="角色"><template #default="{row}"><RoleTag :role="row.familyRole||'MEMBER'"/></template></el-table-column><el-table-column prop="userBindingPolicy" label="绑定策略"/><el-table-column label="账号绑定"><template #default="{row}">{{row.boundUserId?'已绑定':'未绑定'}}</template></el-table-column><el-table-column label="状态"><template #default="{row}"><StatusTag :status="row.status"/></template></el-table-column></el-table></DataTable></div></template>
 <script setup lang="ts">
-import { ref } from 'vue'
-
-import MemberDetailPanel from '@/components/MemberDetailPanel.vue'
-import MemberTreePanel from '@/components/MemberTreePanel.vue'
-import PageHeader from '@/components/PageHeader.vue'
-import StateBlock from '@/components/StateBlock.vue'
-import { memberTree, type MemberNode } from '@/mock/data'
-
-const selected = ref<MemberNode>(memberTree[0])
+import{onMounted,ref}from'vue';import{useRoute}from'vue-router';import{getApiErrorMessage}from'@/api/client';import{listFamilyMembers}from'@/api/management';import DataTable from'@/components/DataTable.vue';import PageHeader from'@/components/PageHeader.vue';import RoleTag from'@/components/RoleTag.vue';import StatusTag from'@/components/StatusTag.vue';import type{ManagedFamilyMember}from'@/types/api';const route=useRoute(),items=ref<ManagedFamilyMember[]>([]),loading=ref(true),error=ref('');onMounted(async()=>{try{items.value=await listFamilyMembers(String(route.params.familyId))}catch(e){error.value=getApiErrorMessage(e)}finally{loading.value=false}});
 </script>
-
-<style scoped>
-.family-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-  padding: 14px 16px;
-  color: var(--color-text-secondary);
-}
-
-.family-summary span:first-child {
-  color: var(--color-text-primary);
-  font-weight: 700;
-}
-</style>

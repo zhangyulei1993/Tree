@@ -5,7 +5,11 @@ import type {
   CreateFamilyInput,
   FamilyDetail,
   FamilySummary,
+  LeaveFamilyResult,
+  ListPublicFamiliesQuery,
+  PaginatedResult,
   PublicFamily,
+  PublicFamilyListItem,
   UpdateFamilyInput
 } from '@/types/api'
 
@@ -20,6 +24,11 @@ function restoredMockFamilies() {
     sessionStorage.removeItem(mockFamiliesStorageKey)
     return new Map<string, FamilyDetail>()
   }
+}
+
+export async function leaveFamily(familyId: number | string, reason?: string): Promise<LeaveFamilyResult> {
+  const response = await apiClient.post<ApiResponse<LeaveFamilyResult>>(`/families/${familyId}/leave`, reason ? { reason } : {})
+  return response.data.data
 }
 
 const createdMockFamilies = restoredMockFamilies()
@@ -129,6 +138,54 @@ export async function getPublicFamilyDetail(familyId: number | string): Promise<
     }
   }
   const response = await apiClient.get<ApiResponse<PublicFamily>>(`/families/${familyId}/public`)
+  return response.data.data
+}
+
+export async function listPublicFamilies(
+  query: ListPublicFamiliesQuery = {}
+): Promise<PaginatedResult<PublicFamilyListItem>> {
+  const page = query.page || 1
+  const pageSize = query.pageSize || 20
+  if (!isRealApiMode) {
+    let items: PublicFamilyListItem[] = publicFamilies
+      .filter((family) => family.publicStatus === 'APPROVED')
+      .map((family) => ({
+        id: family.id,
+        familyName: family.name,
+        familySurname: family.surname,
+        nativePlace: family.nativePlace,
+        regionText: family.regionText,
+        description: family.description,
+        publicContactNote: family.publicContact || null,
+        publicContactVisible: Boolean(family.publicContact)
+      }))
+    const keyword = query.keyword?.trim()
+    const familySurname = query.familySurname?.trim()
+    const regionText = query.regionText?.trim()
+    if (keyword) {
+      items = items.filter((family) =>
+        [family.familyName, family.familySurname, family.nativePlace, family.regionText, family.description]
+          .filter(Boolean)
+          .some((value) => String(value).includes(keyword))
+      )
+    }
+    if (familySurname) {
+      items = items.filter((family) => family.familySurname.includes(familySurname))
+    }
+    if (regionText) {
+      items = items.filter((family) => (family.regionText || '').includes(regionText))
+    }
+    const offset = (page - 1) * pageSize
+    return { items: items.slice(offset, offset + pageSize), page, pageSize, total: items.length }
+  }
+
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+  if (query.keyword?.trim()) params.set('keyword', query.keyword.trim())
+  if (query.familySurname?.trim()) params.set('familySurname', query.familySurname.trim())
+  if (query.regionText?.trim()) params.set('regionText', query.regionText.trim())
+  const response = await apiClient.get<ApiResponse<PaginatedResult<PublicFamilyListItem>>>(
+    `/public/families?${params.toString()}`
+  )
   return response.data.data
 }
 

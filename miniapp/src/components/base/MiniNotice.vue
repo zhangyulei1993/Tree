@@ -16,6 +16,7 @@ withDefaults(
 .mini-notice {
   border-radius: var(--tree-radius-md, 16rpx);
   padding: 18rpx 22rpx;
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.6);
 }
 .mini-notice.info {
   background: #f8f6f1;

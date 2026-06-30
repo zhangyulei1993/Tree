@@ -42,13 +42,14 @@ defineProps<{
   color: #fff;
   font-size: 38rpx;
   font-weight: 600;
+  box-shadow: var(--tree-shadow-sm, 0 8rpx 20rpx rgba(15, 23, 42, 0.05));
 }
 .avatar-image {
   background: #eef4f1;
 }
 .name {
   display: block;
-  color: var(--tree-text);
+  color: var(--tree-text-primary);
   font-size: 34rpx;
   font-weight: 600;
   line-height: 1.35;

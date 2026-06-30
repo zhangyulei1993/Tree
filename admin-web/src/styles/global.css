@@ -5,8 +5,13 @@
 body {
   margin: 0;
   color: var(--color-text-primary);
-  background: var(--color-bg-admin);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(200, 164, 93, 0.12), transparent 360px),
+    radial-gradient(circle at 88% 10%, rgba(47, 107, 87, 0.10), transparent 380px),
+    var(--color-bg-admin);
   font-family:
+    "SF Pro Display",
+    "SF Pro Text",
     Inter,
     system-ui,
     -apple-system,
@@ -29,10 +34,14 @@ a {
 }
 
 .surface {
-  border: 1px solid var(--color-border);
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: var(--radius-card);
-  background: var(--color-bg-card);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(200, 164, 93, 0.08), transparent 160px),
+    rgba(255, 255, 255, 0.92);
   box-shadow: var(--shadow-light);
+  backdrop-filter: blur(18px);
 }
 
 .table-actions {
@@ -49,6 +58,64 @@ a {
   display: grid;
   grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
   gap: 16px;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+:root {
+  --el-border-radius-base: var(--radius-button);
+  --el-border-radius-small: 10px;
+  --el-border-radius-round: 999px;
+  --el-color-primary: var(--color-primary);
+  --el-color-primary-light-3: #4a6b96;
+  --el-color-primary-light-5: #7088ab;
+  --el-color-primary-light-7: #b6c4d6;
+  --el-color-primary-light-8: #d0dae5;
+  --el-color-primary-light-9: #e9eef4;
+  --el-color-success: var(--color-success);
+  --el-color-warning: var(--color-warning);
+  --el-color-danger: var(--color-danger);
+  --el-bg-color: #fff;
+  --el-bg-color-overlay: rgba(255, 255, 255, 0.96);
+  --el-fill-color-light: #f4f7fb;
+  --el-fill-color-blank: rgba(255, 255, 255, 0.92);
+  --el-border-color: #dfe7ee;
+  --el-border-color-light: #e8edf3;
+  --el-text-color-primary: var(--color-text-primary);
+  --el-text-color-regular: #475569;
+  --el-text-color-secondary: var(--color-text-secondary);
+  --el-box-shadow-light: var(--shadow-light);
+  --el-box-shadow: var(--shadow-medium);
+}
+
+.el-button {
+  font-weight: 600;
+}
+
+.el-button:not(.is-text):not(.is-link) {
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper,
+.el-date-editor.el-input__wrapper {
+  border-radius: var(--radius-input);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 1px rgba(148, 163, 184, 0.12) inset;
+}
+
+.el-dialog,
+.el-drawer {
+  border-radius: var(--radius-dialog);
+}
+
+.el-card {
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-light);
 }
 
 @media (max-width: 980px) {

@@ -3,6 +3,8 @@
     :tree="tree"
     :viewer-member-id="viewerMemberId"
     :show-binding="showBinding"
+    :interactive="interactive"
+    @select="emit('select', $event)"
   />
 </template>
 
@@ -14,5 +16,10 @@ defineProps<{
   tree: FamilyTreeResult
   viewerMemberId?: number | null
   showBinding?: boolean
+  interactive?: boolean
+}>()
+
+const emit = defineEmits<{
+  select: [node: FamilyTreeResult['nodes'][number]]
 }>()
 </script>

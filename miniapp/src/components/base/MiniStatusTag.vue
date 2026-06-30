@@ -22,7 +22,7 @@ const tone = computed(() => props.tone || statusTagTone(props.status))
   display: inline-flex;
   align-items: center;
   border-radius: 999rpx;
-  padding: 6rpx 16rpx;
+  padding: 8rpx 16rpx;
   font-size: 22rpx;
   font-weight: 600;
 }

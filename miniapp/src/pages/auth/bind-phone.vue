@@ -1,9 +1,8 @@
 <template>
   <view class="tree-page auth-page">
-    <MiniBackHome />
     <view class="tree-auth-brand">
-      <text class="tree-auth-brand-title">{{ pageTitle }}</text>
-      <text class="tree-auth-brand-desc">{{ pageDesc }}</text>
+      <text class="tree-auth-brand-title">绑定手机号</text>
+      <text class="tree-auth-brand-desc">绑定手机号并设置登录密码，可使用完整家庭功能与电脑网页登录</text>
     </view>
 
     <MiniCard variant="soft" class="tree-auth-card">
@@ -56,7 +55,7 @@
         <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
         <text v-if="sendResult" class="tree-field-success">{{ sendResult }}</text>
         <MiniButton class="btn-top" :disabled="submitting" :loading="submitting" @click="submit">
-          {{ submitText }}
+          完成绑定
         </MiniButton>
       </template>
       <template v-else>
@@ -72,13 +71,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue'
+import { onUnmounted, ref } from 'vue'
 
 import { onShow } from '@dcloudio/uni-app'
 
 import { sendCode } from '@/api/auth'
 import { apiErrorMessage, isRealApiMode } from '@/api/client'
-import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import { useSessionStore } from '@/stores/session'
@@ -95,15 +93,6 @@ const errorMessage = ref('')
 const sendResult = ref('')
 const showTestCodeHint = import.meta.env.MODE !== 'production'
 let timer: ReturnType<typeof setInterval> | undefined
-
-const alreadyBound = computed(() => session.user?.phoneVerified === true)
-const pageTitle = computed(() => (alreadyBound.value ? '更改手机号' : '绑定手机号'))
-const pageDesc = computed(() =>
-  alreadyBound.value
-    ? '更换绑定手机号，并同步确认登录密码'
-    : '绑定手机号并设置登录密码，可使用完整家庭功能与电脑网页登录'
-)
-const submitText = computed(() => (alreadyBound.value ? '完成更改' : '完成绑定'))
 
 async function send() {
   errorMessage.value = ''
@@ -175,8 +164,12 @@ function bind() {
 
 onShow(() => {
   session.restoreSession()
-  if (isRealApiMode && !session.isLoggedIn) {
+  if (!session.isLoggedIn) {
     uni.reLaunch({ url: '/pages/auth/wechat-login' })
+    return
+  }
+  if (session.isPhoneBound) {
+    uni.redirectTo({ url: '/pages/account/change-phone' })
   }
 })
 

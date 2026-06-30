@@ -1,6 +1,5 @@
 <template>
   <view class="tree-page auth-page">
-    <MiniBackHome />
     <view class="tree-auth-brand">
       <text class="tree-auth-brand-title">微信登录</text>
       <text class="tree-auth-brand-desc">使用微信授权，快速进入家脉亲缘</text>
@@ -35,7 +34,6 @@
 import { ref } from 'vue'
 
 import { apiErrorMessage, isRealApiMode } from '@/api/client'
-import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import { useSessionStore } from '@/stores/session'
@@ -83,5 +81,19 @@ function go(url: string) {
   flex-direction: column;
   gap: 14rpx;
   margin-top: 22rpx;
+}
+
+.auth-page {
+  background:
+    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.16), transparent 260rpx),
+    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.10), transparent 300rpx);
+}
+
+.tree-auth-card {
+  border-color: rgba(255, 255, 255, 0.72);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.10), transparent 180rpx),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: 0 18rpx 44rpx rgba(24, 54, 83, 0.08);
 }
 </style>

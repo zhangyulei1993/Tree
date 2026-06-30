@@ -40,8 +40,17 @@
               <el-button size="small" type="danger" @click="openAudit(row.applicationId, 'reject')">拒绝</el-button>
             </div>
             <div v-else-if="row.status === 'APPROVED'" class="table-actions">
-              <el-tag v-if="takenDownFamilyIds.has(row.familyId)" type="warning">本次会话已下架</el-tag>
-              <el-button v-else size="small" type="danger" plain @click="openTakeDown(row.familyId)">尝试下架</el-button>
+              <el-button
+                v-if="row.familyPublicDisplayStatus === 'APPROVED'"
+                size="small"
+                type="danger"
+                plain
+                @click="openTakeDown(row.familyId)"
+              >
+                下架公开家庭
+              </el-button>
+              <el-tag v-else-if="row.familyPublicDisplayStatus === 'TAKEN_DOWN'" type="warning">已下架</el-tag>
+              <el-tag v-else type="info">当前未公开</el-tag>
             </div>
             <span v-else class="muted">已处理</span>
           </template>
@@ -115,7 +124,6 @@ const auditTitle = ref('公开申请审核')
 const auditKey = ref(0)
 const selectedApplicationId = ref<number | null>(null)
 const selectedFamilyId = ref<number | null>(null)
-const takenDownFamilyIds = ref(new Set<number>())
 const submitting = ref(false)
 
 onMounted(loadApplications)
@@ -204,9 +212,9 @@ async function confirmTakeDown(reason: string) {
     await takeDownPublicFamily(selectedFamilyId.value, {
       reason: reason.trim() || undefined
     })
-    takenDownFamilyIds.value = new Set(takenDownFamilyIds.value).add(selectedFamilyId.value)
     takeDownVisible.value = false
     ElMessage.success('公开家庭已下架')
+    await loadApplications()
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
   } finally {

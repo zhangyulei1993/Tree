@@ -57,8 +57,8 @@ async function logout() {
   top: 0;
   z-index: 10;
   border-bottom: 1px solid rgba(232, 237, 240, 0.82);
-  background: rgba(251, 252, 251, 0.84);
-  backdrop-filter: blur(18px);
+  background: rgba(251, 252, 251, 0.78);
+  backdrop-filter: blur(22px);
 }
 
 .header-inner {
@@ -97,6 +97,7 @@ async function logout() {
 
 .brand-copy strong {
   line-height: 1;
+  letter-spacing: -0.02em;
 }
 
 .brand-copy small {
@@ -111,7 +112,10 @@ nav {
   color: var(--color-text-secondary);
   border: 1px solid rgba(31, 58, 95, 0.08);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 8px 22px rgba(31, 58, 95, 0.04);
   padding: 5px;
 }
 
@@ -120,6 +124,14 @@ nav a {
   padding: 8px 13px;
   font-size: 14px;
   font-weight: 700;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+nav a:hover {
+  transform: translateY(-1px);
 }
 
 nav a.router-link-active {

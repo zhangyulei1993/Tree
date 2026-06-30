@@ -1,13 +1,17 @@
 <template>
   <view class="tree-page search-page">
-    <MiniSectionHeader title="家庭搜索" subtitle="浏览已公开审核通过的家庭主页。" />
+    <MiniCard class="search-panel-card">
+      <view class="search-head">
+        <text class="search-kicker">公开家庭</text>
+        <text class="search-title">查找可公开浏览的家庭主页</text>
+        <text class="search-desc">按家庭名称、姓氏、地区或籍贯筛选。</text>
+      </view>
 
-    <MiniCard>
       <text class="tree-field-label">关键词</text>
       <input
         v-model="keyword"
         class="tree-input"
-        placeholder="家族名称 / 姓氏 / 地区 / 籍贯"
+        placeholder="家庭名称 / 姓氏 / 地区 / 籍贯"
         confirm-type="search"
         @confirm="runSearch"
       />
@@ -82,7 +86,6 @@ import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
 import FamilyMiniCard from '@/components/family/FamilyMiniCard.vue'
 import type { PublicFamilyListItem } from '@/types/api'
 
@@ -180,6 +183,43 @@ onMounted(() => {
 <style scoped>
 .search-page {
   padding-bottom: 32rpx;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
+    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
+}
+.search-panel-card {
+  border-color: rgba(255, 255, 255, 0.72);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(216, 175, 104, 0.16), transparent 200rpx),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 250, 247, 0.94) 100%);
+  box-shadow: 0 18rpx 44rpx rgba(24, 54, 83, 0.08);
+}
+.search-head {
+  margin-bottom: 24rpx;
+}
+.search-kicker,
+.search-title,
+.search-desc {
+  display: block;
+}
+.search-kicker {
+  color: var(--tree-green);
+  font-size: 21rpx;
+  font-weight: 800;
+  letter-spacing: 2rpx;
+}
+.search-title {
+  margin-top: 8rpx;
+  color: var(--tree-text-primary);
+  font-size: 36rpx;
+  font-weight: 800;
+  line-height: 1.32;
+}
+.search-desc {
+  margin-top: 8rpx;
+  color: var(--tree-text-secondary);
+  font-size: 24rpx;
+  line-height: 1.55;
 }
 .action-row {
   display: flex;
@@ -196,11 +236,16 @@ onMounted(() => {
   margin-top: 20rpx;
 }
 .result-meta {
-  padding: 8rpx 8rpx 12rpx;
+  padding: 8rpx 8rpx 14rpx;
 }
 .result-count {
-  color: var(--tree-text-secondary);
-  font-size: 24rpx;
+  display: inline-flex;
+  border-radius: 999rpx;
+  background: rgba(24, 54, 83, 0.06);
+  color: var(--tree-primary);
+  padding: 8rpx 18rpx;
+  font-size: 23rpx;
+  font-weight: 700;
 }
 .load-more-wrap {
   padding: 8rpx 0 24rpx;

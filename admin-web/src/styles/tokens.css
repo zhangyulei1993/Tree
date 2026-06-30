@@ -1,9 +1,12 @@
 :root {
   --color-primary: #1f3a5f;
-  --color-primary-hover: #2b4a73;
+  --color-primary-hover: #2b547f;
+  --color-primary-press: #17324f;
   --color-heritage-green: #2f6b57;
+  --color-heritage-green-soft: #eef7f2;
   --color-warm-gold: #c8a45d;
-  --color-bg-admin: #f5f7fa;
+  --color-bg-admin: #eef3f7;
+  --color-bg-admin-deep: #122033;
   --color-bg-card: #ffffff;
   --color-text-primary: #1f2937;
   --color-text-secondary: #6b7280;
@@ -12,9 +15,10 @@
   --color-danger: #c0392b;
   --color-warning: #d97706;
   --color-success: #2f6b57;
-  --radius-card: 8px;
-  --radius-button: 8px;
-  --radius-input: 8px;
-  --radius-dialog: 12px;
-  --shadow-light: 0 2px 8px rgba(15, 23, 42, 0.06);
+  --radius-card: 18px;
+  --radius-button: 12px;
+  --radius-input: 12px;
+  --radius-dialog: 20px;
+  --shadow-light: 0 12px 34px rgba(15, 23, 42, 0.06);
+  --shadow-medium: 0 20px 60px rgba(15, 23, 42, 0.10);
 }

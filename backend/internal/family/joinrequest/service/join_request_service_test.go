@@ -62,6 +62,7 @@ type fakeRepo struct {
 	relationships                             map[uint64]*relationshipmodel.FamilyRelationship
 	logs                                      []operationlog.WriteInput
 	nextRequest, nextMember, nextRelationship uint64
+	pendingInvitations                        int64
 }
 
 func newFakeRepo() *fakeRepo {
@@ -267,6 +268,11 @@ func (r *fakeRepo) CreateLink(_ context.Context, value *rolemodel.FamilyMemberUs
 	r.links = append(r.links, *value)
 	return nil
 }
+func (r *fakeRepo) CancelPendingInvitations(context.Context, uint64, uint64, uint64, time.Time) (int64, error) {
+	count := r.pendingInvitations
+	r.pendingInvitations = 0
+	return count, nil
+}
 func (r *fakeRepo) IncrementGraphVersion(context.Context, uint64) (int64, error) {
 	r.family.GraphVersion++
 	return r.family.GraphVersion, nil
@@ -377,7 +383,12 @@ func TestJoinRequestApprovalModes(t *testing.T) {
 	})
 	t.Run("bind existing does not increment graph version", func(t *testing.T) {
 		repo := newFakeRepo()
-		addPending(repo, 9)
+		repo.pendingInvitations = 2
+		gender := "MALE"
+		repo.requests[1] = &joinmodel.FamilyJoinRequest{
+			ID: 1, FamilyID: 2, ApplicantUserID: 9, ApplicantGender: &gender, RequestStatus: "PENDING",
+		}
+		repo.members[6].Gender = gender
 		before := repo.family.GraphVersion
 		memberID := uint64(6)
 		result, err := testService(repo, true).Approve(context.Background(), 8, 2, 1, dto.ApproveJoinRequest{ApproveMode: "BIND_EXISTING_MEMBER", MemberID: &memberID}, AuditInput{})
@@ -386,6 +397,27 @@ func TestJoinRequestApprovalModes(t *testing.T) {
 		}
 		if repo.links[0].LinkSource != "JOIN_REQUEST_APPROVED" || repo.family.GraphVersion != before {
 			t.Fatal("bad existing-member approval")
+		}
+		if repo.pendingInvitations != 0 {
+			t.Fatal("approval must resolve conflicting pending invitations")
+		}
+		if len(repo.logs) != 2 || repo.logs[0].Action != "AUTO_CANCEL_INVITATIONS" || repo.logs[1].Action != "APPROVE_JOIN_REQUEST" {
+			t.Fatalf("unexpected logs %#v", repo.logs)
+		}
+	})
+	t.Run("bind existing requires matching applicant gender", func(t *testing.T) {
+		repo := newFakeRepo()
+		applicantGender := "MALE"
+		repo.requests[1] = &joinmodel.FamilyJoinRequest{
+			ID: 1, FamilyID: 2, ApplicantUserID: 9, ApplicantGender: &applicantGender, RequestStatus: "PENDING",
+		}
+		repo.members[6].Gender = "FEMALE"
+		memberID := uint64(6)
+		_, businessErr := testService(repo, true).Approve(context.Background(), 8, 2, 1, dto.ApproveJoinRequest{
+			ApproveMode: "BIND_EXISTING_MEMBER", MemberID: &memberID,
+		}, AuditInput{})
+		if businessErr == nil || businessErr.Code != CodeApproveModeInvalid || len(repo.links) != 0 {
+			t.Fatalf("unexpected result err=%#v links=%d", businessErr, len(repo.links))
 		}
 	})
 	t.Run("create new increments graph version", func(t *testing.T) {

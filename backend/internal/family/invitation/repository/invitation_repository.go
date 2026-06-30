@@ -17,8 +17,9 @@ import (
 
 type InvitationRow struct {
 	invitationmodel.FamilyInvitation
-	FamilyName       string `gorm:"column:family_name"`
-	TargetMemberName string `gorm:"column:target_member_name"`
+	FamilyName         string `gorm:"column:family_name"`
+	TargetMemberName   string `gorm:"column:target_member_name"`
+	InviterDisplayName string `gorm:"column:inviter_display_name"`
 }
 
 type Repository interface {
@@ -34,6 +35,8 @@ type Repository interface {
 	FindRowByID(context.Context, uint64) (*InvitationRow, error)
 	FindByTokenHash(context.Context, string) (*InvitationRow, error)
 	ListForUser(context.Context, uint64) ([]InvitationRow, error)
+	ListForFamily(context.Context, uint64) ([]InvitationRow, error)
+	CancelPendingJoinRequestsForUser(context.Context, uint64, uint64, time.Time) (int64, error)
 	UpdateStatus(context.Context, uint64, string, map[string]any) error
 	CreateLink(context.Context, *rolemodel.FamilyMemberUserLink) error
 	WriteLog(context.Context, operationlog.WriteInput) error
@@ -111,9 +114,10 @@ func (r *GormRepository) FindByID(ctx context.Context, id uint64, lock bool) (*i
 func (r *GormRepository) FindRowByID(ctx context.Context, id uint64) (*InvitationRow, error) {
 	var value InvitationRow
 	err := r.db.WithContext(ctx).Table("family_invitations AS i").
-		Select("i.*, f.family_name, m.display_name AS target_member_name").
+		Select(invitationRowSelect).
 		Joins("JOIN families AS f ON f.id = i.family_id").
 		Joins("JOIN family_members AS m ON m.id = i.target_member_id").
+		Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").
 		Where("i.id = ?", id).First(&value).Error
 	return &value, err
 }
@@ -121,9 +125,10 @@ func (r *GormRepository) FindRowByID(ctx context.Context, id uint64) (*Invitatio
 func (r *GormRepository) FindByTokenHash(ctx context.Context, hash string) (*InvitationRow, error) {
 	var value InvitationRow
 	err := r.db.WithContext(ctx).Table("family_invitations AS i").
-		Select("i.*, f.family_name, m.display_name AS target_member_name").
+		Select(invitationRowSelect).
 		Joins("JOIN families AS f ON f.id = i.family_id").
 		Joins("JOIN family_members AS m ON m.id = i.target_member_id").
+		Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").
 		Where("i.invite_token = ?", hash).First(&value).Error
 	return &value, err
 }
@@ -131,11 +136,41 @@ func (r *GormRepository) FindByTokenHash(ctx context.Context, hash string) (*Inv
 func (r *GormRepository) ListForUser(ctx context.Context, userID uint64) ([]InvitationRow, error) {
 	var values []InvitationRow
 	err := r.db.WithContext(ctx).Table("family_invitations AS i").
-		Select("i.*, f.family_name, m.display_name AS target_member_name").
+		Select(invitationRowSelect).
 		Joins("JOIN families AS f ON f.id = i.family_id").
 		Joins("JOIN family_members AS m ON m.id = i.target_member_id").
+		Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").
 		Where("i.target_user_id = ?", userID).Order("i.id DESC").Scan(&values).Error
 	return values, err
+}
+
+func (r *GormRepository) ListForFamily(ctx context.Context, familyID uint64) ([]InvitationRow, error) {
+	var values []InvitationRow
+	err := r.db.WithContext(ctx).Table("family_invitations AS i").
+		Select(invitationRowSelect).
+		Joins("JOIN families AS f ON f.id = i.family_id").
+		Joins("JOIN family_members AS m ON m.id = i.target_member_id").
+		Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").
+		Where("i.family_id = ?", familyID).Order("i.id DESC").Scan(&values).Error
+	return values, err
+}
+
+const invitationRowSelect = `
+	i.*,
+	f.family_name,
+	m.display_name AS target_member_name,
+	COALESCE(NULLIF(inviter.nickname, ''), NULLIF(inviter.real_name, ''), '家庭管理员') AS inviter_display_name
+`
+
+func (r *GormRepository) CancelPendingJoinRequestsForUser(ctx context.Context, familyID, userID uint64, now time.Time) (int64, error) {
+	result := r.db.WithContext(ctx).Table("family_join_requests").
+		Where("family_id = ? AND applicant_user_id = ? AND request_status = ?", familyID, userID, "PENDING").
+		Updates(map[string]any{
+			"request_status": "CANCELLED",
+			"cancelled_at":   now,
+			"cancel_reason":  "已通过家庭邀请加入",
+		})
+	return result.RowsAffected, result.Error
 }
 
 func (r *GormRepository) UpdateStatus(ctx context.Context, id uint64, current string, values map[string]any) error {

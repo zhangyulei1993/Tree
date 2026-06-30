@@ -13,9 +13,9 @@
         <dl>
           <div><dt>家庭</dt><dd>{{ invitation.familyName }}</dd></div>
           <div><dt>成员</dt><dd>{{ invitation.targetMemberName }}</dd></div>
-          <div><dt>邀请方式</dt><dd>{{ invitation.inviteChannel }}</dd></div>
-          <div><dt>绑定后角色</dt><dd>{{ invitation.familyRoleAfterAccept }}</dd></div>
-          <div><dt>状态</dt><dd>{{ invitation.status }}</dd></div>
+          <div><dt>邀请方式</dt><dd>{{ inviteChannelText(invitation.inviteChannel) }}</dd></div>
+          <div><dt>绑定后角色</dt><dd>{{ roleText(invitation.familyRoleAfterAccept) }}</dd></div>
+          <div><dt>状态</dt><dd>{{ invitationStatusText(invitation.status) }}</dd></div>
           <div><dt>有效期至</dt><dd>{{ formatDate(invitation.expiredAt) }}</dd></div>
         </dl>
         <p v-if="invitation.inviteMessage" class="message">{{ invitation.inviteMessage }}</p>
@@ -48,7 +48,7 @@
             </div>
           </div>
         </template>
-        <p v-else class="notice">该邀请当前状态为 {{ invitation.status }}，不能继续处理。</p>
+        <p v-else class="notice">该邀请当前状态为“{{ invitationStatusText(invitation.status) }}”，不能继续处理。</p>
 
         <p v-if="error" class="feedback error" role="alert">{{ error }}</p>
         <p v-if="result" class="feedback success" role="status">{{ result }}</p>
@@ -84,6 +84,28 @@ const result = ref('')
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString('zh-CN')
+}
+
+function invitationStatusText(status?: string) {
+  if (status === 'PENDING') return '待处理'
+  if (status === 'ACCEPTED') return '已接受'
+  if (status === 'REJECTED') return '已拒绝'
+  if (status === 'EXPIRED') return '已过期'
+  if (status === 'CANCELLED') return '已取消'
+  return '未知状态'
+}
+
+function inviteChannelText(channel?: string) {
+  if (channel === 'SHARE_LINK') return '链接邀请'
+  if (channel === 'IN_APP') return '站内邀请'
+  return '其他方式'
+}
+
+function roleText(role?: string) {
+  if (role === 'FOUNDER') return '家庭创建者'
+  if (role === 'FAMILY_ADMIN') return '家庭管理员'
+  if (role === 'MEMBER') return '家庭成员'
+  return '未知角色'
 }
 
 function goToLogin() {

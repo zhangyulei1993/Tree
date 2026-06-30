@@ -2,6 +2,8 @@ import { apiClient, isRealApiMode } from '@/api/client'
 import { currentUser } from '@/mock/data'
 import type {
   ApiResponse,
+  CancelAccountInput,
+  ChangePhoneInput,
   LoginPhoneInput,
   LoginResult,
   RegisterPhoneInput,
@@ -47,4 +49,24 @@ export async function loginPhone(input: LoginPhoneInput): Promise<LoginResult> {
 export async function logoutUser(): Promise<void> {
   if (!isRealApiMode) return
   await apiClient.post<ApiResponse<{ status: string }>>('/auth/logout')
+}
+
+export async function getMe(): Promise<UserInfo> {
+  const response = await apiClient.get<ApiResponse<UserInfo>>('/users/me')
+  return response.data.data
+}
+
+export async function updateProfile(nickname: string): Promise<UserInfo> {
+  const response = await apiClient.patch<ApiResponse<UserInfo>>('/users/me/profile', { nickname })
+  return response.data.data
+}
+
+export async function changePhone(input: ChangePhoneInput): Promise<LoginResult> {
+  const response = await apiClient.post<ApiResponse<LoginResult>>('/auth/change-phone', input)
+  return response.data.data
+}
+
+export async function cancelAccount(input: CancelAccountInput): Promise<{ status: string }> {
+  const response = await apiClient.post<ApiResponse<{ status: string }>>('/auth/cancel-account', input)
+  return response.data.data
 }

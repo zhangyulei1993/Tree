@@ -1,7 +1,7 @@
 <template>
   <div class="page-stack">
-    <PageHeader title="无权限" description="当前 mock 管理员角色不能访问该页面。" />
-    <StateBlock description="请在右上角切换 ROOT_ADMIN 或 SUPER_ADMIN 查看受限页面。" action-text="返回仪表盘" />
+    <PageHeader title="无权限" description="当前管理员角色不能访问该页面。" />
+    <StateBlock description="请使用具备相应权限的管理员账号访问。" action-text="返回仪表盘" />
   </div>
 </template>
 
