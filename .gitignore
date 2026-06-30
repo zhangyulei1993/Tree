@@ -33,6 +33,7 @@ logs/
 .m16/
 backups/
 LOCAL_TEST_ACCOUNTS.md
+CODEX_HANDOFF_*.md
 *.sql
 !backend/migrations/*.sql
 *.sql.gz
