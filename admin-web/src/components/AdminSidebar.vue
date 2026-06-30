@@ -68,8 +68,12 @@ const visibleMenus = computed(() => {
 <style scoped>
 .sidebar {
   min-height: 100vh;
-  border-right: 1px solid var(--color-border);
-  background: #17263e;
+  position: sticky;
+  top: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(59, 110, 168, 0.18), transparent 200px),
+    linear-gradient(180deg, #15243a 0%, #122033 100%);
   color: #fff;
 }
 
@@ -77,20 +81,25 @@ const visibleMenus = computed(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  height: 64px;
-  padding: 0 18px;
+  height: 72px;
+  padding: 0 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .brand-mark {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   place-items: center;
-  border-radius: 8px;
-  background: var(--color-warm-gold);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f2d39a 0%, var(--color-warm-gold) 100%);
   color: #17263e;
   font-weight: 700;
+  box-shadow: 0 10px 24px rgba(200, 164, 93, 0.22);
+}
+
+.brand strong {
+  letter-spacing: 0.01em;
 }
 
 .brand span {
@@ -101,17 +110,37 @@ const visibleMenus = computed(() => {
 }
 
 .menu {
+  padding: 16px 10px 20px;
   border-right: 0;
   background: transparent;
 }
 
 :deep(.el-menu-item) {
+  height: 46px;
+  margin-bottom: 6px;
+  border-radius: 14px;
   color: rgba(255, 255, 255, 0.78);
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
 }
 
 :deep(.el-menu-item.is-active),
 :deep(.el-menu-item:hover) {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.1);
   color: #fff;
+  transform: translateX(2px);
+}
+
+:deep(.el-menu-item.is-active) {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 960px) {
+  .sidebar {
+    min-height: auto;
+    position: static;
+  }
 }
 </style>

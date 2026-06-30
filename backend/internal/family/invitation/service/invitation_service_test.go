@@ -50,13 +50,14 @@ func (p fakePermission) GetActiveLink(context.Context, uint64, uint64) (*rolemod
 }
 
 type fakeRepo struct {
-	family      model.Family
-	member      membermodel.FamilyMember
-	users       map[uint64]usermodel.User
-	invitations map[uint64]*invitationmodel.FamilyInvitation
-	links       []rolemodel.FamilyMemberUserLink
-	logs        []operationlog.WriteInput
-	nextID      uint64
+	family              model.Family
+	member              membermodel.FamilyMember
+	users               map[uint64]usermodel.User
+	invitations         map[uint64]*invitationmodel.FamilyInvitation
+	links               []rolemodel.FamilyMemberUserLink
+	logs                []operationlog.WriteInput
+	nextID              uint64
+	pendingJoinRequests int64
 }
 
 func newFakeRepo() *fakeRepo {
@@ -131,12 +132,18 @@ func (r *fakeRepo) FindRowByID(_ context.Context, id uint64) (*inviterepo.Invita
 	if !ok {
 		return nil, gorm.ErrRecordNotFound
 	}
-	return &inviterepo.InvitationRow{FamilyInvitation: *v, FamilyName: "Tree", TargetMemberName: "Member"}, nil
+	return &inviterepo.InvitationRow{
+		FamilyInvitation: *v, FamilyName: "Tree", TargetMemberName: "Member",
+		InviterDisplayName: "邀请人",
+	}, nil
 }
 func (r *fakeRepo) FindByTokenHash(_ context.Context, hash string) (*inviterepo.InvitationRow, error) {
 	for _, v := range r.invitations {
 		if v.InviteToken != nil && *v.InviteToken == hash {
-			return &inviterepo.InvitationRow{FamilyInvitation: *v, FamilyName: "Tree", TargetMemberName: "Member"}, nil
+			return &inviterepo.InvitationRow{
+				FamilyInvitation: *v, FamilyName: "Tree", TargetMemberName: "Member",
+				InviterDisplayName: "邀请人",
+			}, nil
 		}
 	}
 	return nil, gorm.ErrRecordNotFound
@@ -145,10 +152,29 @@ func (r *fakeRepo) ListForUser(_ context.Context, userID uint64) ([]inviterepo.I
 	var rows []inviterepo.InvitationRow
 	for _, v := range r.invitations {
 		if v.TargetUserID != nil && *v.TargetUserID == userID {
-			rows = append(rows, inviterepo.InvitationRow{FamilyInvitation: *v})
+			rows = append(rows, inviterepo.InvitationRow{
+				FamilyInvitation: *v, InviterDisplayName: "邀请人",
+			})
 		}
 	}
 	return rows, nil
+}
+func (r *fakeRepo) ListForFamily(_ context.Context, familyID uint64) ([]inviterepo.InvitationRow, error) {
+	var rows []inviterepo.InvitationRow
+	for _, v := range r.invitations {
+		if v.FamilyID == familyID {
+			rows = append(rows, inviterepo.InvitationRow{
+				FamilyInvitation: *v, FamilyName: "Tree", TargetMemberName: "Member",
+				InviterDisplayName: "邀请人",
+			})
+		}
+	}
+	return rows, nil
+}
+func (r *fakeRepo) CancelPendingJoinRequestsForUser(context.Context, uint64, uint64, time.Time) (int64, error) {
+	count := r.pendingJoinRequests
+	r.pendingJoinRequests = 0
+	return count, nil
 }
 func (r *fakeRepo) UpdateStatus(_ context.Context, id uint64, current string, values map[string]any) error {
 	v, ok := r.invitations[id]
@@ -276,6 +302,7 @@ func TestInvitationMutations(t *testing.T) {
 	})
 	t.Run("accept creates link without graph change", func(t *testing.T) {
 		repo := newFakeRepo()
+		repo.pendingJoinRequests = 1
 		makeInvite(repo, "SHARE_LINK", "PENDING", nil, now.Add(time.Hour))
 		before := repo.family.GraphVersion
 		result, err := testService(repo, true, now).Accept(context.Background(), 9, 1, AuditInput{})
@@ -288,6 +315,12 @@ func TestInvitationMutations(t *testing.T) {
 		}
 		if repo.family.GraphVersion != before {
 			t.Fatal("accept must not increment graph version")
+		}
+		if repo.pendingJoinRequests != 0 {
+			t.Fatal("accept must resolve the user's pending join request")
+		}
+		if len(repo.logs) != 2 || repo.logs[0].Action != "AUTO_CANCEL_JOIN_REQUESTS" || repo.logs[1].Action != "ACCEPT_INVITATION" {
+			t.Fatalf("unexpected logs %#v", repo.logs)
 		}
 	})
 	t.Run("expired and non-pending rejected", func(t *testing.T) {
@@ -321,6 +354,36 @@ func TestInvitationMutations(t *testing.T) {
 			t.Fatalf("unexpected %#v", err)
 		}
 	})
+}
+
+func TestInvitationSenderManagement(t *testing.T) {
+	now := time.Date(2026, 6, 7, 0, 0, 0, 0, time.UTC)
+	repo := newFakeRepo()
+	repo.invitations[1] = &invitationmodel.FamilyInvitation{
+		ID: 1, FamilyID: 2, TargetMemberID: 6, InviterUserID: uint64Ptr(8),
+		InviteType: "CLAIM_EXISTING_MEMBER", InviteChannel: "SHARE_LINK",
+		InviteActorType: "FAMILY_FOUNDER", FamilyRoleAfterAccept: "MEMBER",
+		Status: "PENDING", ExpiredAt: now.Add(time.Hour),
+	}
+	repo.nextID = 2
+	svc := testService(repo, true, now)
+	svc.token = func() (string, error) { return "replacement-token", nil }
+
+	items, listErr := svc.ListFamily(context.Background(), 8, 2)
+	if listErr != nil || len(items) != 1 || items[0].Status != "PENDING" ||
+		items[0].InviterDisplayName != "邀请人" || items[0].InviterRole != "FAMILY_FOUNDER" {
+		t.Fatalf("unexpected list %#v %#v", items, listErr)
+	}
+	result, regenerateErr := svc.Regenerate(context.Background(), 8, 1, AuditInput{})
+	if regenerateErr != nil || result.InviteToken != "replacement-token" || result.Invitation.InvitationID != 2 {
+		t.Fatalf("unexpected regenerate %#v %#v", result, regenerateErr)
+	}
+	if repo.invitations[1].Status != "CANCELLED" || repo.invitations[2].Status != "PENDING" {
+		t.Fatalf("unexpected statuses old=%s new=%s", repo.invitations[1].Status, repo.invitations[2].Status)
+	}
+	if len(repo.logs) != 1 || repo.logs[0].Action != "REGENERATE_INVITATION" {
+		t.Fatalf("unexpected logs %#v", repo.logs)
+	}
 }
 
 func contains(value, needle string) bool {

@@ -1,6 +1,11 @@
 import { isRealApiMode, request } from '@/api/client'
 import { invite } from '@/mock/data'
-import type { Invitation, RejectInvitationInput } from '@/types/api'
+import type {
+  CreatedInvitation,
+  CreateInvitationInput,
+  Invitation,
+  RejectInvitationInput
+} from '@/types/api'
 
 const mockInvitation: Invitation = {
   invitationId: 'mock_invitation',
@@ -17,6 +22,36 @@ const mockInvitation: Invitation = {
 }
 
 const mockInvitations: Invitation[] = [{ ...mockInvitation }]
+
+export async function createInvitation(
+  familyId: number | string,
+  memberId: number | string,
+  input: CreateInvitationInput
+): Promise<CreatedInvitation> {
+  if (!isRealApiMode) {
+    const now = new Date()
+    const invitation: Invitation = {
+      ...mockInvitation,
+      invitationId: `mock_invitation_${Date.now()}`,
+      familyId,
+      targetMemberId: memberId,
+      inviteChannel: input.inviteChannel,
+      inviteMessage: input.inviteMessage || null,
+      familyRoleAfterAccept: input.familyRoleAfterAccept,
+      createdAt: now.toISOString(),
+      expiredAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    }
+    mockInvitations.unshift(invitation)
+    return { invitation: { ...invitation }, inviteToken: `mock_invite_${Date.now()}` }
+  }
+  return request<CreatedInvitation, CreateInvitationInput>(
+    `/families/${familyId}/members/${memberId}/invite`,
+    {
+      method: 'POST',
+      data: input
+    }
+  )
+}
 
 export async function getInvitationDetail(inviteToken: string): Promise<Invitation> {
   if (!isRealApiMode) return { ...mockInvitation }
@@ -42,15 +77,60 @@ export async function rejectInvitation(
   )
 }
 
+export async function cancelInvitation(
+  invitationId: number | string,
+  input: RejectInvitationInput = {}
+): Promise<Invitation> {
+  if (!isRealApiMode) return updateMockInvitation(invitationId, 'CANCELLED', 'cancelledAt')
+  return request<Invitation, RejectInvitationInput>(
+    `/invitations/${invitationId}/cancel`,
+    {
+      method: 'POST',
+      data: input
+    }
+  )
+}
+
 export async function listMyInvitations(): Promise<Invitation[]> {
-  if (!isRealApiMode) return mockInvitations.map((item) => ({ ...item }))
-  return request<Invitation[]>('/users/me/invitations')
+	if (!isRealApiMode) return mockInvitations.map((item) => ({ ...item }))
+	return request<Invitation[]>('/users/me/invitations')
+}
+
+export async function listFamilyInvitations(
+  familyId: number | string
+): Promise<Invitation[]> {
+  if (!isRealApiMode) {
+    return mockInvitations
+      .filter((item) => String(item.familyId) === String(familyId))
+      .map((item) => ({ ...item }))
+  }
+  return request<Invitation[]>(`/families/${familyId}/invitations`)
+}
+
+export async function regenerateInvitation(
+  invitationId: number | string
+): Promise<CreatedInvitation> {
+  if (!isRealApiMode) {
+    const current = mockInvitations.find((item) => String(item.invitationId) === String(invitationId))
+    if (!current || current.status !== 'PENDING') throw new Error('邀请状态不可操作')
+    current.status = 'CANCELLED'
+    current.cancelledAt = new Date().toISOString()
+    return createInvitation(current.familyId, current.targetMemberId, {
+      inviteChannel: 'SHARE_LINK',
+      inviteMessage: current.inviteMessage || undefined,
+      familyRoleAfterAccept: 'MEMBER'
+    })
+  }
+  return request<CreatedInvitation>(
+    `/invitations/${invitationId}/regenerate`,
+    { method: 'POST' }
+  )
 }
 
 function updateMockInvitation(
   invitationId: number | string,
   status: string,
-  timeField: 'acceptedAt' | 'rejectedAt'
+  timeField: 'acceptedAt' | 'rejectedAt' | 'cancelledAt'
 ) {
   const item = mockInvitations.find((value) => String(value.invitationId) === String(invitationId))
   if (!item || item.status !== 'PENDING') throw new Error('邀请状态不可操作')

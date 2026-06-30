@@ -4,7 +4,7 @@
       <view class="hero-text">
         <text class="hero-kicker">Tree Reading</text>
         <text class="hero-title">阅读</text>
-        <text class="hero-desc">故事、典故、教程与宗亲文章，帮助你更好地整理家族记忆。</text>
+        <text class="hero-desc">故事、典故、教程与宗亲文章，帮助你更好地整理家庭记忆。</text>
       </view>
       <view class="hero-book" aria-hidden="true">
         <view class="book-page book-page-left" />

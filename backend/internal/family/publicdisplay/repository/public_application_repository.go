@@ -13,7 +13,8 @@ import (
 
 type ApplicationRow struct {
 	publicmodel.FamilyPublicApplication
-	FamilyName string `gorm:"column:family_name"`
+	FamilyName                string `gorm:"column:family_name"`
+	FamilyPublicDisplayStatus string `gorm:"column:family_public_display_status"`
 }
 
 type ListQuery struct {
@@ -98,7 +99,7 @@ func (r *GormRepository) List(ctx context.Context, query ListQuery) ([]Applicati
 		return nil, 0, err
 	}
 	var rows []ApplicationRow
-	err := db.Select("a.*, f.family_name").
+	err := db.Select("a.*, f.family_name, f.public_display_status AS family_public_display_status").
 		Order("a.created_at DESC, a.id DESC").
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).

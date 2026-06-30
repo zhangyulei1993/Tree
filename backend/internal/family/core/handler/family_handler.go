@@ -103,6 +103,24 @@ func (h *FamilyHandler) Update(ctx *gin.Context) {
 	})
 }
 
+func (h *FamilyHandler) Leave(ctx *gin.Context) {
+	h.withFamilyID(ctx, func(familyID uint64) {
+		userID, ok := currentUser(ctx)
+		if !ok {
+			return
+		}
+		var req dto.LeaveFamilyRequest
+		if ctx.Request.ContentLength != 0 {
+			if err := ctx.ShouldBindJSON(&req); err != nil {
+				response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+				return
+			}
+		}
+		result, businessErr := h.service.Leave(ctx.Request.Context(), userID, familyID, req, audit(ctx))
+		writeResult(ctx, result, businessErr)
+	})
+}
+
 func (h *FamilyHandler) CreateDissolutionRequest(ctx *gin.Context) {
 	h.withFamilyID(ctx, func(familyID uint64) {
 		userID, ok := currentUser(ctx)
@@ -178,6 +196,7 @@ func writeResult[T any](ctx *gin.Context, result T, businessErr *apperrors.Busin
 		status := http.StatusBadRequest
 		if businessErr.Code == familyservice.CodeFamilyDetailForbidden ||
 			businessErr.Code == familyservice.CodeFamilyUpdateForbidden ||
+			businessErr.Code == familyservice.CodeFamilyLeaveForbidden ||
 			businessErr.Code == familyservice.CodeFamilyDissolutionForbidden {
 			status = http.StatusForbidden
 		}

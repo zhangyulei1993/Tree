@@ -79,16 +79,17 @@
         </div>
       </div>
       <div class="reading-layout">
-        <RouterLink class="featured-article" to="/content/tutorial-create-family">
-          <span class="article-label">使用教程</span>
-          <h3>如何创建第一个家庭</h3>
-          <p>从姓氏、家庭名称和首批成员开始，建立一个可持续维护的家族空间。</p>
+        <RouterLink v-if="featuredArticle" class="featured-article" :to="`/content/${featuredArticle.id}`">
+          <span class="article-label">{{ featuredArticle.categoryName }}</span>
+          <h3>{{ featuredArticle.title }}</h3>
+          <p>{{ featuredArticle.summary || '阅读全文，了解家庭记录与协作方法。' }}</p>
         </RouterLink>
+        <div v-else class="featured-article empty-content">{{ contentError || '暂无精选内容' }}</div>
         <div class="article-grid">
-          <RouterLink v-for="item in readingCards" :key="item.title" class="article-card" :class="item.tone" :to="item.to">
-            <span>{{ item.category }}</span>
+          <RouterLink v-for="item in readingCards" :key="item.id" class="article-card" :class="contentTone(item.categoryKey)" :to="`/content/${item.id}`">
+            <span>{{ item.categoryName }}</span>
             <h3>{{ item.title }}</h3>
-            <p>{{ item.summary }}</p>
+            <p>{{ item.summary || '阅读全文' }}</p>
           </RouterLink>
         </div>
       </div>
@@ -103,7 +104,9 @@
         </div>
       </div>
       <div class="grid families">
-        <FamilyCard v-for="family in publicFamilies.slice(0, 2)" :key="family.id" :family="family" />
+        <FamilyCard v-for="family in homeFamilyCards" :key="family.id" :family="family" />
+        <p v-if="familyError" class="section-state">{{ familyError }}</p>
+        <p v-else-if="!familiesLoading && publicFamilies.length === 0" class="section-state">暂无已公开家庭</p>
       </div>
     </section>
 
@@ -127,33 +130,60 @@
 </template>
 
 <script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+
+import { listContentArticles } from '@/api/content'
+import { listPublicFamilies } from '@/api/families'
 import FamilyCard from '@/components/FamilyCard.vue'
 import PageShell from '@/components/PageShell.vue'
-import { publicFamilies } from '@/mock/data'
+import type { ContentArticleSummary, PublicFamilyListItem } from '@/types/api'
 
-const readingCards = [
-  {
-    category: '家族故事',
-    title: '一张老照片背后的迁徙记忆',
-    summary: '把照片、地点和人物关系放在一起，留下可追溯的家庭线索。',
-    tone: 'story',
-    to: '/content/story-old-photo'
-  },
-  {
-    category: '姓氏典故',
-    title: '姓氏源流可以如何查证',
-    summary: '从地方志、旧谱牒与口述资料中交叉印证，不急于给出唯一答案。',
-    tone: 'surname',
-    to: '/content/surname-origin'
-  },
-  {
-    category: '宗亲文章',
-    title: '修谱前需要准备什么',
-    summary: '整理旧谱、照片、口述和成员范围，让数字化修谱更有秩序。',
-    tone: 'article',
-    to: '/content/article-genealogy-prep'
+const publicFamilies = ref<PublicFamilyListItem[]>([])
+const featuredArticle = ref<ContentArticleSummary | null>(null)
+const readingCards = ref<ContentArticleSummary[]>([])
+const familyError = ref('')
+const contentError = ref('')
+const familiesLoading = ref(true)
+const homeFamilyCards = computed(() => publicFamilies.value.map((family) => ({
+  id: String(family.id),
+  name: family.familyName,
+  surname: family.familySurname,
+  nativePlace: family.nativePlace || '未填写',
+  regionText: family.regionText || '未填写',
+  description: family.description || '该家庭暂未填写简介。',
+  publicContact: family.publicContactVisible
+    ? [family.publicContactName, family.publicContactNote].filter(Boolean).join(' / ')
+    : '',
+  publicStatus: 'APPROVED' as const
+})))
+
+function contentTone(categoryKey: string) {
+  if (categoryKey === 'story') return 'story'
+  if (categoryKey === 'surname') return 'surname'
+  return 'article'
+}
+
+async function loadHomeData() {
+  familiesLoading.value = true
+  const [familiesResult, contentResult] = await Promise.allSettled([
+    listPublicFamilies({ page: 1, pageSize: 2 }),
+    listContentArticles({ featured: true, page: 1, pageSize: 4 })
+  ])
+  if (familiesResult.status === 'fulfilled') {
+    publicFamilies.value = familiesResult.value.items
+  } else {
+    familyError.value = '公开家庭暂时无法加载，请稍后重试。'
   }
-]
+  if (contentResult.status === 'fulfilled') {
+    featuredArticle.value = contentResult.value.items[0] || null
+    readingCards.value = contentResult.value.items.slice(1, 4)
+  } else {
+    contentError.value = '精选内容暂时无法加载，请稍后重试。'
+  }
+  familiesLoading.value = false
+}
+
+onMounted(loadHomeData)
 
 const workflowSteps = [
   { no: '01', title: '创建家庭', desc: '填写姓氏、家庭名称和基础介绍' },
@@ -165,7 +195,22 @@ const workflowSteps = [
 
 <style scoped>
 .hero {
-  padding: 82px 0 30px;
+  position: relative;
+  padding: 88px 0 44px;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 28px max(20px, calc((100vw - 1180px) / 2)) 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 42px;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(200, 164, 93, 0.24), transparent 280px),
+    radial-gradient(circle at 12% 88%, rgba(47, 107, 87, 0.30), transparent 320px),
+    linear-gradient(135deg, #172f4a 0%, #244f54 58%, #2f6b57 100%);
+  box-shadow: 0 34px 90px rgba(31, 58, 95, 0.22);
 }
 
 .hero-inner {
@@ -182,10 +227,10 @@ const workflowSteps = [
 
 .eyebrow {
   display: inline-flex;
-  border: 1px solid rgba(47, 107, 87, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--color-heritage-green);
+  background: rgba(255, 255, 255, 0.11);
+  color: rgba(248, 231, 194, 0.92);
   padding: 7px 14px;
   font-size: 13px;
   font-weight: 800;
@@ -195,7 +240,7 @@ const workflowSteps = [
 h1 {
   max-width: 780px;
   margin: 18px 0 16px;
-  color: var(--color-primary);
+  color: #fff;
   font-size: clamp(36px, 4.7vw, 62px);
   line-height: 1.04;
   letter-spacing: -0.03em;
@@ -208,7 +253,7 @@ h1 span {
 .hero-lead {
   max-width: 680px;
   margin: 0;
-  color: var(--color-text-secondary);
+  color: rgba(255, 255, 255, 0.76);
   font-size: 18px;
   line-height: 1.85;
 }
@@ -222,21 +267,22 @@ h1 span {
 
 .hero-tags span {
   border-radius: 999px;
-  background: rgba(31, 58, 95, 0.08);
-  color: var(--color-primary);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.88);
   padding: 7px 12px;
   font-size: 13px;
   font-weight: 800;
 }
 
 .hero-tags span:nth-child(2) {
-  background: var(--color-heritage-green-light);
-  color: var(--color-heritage-green);
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .hero-tags span:nth-child(3) {
-  background: var(--color-warm-gold-light);
-  color: var(--color-warm-gold-text);
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .actions {
@@ -249,14 +295,16 @@ h1 span {
 .hero-panel {
   position: relative;
   min-height: 430px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  border-radius: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-card-xl);
   background:
-    radial-gradient(circle at 78% 18%, rgba(47, 107, 87, 0.13), transparent 170px),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.96) 0%, rgba(242, 250, 247, 0.94) 56%, rgba(238, 246, 252, 0.94) 100%);
-  padding: 30px;
+    radial-gradient(circle at 78% 18%, rgba(200, 164, 93, 0.20), transparent 170px),
+    rgba(255, 255, 255, 0.10);
+  padding: 32px;
   overflow: hidden;
-  box-shadow: var(--shadow-float);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 24px 58px rgba(0, 0, 0, 0.12);
 }
 
 .relation-visual {
@@ -273,14 +321,14 @@ h1 span {
 
 .orbit {
   inset: 8px 20px 0 20px;
-  border: 1px dashed rgba(31, 58, 95, 0.18);
+  border: 1px dashed rgba(255, 255, 255, 0.24);
   border-radius: 50%;
 }
 
 .line {
   height: 3px;
   border-radius: 999px;
-  background: rgba(100, 116, 139, 0.24);
+  background: rgba(255, 255, 255, 0.28);
   transform-origin: center;
 }
 
@@ -316,8 +364,8 @@ h1 span {
   left: 116px;
   width: 54px;
   height: 54px;
-  border: 5px solid var(--color-primary);
-  box-shadow: 0 0 0 13px rgba(31, 58, 95, 0.08);
+  border: 5px solid rgba(255, 255, 255, 0.96);
+  box-shadow: 0 0 0 13px rgba(255, 255, 255, 0.12);
 }
 
 .node-top {
@@ -325,7 +373,7 @@ h1 span {
   left: 134px;
   width: 22px;
   height: 22px;
-  border: 4px solid var(--color-heritage-green);
+  border: 4px solid rgba(248, 231, 194, 0.95);
 }
 
 .node-left,
@@ -339,36 +387,39 @@ h1 span {
 .node-left {
   left: 52px;
   top: 158px;
-  border-color: var(--color-accent-blue);
+  border-color: rgba(160, 197, 231, 0.95);
 }
 
 .node-right {
   right: 48px;
   top: 148px;
+  border-color: rgba(167, 216, 198, 0.95);
 }
 
 .node-bottom {
   left: 134px;
   bottom: 12px;
-  border-color: var(--color-warm-gold);
+  border-color: rgba(216, 175, 104, 0.95);
 }
 
 .panel-copy {
   position: relative;
   z-index: 1;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.12);
   padding: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .panel-copy strong {
-  color: var(--color-primary);
+  color: #fff;
   font-size: 24px;
 }
 
 .panel-copy p {
   margin: 8px 0 0;
-  color: var(--color-text-secondary);
+  color: rgba(255, 255, 255, 0.72);
   line-height: 1.75;
 }
 
@@ -381,8 +432,9 @@ h1 span {
 
 .panel-steps span {
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.66);
-  color: var(--color-text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.84);
   padding: 12px;
   text-align: center;
   font-size: 13px;
@@ -392,21 +444,21 @@ h1 span {
 .main-actions {
   display: grid;
   grid-template-columns: 1.18fr repeat(3, 1fr);
-  gap: 14px;
-  padding: 8px 0 42px;
+  gap: 16px;
+  padding: 14px 0 48px;
 }
 
 .action-card {
   position: relative;
   min-height: 164px;
   border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 26px;
+  border-radius: 28px;
   background:
     radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.06), transparent 130px),
     rgba(255, 255, 255, 0.90);
-  padding: 22px;
+  padding: 24px;
   overflow: hidden;
-  box-shadow: 0 12px 38px rgba(31, 58, 95, 0.055);
+  box-shadow: 0 14px 40px rgba(31, 58, 95, 0.06);
   transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
 
@@ -424,6 +476,7 @@ h1 span {
   margin-top: 18px;
   color: var(--color-primary);
   font-size: 22px;
+  letter-spacing: -0.02em;
 }
 
 .action-primary strong {
@@ -548,7 +601,7 @@ h1 span {
   position: relative;
   display: block;
   min-height: 322px;
-  border-radius: 30px;
+  border-radius: 32px;
   background: linear-gradient(142deg, rgba(31, 58, 95, 0.97) 0%, rgba(47, 107, 87, 0.92) 100%);
   padding: 28px;
   overflow: hidden;
@@ -605,10 +658,19 @@ h1 span {
   display: block;
   min-height: 190px;
   border: 1px solid rgba(148, 163, 184, 0.12);
-  border-radius: 26px;
+  border-radius: 28px;
   padding: 22px;
   color: inherit;
   text-decoration: none;
+  box-shadow: 0 10px 26px rgba(31, 58, 95, 0.04);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.article-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 40px rgba(31, 58, 95, 0.08);
 }
 
 .article-card.story {
@@ -666,7 +728,7 @@ h1 span {
   border-radius: 24px;
   background: rgba(255, 255, 255, 0.88);
   padding: 20px;
-  box-shadow: 0 10px 32px rgba(31, 58, 95, 0.045);
+  box-shadow: 0 12px 34px rgba(31, 58, 95, 0.05);
 }
 
 .workflow-item span {
@@ -715,16 +777,31 @@ h1 span {
 
 @media (max-width: 680px) {
   .hero {
-    padding-top: 44px;
+    padding: 30px 12px 36px;
+  }
+
+  .hero::before {
+    inset: 0 12px 0;
+    border-radius: 32px;
+  }
+
+  .hero-inner {
+    gap: 24px;
+  }
+
+  .hero-copy {
+    padding: 0 2px;
   }
 
   h1 {
-    font-size: 34px;
+    font-size: clamp(30px, 9vw, 36px);
     line-height: 1.12;
+    letter-spacing: -0.035em;
   }
 
   .hero-panel {
     min-height: auto;
+    padding: 24px 18px;
   }
 
   .relation-visual {

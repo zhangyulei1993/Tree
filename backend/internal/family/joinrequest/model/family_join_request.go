@@ -7,6 +7,7 @@ type FamilyJoinRequest struct {
 	FamilyID           uint64     `gorm:"column:family_id;not null"`
 	ApplicantUserID    uint64     `gorm:"column:applicant_user_id;not null"`
 	ApplicantRealName  *string    `gorm:"column:applicant_real_name;size:100"`
+	ApplicantGender    *string    `gorm:"column:applicant_gender;size:40"`
 	ApplicantPhone     *string    `gorm:"column:applicant_phone;size:30"`
 	ApplicantPhoneHash *string    `gorm:"column:applicant_phone_hash;size:128"`
 	ApplicantMessage   *string    `gorm:"column:applicant_message;size:500"`

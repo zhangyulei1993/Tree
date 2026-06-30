@@ -6,35 +6,106 @@
         <h1>寻找你的家族</h1>
         <p>浏览已审核公开的家族主页、公开树和联系方式。未公开家庭不会出现在这里。</p>
       </div>
-      <div class="card filters">
-        <input v-model="keyword" class="field" placeholder="请输入家族名称 / 姓氏 / 籍贯 / 地区" />
-        <select v-model="surname" class="field"><option value="">全部姓氏</option><option>张</option><option>李</option><option>王</option></select>
-        <select v-model="region" class="field"><option value="">全部地区</option><option>山东</option><option>浙江</option><option>河南</option></select>
-        <button class="button">搜索</button>
-      </div>
-      <p class="muted">搜索结果：共 {{ filtered.length }} 个家庭</p>
-      <div class="grid">
-        <FamilyCard v-for="family in filtered" :key="family.id" :family="family" />
-      </div>
+
+      <form class="card filters" @submit.prevent="runSearch">
+        <input v-model.trim="keyword" class="field" placeholder="家族名称 / 姓氏 / 籍贯 / 地区" />
+        <input v-model.trim="surname" class="field" placeholder="姓氏，例如：张" />
+        <input v-model.trim="region" class="field" placeholder="地区，例如：山东" />
+        <button class="button" :disabled="loading">{{ loading ? '搜索中...' : '搜索' }}</button>
+      </form>
+
+      <section v-if="loading && families.length === 0" class="card state-panel">正在加载公开家庭...</section>
+      <section v-else-if="error" class="card state-panel error" role="alert">
+        <strong>公开家庭加载失败</strong>
+        <span>{{ error }}</span>
+        <button class="button secondary" @click="runSearch">重新加载</button>
+      </section>
+      <template v-else>
+        <p class="muted">搜索结果：共 {{ total }} 个家庭</p>
+        <section v-if="families.length === 0" class="card state-panel">
+          {{ hasFilters ? '未找到匹配的公开家庭，请尝试其他关键词。' : '当前暂无公开家庭。' }}
+        </section>
+        <div v-else class="grid">
+          <FamilyCard v-for="family in familyCards" :key="family.id" :family="family" />
+        </div>
+        <button v-if="hasMore" class="button secondary load-more" :disabled="loading" @click="loadMore">
+          {{ loading ? '加载中...' : '加载更多' }}
+        </button>
+      </template>
     </section>
   </PageShell>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
+import { apiErrorMessage } from '@/api/client'
+import { listPublicFamilies } from '@/api/families'
 import FamilyCard from '@/components/FamilyCard.vue'
 import PageShell from '@/components/PageShell.vue'
-import { publicFamilies } from '@/mock/data'
+import type { PublicFamilyListItem } from '@/types/api'
 
 const keyword = ref('')
 const surname = ref('')
 const region = ref('')
-const filtered = computed(() => publicFamilies.filter((family) =>
-  (!keyword.value || JSON.stringify(family).includes(keyword.value)) &&
-  (!surname.value || family.surname === surname.value) &&
-  (!region.value || family.regionText.includes(region.value))
-))
+const families = ref<PublicFamilyListItem[]>([])
+const total = ref(0)
+const page = ref(1)
+const pageSize = 20
+const loading = ref(false)
+const error = ref('')
+
+const hasFilters = computed(() => Boolean(keyword.value || surname.value || region.value))
+const hasMore = computed(() => families.value.length < total.value)
+const familyCards = computed(() => families.value.map((family) => ({
+  id: String(family.id),
+  name: family.familyName,
+  surname: family.familySurname,
+  nativePlace: family.nativePlace || '未填写',
+  regionText: family.regionText || '未填写',
+  description: family.description || '该家庭暂未填写简介。',
+  publicContact: family.publicContactVisible
+    ? [family.publicContactName, family.publicContactNote].filter(Boolean).join(' / ')
+    : '',
+  publicStatus: 'APPROVED' as const
+})))
+
+async function fetchFamilies(append: boolean) {
+  loading.value = true
+  error.value = ''
+  try {
+    const result = await listPublicFamilies({
+      keyword: keyword.value || undefined,
+      familySurname: surname.value || undefined,
+      regionText: region.value || undefined,
+      page: page.value,
+      pageSize
+    })
+    total.value = result.total
+    families.value = append ? [...families.value, ...result.items] : result.items
+  } catch (requestError) {
+    if (!append) {
+      families.value = []
+      total.value = 0
+    }
+    error.value = apiErrorMessage(requestError, '无法加载公开家庭。')
+  } finally {
+    loading.value = false
+  }
+}
+
+function runSearch() {
+  page.value = 1
+  void fetchFamilies(false)
+}
+
+function loadMore() {
+  if (loading.value || !hasMore.value) return
+  page.value += 1
+  void fetchFamilies(true)
+}
+
+onMounted(runSearch)
 </script>
 
 <style scoped>
@@ -51,7 +122,7 @@ const filtered = computed(() => publicFamilies.filter((family) =>
   margin: 14px 0 10px;
   color: var(--color-primary);
   font-size: clamp(34px, 5vw, 54px);
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   line-height: 1.08;
 }
 
@@ -64,13 +135,34 @@ const filtered = computed(() => publicFamilies.filter((family) =>
 
 .filters {
   display: grid;
-  grid-template-columns: 1.5fr 160px 160px auto;
+  grid-template-columns: 1.5fr 160px 180px auto;
   gap: 12px;
   margin: 18px 0 20px;
   padding: 18px;
-  background:
-    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.08), transparent 170px),
-    rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-soft);
+}
+
+.state-panel {
+  display: grid;
+  min-height: 180px;
+  place-items: center;
+  gap: 12px;
+  padding: 28px;
+  text-align: center;
+}
+
+.state-panel.error {
+  color: var(--color-danger);
+}
+
+.load-more {
+  display: block;
+  margin: 22px auto 0;
+}
+
+.grid {
+  gap: 18px;
 }
 
 @media (max-width: 820px) {

@@ -25,8 +25,8 @@ function storedAdmin(): AdminInfo | null {
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    admin: apiMode === 'real' ? storedAdmin() : null as AdminInfo | null,
-    token: apiMode === 'real' ? sessionStorage.getItem(ADMIN_TOKEN_KEY) || '' : '',
+    admin: storedAdmin() as AdminInfo | null,
+    token: sessionStorage.getItem(ADMIN_TOKEN_KEY) || '',
     initialized: false,
     initializing: false
   }),
@@ -62,6 +62,8 @@ export const useAuthStore = defineStore('auth', {
         if (apiMode === 'real' && this.token) {
           const admin = await getAdminMe()
           this.persistSession(this.token, admin)
+        } else if (apiMode !== 'real' && this.token && !this.admin) {
+          this.admin = storedAdmin()
         }
       } catch {
         this.clearSession()
@@ -79,8 +81,7 @@ export const useAuthStore = defineStore('auth', {
         role,
         status: 'ACTIVE'
       }
-      this.admin = admin
-      this.token = 'example_admin_token'
+      this.persistSession('example_admin_token', admin)
       this.initialized = true
     },
     switchRole(role: AdminRole) {

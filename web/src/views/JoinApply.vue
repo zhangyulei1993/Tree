@@ -21,6 +21,16 @@
         <div v-else-if="!session.isPhoneBound" class="notice">
           当前账号尚未完成手机号验证，请先完成真实手机号绑定后再申请。
         </div>
+        <section v-else-if="alreadyMember" class="result-card">
+          <strong>你已经是该家庭成员</strong>
+          <span>无需重复提交加入申请，可以直接进入“我的家庭”查看。</span>
+          <RouterLink class="button secondary" to="/me/families">查看我的家庭</RouterLink>
+        </section>
+        <section v-else-if="submittedRequest?.requestStatus === 'PENDING'" class="result-card">
+          <strong>加入申请审核中</strong>
+          <span>家庭管理员尚未处理，请勿重复提交。</span>
+          <RouterLink class="button secondary" to="/me/join-requests">查看或取消申请</RouterLink>
+        </section>
         <template v-else-if="!submittedRequest">
           <label>
             <span>申请人真实姓名</span>
@@ -30,6 +40,13 @@
               maxlength="100"
               placeholder="可选"
             />
+          </label>
+          <label>
+            <span>申请人性别</span>
+            <select v-model="applicantGender" class="field">
+              <option value="MALE">男</option>
+              <option value="FEMALE">女</option>
+            </select>
           </label>
           <label>
             <span>申请理由</span>
@@ -47,8 +64,7 @@
 
         <section v-else class="result-card">
           <strong>申请已提交</strong>
-          <span>申请 ID：{{ submittedRequest.requestId }}</span>
-          <span>当前状态：{{ submittedRequest.requestStatus }}</span>
+          <span>当前状态：{{ requestStatusText(submittedRequest.requestStatus) }}</span>
           <RouterLink class="button secondary" to="/me/join-requests">查看我的加入申请</RouterLink>
         </section>
         <p v-if="error" class="feedback error" role="alert">{{ error }}</p>
@@ -62,11 +78,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { apiErrorMessage } from '@/api/client'
-import { getPublicFamilyDetail } from '@/api/families'
-import { createJoinRequest } from '@/api/joinRequests'
+import { getPublicFamilyDetail, listMyFamilies } from '@/api/families'
+import { createJoinRequest, listMyJoinRequests } from '@/api/joinRequests'
 import PageShell from '@/components/PageShell.vue'
 import { useSessionStore } from '@/stores/session'
-import type { JoinRequest, PublicFamily } from '@/types/api'
+import type { Gender, JoinRequest, PublicFamily } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -74,8 +90,10 @@ const session = useSessionStore()
 const familyId = computed(() => String(route.params.familyId))
 const family = ref<PublicFamily | null>(null)
 const applicantRealName = ref('')
+const applicantGender = ref<Gender>('MALE')
 const applicantMessage = ref('')
 const submittedRequest = ref<JoinRequest | null>(null)
+const alreadyMember = ref(false)
 const loading = ref(true)
 const submitting = ref(false)
 const familyError = ref('')
@@ -88,8 +106,20 @@ function goToLogin() {
 async function loadFamily() {
   loading.value = true
   familyError.value = ''
+  submittedRequest.value = null
+  alreadyMember.value = false
   try {
     family.value = await getPublicFamilyDetail(familyId.value)
+    if (session.isLoggedIn && session.isPhoneBound) {
+      const [requests, myFamilies] = await Promise.all([
+        listMyJoinRequests(),
+        listMyFamilies()
+      ])
+      alreadyMember.value = myFamilies.some((item) => String(item.id) === familyId.value)
+      submittedRequest.value = requests.find(
+        (item) => String(item.familyId) === familyId.value && item.requestStatus === 'PENDING'
+      ) || null
+    }
   } catch (requestError) {
     family.value = null
     familyError.value = apiErrorMessage(requestError, '无法加载公开家庭信息。')
@@ -104,6 +134,7 @@ async function submit() {
   try {
     submittedRequest.value = await createJoinRequest(familyId.value, {
       applicantRealName: applicantRealName.value || undefined,
+      applicantGender: applicantGender.value,
       applicantMessage: applicantMessage.value || undefined
     })
   } catch (requestError) {
@@ -114,6 +145,14 @@ async function submit() {
 }
 
 onMounted(loadFamily)
+
+function requestStatusText(status?: string) {
+  if (status === 'PENDING') return '待审核'
+  if (status === 'APPROVED') return '已通过'
+  if (status === 'REJECTED') return '已驳回'
+  if (status === 'CANCELLED') return '已取消'
+  return '未知状态'
+}
 </script>
 
 <style scoped>

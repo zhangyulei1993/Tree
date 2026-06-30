@@ -2,9 +2,11 @@ import { apiClient, isRealApiMode } from '@/api/client'
 import { joinRequests as mockJoinRequests } from '@/mock/data'
 import type {
   ApiResponse,
+  ApproveJoinRequestInput,
   CancelJoinRequestInput,
   CreateJoinRequestInput,
-  JoinRequest
+  JoinRequest,
+  RejectJoinRequestInput
 } from '@/types/api'
 
 const mockRequests: JoinRequest[] = mockJoinRequests.map((value, index) => ({
@@ -30,6 +32,7 @@ export async function createJoinRequest(
       familyName: `Mock 家庭 ${familyId}`,
       applicantUserId: 'user_001',
       applicantRealName: input.applicantRealName || null,
+      applicantGender: input.applicantGender,
       applicantMessage: input.applicantMessage || null,
       requestStatus: 'PENDING',
       createdAt: now,
@@ -41,6 +44,40 @@ export async function createJoinRequest(
   const response = await apiClient.post<ApiResponse<JoinRequest>>(
     `/families/${familyId}/join-requests`,
     input
+  )
+  return response.data.data
+}
+
+export async function listFamilyJoinRequests(familyId: number | string): Promise<JoinRequest[]> {
+  const response = await apiClient.get<ApiResponse<JoinRequest[]>>(`/families/${familyId}/join-requests`)
+  return response.data.data
+}
+
+export async function approveJoinRequest(
+  familyId: number | string,
+  requestId: number | string,
+  input: ApproveJoinRequestInput
+): Promise<JoinRequest> {
+  const request = {
+    ...input,
+    memberId: input.memberId == null ? undefined : Number(input.memberId),
+    location: input.location
+      ? { ...input.location, baseMemberId: Number(input.location.baseMemberId) }
+      : undefined
+  }
+  const response = await apiClient.post<ApiResponse<JoinRequest>>(
+    `/families/${familyId}/join-requests/${requestId}/approve`, request
+  )
+  return response.data.data
+}
+
+export async function rejectJoinRequest(
+  familyId: number | string,
+  requestId: number | string,
+  input: RejectJoinRequestInput = {}
+): Promise<JoinRequest> {
+  const response = await apiClient.post<ApiResponse<JoinRequest>>(
+    `/families/${familyId}/join-requests/${requestId}/reject`, input
   )
   return response.data.data
 }

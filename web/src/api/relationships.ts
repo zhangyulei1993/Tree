@@ -3,6 +3,7 @@ import { createMember } from '@/api/members'
 import type {
   ApiResponse,
   CreateRelationshipInput,
+  PlaceExistingMemberInput,
   Relationship,
   RelationshipMutationResult,
   UpdateRelationshipInput
@@ -50,6 +51,16 @@ export async function createRelationship(
   const response = await apiClient.post<ApiResponse<RelationshipMutationResult>>(
     `/families/${familyId}/relationships`,
     input
+  )
+  return response.data.data
+}
+
+export async function placeExistingMember(
+  familyId: number | string,
+  input: PlaceExistingMemberInput
+): Promise<RelationshipMutationResult> {
+  const response = await apiClient.post<ApiResponse<RelationshipMutationResult>>(
+    `/families/${familyId}/relationships/place-existing`, input
   )
   return response.data.data
 }

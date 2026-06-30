@@ -8,6 +8,7 @@ type JoinRequest struct {
 	FamilyName        string     `json:"familyName,omitempty"`
 	ApplicantUserID   uint64     `json:"applicantUserId"`
 	ApplicantRealName *string    `json:"applicantRealName,omitempty"`
+	ApplicantGender   *string    `json:"applicantGender,omitempty"`
 	ApplicantMessage  *string    `json:"applicantMessage,omitempty"`
 	RequestStatus     string     `json:"requestStatus"`
 	ApproveMode       *string    `json:"approveMode,omitempty"`

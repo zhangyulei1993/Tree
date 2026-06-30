@@ -35,11 +35,12 @@ function handleTap() {
   justify-content: center;
   box-sizing: border-box;
   margin: 0;
-  border: none;
+  border: 1rpx solid transparent;
   border-radius: var(--tree-radius-md, 16rpx);
   font-weight: 600;
   line-height: 1.4;
   text-align: center;
+  transition: transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
 }
 .mini-button.block {
   width: 100%;
@@ -57,20 +58,27 @@ function handleTap() {
 .mini-button.primary {
   background: linear-gradient(135deg, var(--tree-primary, #1f3a5f) 0%, var(--tree-green, #2f6b57) 100%);
   color: #fff;
+  box-shadow: 0 12rpx 28rpx rgba(31, 58, 95, 0.16);
 }
 .mini-button.secondary {
   background: #fff;
   color: var(--tree-text-primary, #1f3a5f);
-  border: 1rpx solid var(--tree-border-warm, #ebe4d6);
+  border-color: var(--tree-border-warm, #ebe4d6);
+  box-shadow: 0 6rpx 16rpx rgba(15, 23, 42, 0.05);
 }
 .mini-button.danger {
   background: #b4533a;
   color: #fff;
+  box-shadow: 0 10rpx 22rpx rgba(180, 83, 58, 0.16);
 }
 .mini-button.ghost {
-  background: transparent;
-  color: var(--tree-text-secondary, #6b7280);
-  border: 1rpx solid var(--tree-border-warm, #ebe4d6);
+  background: rgba(255, 255, 255, 0.56);
+  color: var(--tree-text-primary, #1f3a5f);
+  border-color: var(--tree-border-subtle, #eef1f4);
+}
+.mini-button:active {
+  transform: translateY(1rpx) scale(0.992);
+  opacity: 0.88;
 }
 .mini-button.disabled {
   opacity: 0.55;

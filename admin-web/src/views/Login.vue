@@ -29,12 +29,13 @@
         </el-form-item>
         <el-alert v-if="errorMessage" :title="errorMessage" type="error" show-icon :closable="false" />
         <el-button
-          native-type="submit"
+          native-type="button"
           type="primary"
           size="large"
           class="login-button"
           :loading="submitting"
           :disabled="apiMode === 'real' && (!username || !password)"
+          @click="login"
         >
           登录
         </el-button>
@@ -84,12 +85,15 @@ async function login() {
   display: grid;
   min-height: 100vh;
   place-items: center;
-  background: linear-gradient(135deg, #f5f7fa 0%, #eef2f7 100%);
+  background:
+    radial-gradient(circle at 18% 12%, rgba(59, 110, 168, 0.12), transparent 300px),
+    radial-gradient(circle at 82% 18%, rgba(47, 107, 87, 0.1), transparent 340px),
+    linear-gradient(135deg, #f5f7fa 0%, #eef2f7 100%);
 }
 
 .login-panel {
   width: min(420px, calc(100vw - 32px));
-  padding: 28px;
+  padding: 30px;
 }
 
 .login-brand {
@@ -103,15 +107,18 @@ async function login() {
   height: 42px;
   margin: 0 auto 14px;
   place-items: center;
-  border-radius: 8px;
-  background: var(--color-primary);
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-heritage-green) 100%);
   color: #fff;
   font-weight: 700;
+  box-shadow: 0 14px 32px rgba(31, 58, 95, 0.18);
 }
 
 h1 {
   margin: 0;
-  font-size: 24px;
+  color: var(--color-primary);
+  font-size: 28px;
+  letter-spacing: -0.02em;
 }
 
 p {

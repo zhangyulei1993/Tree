@@ -14,15 +14,24 @@ import (
 	operationlog "tree/backend/internal/operationlog/service"
 )
 
+type SpouseRelationshipRow struct {
+	Relationship relationshipmodel.FamilyRelationship
+	Spouse       membermodel.FamilyMember
+}
+
 type Repository interface {
 	WithTx(*gorm.DB) Repository
 	LockFamily(context.Context, uint64) (*familymodel.Family, error)
 	FindMemberForUpdate(context.Context, uint64, uint64) (*membermodel.FamilyMember, error)
 	CreateMember(context.Context, *membermodel.FamilyMember) error
 	FindActiveRelationship(context.Context, uint64, uint64) (*relationshipmodel.FamilyRelationship, error)
+	HasActiveRelationships(context.Context, uint64, uint64) (bool, error)
 	FindDuplicate(context.Context, uint64, uint64, uint64, string) (*relationshipmodel.FamilyRelationship, error)
 	ListActiveParents(context.Context, uint64, uint64) ([]relationshipmodel.FamilyRelationship, error)
 	FindPrimaryParentByGender(context.Context, uint64, uint64, string, uint64) (*relationshipmodel.FamilyRelationship, error)
+	FindPrimaryParentWithMemberByGender(context.Context, uint64, uint64, string, uint64) (*relationshipmodel.FamilyRelationship, *membermodel.FamilyMember, error)
+	ListActiveSpouseMembersByGender(context.Context, uint64, uint64, string) ([]membermodel.FamilyMember, error)
+	ListActiveSpouseRelationshipsByGender(context.Context, uint64, uint64, string) ([]SpouseRelationshipRow, error)
 	CreateRelationship(context.Context, *relationshipmodel.FamilyRelationship) error
 	UpdateRelationship(context.Context, uint64, uint64, map[string]any) error
 	SoftDeleteRelationship(context.Context, uint64, uint64, uint64, *string, time.Time) error
@@ -70,6 +79,15 @@ func (r *GormRepository) FindActiveRelationship(ctx context.Context, familyID ui
 	return &relationship, err
 }
 
+func (r *GormRepository) HasActiveRelationships(ctx context.Context, familyID uint64, memberID uint64) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&relationshipmodel.FamilyRelationship{}).
+		Where("family_id = ? AND status = ? AND deleted_at IS NULL", familyID, string(enums.StatusActive)).
+		Where("from_member_id = ? OR to_member_id = ?", memberID, memberID).
+		Count(&count).Error
+	return count > 0, err
+}
+
 func (r *GormRepository) FindDuplicate(ctx context.Context, familyID uint64, fromMemberID uint64, toMemberID uint64, relationshipType string) (*relationshipmodel.FamilyRelationship, error) {
 	var relationship relationshipmodel.FamilyRelationship
 	query := r.db.WithContext(ctx).
@@ -97,7 +115,13 @@ func (r *GormRepository) ListActiveParents(ctx context.Context, familyID uint64,
 }
 
 func (r *GormRepository) FindPrimaryParentByGender(ctx context.Context, familyID uint64, childMemberID uint64, gender string, excludeRelationshipID uint64) (*relationshipmodel.FamilyRelationship, error) {
+	relationship, _, err := r.FindPrimaryParentWithMemberByGender(ctx, familyID, childMemberID, gender, excludeRelationshipID)
+	return relationship, err
+}
+
+func (r *GormRepository) FindPrimaryParentWithMemberByGender(ctx context.Context, familyID uint64, childMemberID uint64, gender string, excludeRelationshipID uint64) (*relationshipmodel.FamilyRelationship, *membermodel.FamilyMember, error) {
 	var relationship relationshipmodel.FamilyRelationship
+	var parent membermodel.FamilyMember
 	query := r.db.WithContext(ctx).Table("family_relationships AS fr").
 		Select("fr.*").
 		Joins("JOIN family_members AS parent ON parent.id = fr.from_member_id AND parent.family_id = fr.family_id").
@@ -109,7 +133,67 @@ func (r *GormRepository) FindPrimaryParentByGender(ctx context.Context, familyID
 		query = query.Where("fr.id <> ?", excludeRelationshipID)
 	}
 	err := query.First(&relationship).Error
-	return &relationship, err
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND family_id = ? AND status = ? AND deleted_at IS NULL",
+			relationship.FromMemberID, familyID, string(enums.StatusActive)).
+		First(&parent).Error; err != nil {
+		return nil, nil, err
+	}
+	return &relationship, &parent, nil
+}
+
+func (r *GormRepository) ListActiveSpouseMembersByGender(ctx context.Context, familyID uint64, baseMemberID uint64, gender string) ([]membermodel.FamilyMember, error) {
+	rows, err := r.ListActiveSpouseRelationshipsByGender(ctx, familyID, baseMemberID, gender)
+	if err != nil {
+		return nil, err
+	}
+	members := make([]membermodel.FamilyMember, 0, len(rows))
+	for i := range rows {
+		members = append(members, rows[i].Spouse)
+	}
+	return members, nil
+}
+
+func (r *GormRepository) ListActiveSpouseRelationshipsByGender(ctx context.Context, familyID uint64, baseMemberID uint64, gender string) ([]SpouseRelationshipRow, error) {
+	var members []membermodel.FamilyMember
+	var relationships []relationshipmodel.FamilyRelationship
+	err := r.db.WithContext(ctx).
+		Where("family_id = ? AND relationship_type = ? AND status = ? AND deleted_at IS NULL",
+			familyID, string(enums.RelationshipTypeSpouse), string(enums.StatusActive)).
+		Where("(from_member_id = ? OR to_member_id = ?)", baseMemberID, baseMemberID).
+		Order("id").
+		Find(&relationships).Error
+	if err != nil {
+		return nil, err
+	}
+	err = r.db.WithContext(ctx).Table("family_relationships AS fr").
+		Select("spouse.*").
+		Joins(`JOIN family_members AS spouse ON spouse.family_id = fr.family_id
+			AND spouse.id = CASE WHEN fr.from_member_id = ? THEN fr.to_member_id ELSE fr.from_member_id END`,
+			baseMemberID).
+		Where("fr.family_id = ? AND fr.relationship_type = ? AND fr.status = ? AND fr.deleted_at IS NULL",
+			familyID, string(enums.RelationshipTypeSpouse), string(enums.StatusActive)).
+		Where("(fr.from_member_id = ? OR fr.to_member_id = ?)", baseMemberID, baseMemberID).
+		Where("spouse.status = ? AND spouse.deleted_at IS NULL AND spouse.gender = ?",
+			string(enums.StatusActive), gender).
+		Order("fr.id").
+		Find(&members).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make([]SpouseRelationshipRow, 0, len(members))
+	for i := range relationships {
+		for j := range members {
+			if relationships[i].FromMemberID == members[j].ID || relationships[i].ToMemberID == members[j].ID {
+				result = append(result, SpouseRelationshipRow{Relationship: relationships[i], Spouse: members[j]})
+				break
+			}
+		}
+	}
+	return result, nil
 }
 
 func (r *GormRepository) CreateRelationship(ctx context.Context, relationship *relationshipmodel.FamilyRelationship) error {

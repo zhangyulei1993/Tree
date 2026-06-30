@@ -20,6 +20,10 @@ import AdminTopbar from '@/components/AdminTopbar.vue'
   display: grid;
   min-height: 100vh;
   grid-template-columns: 248px minmax(0, 1fr);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(59, 110, 168, 0.06), transparent 320px),
+    radial-gradient(circle at 90% 10%, rgba(47, 107, 87, 0.06), transparent 360px),
+    var(--color-bg-admin);
 }
 
 .admin-main {
@@ -27,6 +31,16 @@ import AdminTopbar from '@/components/AdminTopbar.vue'
 }
 
 .admin-content {
-  padding: 20px 24px 32px;
+  padding: 24px 28px 40px;
+}
+
+@media (max-width: 960px) {
+  .admin-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-content {
+    padding: 18px 16px 28px;
+  }
 }
 </style>

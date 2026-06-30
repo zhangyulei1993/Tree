@@ -10,6 +10,7 @@ type PublicContact struct {
 
 type CreateFamilyRequest struct {
 	Surname       string         `json:"surname" binding:"required"`
+	FounderGender *string        `json:"founderGender"`
 	FamilyName    *string        `json:"familyName"`
 	Name          *string        `json:"name"`
 	NativePlace   *string        `json:"nativePlace"`
@@ -41,4 +42,8 @@ type CreateDissolutionRequest struct {
 
 type CancelDissolutionRequest struct {
 	CancelReason *string `json:"cancelReason"`
+}
+
+type LeaveFamilyRequest struct {
+	Reason *string `json:"reason"`
 }

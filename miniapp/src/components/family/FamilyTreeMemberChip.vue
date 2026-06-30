@@ -5,9 +5,11 @@
       livingClass,
       {
         self: isSelf,
-        compact
+        compact,
+        interactive
       }
     ]"
+    @tap="handleSelect"
   >
     <view v-if="showBinding && bindingText && !isDeceased" class="binding-strip" :class="bindingClass" />
     <view class="chip-head">
@@ -42,7 +44,16 @@ const props = defineProps<{
   kinshipTitle?: string
   compact?: boolean
   familySurname?: string
+  interactive?: boolean
 }>()
+
+const emit = defineEmits<{
+  select: [node: TreeNode]
+}>()
+
+function handleSelect() {
+  if (props.interactive) emit('select', props.node)
+}
 
 const displayName = computed(() => props.node.displayName.trim() || '未命名')
 const surnamePart = computed(() => {
@@ -99,6 +110,35 @@ const bindingClass = computed(() => {
   box-shadow:
     0 0 0 2rpx rgba(47, 107, 87, 0.14),
     var(--tree-shadow-sm, 0 2rpx 12rpx rgba(15, 23, 42, 0.06));
+}
+.tree-member-chip.interactive {
+  border-color: rgba(47, 107, 87, 0.58);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.14), transparent 62rpx),
+    #fff;
+  box-shadow:
+    0 0 0 3rpx rgba(47, 107, 87, 0.10),
+    0 8rpx 20rpx rgba(24, 54, 83, 0.08);
+}
+.tree-member-chip.interactive::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 34rpx;
+  height: 34rpx;
+  border-radius: 0 10rpx 0 18rpx;
+  background: linear-gradient(135deg, rgba(47, 107, 87, 0.95), rgba(31, 58, 95, 0.92));
+}
+.tree-member-chip.interactive::after {
+  content: '管';
+  position: absolute;
+  top: 2rpx;
+  right: 6rpx;
+  color: #fff;
+  font-size: 16rpx;
+  font-weight: 700;
+  line-height: 1;
 }
 .tree-member-chip.compact {
   width: 112rpx;

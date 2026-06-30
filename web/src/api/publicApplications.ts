@@ -6,7 +6,8 @@ import type {
   PaginatedResult,
   PublicApplication,
   PublicApplicationQuery,
-  SubmitPublicApplicationInput
+  SubmitPublicApplicationInput,
+  TakeDownPublicFamilyInput
 } from '@/types/api'
 
 const storageKey = 'tree_web_mock_public_applications'
@@ -104,6 +105,24 @@ export async function cancelPublicApplication(
   }
   const response = await apiClient.post<ApiResponse<PublicApplication>>(
     `/families/${familyId}/public-applications/${applicationId}/cancel`,
+    input
+  )
+  return response.data.data
+}
+
+export async function closePublicFamily(
+  familyId: number | string,
+  input: TakeDownPublicFamilyInput = {}
+): Promise<FamilyPublicStatus> {
+  if (!isRealApiMode) {
+    return {
+      familyId: Number(familyId) || 1,
+      publicDisplayStatus: 'TAKEN_DOWN',
+      publicTakenDownAt: new Date().toISOString()
+    }
+  }
+  const response = await apiClient.post<ApiResponse<FamilyPublicStatus>>(
+    `/families/${familyId}/take-down-public`,
     input
   )
   return response.data.data

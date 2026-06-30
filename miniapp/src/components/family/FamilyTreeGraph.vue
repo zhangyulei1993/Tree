@@ -69,6 +69,8 @@
                   :show-binding="showBinding"
                   :kinship-title="kinshipTitles[parent.memberId]"
                   :family-surname="familySurname"
+                  :interactive="interactive"
+                  @select="emit('select', $event)"
                 />
               </template>
             </view>
@@ -99,6 +101,11 @@ const props = defineProps<{
   tree?: FamilyTreeResult | null
   viewerMemberId?: number | null
   showBinding?: boolean
+  interactive?: boolean
+}>()
+
+const emit = defineEmits<{
+  select: [node: FamilyTreeResult['nodes'][number]]
 }>()
 
 const layout = computed(() =>

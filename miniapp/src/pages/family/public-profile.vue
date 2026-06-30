@@ -1,5 +1,5 @@
 <template>
-  <view class="tree-page">
+  <view class="tree-page public-profile-page">
     <MiniBackHome />
     <MiniCard v-if="loadingFamily">
       <MiniEmptyState symbol="…" title="正在加载" description="正在加载公开家庭信息..." />
@@ -13,7 +13,7 @@
 
     <template v-else-if="family">
       <MiniCard variant="hero" class="public-hero tree-pedigree-watermark">
-        <text class="tree-public-eyebrow">公开家族主页</text>
+        <text class="tree-public-eyebrow">公开家庭主页</text>
         <view class="tree-dossier-head">
           <view class="tree-dossier-seal">{{ family.familySurname.slice(0, 1) }}</view>
           <view class="tree-dossier-copy">
@@ -315,6 +315,21 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.public-profile-page {
+  background:
+    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
+    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
+}
+
+.public-hero {
+  margin-bottom: 26rpx;
+}
+
+.public-hero :deep(.tree-page-title),
+.public-hero .tree-page-title {
+  color: #fff;
+}
+
 .section-pad {
   padding: 8rpx 24rpx 16rpx;
 }
@@ -326,7 +341,7 @@ onUnmounted(() => {
 .public-surname {
   display: block;
   margin-bottom: 8rpx;
-  color: var(--tree-gold-text);
+  color: rgba(248, 231, 194, 0.92);
   font-size: 24rpx;
   font-weight: 600;
   letter-spacing: 2rpx;
@@ -335,12 +350,15 @@ onUnmounted(() => {
 .public-desc {
   display: block;
   margin-top: 12rpx;
-  color: var(--tree-text-secondary);
+  color: rgba(255, 255, 255, 0.76);
   font-size: 26rpx;
   line-height: 1.7;
 }
 
 .hero-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14rpx;
   margin-top: 22rpx;
 }
 
@@ -351,16 +369,26 @@ onUnmounted(() => {
 
 .subsection {
   margin-top: 22rpx;
-  padding-top: 18rpx;
-  border-top: 1rpx solid var(--tree-border-subtle);
+  border: 1rpx solid rgba(226, 232, 240, 0.82);
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 20rpx;
 }
 
 .subsection-title {
   display: block;
   margin-bottom: 12rpx;
   color: var(--tree-text-primary);
-  font-size: 28rpx;
-  font-weight: 600;
+  font-size: 31rpx;
+  font-weight: 800;
+}
+
+.tree-message-wall-item {
+  border: 1rpx solid rgba(226, 232, 240, 0.82);
+  border-radius: 22rpx;
+  background: rgba(248, 250, 252, 0.86);
+  padding: 18rpx;
+  margin-top: 14rpx;
 }
 
 .message {

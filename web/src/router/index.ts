@@ -18,6 +18,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/login', component: () => import('@/views/Login.vue') },
   { path: '/register', component: () => import('@/views/Register.vue') },
   { path: '/me', component: () => import('@/views/Profile.vue'), meta: { requiresAuth: true } },
+  { path: '/me/settings', component: () => import('@/views/AccountSettings.vue'), meta: { requiresAuth: true } },
   { path: '/me/families', component: () => import('@/views/MyFamilies.vue'), meta: { requiresAuth: true } },
   { path: '/me/invitations', component: () => import('@/views/MyInvitations.vue'), meta: { requiresAuth: true } },
   { path: '/me/join-requests', component: () => import('@/views/MyJoinRequests.vue'), meta: { requiresAuth: true } },
@@ -30,6 +31,7 @@ const routes: RouteRecordRaw[] = [
   },
   { path: '/families/:familyId/members', component: () => import('@/views/FamilyMembers.vue'), meta: { requiresAuth: true } },
   { path: '/families/:familyId/tree', component: () => import('@/views/FamilyTree.vue'), meta: { requiresAuth: true } },
+  { path: '/families/:familyId/manage', component: () => import('@/views/FamilyManagement.vue'), meta: { requiresAuth: true } },
   { path: '/invite/:inviteToken', component: () => import('@/views/InviteDetail.vue') },
   { path: '/families/:familyId/join', component: () => import('@/views/JoinApply.vue') }
 ]

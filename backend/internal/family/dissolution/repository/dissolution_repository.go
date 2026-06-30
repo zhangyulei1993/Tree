@@ -15,7 +15,8 @@ import (
 
 type DissolutionRow struct {
 	dissolutionmodel.FamilyDissolutionRequest
-	FamilyName string `gorm:"column:family_name"`
+	FamilyName   string `gorm:"column:family_name"`
+	FamilyStatus string `gorm:"column:family_status"`
 }
 
 type ListQuery struct {
@@ -81,7 +82,11 @@ func (r *GormRepository) List(ctx context.Context, query ListQuery) ([]Dissoluti
 		return nil, 0, err
 	}
 	var rows []DissolutionRow
-	err := db.Select("d.*, f.family_name").Order("d.created_at DESC, d.id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Scan(&rows).Error
+	err := db.Select("d.*, f.family_name, f.status AS family_status").
+		Order("d.created_at DESC, d.id DESC").
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Scan(&rows).Error
 	return rows, total, err
 }
 

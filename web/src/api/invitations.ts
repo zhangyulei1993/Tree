@@ -117,6 +117,16 @@ export async function listMyInvitations(): Promise<Invitation[]> {
   return response.data.data
 }
 
+export async function listFamilyInvitations(familyId: number | string): Promise<Invitation[]> {
+  const response = await apiClient.get<ApiResponse<Invitation[]>>(`/families/${familyId}/invitations`)
+  return response.data.data
+}
+
+export async function regenerateInvitation(invitationId: number | string): Promise<CreatedInvitation> {
+  const response = await apiClient.post<ApiResponse<CreatedInvitation>>(`/invitations/${invitationId}/regenerate`)
+  return response.data.data
+}
+
 function updateMockInvitation(
   invitationId: number | string,
   status: string,

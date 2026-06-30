@@ -1,10 +1,11 @@
 <template>
   <view class="tree-page family-space-page">
     <MiniBackHome />
-    <view class="tree-space tree-pedigree-watermark">
+    <view v-if="authChecked" class="tree-space tree-pedigree-watermark">
       <view class="tree-space-head">
         <text class="tree-space-title">我的家庭</text>
-        <text class="tree-space-subtitle">你创建或加入的家族空间</text>
+        <text class="tree-space-subtitle">你创建或加入的家庭</text>
+        <MiniButton variant="secondary" size="sm" @click="openCreateFamily">创建家庭</MiniButton>
         <view v-if="!loading && !errorMessage && families.length > 0" class="tree-archive-ribbon">
           <text class="tree-archive-chip">共 {{ families.length }} 个家庭</text>
         </view>
@@ -26,7 +27,7 @@
             action-text="查看公开家庭"
             @action="openSearch"
           />
-          <MiniButton variant="secondary" @click="openInvitations">查看我的邀请</MiniButton>
+          <MiniButton variant="secondary" @click="openInvitations">查看收到的家庭邀请</MiniButton>
         </MiniCard>
 
         <view v-else class="family-stack">
@@ -48,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { onShow } from '@dcloudio/uni-app'
+import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
 import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -67,9 +68,20 @@ const session = useSessionStore()
 const families = ref<FamilySummary[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
+const authChecked = ref(false)
+
+function resetAuthView() {
+  authChecked.value = false
+  loading.value = false
+  errorMessage.value = ''
+  families.value = []
+}
 
 async function loadFamilies() {
+  authChecked.value = false
+  families.value = []
   if (!session.requirePhoneBound('/pages/family/my')) return
+  authChecked.value = true
   loading.value = true
   errorMessage.value = ''
   try {
@@ -90,7 +102,11 @@ function openSearch() {
 }
 
 function openInvitations() {
-  uni.navigateTo({ url: '/pages/invite/my' })
+  uni.navigateTo({ url: '/pages/me/family-affairs?tab=invitations' })
+}
+
+function openCreateFamily() {
+  uni.navigateTo({ url: '/pages/family/create' })
 }
 
 function roleText(role: string) {
@@ -136,6 +152,8 @@ function familyStatusTone(status: string) {
 }
 
 onShow(loadFamilies)
+onHide(resetAuthView)
+onUnload(resetAuthView)
 </script>
 
 <style scoped>

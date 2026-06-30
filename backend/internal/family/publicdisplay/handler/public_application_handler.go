@@ -58,6 +58,20 @@ func (h *Handler) Cancel(ctx *gin.Context) {
 	write(ctx, http.StatusOK, result, err)
 }
 
+func (h *Handler) TakeDownUser(ctx *gin.Context) {
+	userID, familyID, ok := userAndFamily(ctx)
+	if !ok {
+		return
+	}
+	var req dto.TakeDownPublicFamilyRequest
+	if ctx.Request.ContentLength != 0 && ctx.ShouldBindJSON(&req) != nil {
+		bad(ctx)
+		return
+	}
+	result, err := h.service.TakeDownUser(ctx.Request.Context(), userID, familyID, req, audit(ctx))
+	write(ctx, http.StatusOK, result, err)
+}
+
 func (h *Handler) ListAdmin(ctx *gin.Context) {
 	adminID, role, ok := adminAndRole(ctx)
 	if !ok {

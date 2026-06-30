@@ -5,7 +5,9 @@
     :show-binding="showBinding"
     :kinship-title="kinshipTitle"
     :family-surname="familySurname"
+    :interactive="interactive"
     compact
+    @select="emit('select', $event)"
   />
 </template>
 
@@ -19,5 +21,10 @@ defineProps<{
   showBinding?: boolean
   kinshipTitle?: string
   familySurname?: string
+  interactive?: boolean
+}>()
+
+const emit = defineEmits<{
+  select: [node: TreeNode]
 }>()
 </script>

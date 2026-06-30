@@ -21,6 +21,7 @@
             <div><span>姓氏</span><strong>{{ family.familySurname }}</strong></div>
             <div><span>我的身份</span><strong>{{ roleText(family.role) }}</strong></div>
             <div><span>家庭状态</span><strong>{{ statusText(family.status) }}</strong></div>
+            <div><span>公开状态</span><strong>{{ publicStatusText(family.publicDisplayStatus) }}</strong></div>
             <div><span>家谱版本</span><strong>第 {{ family.graphVersion }} 版</strong></div>
             <div><span>创建者记录</span><strong>{{ family.currentFounderMemberId ? '已确认' : '未确认' }}</strong></div>
           </div>
@@ -29,6 +30,21 @@
             {{ family.nativePlace || '未填写籍贯' }}
             <template v-if="family.regionText"> · {{ family.regionText }}</template>
           </p>
+          <div
+            v-if="canManage && family.status === 'NORMAL' && family.publicDisplayStatus === 'APPROVED'"
+            class="public-status-actions"
+          >
+            <RouterLink class="button secondary" :to="`/families/${family.id}/public`">
+              查看公开主页
+            </RouterLink>
+            <RouterLink class="button secondary" :to="`/families/${family.id}/public-applications`">
+              公开记录
+            </RouterLink>
+            <button class="button danger" :disabled="closingPublic" @click="confirmClosePublic">
+              {{ closingPublic ? '关闭中...' : '关闭公开展示' }}
+            </button>
+          </div>
+          <p v-if="operationError" class="operation-error" role="alert">{{ operationError }}</p>
         </section>
 
         <div class="entry-grid">
@@ -40,14 +56,22 @@
             <strong>私有家庭树</strong>
             <span>查看成员列表、亲属关系和家谱版本</span>
           </RouterLink>
+          <RouterLink class="card entry" :to="`/families/${family.id}/manage`">
+            <strong>{{ canManage ? '家庭管理' : '成员身份' }}</strong>
+            <span>{{ canManage ? '处理申请、邀请、角色与高风险操作' : '查看身份或退出该家庭' }}</span>
+          </RouterLink>
           <RouterLink
-            v-if="canManage"
+            v-if="canManage && family.status === 'NORMAL'"
             class="card entry"
             :to="`/families/${family.id}/public-applications`"
           >
-            <strong>公开展示申请</strong>
-            <span>提交申请、查看审核状态或取消待审核申请</span>
+            <strong>{{ publicEntryTitle }}</strong>
+            <span>{{ publicEntryDescription }}</span>
           </RouterLink>
+          <div v-else-if="canManage" class="card entry entry-disabled">
+            <strong>公开展示暂不可调整</strong>
+            <span>家庭当前为{{ statusText(family.status) }}状态</span>
+          </div>
         </div>
       </template>
     </section>
@@ -61,6 +85,7 @@ import { useRoute } from 'vue-router'
 
 import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
+import { closePublicFamily } from '@/api/publicApplications'
 import PageShell from '@/components/PageShell.vue'
 import type { ApiResponse, FamilyDetail } from '@/types/api'
 
@@ -69,8 +94,22 @@ const family = ref<FamilyDetail | null>(null)
 const loading = ref(true)
 const error = ref('')
 const forbidden = ref(false)
+const closingPublic = ref(false)
+const operationError = ref('')
 const familyId = computed(() => String(route.params.familyId))
 const canManage = computed(() => family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN')
+const publicEntryTitle = computed(() => {
+  if (family.value?.publicDisplayStatus === 'APPROVED') return '公开展示管理'
+  if (family.value?.publicDisplayStatus === 'PENDING') return '公开申请审核中'
+  return '申请公开展示'
+})
+const publicEntryDescription = computed(() => {
+  if (family.value?.publicDisplayStatus === 'APPROVED') return '查看公开主页，或关闭公开展示'
+  if (family.value?.publicDisplayStatus === 'PENDING') return '查看审核进度，或取消待审核申请'
+  if (family.value?.publicDisplayStatus === 'REJECTED') return '查看审核意见并重新提交申请'
+  if (family.value?.publicDisplayStatus === 'TAKEN_DOWN') return '当前已关闭，可重新申请公开'
+  return '提交公开申请并查看审核进度'
+})
 
 function roleText(role?: string) {
   if (role === 'FOUNDER') return '家庭创建者'
@@ -87,6 +126,30 @@ function statusText(status?: string) {
   return '未知'
 }
 
+function publicStatusText(status?: string) {
+  if (status === 'APPROVED') return '已公开'
+  if (status === 'PENDING') return '审核中'
+  if (status === 'REJECTED') return '未通过'
+  if (status === 'TAKEN_DOWN') return '已关闭'
+  if (status === 'PRIVATE') return '未公开'
+  return '未知'
+}
+
+async function confirmClosePublic() {
+  if (!family.value || closingPublic.value) return
+  if (!window.confirm('关闭后公开主页和公开家谱将立即不可访问，重新公开需要再次提交审核。确定继续吗？')) return
+  closingPublic.value = true
+  operationError.value = ''
+  try {
+    await closePublicFamily(familyId.value, {})
+    await loadFamily()
+  } catch (requestError) {
+    operationError.value = apiErrorMessage(requestError, '关闭公开展示失败。')
+  } finally {
+    closingPublic.value = false
+  }
+}
+
 function errorText(requestError: unknown) {
   if (axios.isAxiosError<ApiResponse<unknown>>(requestError)) {
     forbidden.value = requestError.response?.status === 403
@@ -100,6 +163,7 @@ function errorText(requestError: unknown) {
 async function loadFamily() {
   loading.value = true
   error.value = ''
+  operationError.value = ''
   forbidden.value = false
   try {
     family.value = await getFamilyDetail(familyId.value)
@@ -171,7 +235,7 @@ h1 {
 
 .summary {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -193,6 +257,18 @@ h1 {
   line-height: 1.7;
 }
 
+.public-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.operation-error {
+  margin: 12px 0 0;
+  color: var(--color-danger);
+}
+
 .entry-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -208,6 +284,11 @@ h1 {
     border-color 0.18s ease,
     box-shadow 0.18s ease,
     transform 0.18s ease;
+}
+
+.entry-disabled {
+  cursor: not-allowed;
+  opacity: 0.66;
 }
 
 .entry:hover {

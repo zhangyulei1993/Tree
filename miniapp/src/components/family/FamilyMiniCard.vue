@@ -17,6 +17,9 @@
         <text v-if="desc" class="desc">{{ desc }}</text>
         <slot />
       </view>
+      <view class="card-tail">
+        <text class="card-arrow">›</text>
+      </view>
     </view>
   </view>
 </template>
@@ -43,20 +46,37 @@ const sealText = computed(() => (props.surname?.trim() || props.name.trim()).sli
 
 <style scoped>
 .family-mini-card {
-  margin-bottom: 16rpx;
-  border: 1rpx solid var(--tree-border-subtle, #eef1f4);
-  border-radius: var(--tree-radius-lg, 24rpx);
-  background: var(--tree-surface, #fff);
-  padding: 22rpx 24rpx;
-  box-shadow: var(--tree-shadow-sm, 0 2rpx 12rpx rgba(15, 23, 42, 0.04));
+  position: relative;
+  margin-bottom: 18rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.72);
+  border-radius: 32rpx;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(216, 175, 104, 0.14), transparent 180rpx),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 246, 238, 0.94) 50%, rgba(244, 250, 247, 0.94) 100%);
+  padding: 26rpx 24rpx;
+  overflow: hidden;
+  box-shadow: 0 18rpx 44rpx rgba(24, 54, 83, 0.08);
+}
+
+.family-mini-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 28rpx;
+  bottom: 28rpx;
+  width: 7rpx;
+  border-radius: 0 999rpx 999rpx 0;
+  background: linear-gradient(180deg, var(--tree-primary) 0%, var(--tree-green) 100%);
 }
 
 .family-mini-card:active {
-  background: var(--tree-surface-muted, #f8fafc);
+  opacity: 0.92;
+  transform: scale(0.995);
 }
 
 .card-layout {
   display: flex;
+  align-items: center;
   gap: 18rpx;
 }
 
@@ -65,21 +85,45 @@ const sealText = computed(() => (props.surname?.trim() || props.name.trim()).sli
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 20rpx;
-  background: linear-gradient(145deg, var(--tree-accent-blue-light, #eef4fb) 0%, var(--tree-green-light, #e8f3ee) 100%);
+  width: 82rpx;
+  height: 82rpx;
+  border-radius: 26rpx;
+  background: linear-gradient(145deg, #17304c 0%, #2f6b57 100%);
+  box-shadow:
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.22),
+    0 14rpx 30rpx rgba(24, 54, 83, 0.14);
 }
 
 .avatar-char {
-  color: var(--tree-primary, #1f3a5f);
-  font-size: 32rpx;
-  font-weight: 700;
+  color: #fff;
+  font-size: 34rpx;
+  font-weight: 800;
 }
 
 .card-body {
   flex: 1;
   min-width: 0;
+}
+
+.card-tail {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  align-self: stretch;
+}
+
+.card-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40rpx;
+  height: 40rpx;
+  margin-top: 4rpx;
+  border-radius: 999rpx;
+  background: rgba(24, 54, 83, 0.08);
+  color: var(--tree-primary);
+  font-size: 28rpx;
+  font-weight: 700;
 }
 
 .card-head {
@@ -92,8 +136,8 @@ const sealText = computed(() => (props.surname?.trim() || props.name.trim()).sli
 .name {
   flex: 1;
   color: var(--tree-text-primary, #1e293b);
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: 32rpx;
+  font-weight: 800;
   line-height: 1.35;
 }
 

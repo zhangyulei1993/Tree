@@ -9,7 +9,9 @@ export interface UserInfo {
   phone?: string | null
   phoneVerified: boolean
   nickname?: string | null
+  avatarUrl?: string | null
   status: string
+  passwordSet?: boolean
 }
 
 export interface LoginResult {
@@ -37,8 +39,19 @@ export interface RegisterPhoneInput extends LoginPhoneInput {
 
 export interface SendCodeInput {
   phone: string
-  scene: 'REGISTER' | 'LOGIN'
+  scene: 'REGISTER' | 'LOGIN' | 'CHANGE_PHONE_OLD' | 'CHANGE_PHONE_NEW' | 'CANCEL_ACCOUNT'
   clientType: 'H5_WEB' | 'PC_WEB'
+}
+
+export interface ChangePhoneInput {
+  oldPhoneCode: string
+  newPhone: string
+  newPhoneCode: string
+}
+
+export interface CancelAccountInput {
+  phoneCode: string
+  cancelReason?: string
 }
 
 export interface FamilySummary {
@@ -113,6 +126,18 @@ export interface PublicFamily {
   publicContactVisible: boolean
 }
 
+export interface PublicFamilyListItem extends PublicFamily {
+  publicApprovedAt?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface ListPublicFamiliesQuery extends PaginationQuery {
+  keyword?: string
+  familySurname?: string
+  regionText?: string
+}
+
 export interface PaginationQuery {
   page?: number
   pageSize?: number
@@ -171,6 +196,7 @@ export interface PublicApplication {
   applicationId: number
   familyId: number
   familyName?: string
+  familyPublicDisplayStatus?: string
   applicantUserId?: number
   applicantAdminId?: number
   status: string
@@ -183,6 +209,10 @@ export interface PublicApplication {
   cancelReason?: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface TakeDownPublicFamilyInput {
+  reason?: string
 }
 
 export interface PublicApplicationQuery extends PaginationQuery {
@@ -257,11 +287,33 @@ export interface CreatedInvitation {
 
 export interface CreateJoinRequestInput {
   applicantRealName?: string
+  applicantGender: Gender
   applicantMessage?: string
 }
 
 export interface CancelJoinRequestInput {
   cancelReason?: string
+}
+
+export interface ApproveJoinRequestInput {
+  approveMode: 'BIND_EXISTING_MEMBER' | 'CREATE_NEW_MEMBER'
+  memberId?: number | string
+  newMember?: {
+    name: string
+    gender?: Gender
+    isAlive?: boolean
+    userBindingPolicy?: UserBindingPolicy
+  }
+  location?: {
+    baseMemberId: number | string
+    addType: RelationshipAddType
+    relationship: CreateRelationshipInput['relationship']
+  }
+  handleComment?: string
+}
+
+export interface RejectJoinRequestInput {
+  handleComment?: string
 }
 
 export interface JoinRequest {
@@ -270,6 +322,7 @@ export interface JoinRequest {
   familyName?: string
   applicantUserId: number | string
   applicantRealName?: string | null
+  applicantGender?: Gender | null
   applicantMessage?: string | null
   requestStatus: string
   approveMode?: string | null
@@ -354,6 +407,13 @@ export interface CreateRelationshipInput {
   }
 }
 
+export interface PlaceExistingMemberInput {
+  baseMemberId: number
+  memberId: number
+  addType: RelationshipAddType
+  relationship: CreateRelationshipInput['relationship']
+}
+
 export interface UpdateRelationshipInput {
   parentLinkType?: string
   relationNoteType?: string
@@ -387,6 +447,49 @@ export interface RelationshipMutationResult {
   createdMember?: CreatedRelationshipMember
   relationships: Relationship[]
   graphVersion: number
+}
+
+export interface RoleChangeResult {
+  familyId: number | string
+  memberId: number | string
+  userId: number | string
+  familyRole: string
+  graphVersion: number
+  updatedAt: string
+}
+
+export interface FounderTransferRequest {
+  requestId: number | string
+  familyId: number | string
+  fromMemberId: number | string
+  fromUserId: number | string
+  toMemberId: number | string
+  toUserId: number | string
+  requestStatus: string
+  requestReason?: string | null
+  reviewComment?: string | null
+  cancelReason?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface DissolutionRequest {
+  requestId: number | string
+  familyId: number | string
+  requesterMemberId: number | string
+  requesterUserId: number | string
+  requestStatus: string
+  requestReason?: string | null
+  reviewComment?: string | null
+  cancelReason?: string | null
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface LeaveFamilyResult {
+  familyId: number | string
+  memberId: number | string
+  status: 'LEFT'
 }
 
 export interface TreeNode {

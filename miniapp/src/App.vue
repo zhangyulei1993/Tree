@@ -22,6 +22,21 @@ page {
   background: linear-gradient(180deg, var(--tree-bg-top) 0%, var(--tree-bg-mid) 50%, var(--tree-bg-bottom) 100%);
 }
 
+.auth-page {
+  overflow-x: hidden;
+  background: linear-gradient(180deg, #f6efe5 0%, #f1f6f3 48%, #edf4f4 100%) !important;
+}
+
+.auth-page::before,
+.auth-page::after {
+  display: none !important;
+  content: none !important;
+}
+
+.auth-page .mini-back-home {
+  display: none !important;
+}
+
 .card,
 .tree-card {
   margin-bottom: 20rpx;
@@ -200,5 +215,14 @@ page {
   text-align: right;
   max-width: 62%;
   line-height: 1.5;
+}
+
+@media screen and (min-width: 960px) {
+  .page,
+  .tree-page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding-inline: 24px;
+  }
 }
 </style>

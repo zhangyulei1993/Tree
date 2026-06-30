@@ -55,8 +55,16 @@
               <el-button size="small" @click="openAudit(row.requestId, 'reject')">驳回</el-button>
             </div>
             <div v-else-if="row.requestStatus === 'APPROVED'" class="table-actions">
-              <el-tag v-if="restoredFamilyIds.has(row.familyId)" type="success">本次会话已恢复</el-tag>
-              <el-button v-else size="small" type="primary" @click="openRestore(row.familyId)">恢复家庭</el-button>
+              <el-button
+                v-if="row.familyStatus === 'DISSOLVED'"
+                size="small"
+                type="primary"
+                @click="openRestore(row.familyId)"
+              >
+                恢复家庭
+              </el-button>
+              <el-tag v-else-if="row.familyStatus === 'NORMAL'" type="success">已恢复</el-tag>
+              <el-tag v-else type="info">家庭状态：{{ familyStatusText(row.familyStatus) }}</el-tag>
             </div>
             <span v-else class="muted">已处理</span>
           </template>
@@ -141,7 +149,6 @@ const auditKey = ref(0)
 const selectedRequestId = ref<number | null>(null)
 const selectedFamilyId = ref<number | null>(null)
 const pendingReviewComment = ref<string | undefined>()
-const restoredFamilyIds = ref(new Set<number>())
 const submitting = ref(false)
 
 onMounted(loadRequests)
@@ -251,9 +258,9 @@ async function confirmRestore() {
   operationError.value = ''
   try {
     await restoreFamily(selectedFamilyId.value, { searchable: true })
-    restoredFamilyIds.value = new Set(restoredFamilyIds.value).add(selectedFamilyId.value)
     restoreConfirmVisible.value = false
     ElMessage.success('家庭已恢复，公开状态已重置为私有')
+    await loadRequests()
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
   } finally {
@@ -263,6 +270,14 @@ async function confirmRestore() {
 
 function formatTime(value?: string) {
   return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-'
+}
+
+function familyStatusText(status?: string) {
+  if (status === 'NORMAL') return '正常'
+  if (status === 'DISSOLUTION_PENDING') return '解散待审核'
+  if (status === 'DISSOLVED') return '已解散'
+  if (status === 'DISABLED') return '已停用'
+  return '未知状态'
 }
 </script>
 

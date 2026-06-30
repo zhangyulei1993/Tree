@@ -9,6 +9,7 @@
         </div>
         <div class="heading-actions">
           <RouterLink class="button secondary" :to="`/families/${familyId}`">家庭详情</RouterLink>
+          <RouterLink v-if="canManage" class="button secondary" :to="`/families/${familyId}/manage`">申请与角色管理</RouterLink>
           <RouterLink class="button secondary" :to="`/families/${familyId}/tree`">查看家庭树</RouterLink>
         </div>
       </div>
@@ -111,6 +112,20 @@
           </form>
         </div>
 
+        <form v-if="canManage" class="card form-card placement-card" @submit.prevent="submitPlacement">
+          <div><h2>定位已有成员</h2><p class="muted">将暂存且尚未建立关系的成员连接到家谱。</p></div>
+          <p v-if="unlocatedMembers.length === 0" class="notice">当前没有待定位成员。</p>
+          <template v-else>
+            <div class="compact-grid">
+              <label><span>待定位成员</span><select v-model.number="placementForm.memberId" class="field"><option v-for="member in unlocatedMembers" :key="member.memberId" :value="member.memberId">{{ member.name }}</option></select></label>
+              <label><span>基准成员</span><select v-model.number="placementForm.baseMemberId" class="field"><option v-for="member in placementBaseMembers" :key="member.memberId" :value="member.memberId">{{ member.name }}</option></select></label>
+            </div>
+            <label><span>与基准成员的关系</span><select v-model="placementForm.addType" class="field"><option value="ADD_FATHER">父亲</option><option value="ADD_MOTHER">母亲</option><option value="ADD_CHILD">子女</option><option value="ADD_SPOUSE">配偶</option><option value="ADD_SIBLING">兄弟姐妹</option></select></label>
+            <p v-if="placementError" class="feedback error">{{ placementError }}</p>
+            <button class="button" :disabled="placementSubmitting">{{ placementSubmitting ? '定位中...' : '放入家谱' }}</button>
+          </template>
+        </form>
+
         <section v-else class="card readonly-note">
           当前身份为家庭成员，仅可查看成员和家庭树。
         </section>
@@ -118,10 +133,9 @@
         <section class="member-section">
           <div class="section-heading">
             <h2>成员列表</h2>
-            <button class="button secondary" :disabled="membersLoading" @click="loadMembers">刷新</button>
+            <button class="button secondary" :disabled="pageLoading" @click="loadPage">刷新</button>
           </div>
-          <section v-if="membersLoading" class="card state-panel">正在刷新成员列表...</section>
-          <section v-else-if="members.length === 0" class="card state-panel">
+          <section v-if="members.length === 0" class="card state-panel">
             <strong>暂无成员</strong>
           </section>
           <div v-else class="member-list">
@@ -132,17 +146,82 @@
               </div>
               <dl>
                 <div><dt>性别</dt><dd>{{ genderLabel(member.gender) }}</dd></div>
-                <div><dt>字辈/代次</dt><dd>后端未提供</dd></div>
                 <div><dt>家庭身份</dt><dd>{{ roleText(member.boundFamilyRole) }}</dd></div>
                 <div><dt>健在状态</dt><dd>{{ aliveLabel(member) }}</dd></div>
+                <div><dt>账号绑定</dt><dd>{{ bindingText(member) }}</dd></div>
               </dl>
-              <div v-if="canManage && canInvite(member)" class="invite-actions">
-                <button class="button secondary" @click="openInvite(member.memberId)">
+              <div v-if="canManage" class="invite-actions">
+                <button class="button secondary" @click="openEdit(member)">编辑成员</button>
+                <button
+                  v-if="canBindApplication(member)"
+                  class="button secondary"
+                  @click="openApplicationBinding(member)"
+                >
+                  绑定加入申请
+                </button>
+                <button v-if="canInvite(member)" class="button secondary" @click="openInvite(member.memberId)">
                   创建分享邀请
                 </button>
+                <RouterLink
+                  v-else-if="pendingInvitation(member)"
+                  class="button secondary"
+                  :to="`/families/${familyId}/manage`"
+                >
+                  邀请待接受
+                </RouterLink>
               </div>
               <form
-                v-if="activeInviteMemberId === member.memberId"
+                v-if="activeBindMemberId === member.memberId"
+                class="invite-form"
+                @submit.prevent="bindApplication(member)"
+              >
+                <label>
+                  <span>选择性别一致的待处理申请</span>
+                  <select v-model="selectedRequestByMember[String(member.memberId)]" class="field">
+                    <option value="">请选择申请人</option>
+                    <option
+                      v-for="request in matchingJoinRequests(member)"
+                      :key="request.requestId"
+                      :value="String(request.requestId)"
+                    >
+                      {{ request.applicantRealName || '未填写姓名' }} · {{ request.applicantMessage || '无申请说明' }}
+                    </option>
+                  </select>
+                </label>
+                <p class="notice">通过后，申请账号会直接绑定到“{{ member.name }}”节点，不改变家谱结构和版本。</p>
+                <div class="invite-buttons">
+                  <button class="button" :disabled="bindingApplication">{{ bindingApplication ? '绑定中...' : '确认绑定并通过' }}</button>
+                  <button class="button secondary" type="button" @click="activeBindMemberId = null">取消</button>
+                </div>
+              </form>
+              <form
+                v-if="activeEditMemberId === member.memberId"
+                class="invite-form"
+                @submit.prevent="saveMember(member)"
+              >
+                <div class="compact-grid">
+                  <label><span>姓名</span><input v-model.trim="editForm.name" class="field" maxlength="100" /></label>
+                  <label>
+                    <span>性别</span>
+                    <select v-model="editForm.gender" class="field">
+                      <option value="MALE">男</option>
+                      <option value="FEMALE">女</option>
+                      <option value="UNKNOWN">未知</option>
+                    </select>
+                  </label>
+                  <label><span>出生年份</span><input v-model.number="editForm.birthYear" class="field" type="number" min="1" max="9999" /></label>
+                  <label class="check-row"><input v-model="editForm.isAlive" type="checkbox" /><span>目前健在</span></label>
+                </div>
+                <label><span>成员简介</span><textarea v-model.trim="editForm.description" class="field textarea" maxlength="500" /></label>
+                <p v-if="editError" class="feedback error">{{ editError }}</p>
+                <div class="invite-buttons">
+                  <button class="button" :disabled="editingMember">{{ editingMember ? '保存中...' : '保存成员资料' }}</button>
+                  <button class="button secondary" type="button" @click="closeEdit">取消</button>
+                  <button class="button danger" type="button" :disabled="editingMember" @click="removeMember(member)">删除成员</button>
+                </div>
+              </form>
+              <form
+                v-if="canInvite(member) && activeInviteMemberId === member.memberId"
                 class="invite-form"
                 @submit.prevent="submitInvite(member)"
               >
@@ -174,6 +253,50 @@
             </article>
           </div>
         </section>
+
+        <section v-if="canManage" class="member-section">
+          <div class="section-heading">
+            <div>
+              <h2>关系维护</h2>
+              <p class="muted">可调整父母子女关系性质，或删除错误关系后重新创建。</p>
+            </div>
+          </div>
+          <section v-if="treeEdges.length === 0" class="card state-panel">暂无家谱关系</section>
+          <div v-else class="member-list">
+            <article v-for="edge in treeEdges" :key="edge.relationshipId" class="card member-card relation-card">
+              <div>
+                <strong>{{ relationshipSentence(edge) }}</strong>
+                <p class="muted">{{ relationshipTypeText(edge.relationshipType) }}</p>
+              </div>
+              <div class="relation-controls">
+                <select
+                  v-if="edge.relationshipType === 'PARENT_CHILD'"
+                  v-model="relationshipNature[String(edge.relationshipId)]"
+                  class="field compact"
+                >
+                  <option value="PRIMARY">亲生</option>
+                  <option value="STEP">继亲</option>
+                  <option value="ADOPTIVE">收养</option>
+                  <option value="SUCCESSION">承继</option>
+                  <option value="NOTE_ONLY">仅备注</option>
+                  <option value="OTHER">其他</option>
+                </select>
+                <button
+                  v-if="edge.relationshipType === 'PARENT_CHILD'"
+                  class="button secondary"
+                  :disabled="relationshipActing"
+                  @click="saveRelationship(edge)"
+                >
+                  保存性质
+                </button>
+                <button class="button danger" :disabled="relationshipActing" @click="removeRelationship(edge)">
+                  删除关系
+                </button>
+              </div>
+            </article>
+          </div>
+          <p v-if="relationshipManageError" class="feedback error">{{ relationshipManageError }}</p>
+        </section>
       </template>
     </section>
   </PageShell>
@@ -186,16 +309,26 @@ import { useRoute } from 'vue-router'
 
 import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
-import { createInvitation } from '@/api/invitations'
-import { createMember, listMembers } from '@/api/members'
-import { createRelationship } from '@/api/relationships'
+import { createInvitation, listFamilyInvitations } from '@/api/invitations'
+import { approveJoinRequest, listFamilyJoinRequests } from '@/api/joinRequests'
+import { createMember, deleteMember, listMembers, updateMember } from '@/api/members'
+import {
+  createRelationship,
+  deleteRelationship,
+  placeExistingMember,
+  updateRelationship
+} from '@/api/relationships'
+import { getPrivateTree } from '@/api/tree'
 import PageShell from '@/components/PageShell.vue'
 import type {
   ApiResponse,
   FamilyDetail,
   FamilyMember,
   Gender,
-  RelationshipAddType
+  Invitation,
+  JoinRequest,
+  RelationshipAddType,
+  TreeEdge
 } from '@/types/api'
 
 const route = useRoute()
@@ -203,7 +336,6 @@ const familyId = computed(() => String(route.params.familyId))
 const family = ref<FamilyDetail | null>(null)
 const members = ref<FamilyMember[]>([])
 const pageLoading = ref(true)
-const membersLoading = ref(false)
 const pageError = ref('')
 const forbidden = ref(false)
 const memberSubmitting = ref(false)
@@ -211,12 +343,27 @@ const relationshipSubmitting = ref(false)
 const memberError = ref('')
 const relationshipError = ref('')
 const relationshipSuccess = ref('')
+const relatedMemberIds = ref(new Set<number>())
+const treeEdges = ref<TreeEdge[]>([])
+const joinRequests = ref<JoinRequest[]>([])
+const invitations = ref<Invitation[]>([])
+const placementSubmitting = ref(false)
+const placementError = ref('')
 const activeInviteMemberId = ref<number | null>(null)
 const inviteMessage = ref('')
 const inviteLink = ref('')
 const inviteError = ref('')
 const inviteSubmitting = ref(false)
 const copyResult = ref('')
+const activeEditMemberId = ref<number | null>(null)
+const editError = ref('')
+const editingMember = ref(false)
+const activeBindMemberId = ref<number | null>(null)
+const selectedRequestByMember = reactive<Record<string, string>>({})
+const bindingApplication = ref(false)
+const relationshipActing = ref(false)
+const relationshipManageError = ref('')
+const relationshipNature = reactive<Record<string, string>>({})
 
 const memberForm = reactive({
   name: '',
@@ -232,8 +379,18 @@ const relationshipForm = reactive({
   gender: 'UNKNOWN' as Gender,
   parentLinkType: 'PRIMARY'
 })
+const placementForm = reactive({ memberId: 0, baseMemberId: 0, addType: 'ADD_CHILD' as RelationshipAddType })
+const editForm = reactive({
+  name: '',
+  gender: 'UNKNOWN' as Gender,
+  birthYear: undefined as number | undefined,
+  isAlive: true,
+  description: ''
+})
 
 const canManage = computed(() => family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN')
+const unlocatedMembers = computed(() => members.value.filter((member) => !relatedMemberIds.value.has(member.memberId)))
+const placementBaseMembers = computed(() => members.value.filter((member) => member.memberId !== placementForm.memberId))
 
 function errorText(requestError: unknown, fallback: string) {
   if (axios.isAxiosError<ApiResponse<unknown>>(requestError)) {
@@ -269,10 +426,33 @@ function memberStatusText(status?: string) {
   return '未知'
 }
 
+function bindingText(member: FamilyMember) {
+  if (member.boundUserId) return '已绑定账号'
+  if (member.userBindingPolicy === 'NOT_REQUIRED') return '无需绑定'
+  return '等待绑定'
+}
+
 function canInvite(member: FamilyMember) {
   return member.status === 'ACTIVE' &&
     !member.boundUserId &&
-    member.userBindingPolicy !== 'NOT_REQUIRED'
+    member.userBindingPolicy !== 'NOT_REQUIRED' &&
+    !pendingInvitation(member)
+}
+
+function pendingInvitation(member: FamilyMember) {
+  return invitations.value.find((invitation) =>
+    String(invitation.targetMemberId) === String(member.memberId) && invitation.status === 'PENDING'
+  )
+}
+
+function matchingJoinRequests(member: FamilyMember) {
+  return joinRequests.value.filter((request) =>
+    request.requestStatus === 'PENDING' && request.applicantGender === member.gender
+  )
+}
+
+function canBindApplication(member: FamilyMember) {
+  return canInvite(member) && matchingJoinRequests(member).length > 0
 }
 
 function openInvite(memberId: number) {
@@ -319,37 +499,64 @@ async function copyInviteLink() {
   }
 }
 
-async function loadMembers() {
-  membersLoading.value = true
-  try {
-    members.value = await listMembers(familyId.value)
-    if (!relationshipForm.baseMemberId && members.value.length > 0) {
-      relationshipForm.baseMemberId = members.value[0].memberId
-    }
-  } catch (requestError) {
-    pageError.value = errorText(requestError, '无法加载成员列表。')
-  } finally {
-    membersLoading.value = false
-  }
-}
-
 async function loadPage() {
   pageLoading.value = true
   pageError.value = ''
   forbidden.value = false
   try {
-    const [familyResult, memberResult] = await Promise.all([
-      getFamilyDetail(familyId.value),
-      listMembers(familyId.value)
+    family.value = await getFamilyDetail(familyId.value)
+    const [memberResult, treeResult, requestResult, invitationResult] = await Promise.all([
+      listMembers(familyId.value),
+      getPrivateTree(familyId.value),
+      canManage.value ? listFamilyJoinRequests(familyId.value) : Promise.resolve([]),
+      canManage.value ? listFamilyInvitations(familyId.value) : Promise.resolve([])
     ])
-    family.value = familyResult
     members.value = memberResult
+    joinRequests.value = requestResult
+    invitations.value = invitationResult
+    treeEdges.value = treeResult.edges
+    relatedMemberIds.value = new Set(treeResult.edges.flatMap((edge) => [edge.fromMemberId, edge.toMemberId]))
+    Object.keys(relationshipNature).forEach((key) => delete relationshipNature[key])
+    treeResult.edges.forEach((edge) => {
+      relationshipNature[String(edge.relationshipId)] = edge.parentLinkType || 'PRIMARY'
+    })
     if (memberResult.length > 0) relationshipForm.baseMemberId = memberResult[0].memberId
+    normalizePlacement()
   } catch (requestError) {
     pageError.value = errorText(requestError, '无法加载家庭成员页面。')
   } finally {
     pageLoading.value = false
   }
+}
+
+function normalizePlacement() {
+  if (!unlocatedMembers.value.some((member) => member.memberId === placementForm.memberId)) {
+    placementForm.memberId = unlocatedMembers.value[0]?.memberId || 0
+  }
+  if (!placementBaseMembers.value.some((member) => member.memberId === placementForm.baseMemberId)) {
+    placementForm.baseMemberId = placementBaseMembers.value[0]?.memberId || 0
+  }
+}
+
+async function submitPlacement() {
+  normalizePlacement()
+  if (!placementForm.memberId || !placementForm.baseMemberId) {
+    placementError.value = '请选择待定位成员和基准成员。'
+    return
+  }
+  placementSubmitting.value = true
+  placementError.value = ''
+  try {
+    await placeExistingMember(familyId.value, {
+      memberId: placementForm.memberId,
+      baseMemberId: placementForm.baseMemberId,
+      addType: placementForm.addType,
+      relationship: { parentLinkType: placementForm.addType === 'ADD_SPOUSE' ? undefined : 'PRIMARY' }
+    })
+    await loadPage()
+  } catch (error) {
+    placementError.value = errorText(error, '成员定位失败。')
+  } finally { placementSubmitting.value = false }
 }
 
 async function submitMember() {
@@ -370,7 +577,7 @@ async function submitMember() {
     memberForm.gender = 'UNKNOWN'
     memberForm.birthYear = undefined
     memberForm.isAlive = true
-    await loadMembers()
+    await loadPage()
   } catch (requestError) {
     memberError.value = errorText(requestError, '新增成员失败。')
   } finally {
@@ -410,11 +617,140 @@ async function submitRelationship() {
     relationshipSuccess.value = `创建成功，家谱版本已更新为第 ${result.graphVersion} 版。`
     relationshipForm.name = ''
     relationshipForm.gender = 'UNKNOWN'
-    await loadMembers()
+    await loadPage()
   } catch (requestError) {
     relationshipError.value = errorText(requestError, '创建亲属关系失败。')
   } finally {
     relationshipSubmitting.value = false
+  }
+}
+
+function openApplicationBinding(member: FamilyMember) {
+  activeBindMemberId.value = member.memberId
+  selectedRequestByMember[String(member.memberId)] = String(matchingJoinRequests(member)[0]?.requestId || '')
+  activeEditMemberId.value = null
+  closeInvite()
+}
+
+async function bindApplication(member: FamilyMember) {
+  const requestId = selectedRequestByMember[String(member.memberId)]
+  if (!requestId) {
+    pageError.value = '请选择一个待处理加入申请。'
+    return
+  }
+  if (!window.confirm(`确认通过申请，并将账号绑定到“${member.name}”节点？`)) return
+  bindingApplication.value = true
+  pageError.value = ''
+  try {
+    await approveJoinRequest(familyId.value, requestId, {
+      approveMode: 'BIND_EXISTING_MEMBER',
+      memberId: member.memberId
+    })
+    activeBindMemberId.value = null
+    await loadPage()
+  } catch (error) {
+    pageError.value = errorText(error, '绑定加入申请失败。')
+  } finally {
+    bindingApplication.value = false
+  }
+}
+
+function openEdit(member: FamilyMember) {
+  activeEditMemberId.value = member.memberId
+  activeBindMemberId.value = null
+  closeInvite()
+  editError.value = ''
+  editForm.name = member.name
+  editForm.gender = member.gender as Gender
+  editForm.birthYear = member.birthYear || undefined
+  editForm.isAlive = member.isAlive !== false
+  editForm.description = member.description || ''
+}
+
+function closeEdit() {
+  activeEditMemberId.value = null
+  editError.value = ''
+}
+
+async function saveMember(member: FamilyMember) {
+  if (!editForm.name.trim()) {
+    editError.value = '成员姓名不能为空。'
+    return
+  }
+  editingMember.value = true
+  editError.value = ''
+  try {
+    await updateMember(familyId.value, member.memberId, {
+      name: editForm.name,
+      gender: editForm.gender,
+      birthYear: editForm.birthYear || undefined,
+      isAlive: editForm.isAlive,
+      description: editForm.description || undefined
+    })
+    closeEdit()
+    await loadPage()
+  } catch (error) {
+    editError.value = errorText(error, '成员资料保存失败。')
+  } finally {
+    editingMember.value = false
+  }
+}
+
+async function removeMember(member: FamilyMember) {
+  if (!window.confirm(`确定删除“${member.name}”吗？存在下级成员、绑定账号或创建者身份时，后端会拒绝。`)) return
+  editingMember.value = true
+  editError.value = ''
+  try {
+    await deleteMember(familyId.value, member.memberId, 'PC 家庭成员管理删除')
+    closeEdit()
+    await loadPage()
+  } catch (error) {
+    editError.value = errorText(error, '成员删除失败。')
+  } finally {
+    editingMember.value = false
+  }
+}
+
+function memberName(memberId: number) {
+  return members.value.find((member) => member.memberId === memberId)?.name || '未知成员'
+}
+
+function relationshipSentence(edge: TreeEdge) {
+  const from = memberName(edge.fromMemberId)
+  const to = memberName(edge.toMemberId)
+  return edge.relationshipType === 'SPOUSE' ? `${from} 与 ${to} 是配偶` : `${from} 是 ${to} 的父母`
+}
+
+function relationshipTypeText(type: string) {
+  return type === 'SPOUSE' ? '配偶关系' : '父母子女关系'
+}
+
+async function saveRelationship(edge: TreeEdge) {
+  relationshipActing.value = true
+  relationshipManageError.value = ''
+  try {
+    await updateRelationship(familyId.value, edge.relationshipId, {
+      parentLinkType: relationshipNature[String(edge.relationshipId)] || 'PRIMARY'
+    })
+    await loadPage()
+  } catch (error) {
+    relationshipManageError.value = errorText(error, '关系性质保存失败。')
+  } finally {
+    relationshipActing.value = false
+  }
+}
+
+async function removeRelationship(edge: TreeEdge) {
+  if (!window.confirm(`确定删除“${relationshipSentence(edge)}”吗？`)) return
+  relationshipActing.value = true
+  relationshipManageError.value = ''
+  try {
+    await deleteRelationship(familyId.value, edge.relationshipId, 'PC 家庭成员管理删除错误关系')
+    await loadPage()
+  } catch (error) {
+    relationshipManageError.value = errorText(error, '关系删除失败。')
+  } finally {
+    relationshipActing.value = false
   }
 }
 
@@ -539,6 +875,9 @@ label {
 }
 
 .invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 16px;
 }
 
@@ -555,6 +894,21 @@ label {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.relation-card,
+.relation-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.relation-card {
+  justify-content: space-between;
+}
+
+.relation-controls {
+  flex-wrap: wrap;
 }
 
 .status-tag {
@@ -600,6 +954,11 @@ dd {
   .compact-grid,
   dl {
     grid-template-columns: 1fr;
+  }
+
+  .relation-card {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 </style>

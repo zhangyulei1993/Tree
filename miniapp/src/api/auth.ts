@@ -2,6 +2,8 @@ import { isRealApiMode, request } from '@/api/client'
 import { mockUser } from '@/mock/data'
 import type {
   BindPhoneInput,
+  CancelAccountInput,
+  ChangePhoneInput,
   LoginPhoneInput,
   LoginResult,
   RegisterPhoneInput,
@@ -112,4 +114,12 @@ export async function wechatPhoneLogin(phoneCode: string) {
 export async function logoutUser() {
   if (!isRealApiMode) return
   await request<{ status: string }>('/auth/logout', { method: 'POST' })
+}
+
+export async function changePhone(input: ChangePhoneInput) {
+  return request<LoginResult, ChangePhoneInput>('/auth/change-phone', { method: 'POST', data: input })
+}
+
+export async function cancelAccount(input: CancelAccountInput) {
+  return request<{ status: string }, CancelAccountInput>('/auth/cancel-account', { method: 'POST', data: input })
 }
