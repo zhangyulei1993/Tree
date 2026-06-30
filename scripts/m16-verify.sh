@@ -30,15 +30,15 @@ run_check \
 
 run_check \
   'Admin web build' \
-  docker exec tree-dev bash -lc 'cd /workspace/admin-web && pnpm build'
+  docker exec -e CI=true tree-dev bash -lc 'cd /workspace/admin-web && pnpm build'
 
 run_check \
   'PC/H5 web build' \
-  docker exec tree-dev bash -lc 'cd /workspace/web && pnpm build'
+  docker exec -e CI=true tree-dev bash -lc 'cd /workspace/web && pnpm build'
 
 run_check \
   'Mini program build' \
-  docker exec tree-dev bash -lc 'cd /workspace/miniapp && pnpm build:mp-weixin'
+  docker exec -e CI=true tree-dev bash -lc 'cd /workspace/miniapp && pnpm build:mp-weixin'
 
 run_check \
   'Repository security check' \
