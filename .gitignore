@@ -34,10 +34,12 @@ logs/
 # Local release and backup artifacts
 .m16/
 backups/
+scripts/.snapshots/
 LOCAL_TEST_ACCOUNTS.md
 CODEX_HANDOFF_*.md
 tree-h5-real-e2e-credentials.json
 tree-h5-real-e2e-state.json
+tree-large-patrilineal-family-state.json
 *.sql
 !backend/migrations/*.sql
 *.sql.gz
