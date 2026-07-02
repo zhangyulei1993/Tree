@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { buildFamilyGraph } from './buildFamilyGraph'
+import { layoutFamilyTree } from './layoutFamilyTree'
 import {
   filterUnlocatedLineageMemberIds,
   findMainLineageComponent,
@@ -215,4 +216,33 @@ test('missing memberType is excluded from unlocated lineage list', () => {
   ])
   assert.deepEqual(filterUnlocatedLineageMemberIds([99, 100], related, memberTypeById), [99])
   assert.deepEqual(filterUnlocatedLineageMemberIds([100], related, memberTypeById), [])
+})
+
+test('deep viewer keeps initial viewport anchored to the patrilineal root', () => {
+  const nodes = [
+    node(1, '张曾祖父', 'MALE', 'LINEAGE_MEMBER', '1920-01-01'),
+    node(2, '李曾祖母', 'FEMALE', 'SPOUSE', '1922-01-01'),
+    node(3, '张祖父', 'MALE', 'LINEAGE_MEMBER', '1945-01-01'),
+    node(4, '张父亲', 'MALE', 'LINEAGE_MEMBER', '1970-01-01'),
+    node(5, '张本人', 'MALE', 'LINEAGE_MEMBER', '2000-01-01')
+  ]
+  const edges = [
+    sp(1, 2, 1),
+    pc(1, 3, 2),
+    pc(2, 3, 3),
+    pc(3, 4, 4),
+    pc(4, 5, 5)
+  ]
+
+  const layout = layoutFamilyTree({ ...buildInput(nodes, edges), viewerMemberId: 5 })
+  const rootNode = layout.renderNodes.find((item) =>
+    item.parents.some((parent) => parent.memberId === 1)
+  )
+  const viewerNode = layout.renderNodes.find((item) =>
+    item.parents.some((parent) => parent.memberId === 5)
+  )
+
+  assert.equal(layout.scrollIntoViewId, 'tree-root-anchor')
+  assert.equal(rootNode?.scrollAnchorId, 'tree-root-anchor')
+  assert.equal(viewerNode?.scrollAnchorId, undefined)
 })

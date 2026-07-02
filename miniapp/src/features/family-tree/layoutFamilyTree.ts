@@ -183,15 +183,16 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
     const renderNodes: RenderCoupleNode[] = []
     const nodeById = new Map<string, RenderCoupleNode>()
     let scrollIntoViewId: string | undefined
+    let rootAnchorAssigned = false
 
     root.each((node) => {
       if (node.data.virtual) return
       const width = node.data.coupleWidth
-      const containsViewer =
-        input.viewerMemberId != null &&
-        node.data.parents.some((parent) => parent.memberId === input.viewerMemberId)
-      const scrollAnchorId = containsViewer ? `tree-node-${input.viewerMemberId}` : undefined
-      if (scrollAnchorId) scrollIntoViewId = scrollAnchorId
+      const scrollAnchorId = rootAnchorAssigned ? undefined : 'tree-root-anchor'
+      if (scrollAnchorId) {
+        rootAnchorAssigned = true
+        scrollIntoViewId = scrollAnchorId
+      }
 
       const renderNode: RenderCoupleNode = {
         id: node.data.id,
