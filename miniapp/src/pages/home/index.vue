@@ -36,7 +36,7 @@
         <view class="primary-card-content">
           <view class="primary-icon primary-icon-home" />
           <text class="primary-title">我的家庭</text>
-          <text class="primary-desc">查看成员、关系和私有家谱</text>
+          <text class="primary-desc">查看成员、关系和家谱</text>
         </view>
         <text class="primary-arrow">›</text>
       </view>

@@ -25,17 +25,13 @@
       </view>
     </view>
 
-    <MiniCard v-if="!authChecked">
-      <MiniEmptyState symbol="…" title="正在确认登录状态" description="请稍候..." />
-    </MiniCard>
-
-    <MiniCard v-else-if="errorMessage">
+    <MiniCard v-if="errorMessage && members.length === 0">
       <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
       <MiniButton variant="secondary" @click="loadMembers">重新加载</MiniButton>
     </MiniCard>
 
     <template v-else>
-      <MiniCard v-if="loading">
+      <MiniCard v-if="loading && members.length === 0">
         <MiniEmptyState symbol="…" title="正在加载" description="正在加载成员..." />
       </MiniCard>
 
@@ -84,10 +80,10 @@
               >
                 <view v-if="hasMoreAction(member)" class="inline-action more" @tap.stop="toggleActionMember(member)">
                   <text class="inline-action-main">
-                    {{ memberInvitation(member) ? invitationSummary(memberInvitation(member)!) : isActionMember(member) ? '收起本节点操作' : '更多节点操作' }}
+                    {{ inlineActionMain(member) }}
                   </text>
                   <text class="inline-action-sub">
-                    {{ memberInvitation(member) ? '查看邀请记录' : `邀请、删除 ${member.name}` }}
+                    {{ inlineActionSub(member) }}
                   </text>
                   <text class="inline-action-arrow">›</text>
                 </view>
@@ -130,7 +126,7 @@
                 }}
               </MiniNotice>
               <MiniButton
-                v-if="canInviteMember(member)"
+                v-if="canShowInviteForMember(member)"
                 variant="secondary"
                 size="sm"
                 @click="openInvitePanel(member)"
@@ -144,6 +140,16 @@
                 @click="openSentInvitations"
               >
                 查看 {{ member.name }} 的邀请记录
+              </MiniButton>
+              <MiniButton
+                v-if="canUnbindForMember(member)"
+                variant="secondary"
+                size="sm"
+                :loading="unbindingMemberId === String(member.memberId)"
+                :disabled="unbindingMemberId === String(member.memberId)"
+                @click="confirmUnbindMember(member)"
+              >
+                解除账号绑定
               </MiniButton>
             </view>
             <MiniCard
@@ -214,7 +220,7 @@ import {
   createInvitation,
   listFamilyInvitations
 } from '@/api/invitations'
-import { deleteFamilyMember, listFamilyMembers } from '@/api/members'
+import { deleteFamilyMember, listFamilyMembers, unbindFamilyMemberUser } from '@/api/members'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
@@ -231,6 +237,15 @@ import type {
   Invitation
 } from '@/types/api'
 import {
+  canEditMember as canEditMemberAction,
+  canShowInviteButton,
+  canUnbindMember,
+  hasMoreAction as hasMoreMemberAction,
+  hasNodeAction as hasMemberNodeAction,
+  invitationHeadline,
+  memberActionSummary
+} from '@/features/family/memberListActions'
+import {
   formatMemberAge,
   formatMemberBindingNeed,
   formatMemberGender,
@@ -238,13 +253,13 @@ import {
 } from '@/utils/memberFormat'
 
 const session = useSessionStore()
+session.restoreSession()
 const familyId = ref('')
 const family = ref<FamilyDetail | null>(null)
 const members = ref<FamilyMember[]>([])
 const invitations = ref<Invitation[]>([])
-const loading = ref(false)
+const loading = ref(session.isLoggedIn)
 const errorMessage = ref('')
-const authChecked = ref(false)
 const selectedActionMemberId = ref('')
 const selectedInviteMember = ref<FamilyMember | null>(null)
 const createdInvitation = ref<CreatedInvitation | null>(null)
@@ -254,36 +269,42 @@ const inviteSubmitting = ref(false)
 const inviteCancelling = ref(false)
 const actionError = ref('')
 const deletingMemberId = ref('')
+const unbindingMemberId = ref('')
 
 const canManageFamily = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
 )
 
-function resetAuthView() {
-  authChecked.value = false
-  loading.value = false
-  errorMessage.value = ''
-  family.value = null
-  members.value = []
-  invitations.value = []
+function resetTransientUI() {
   closeInvitePanel()
   selectedActionMemberId.value = ''
   actionError.value = ''
 }
 
-async function loadMembers() {
-  authChecked.value = false
+function resetPageData() {
+  loading.value = false
+  errorMessage.value = ''
+  family.value = null
   members.value = []
   invitations.value = []
+  resetTransientUI()
+}
+
+async function loadMembers() {
+  session.restoreSession()
   if (!familyId.value) {
-    authChecked.value = true
+    loading.value = false
     errorMessage.value = '缺少家庭信息。'
     return
   }
   const route = `/pages/family/members?familyId=${encodeURIComponent(familyId.value)}`
-  if (!session.requireLogin(route)) return
-  authChecked.value = true
-  loading.value = true
+  if (!session.isLoggedIn) {
+    resetPageData()
+    session.requireLogin(route)
+    return
+  }
+  const isInitialLoad = members.value.length === 0
+  loading.value = isInitialLoad
   errorMessage.value = ''
   try {
     const familyResult = await getFamilyDetail(familyId.value)
@@ -302,28 +323,53 @@ async function loadMembers() {
   }
 }
 
-function canInviteMember(member: FamilyMember) {
-  return canManageFamily.value
-    && member.status === 'ACTIVE'
-    && !member.boundUserId
-    && member.userBindingPolicy !== 'NOT_REQUIRED'
-    && !memberInvitation(member)
-}
-
-function hasBindingAction(member: FamilyMember) {
-  return canInviteMember(member) || Boolean(memberInvitation(member))
+function memberActionContext(member: FamilyMember) {
+  const invitation = memberInvitation(member)
+  return {
+    canManageFamily: canManageFamily.value,
+    invitation,
+    invitationExpired: invitation ? displayInvitationStatus(invitation) === 'EXPIRED' : false
+  }
 }
 
 function canEditMember(member: FamilyMember) {
-  return canManageFamily.value && member.status === 'ACTIVE'
+  return canEditMemberAction(member, canManageFamily.value)
+}
+
+function canUnbindForMember(member: FamilyMember) {
+  return canUnbindMember(member, canManageFamily.value)
+}
+
+function canShowInviteForMember(member: FamilyMember) {
+  return canShowInviteButton(member, memberActionContext(member))
+}
+
+function hasBindingAction(member: FamilyMember) {
+  const ctx = memberActionContext(member)
+  return canShowInviteButton(member, ctx) || Boolean(ctx.invitation)
 }
 
 function hasNodeAction(member: FamilyMember) {
-  return canEditMember(member) || hasBindingAction(member)
+  return hasMemberNodeAction(member, memberActionContext(member))
 }
 
 function hasMoreAction(member: FamilyMember) {
-  return canManageFamily.value || hasBindingAction(member)
+  return hasMoreMemberAction(member, memberActionContext(member))
+}
+
+function inlineActionMain(member: FamilyMember) {
+  const ctx = memberActionContext(member)
+  const headline = invitationHeadline(ctx)
+  if (headline) return headline
+  if (isActionMember(member)) return '收起本节点操作'
+  return '更多节点操作'
+}
+
+function inlineActionSub(member: FamilyMember) {
+  const ctx = memberActionContext(member)
+  const summary = memberActionSummary(member, ctx)
+  if (summary) return summary
+  return `${member.name} 暂无可用管理操作`
 }
 
 function isExpiredInvitation(item: Invitation) {
@@ -369,6 +415,31 @@ function memberInvitation(member: FamilyMember) {
 
 function invitationSummary(item: Invitation) {
   return displayInvitationStatus(item) === 'EXPIRED' ? '邀请已过期' : '邀请待接受'
+}
+
+function confirmUnbindMember(member: FamilyMember) {
+  uni.showModal({
+    title: '解除账号绑定',
+    content: `确定解除「${member.name}」的账号绑定吗？解除后该账号将不能再以此节点身份进入当前家庭；成员节点与家谱关系不会删除。`,
+    success: (result) => {
+      if (result.confirm) unbindMemberAccount(member)
+    }
+  })
+}
+
+async function unbindMemberAccount(member: FamilyMember) {
+  unbindingMemberId.value = String(member.memberId)
+  actionError.value = ''
+  try {
+    await unbindFamilyMemberUser(familyId.value, member.memberId, '小程序成员列表解除绑定')
+    uni.showToast({ title: '已解除绑定', icon: 'success' })
+    selectedActionMemberId.value = ''
+    await loadMembers()
+  } catch (error) {
+    actionError.value = apiErrorMessage(error, '解除绑定失败。')
+  } finally {
+    unbindingMemberId.value = ''
+  }
 }
 
 function openSentInvitations() {
@@ -541,6 +612,10 @@ function roleText(role?: string | null) {
 
 onLoad((options) => {
   familyId.value = String(options?.familyId || '')
+  session.restoreSession()
+  if (session.isLoggedIn && familyId.value) {
+    loading.value = true
+  }
 })
 onShareAppMessage(() => ({
   title: selectedInviteMember.value
@@ -550,11 +625,8 @@ onShareAppMessage(() => ({
   imageUrl: '/static/share/family-invitation.jpg'
 }))
 onShow(loadMembers)
-onHide(resetAuthView)
-onUnload(() => {
-  resetAuthView()
-  closeInvitePanel()
-})
+onHide(resetTransientUI)
+onUnload(resetPageData)
 </script>
 
 <style scoped>

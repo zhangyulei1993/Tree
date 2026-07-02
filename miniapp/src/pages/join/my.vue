@@ -12,13 +12,13 @@
         <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
       </MiniCard>
 
-      <MiniCard v-if="loading">
+      <MiniCard v-if="loading && requests.length === 0">
         <view class="state-block">
           <text class="tree-muted">正在加载加入申请...</text>
         </view>
       </MiniCard>
 
-      <MiniCard v-else-if="loadError">
+      <MiniCard v-else-if="loadError && requests.length === 0">
         <MiniEmptyState
           symbol="!"
           title="加载失败"
@@ -117,12 +117,17 @@ const requestGroups = computed(() => {
   ].filter((group) => group.items.length > 0)
 })
 
-function resetAuthView() {
+function resetTransientUI() {
+  actionError.value = ''
+  cancellingId.value = null
+}
+
+function resetPageData() {
   authChecked.value = false
   loading.value = false
   loadError.value = ''
-  actionError.value = ''
   requests.value = []
+  resetTransientUI()
 }
 
 function formatDate(value: string) {
@@ -139,11 +144,15 @@ function openMyFamilies() {
 }
 
 async function loadRequests() {
-  authChecked.value = false
-  requests.value = []
-  if (!session.requireLogin('/pages/join/my')) return
+  session.restoreSession()
+  if (!session.isLoggedIn) {
+    resetPageData()
+    session.requireLogin('/pages/join/my')
+    return
+  }
   authChecked.value = true
-  loading.value = true
+  const isInitialLoad = requests.value.length === 0
+  loading.value = isInitialLoad
   loadError.value = ''
   actionError.value = ''
   try {
@@ -178,12 +187,9 @@ async function cancel(item: JoinRequest) {
   }
 }
 
-onShow(() => {
-  session.restoreSession()
-  loadRequests()
-})
-onHide(resetAuthView)
-onUnload(resetAuthView)
+onShow(loadRequests)
+onHide(resetTransientUI)
+onUnload(resetPageData)
 </script>
 
 <style scoped>

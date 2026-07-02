@@ -84,6 +84,26 @@
           <text v-if="graphVersion"> · 家谱版本 {{ graphVersion }}</text>
         </text>
       </view>
+
+      <view v-if="layout.unlocatedMembers.length > 0" class="unlocated-section">
+        <view class="unlocated-head">
+          <text class="unlocated-title">未定位成员</text>
+          <text class="unlocated-desc">以下成员未接入主家谱主干，可在「定位成员」中挂接。</text>
+        </view>
+        <view class="unlocated-list">
+          <FamilyTreePersonCard
+            v-for="node in layout.unlocatedMembers"
+            :key="node.memberId"
+            :node="node"
+            :is-self="node.memberId === viewerMemberId"
+            :show-binding="showBinding"
+            :kinship-title="kinshipTitles[node.memberId]"
+            :family-surname="familySurname"
+            :interactive="interactive"
+            @select="emit('select', $event)"
+          />
+        </view>
+      </view>
     </template>
   </view>
 </template>
@@ -242,5 +262,31 @@ watch(
   color: var(--tree-text-weak);
   font-size: 22rpx;
   line-height: 1.5;
+}
+.unlocated-section {
+  margin-top: 20rpx;
+  padding: 18rpx 12rpx 8rpx;
+  border-top: 1rpx dashed rgba(47, 107, 87, 0.22);
+}
+.unlocated-head {
+  margin-bottom: 12rpx;
+}
+.unlocated-title {
+  display: block;
+  color: var(--tree-text-primary, #1e293b);
+  font-size: 26rpx;
+  font-weight: 700;
+}
+.unlocated-desc {
+  display: block;
+  margin-top: 6rpx;
+  color: var(--tree-text-secondary, #64748b);
+  font-size: 22rpx;
+  line-height: 1.45;
+}
+.unlocated-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
 }
 </style>

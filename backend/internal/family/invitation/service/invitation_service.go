@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -173,12 +174,14 @@ func (s *service) Detail(ctx context.Context, rawToken string) (*vo.Invitation, 
 func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audit AuditInput) (*vo.Invitation, *apperrors.BusinessError) {
 	current, err := s.repo.FindByID(ctx, invitationID, false)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, inviteError(CodeInvitationNotFound, "邀请不存在")
+		businessErr := inviteError(CodeInvitationNotFound, "邀请不存在")
+		s.writeAcceptFailureLog(ctx, actorID, nil, invitationID, 0, businessErr, audit)
+		return nil, businessErr
 	}
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	err = s.uow.WithinTransaction(ctx, func(repo inviterepo.Repository) error {
+	txErr := s.uow.WithinTransaction(ctx, func(repo inviterepo.Repository) error {
 		family, err := repo.FindFamily(ctx, current.FamilyID, true)
 		if err != nil || family.Status != string(enums.StatusNormal) {
 			return errMemberUnavailable
@@ -246,7 +249,8 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 		}
 		return writeLog(ctx, repo, actorID, invitation.FamilyID, invitation.TargetMemberID, invitation.ID, "ACCEPT_INVITATION", audit)
 	})
-	if businessErr := mapError(err); businessErr != nil {
+	if businessErr := mapError(txErr); businessErr != nil {
+		s.writeAcceptFailureLog(ctx, actorID, current, invitationID, current.TargetMemberID, businessErr, audit)
 		return nil, businessErr
 	}
 	return s.resultByID(ctx, invitationID)
@@ -437,6 +441,40 @@ func writeLog(ctx context.Context, repo inviterepo.Repository, actorID, familyID
 		Module: "FAMILY_INVITATION", Action: action, TargetType: &targetType,
 		TargetID: &invitationID, FamilyID: &familyID, MemberID: &memberID,
 		IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
+	})
+}
+
+func (s *service) writeAcceptFailureLog(
+	ctx context.Context,
+	actorID uint64,
+	invitation *invitationmodel.FamilyInvitation,
+	invitationID uint64,
+	targetMemberID uint64,
+	businessErr *apperrors.BusinessError,
+	audit AuditInput,
+) {
+	if s == nil || s.repo == nil || businessErr == nil {
+		return
+	}
+	targetType := "FAMILY_INVITATION"
+	var familyIDPtr *uint64
+	if invitation != nil {
+		familyIDPtr = &invitation.FamilyID
+		if targetMemberID == 0 {
+			targetMemberID = invitation.TargetMemberID
+		}
+	}
+	var memberIDPtr *uint64
+	if targetMemberID != 0 {
+		memberIDPtr = &targetMemberID
+	}
+	errMsg := fmt.Sprintf("%d:%s", businessErr.Code, businessErr.Message)
+	_ = s.repo.WriteFailedLog(ctx, operationlog.WriteInput{
+		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
+		Module: "FAMILY_INVITATION", Action: "ACCEPT_INVITATION", TargetType: &targetType,
+		TargetID: &invitationID, FamilyID: familyIDPtr, MemberID: memberIDPtr,
+		ErrorMessage: &errMsg,
+		IP:           clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
 	})
 }
 

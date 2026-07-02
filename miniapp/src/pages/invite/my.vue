@@ -12,13 +12,13 @@
         <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
       </MiniCard>
 
-      <MiniCard v-if="loading">
+      <MiniCard v-if="loading && invitations.length === 0">
         <view class="state-block">
           <text class="tree-muted">正在加载邀请...</text>
         </view>
       </MiniCard>
 
-      <MiniCard v-else-if="loadError">
+      <MiniCard v-else-if="loadError && invitations.length === 0">
         <MiniEmptyState
           symbol="!"
           title="加载失败"
@@ -125,12 +125,18 @@ const invitationGroups = computed(() => {
   ].filter((group) => group.items.length > 0)
 })
 
-function resetAuthView() {
+function resetTransientUI() {
+  actionError.value = ''
+  actingId.value = null
+  actingType.value = ''
+}
+
+function resetPageData() {
   authChecked.value = false
   loading.value = false
   loadError.value = ''
-  actionError.value = ''
   invitations.value = []
+  resetTransientUI()
 }
 
 function formatDate(value: string) {
@@ -167,11 +173,15 @@ function openMyFamilies() {
 }
 
 async function loadInvitations() {
-  authChecked.value = false
-  invitations.value = []
-  if (!session.requireLogin('/pages/invite/my')) return
+  session.restoreSession()
+  if (!session.isLoggedIn) {
+    resetPageData()
+    session.requireLogin('/pages/invite/my')
+    return
+  }
   authChecked.value = true
-  loading.value = true
+  const isInitialLoad = invitations.value.length === 0
+  loading.value = isInitialLoad
   loadError.value = ''
   actionError.value = ''
   try {
@@ -233,12 +243,9 @@ async function reject(invitationId: number | string) {
   }
 }
 
-onShow(() => {
-  session.restoreSession()
-  loadInvitations()
-})
-onHide(resetAuthView)
-onUnload(resetAuthView)
+onShow(loadInvitations)
+onHide(resetTransientUI)
+onUnload(resetPageData)
 </script>
 
 <style scoped>

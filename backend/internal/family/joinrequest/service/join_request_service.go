@@ -208,6 +208,7 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 					req.Location.BaseMemberID,
 					member,
 					req.Location.AddType,
+					req.Location.MemberType,
 					req.Location.Relationship,
 				)
 				if err != nil {

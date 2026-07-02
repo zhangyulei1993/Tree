@@ -56,6 +56,10 @@ export interface ChangePhoneInput {
   newPhoneCode: string
 }
 
+export interface StatusResult {
+  status: string
+}
+
 export interface CancelAccountInput {
   phoneCode: string
   cancelReason?: string
@@ -264,6 +268,7 @@ export interface ApproveJoinRequestInput {
   location?: {
     baseMemberId: number | string
     addType: RelationshipAddType
+    memberType?: MemberType
     relationship: {
       relationshipType?: RelationshipType
       parentLinkType?: string
@@ -344,9 +349,12 @@ export type RelationshipAddType =
 
 export type RelationshipType = 'PARENT_CHILD' | 'SPOUSE'
 
+export type MemberType = 'LINEAGE_MEMBER' | 'SPOUSE' | 'EXTERNAL_MEMBER'
+
 export interface NewRelationshipMemberInput {
   name: string
   gender?: Gender
+  memberType?: MemberType
   birthDate?: string
   birthYear?: number
   deathDate?: string
@@ -371,6 +379,7 @@ export interface PlaceExistingMemberInput {
   baseMemberId: number
   memberId: number
   addType: RelationshipAddType
+  memberType?: MemberType
   relationship: CreateRelationshipInput['relationship']
 }
 

@@ -77,12 +77,20 @@
                 </label>
                 <label>
                   <span>与基准成员的关系</span>
-                  <select v-model="locationForm.addType" class="field">
+                  <select v-model="locationForm.addType" class="field" @change="onLocationAddTypeChange">
                     <option value="ADD_FATHER">父亲</option>
                     <option value="ADD_MOTHER">母亲</option>
                     <option value="ADD_CHILD">子女</option>
                     <option value="ADD_SPOUSE">配偶</option>
                     <option value="ADD_SIBLING">兄弟姐妹</option>
+                  </select>
+                </label>
+                <label v-if="showLocationParentRolePicker">
+                  <span>父母身份</span>
+                  <select v-model="locationForm.parentMemberType" class="field">
+                    <option v-for="(label, index) in parentRoleLabels" :key="parentRoleValues[index]" :value="parentRoleValues[index]">
+                      {{ label }}
+                    </option>
                   </select>
                 </label>
                 <label v-if="locationForm.addType !== 'ADD_SPOUSE'">
@@ -97,6 +105,9 @@
                   </select>
                 </label>
               </div>
+              <p v-if="showLocationParentRolePicker && locationForm.parentMemberType === 'SPOUSE'" class="notice">
+                选择「本家成员的配偶」时，基准成员必须已有相反性别的本家成员父母。
+              </p>
               <p class="notice">申请人性别来自加入申请，不能在审核时改成另一性别。创建节点、建立关系和账号绑定在同一事务中完成。</p>
               <div class="record-actions">
                 <button class="button" :disabled="acting">确认创建并通过</button>
@@ -190,6 +201,11 @@ import { cancelInvitation, listFamilyInvitations, regenerateInvitation } from '@
 import { approveJoinRequest, listFamilyJoinRequests, rejectJoinRequest } from '@/api/joinRequests'
 import { listMembers } from '@/api/members'
 import PageShell from '@/components/PageShell.vue'
+import {
+  buildApproveJoinLocation,
+  parentRoleLabels,
+  parentRoleValues
+} from '@/features/join/approveJoinLocation'
 import type {
   DissolutionRequest,
   FamilyDetail,
@@ -197,6 +213,7 @@ import type {
   FounderTransferRequest,
   Invitation,
   JoinRequest,
+  MemberType,
   RelationshipAddType
 } from '@/types/api'
 
@@ -215,7 +232,8 @@ const locationForm = reactive({
   name: '',
   baseMemberId: 0,
   addType: 'ADD_CHILD' as RelationshipAddType,
-  parentLinkType: 'PRIMARY'
+  parentLinkType: 'PRIMARY',
+  parentMemberType: 'LINEAGE_MEMBER' as MemberType
 })
 const familyForm = reactive({
   familyName: '',
@@ -238,6 +256,13 @@ const acting = ref(false)
 const canManage = computed(() => family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN')
 const boundMembers = computed(() => members.value.filter((item) => item.status === 'ACTIVE' && item.boundUserId))
 const transferTargets = computed(() => boundMembers.value.filter((item) => item.boundFamilyRole !== 'FOUNDER'))
+const showLocationParentRolePicker = computed(() =>
+  locationForm.addType === 'ADD_FATHER' || locationForm.addType === 'ADD_MOTHER'
+)
+
+function onLocationAddTypeChange() {
+  locationForm.parentMemberType = 'LINEAGE_MEMBER'
+}
 
 function syncFamilyForm(value: FamilyDetail) {
   familyForm.familyName = value.familyName
@@ -346,6 +371,7 @@ function startLocatedApproval(item: JoinRequest) {
   locationForm.baseMemberId = members.value[0]?.memberId || 0
   locationForm.addType = 'ADD_CHILD'
   locationForm.parentLinkType = 'PRIMARY'
+  locationForm.parentMemberType = 'LINEAGE_MEMBER'
 }
 
 async function approveLocated(item: JoinRequest) {
@@ -370,13 +396,14 @@ async function approveLocated(item: JoinRequest) {
         isAlive: true,
         userBindingPolicy: 'OPTIONAL'
       },
-      location: {
+      location: buildApproveJoinLocation({
         baseMemberId: locationForm.baseMemberId,
         addType: locationForm.addType,
-        relationship: locationForm.addType === 'ADD_SPOUSE'
-          ? { relationshipType: 'SPOUSE' }
-          : { relationshipType: 'PARENT_CHILD', parentLinkType: locationForm.parentLinkType }
-      }
+        parentMemberType: locationForm.parentMemberType,
+        placement: {
+          parentLinkType: locationForm.parentLinkType
+        }
+      })
     })
     activeLocationRequestId.value = ''
     await loadData()

@@ -121,35 +121,19 @@
 
     <view class="tree-result-plaque result-card" :class="`result-${resolution.status}`">
       <template v-if="resolution.status === 'resolved'">
-        <text class="result-label">常见称谓</text>
+        <text class="result-label">规范称谓</text>
         <text class="result-title">{{ resolution.primaryTitle }}</text>
       </template>
-      <template v-else-if="resolution.status === 'ambiguous'">
-        <text class="result-label">可能称谓</text>
-        <view v-if="resolution.candidates?.length" class="candidate-list">
-          <text v-for="(item, index) in resolution.candidates" :key="index" class="candidate-tag">
-            {{ item }}
-          </text>
-        </view>
-        <text v-else-if="resolution.primaryTitle" class="result-title muted-title">
-          {{ resolution.primaryTitle }}
-        </text>
-        <text class="tree-muted result-hint">
-          请补充性别、长幼或父系/母系方向等信息，以获得更明确的称谓。
-        </text>
+      <template v-else-if="resolution.incompleteInfo">
+        <text class="result-label">信息不足</text>
+        <text class="result-unsupported">关系信息不完整</text>
+        <text class="tree-muted result-hint">请补充性别、长幼或父母方向等客观信息。</text>
       </template>
       <template v-else>
-        <text class="result-label">暂未收录</text>
-        <text class="result-unsupported">暂未收录该关系的常用称谓</text>
-        <text class="tree-muted result-hint">
-          你仍然可以保留完整关系路径，后续版本会继续补充称谓规则。
-        </text>
+        <text class="result-label">客观关系路径</text>
+        <text class="result-title muted-title">{{ resolution.pathDescription }}</text>
+        <text class="tree-muted result-hint">当前路径暂无对应规范称谓。</text>
       </template>
-
-      <view v-if="resolution.aliases.length" class="aliases-block">
-        <text class="aliases-label">其他常见叫法：</text>
-        <text class="aliases-text">{{ resolution.aliases.join('、') }}</text>
-      </view>
 
       <text v-if="resolution.explanation" class="explanation-text">{{ resolution.explanation }}</text>
     </view>
@@ -382,16 +366,14 @@ function buildPathText(): string {
 }
 
 function buildCopyText(): string {
-  const path = buildPathText()
   if (steps.value.length === 0) return '我'
   if (resolution.value.status === 'resolved' && resolution.value.primaryTitle) {
-    return `${path}：${resolution.value.primaryTitle}`
+    return `${resolution.value.pathDescription}：${resolution.value.primaryTitle}`
   }
-  if (resolution.value.status === 'ambiguous') {
-    const candidates = resolution.value.candidates?.join('、') || resolution.value.primaryTitle || '多种称谓'
-    return `${path}：可能为 ${candidates}`
+  if (resolution.value.incompleteInfo) {
+    return `${resolution.value.pathDescription}：关系信息不完整`
   }
-  return `${path}：暂未收录该关系的常用称谓`
+  return resolution.value.pathDescription
 }
 
 function copyDescription() {

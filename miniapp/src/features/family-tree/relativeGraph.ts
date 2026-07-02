@@ -148,6 +148,125 @@ export function bloodGenerationDelta(path: number[]): number {
   return path.length - 1
 }
 
+function collectMemberChildren(graph: RelGraph, memberId: number): number[] {
+  const result = new Set(childrenOf(graph, memberId))
+  for (const spouseId of spousesOf(graph, memberId)) {
+    for (const childId of childrenOf(graph, spouseId)) {
+      result.add(childId)
+    }
+  }
+  return [...result]
+}
+
+function stabilizeBloodGenerations(graph: RelGraph, memberIds: number[], generations: Map<number, number>) {
+  let changed = true
+  let guard = 0
+
+  while (changed && guard < memberIds.length + 20) {
+    changed = false
+    guard += 1
+
+    for (const memberId of memberIds) {
+      for (const siblingId of siblingsOf(graph, memberId)) {
+        const merged = Math.max(generations.get(memberId) ?? -1, generations.get(siblingId) ?? -1)
+        if (merged < 0) continue
+        if ((generations.get(memberId) ?? -1) !== merged) {
+          generations.set(memberId, merged)
+          changed = true
+        }
+        if ((generations.get(siblingId) ?? -1) !== merged) {
+          generations.set(siblingId, merged)
+          changed = true
+        }
+      }
+
+      for (const spouseId of spousesOf(graph, memberId)) {
+        const merged = Math.max(generations.get(memberId) ?? -1, generations.get(spouseId) ?? -1)
+        if (merged < 0) continue
+        if ((generations.get(memberId) ?? -1) !== merged) {
+          generations.set(memberId, merged)
+          changed = true
+        }
+        if ((generations.get(spouseId) ?? -1) !== merged) {
+          generations.set(spouseId, merged)
+          changed = true
+        }
+      }
+
+      const parentGens = parentsOf(graph, memberId)
+        .map((parentId) => generations.get(parentId))
+        .filter((value): value is number => value !== undefined)
+      if (parentGens.length > 0) {
+        const childGeneration = Math.max(...parentGens) + 1
+        if ((generations.get(memberId) ?? -1) !== childGeneration) {
+          generations.set(memberId, childGeneration)
+          changed = true
+        }
+      }
+    }
+  }
+
+  for (const memberId of memberIds) {
+    if (!generations.has(memberId)) {
+      generations.set(memberId, 0)
+    }
+  }
+}
+
+/** 沿父母-子女（含配偶同步）为成员分配辈分序号，用于代差判断 */
+export function assignBloodGenerations(graph: RelGraph): Map<number, number> {
+  const memberIds = [...graph.nodeMap.keys()].map((id) => Number(id))
+  const roots = memberIds.filter((id) => parentsOf(graph, id).length === 0)
+  if (roots.length === 0 && memberIds.length > 0) {
+    roots.push(memberIds[0])
+  }
+
+  const generations = new Map<number, number>()
+  const visited = new Set<number>()
+  const queue = roots.map((memberId) => ({ memberId, generation: 0 }))
+
+  while (queue.length > 0) {
+    const current = queue.shift()
+    if (!current) continue
+    const { memberId, generation } = current
+
+    if (visited.has(memberId)) {
+      const existing = generations.get(memberId)
+      if (existing !== undefined && existing >= generation) continue
+    }
+    visited.add(memberId)
+    generations.set(memberId, Math.max(generations.get(memberId) ?? -1, generation))
+
+    const currentGeneration = generations.get(memberId) ?? generation
+
+    for (const spouseId of spousesOf(graph, memberId)) {
+      generations.set(spouseId, Math.max(generations.get(spouseId) ?? -1, currentGeneration))
+      if (!visited.has(spouseId)) {
+        queue.push({ memberId: spouseId, generation: currentGeneration })
+      }
+    }
+
+    const childGeneration = currentGeneration + 1
+    for (const childId of collectMemberChildren(graph, memberId)) {
+      queue.push({ memberId: childId, generation: childGeneration })
+    }
+  }
+
+  stabilizeBloodGenerations(graph, memberIds, generations)
+  return generations
+}
+
+/** 正值表示 target 比 viewer 年轻（辈分更低） */
+export function bloodGenerationGap(graph: RelGraph, viewerId: number, targetId: number): number | null {
+  if (viewerId === targetId) return 0
+
+  const generations = assignBloodGenerations(graph)
+  const viewerGen = generations.get(viewerId)
+  const targetGen = generations.get(targetId)
+  if (viewerGen === undefined || targetGen === undefined) return null
+  return targetGen - viewerGen
+}
+
 export function maternalCrossCount(graph: RelGraph, path: number[]): number {
   let count = 0
   for (let i = 1; i < path.length - 1; i += 1) {

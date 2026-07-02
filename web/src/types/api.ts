@@ -307,6 +307,7 @@ export interface ApproveJoinRequestInput {
   location?: {
     baseMemberId: number | string
     addType: RelationshipAddType
+    memberType?: MemberType
     relationship: CreateRelationshipInput['relationship']
   }
   handleComment?: string
@@ -374,6 +375,8 @@ export interface CreateMemberInput {
 }
 
 export type UpdateMemberInput = Partial<CreateMemberInput>
+
+export type MemberType = 'LINEAGE_MEMBER' | 'SPOUSE' | 'EXTERNAL_MEMBER'
 
 export type RelationshipAddType =
   | 'ADD_FATHER'

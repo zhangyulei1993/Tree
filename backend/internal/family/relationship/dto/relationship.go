@@ -3,6 +3,7 @@ package dto
 type NewMemberInput struct {
 	Name              string  `json:"name" binding:"required"`
 	Gender            *string `json:"gender"`
+	MemberType        *string `json:"memberType"`
 	BirthDate         *string `json:"birthDate"`
 	BirthYear         *int    `json:"birthYear"`
 	DeathDate         *string `json:"deathDate"`
@@ -29,6 +30,7 @@ type PlaceExistingMemberRequest struct {
 	BaseMemberID uint64            `json:"baseMemberId" binding:"required"`
 	MemberID     uint64            `json:"memberId" binding:"required"`
 	AddType      string            `json:"addType" binding:"required"`
+	MemberType   *string           `json:"memberType"`
 	Relationship RelationshipInput `json:"relationship"`
 }
 

@@ -1,5 +1,12 @@
+import {
+  buildUnsupportedCanonicalResult
+} from '../kinship/canonicalKinshipTerms'
+import { validateRegistryRelativeTitle } from '../kinship/officialCanonicalTitles'
+import type { CanonicalKinshipResult } from '../kinship/canonicalTypes'
+import { describeGraphObjectivePath } from './graphObjectivePath'
 import type { RelGraph } from './relativeGraph'
 import {
+  bloodGenerationGap,
   childrenOf,
   findBloodAncestorPath,
   findBloodDescendantPath,
@@ -13,12 +20,13 @@ import {
   spousesOf
 } from './relativeGraph'
 import {
+  compareReliableSeniority,
   compareSeniority,
   groupHasCompleteBirth,
-  rankPrefixInGroup,
+  rankLabelInGroup,
+  rankedSiblingCanonical,
   rankedSiblingTitle,
-  sameParentSiblingGroup,
-  youngerUnclePrefix
+  sameParentSiblingGroup
 } from './relativeRank'
 
 type GrandparentLine =
@@ -45,37 +53,37 @@ function titleFromAncestorPath(graph: RelGraph, path: number[]): string {
   if (depth === 1) {
     if (isMale) return '父亲'
     if (isFemale) return '母亲'
-    return '父母辈亲属'
+    return ''
   }
 
   if (depth === 2) {
     const via = genderOf(graph, path[1])
-    if (via === 'MALE') return isMale ? '祖父' : isFemale ? '祖母' : '祖辈亲属'
-    if (via === 'FEMALE') return isMale ? '外祖父' : isFemale ? '外祖母' : '祖辈亲属'
-    return '祖辈亲属'
+    if (via === 'MALE') return isMale ? '祖父' : isFemale ? '祖母' : ''
+    if (via === 'FEMALE') return isMale ? '外祖父' : isFemale ? '外祖母' : ''
+    return ''
   }
 
   if (depth === 3) {
     const p = genderOf(graph, path[1])
     const gp = genderOf(graph, path[2])
-    if (p === 'MALE' && gp === 'MALE') return isMale ? '曾祖父' : isFemale ? '曾祖母' : '祖辈亲属'
-    if (p === 'MALE' && gp === 'FEMALE') return isMale ? '曾外祖父' : isFemale ? '曾外祖母' : '祖辈亲属'
-    if (p === 'FEMALE' && gp === 'MALE') return isMale ? '外曾祖父' : isFemale ? '外曾祖母' : '祖辈亲属'
-    if (p === 'FEMALE' && gp === 'FEMALE') return isMale ? '外曾外祖父' : isFemale ? '外曾外祖母' : '祖辈亲属'
-    return '祖辈亲属'
+    if (p === 'MALE' && gp === 'MALE') return isMale ? '曾祖父' : isFemale ? '曾祖母' : ''
+    if (p === 'MALE' && gp === 'FEMALE') return isMale ? '曾外祖父' : isFemale ? '曾外祖母' : ''
+    if (p === 'FEMALE' && gp === 'MALE') return isMale ? '外曾祖父' : isFemale ? '外曾祖母' : ''
+    if (p === 'FEMALE' && gp === 'FEMALE') return isMale ? '外曾外祖父' : isFemale ? '外曾外祖母' : ''
+    return ''
   }
 
   if (depth === 4) {
     const prefix = maternalCrossCount(graph, path) === 0 ? '' : '外'
-    return isMale ? `${prefix}高祖父` : isFemale ? `${prefix}高祖母` : '祖辈亲属'
+    return isMale ? `${prefix}高祖父` : isFemale ? `${prefix}高祖母` : ''
   }
 
   if (depth === 5) {
     const prefix = maternalCrossCount(graph, path) === 0 ? '' : '外'
-    return isMale ? `${prefix}五世祖父` : isFemale ? `${prefix}五世祖母` : '祖辈亲属'
+    return isMale ? `${prefix}五世祖父` : isFemale ? `${prefix}五世祖母` : ''
   }
 
-  return '祖辈亲属'
+  return ''
 }
 
 function collectAncestorPaths(graph: RelGraph, meId: number, maxDepth = 5): number[][] {
@@ -100,7 +108,7 @@ function collectAncestorPaths(graph: RelGraph, meId: number, maxDepth = 5): numb
 }
 
 function replaceAncestorSuffix(title: string, suffix: string, replacement: string): string {
-  if (!title.endsWith(suffix)) return '祖辈旁系亲属'
+  if (!title.endsWith(suffix)) return ''
   return `${title.slice(0, -suffix.length)}${replacement}`
 }
 
@@ -117,14 +125,10 @@ function distantAncestorSiblingTitle(
   if (anchorGender === 'MALE') {
     if (targetGender === 'FEMALE') return replaceAncestorSuffix(anchorTitle, '祖父', '姑祖母')
     if (targetGender === 'MALE') {
-      const brothers = sameParentSiblingGroup(graph, anchorId, 'MALE')
-      const anchorIdx = brothers.indexOf(anchorId)
-      const targetIdx = brothers.indexOf(targetId)
-      if (anchorIdx >= 0 && targetIdx >= 0) {
-        if (targetIdx < anchorIdx) return replaceAncestorSuffix(anchorTitle, '祖父', '伯祖父')
-        if (targetIdx > anchorIdx) return replaceAncestorSuffix(anchorTitle, '祖父', '叔祖父')
-      }
-      return '祖辈旁系亲属'
+      const seniority = compareReliableSeniority(graph, anchorId, targetId)
+      if (seniority === 'older') return replaceAncestorSuffix(anchorTitle, '祖父', '伯祖父')
+      if (seniority === 'younger') return replaceAncestorSuffix(anchorTitle, '祖父', '叔祖父')
+      return ''
     }
   }
 
@@ -133,7 +137,7 @@ function distantAncestorSiblingTitle(
     if (targetGender === 'FEMALE') return replaceAncestorSuffix(anchorTitle, '祖母', '姨祖母')
   }
 
-  return '祖辈旁系亲属'
+  return ''
 }
 
 function distantAncestorSiblingSpouseTitle(
@@ -154,31 +158,31 @@ function titleFromDescendantPath(graph: RelGraph, path: number[]): string {
   if (depth === 1) {
     if (isMale) return '儿子'
     if (isFemale) return '女儿'
-    return '晚辈亲属'
+    return ''
   }
 
   if (depth === 2) {
     const via = genderOf(graph, path[1])
-    if (via === 'MALE') return isMale ? '孙子' : isFemale ? '孙女' : '晚辈亲属'
-    if (via === 'FEMALE') return isMale ? '外孙' : isFemale ? '外孙女' : '晚辈亲属'
-    return '晚辈亲属'
+    if (via === 'MALE') return isMale ? '孙子' : isFemale ? '孙女' : ''
+    if (via === 'FEMALE') return isMale ? '外孙' : isFemale ? '外孙女' : ''
+    return ''
   }
 
   if (depth === 3) {
     const via = genderOf(graph, path[1])
-    if (via === 'MALE') return isMale ? '曾孙' : isFemale ? '曾孙女' : '晚辈亲属'
-    if (via === 'FEMALE') return isMale ? '外曾孙' : isFemale ? '外曾孙女' : '晚辈亲属'
-    return '晚辈亲属'
+    if (via === 'MALE') return isMale ? '曾孙' : isFemale ? '曾孙女' : ''
+    if (via === 'FEMALE') return isMale ? '外曾孙' : isFemale ? '外曾孙女' : ''
+    return ''
   }
 
   if (depth === 4) {
     const via = genderOf(graph, path[1])
-    if (via === 'MALE') return isMale ? '玄孙' : isFemale ? '玄孙女' : '晚辈亲属'
-    if (via === 'FEMALE') return isMale ? '外玄孙' : isFemale ? '外玄孙女' : '晚辈亲属'
-    return '晚辈亲属'
+    if (via === 'MALE') return isMale ? '玄孙' : isFemale ? '玄孙女' : ''
+    if (via === 'FEMALE') return isMale ? '外玄孙' : isFemale ? '外玄孙女' : ''
+    return ''
   }
 
-  return '晚辈亲属'
+  return ''
 }
 
 function resolveGrandparentLine(parentGender: string, gpGender: string): GrandparentLine | null {
@@ -195,25 +199,15 @@ function paternalGrandfatherSiblingTitle(graph: RelGraph, anchorId: number, targ
     const sisters = sameParentSiblingGroup(graph, anchorId, 'FEMALE')
     const idx = sisters.indexOf(targetId)
     if (idx < 0) return '姑祖母'
-    const prefix = rankPrefixInGroup(idx, sisters.length, groupHasCompleteBirth(graph, sisters))
-    return `${prefix}姑祖母`
+    return '姑祖母'
   }
   if (targetGender === 'MALE') {
-    const brothers = sameParentSiblingGroup(graph, anchorId, 'MALE')
-    const anchorIdx = brothers.indexOf(anchorId)
-    const targetIdx = brothers.indexOf(targetId)
-    if (anchorIdx < 0 || targetIdx < 0) return '伯祖父'
-    const complete = groupHasCompleteBirth(graph, brothers)
-    const older = brothers.slice(0, anchorIdx)
-    const younger = brothers.slice(anchorIdx + 1)
-    if (targetIdx < anchorIdx) {
-      const idx = older.indexOf(targetId)
-      return `${rankPrefixInGroup(idx, older.length, complete)}伯祖父`
-    }
-    const idx = younger.indexOf(targetId)
-    return `${youngerUnclePrefix(idx, younger.length, older.length, complete)}叔祖父`
+    const seniority = compareReliableSeniority(graph, anchorId, targetId)
+    if (seniority === 'older') return '伯祖父'
+    if (seniority === 'younger') return '叔祖父'
+    return ''
   }
-  return '伯祖父'
+  return ''
 }
 
 function paternalGrandmotherSiblingTitle(graph: RelGraph, anchorId: number, targetId: number): string {
@@ -222,34 +216,21 @@ function paternalGrandmotherSiblingTitle(graph: RelGraph, anchorId: number, targ
   const group = sameParentSiblingGroup(graph, anchorId, targetGender)
   const idx = group.indexOf(targetId)
   if (idx < 0) return base
-  return `${rankPrefixInGroup(idx, group.length, groupHasCompleteBirth(graph, group))}${base}`
+  return base
 }
 
 function maternalGrandfatherSiblingTitle(graph: RelGraph, anchorId: number, targetId: number): string {
   const targetGender = genderOf(graph, targetId)
   if (targetGender === 'FEMALE') {
-    const sisters = sameParentSiblingGroup(graph, anchorId, 'FEMALE')
-    const idx = sisters.indexOf(targetId)
-    if (idx < 0) return '外姑祖母'
-    const prefix = rankPrefixInGroup(idx, sisters.length, groupHasCompleteBirth(graph, sisters))
-    return `${prefix}外姑祖母`
+    return '外姑祖母'
   }
   if (targetGender === 'MALE') {
-    const brothers = sameParentSiblingGroup(graph, anchorId, 'MALE')
-    const anchorIdx = brothers.indexOf(anchorId)
-    const targetIdx = brothers.indexOf(targetId)
-    if (anchorIdx < 0 || targetIdx < 0) return '外伯祖父'
-    const complete = groupHasCompleteBirth(graph, brothers)
-    const older = brothers.slice(0, anchorIdx)
-    const younger = brothers.slice(anchorIdx + 1)
-    if (targetIdx < anchorIdx) {
-      const idx = older.indexOf(targetId)
-      return `${rankPrefixInGroup(idx, older.length, complete)}外伯祖父`
-    }
-    const idx = younger.indexOf(targetId)
-    return `${youngerUnclePrefix(idx, younger.length, older.length, complete)}外叔祖父`
+    const seniority = compareReliableSeniority(graph, anchorId, targetId)
+    if (seniority === 'older') return '外伯祖父'
+    if (seniority === 'younger') return '外叔祖父'
+    return ''
   }
-  return '外伯祖父'
+  return ''
 }
 
 function maternalGrandmotherSiblingTitle(graph: RelGraph, anchorId: number, targetId: number): string {
@@ -258,7 +239,7 @@ function maternalGrandmotherSiblingTitle(graph: RelGraph, anchorId: number, targ
   const group = sameParentSiblingGroup(graph, anchorId, targetGender)
   const idx = group.indexOf(targetId)
   if (idx < 0) return base
-  return `${rankPrefixInGroup(idx, group.length, groupHasCompleteBirth(graph, group))}${base}`
+  return base
 }
 
 function grandparentSiblingTitle(
@@ -277,7 +258,7 @@ function grandparentSiblingTitle(
     case 'maternalGrandmother':
       return maternalGrandmotherSiblingTitle(graph, anchorGpId, targetId)
     default:
-      return '祖辈亲属'
+      return ''
   }
 }
 
@@ -287,7 +268,7 @@ function spouseTitleOfCollateral(title: string): string {
   if (title.endsWith('姑祖母')) return title.replace(/姑祖母$/, '姑祖父')
   if (title.endsWith('舅祖父')) return title.replace(/舅祖父$/, '舅祖母')
   if (title.endsWith('姨祖母')) return title.replace(/姨祖母$/, '姨祖父')
-  return '姻亲'
+  return ''
 }
 
 function grandparentSiblingSpouseTitle(
@@ -305,21 +286,10 @@ function parentSiblingTitle(graph: RelGraph, parentId: number, targetId: number)
 
   if (parentGender === 'MALE') {
     if (targetGender === 'FEMALE') return '姑母'
-    const brothers = sameParentSiblingGroup(graph, parentId, 'MALE')
-    const parentIdx = brothers.indexOf(parentId)
-    const targetIdx = brothers.indexOf(targetId)
-    if (parentIdx < 0 || targetIdx < 0) return '伯父'
-    const complete = groupHasCompleteBirth(graph, brothers)
-    const older = brothers.slice(0, parentIdx)
-    const younger = brothers.slice(parentIdx + 1)
-    if (targetIdx < parentIdx) {
-      const idx = older.indexOf(targetId)
-      const prefix = rankPrefixInGroup(idx, older.length, complete)
-      return `${prefix}伯父`
-    }
-    const idx = younger.indexOf(targetId)
-    const prefix = youngerUnclePrefix(idx, younger.length, older.length, complete)
-    return `${prefix}叔父`
+    const seniority = compareReliableSeniority(graph, parentId, targetId)
+    if (seniority === 'older') return '伯父'
+    if (seniority === 'younger') return '叔父'
+    return ''
   }
 
   if (parentGender === 'FEMALE') {
@@ -327,7 +297,7 @@ function parentSiblingTitle(graph: RelGraph, parentId: number, targetId: number)
     if (targetGender === 'FEMALE') return '姨母'
   }
 
-  return '父母辈亲属'
+  return ''
 }
 
 function parentSiblingSpouseTitle(graph: RelGraph, parentId: number, uncleId: number, targetId: number): string {
@@ -336,12 +306,10 @@ function parentSiblingSpouseTitle(graph: RelGraph, parentId: number, uncleId: nu
   const targetGender = genderOf(graph, targetId)
 
   if (parentGender === 'MALE' && uncleGender === 'MALE') {
-    const brothers = sameParentSiblingGroup(graph, parentId, 'MALE')
-    const parentIdx = brothers.indexOf(parentId)
-    const uncleIdx = brothers.indexOf(uncleId)
-    if (parentIdx < 0 || uncleIdx < 0) return '伯母'
-    if (uncleIdx < parentIdx) return targetGender === 'FEMALE' ? '伯母' : '姑父'
-    return targetGender === 'FEMALE' ? '婶婶' : '姑父'
+    const seniority = compareReliableSeniority(graph, parentId, uncleId)
+    if (seniority === 'older') return targetGender === 'FEMALE' ? '伯母' : '姑父'
+    if (seniority === 'younger') return targetGender === 'FEMALE' ? '婶母' : '姑父'
+    return ''
   }
 
   if (parentGender === 'MALE' && uncleGender === 'FEMALE') {
@@ -356,7 +324,7 @@ function parentSiblingSpouseTitle(graph: RelGraph, parentId: number, uncleId: nu
     return targetGender === 'MALE' ? '姨父' : '姨母'
   }
 
-  return '姻亲'
+  return ''
 }
 
 function cousinKind(parentGender: string, uncleGender: string): 'tang' | 'biao' {
@@ -372,21 +340,35 @@ function cousinTitle(
   uncleId: number
 ): string {
   const kind = cousinKind(genderOf(graph, parentId), genderOf(graph, uncleId))
-  const prefix = kind === 'tang' ? '堂' : '表'
   const targetGender = genderOf(graph, targetId)
+  /** 同辈长幼：以 viewer 与 target 出生先后为准，非伯父/叔父等父辈旁系长幼 */
   const seniority = compareSeniority(graph, meId, targetId)
 
+  if (kind === 'tang') {
+    if (targetGender === 'MALE') {
+      if (seniority === 'older') return '堂兄'
+      if (seniority === 'younger') return '堂弟'
+      return ''
+    }
+    if (targetGender === 'FEMALE') {
+      if (seniority === 'older') return '堂姐'
+      if (seniority === 'younger') return '堂妹'
+      return ''
+    }
+    return ''
+  }
+
   if (targetGender === 'MALE') {
-    if (seniority === 'older') return `${prefix}哥`
-    if (seniority === 'younger') return `${prefix}弟`
-    return `${prefix}兄弟`
+    if (seniority === 'older') return '表兄'
+    if (seniority === 'younger') return '表弟'
+    return ''
   }
   if (targetGender === 'FEMALE') {
-    if (seniority === 'older') return `${prefix}姐`
-    if (seniority === 'younger') return `${prefix}妹`
-    return `${prefix}姐妹`
+    if (seniority === 'older') return '表姐'
+    if (seniority === 'younger') return '表妹'
+    return ''
   }
-  return '同辈亲属'
+  return ''
 }
 
 /** 祖辈旁系的后代 = 父母的堂/表兄弟姐妹（父母辈，非我同辈） */
@@ -405,32 +387,32 @@ function parentGenerationCousinTitle(
     if (targetGender === 'MALE') {
       if (seniority === 'older') return '堂伯'
       if (seniority === 'younger') return '堂叔'
-      return '堂叔伯'
+      return ''
     }
-    return '父辈堂亲'
+    return ''
   }
 
   if (line === 'paternalGrandmother') {
-    if (targetGender === 'FEMALE') return seniority === 'unknown' ? '父辈表亲' : '表姑'
+    if (targetGender === 'FEMALE') return seniority === 'unknown' ? '' : '表姑'
     if (targetGender === 'MALE') {
       if (seniority === 'older') return '表伯'
       if (seniority === 'younger') return '表叔'
-      return '父辈表亲'
+      return ''
     }
-    return '父辈表亲'
+    return ''
   }
 
   if (line === 'maternalGrandfather' || line === 'maternalGrandmother') {
-    if (targetGender === 'FEMALE') return seniority === 'unknown' ? '母辈表亲' : '表姨'
+    if (targetGender === 'FEMALE') return seniority === 'unknown' ? '' : '表姨'
     if (targetGender === 'MALE') {
       if (seniority === 'older') return '表舅'
       if (seniority === 'younger') return '表叔'
-      return '母辈表亲'
+      return ''
     }
-    return '母辈表亲'
+    return ''
   }
 
-  return '亲属'
+  return ''
 }
 
 function cousinSpouseTitle(
@@ -448,14 +430,14 @@ function cousinSpouseTitle(
   if (cousinGender === 'MALE') {
     if (seniority === 'older') return `${prefix}嫂`
     if (seniority === 'younger') return `${prefix}弟媳`
-    return '姻亲'
+    return ''
   }
   if (cousinGender === 'FEMALE') {
     if (seniority === 'older') return `${prefix}姐夫`
     if (seniority === 'younger') return `${prefix}妹夫`
-    return '姻亲'
+    return ''
   }
-  return '姻亲'
+  return ''
 }
 
 function siblingSpouseTitle(graph: RelGraph, meId: number, siblingId: number): string {
@@ -464,14 +446,14 @@ function siblingSpouseTitle(graph: RelGraph, meId: number, siblingId: number): s
   if (siblingGender === 'MALE') {
     if (seniority === 'older') return '嫂子'
     if (seniority === 'younger') return '弟媳'
-    return '姻亲'
+    return ''
   }
   if (siblingGender === 'FEMALE') {
     if (seniority === 'older') return '姐夫'
     if (seniority === 'younger') return '妹夫'
-    return '姻亲'
+    return ''
   }
-  return '姻亲'
+  return ''
 }
 
 function nephewTitle(graph: RelGraph, siblingId: number, targetId: number): string {
@@ -485,7 +467,7 @@ function nephewTitle(graph: RelGraph, siblingId: number, targetId: number): stri
     if (targetGender === 'MALE') return '外甥'
     if (targetGender === 'FEMALE') return '外甥女'
   }
-  return '晚辈亲属'
+  return ''
 }
 
 function nephewDescendantTitle(
@@ -501,26 +483,23 @@ function nephewDescendantTitle(
   const isFemale = targetGender === 'FEMALE'
 
   if (depth === 1) return nephewTitle(graph, siblingId, targetId)
+  if (depth !== 2) return ''
 
   if (siblingGender === 'MALE') {
-    if (depth === 2) {
-      const via = genderOf(graph, path[1])
-      if (via === 'MALE') return isMale ? '侄孙' : isFemale ? '侄孙女' : '晚辈亲属'
-      if (via === 'FEMALE') return isMale ? '侄外孙' : isFemale ? '侄外孙女' : '晚辈亲属'
-    }
-    return isMale ? '侄孙' : isFemale ? '侄孙女' : '晚辈亲属'
+    const via = genderOf(graph, path[1])
+    if (via === 'MALE') return isMale ? '侄孙' : isFemale ? '侄孙女' : ''
+    if (via === 'FEMALE') return isMale ? '侄外孙' : isFemale ? '侄外孙女' : ''
+    return ''
   }
 
   if (siblingGender === 'FEMALE') {
-    if (depth === 2) {
-      const via = genderOf(graph, path[1])
-      if (via === 'MALE') return isMale ? '外甥孙' : isFemale ? '外甥孙女' : '晚辈亲属'
-      if (via === 'FEMALE') return isMale ? '外甥外孙' : isFemale ? '外甥外孙女' : '晚辈亲属'
-    }
-    return isMale ? '外甥孙' : isFemale ? '外甥孙女' : '晚辈亲属'
+    const via = genderOf(graph, path[1])
+    if (via === 'MALE') return isMale ? '外甥孙' : isFemale ? '外甥孙女' : ''
+    if (via === 'FEMALE') return isMale ? '外甥外孙' : isFemale ? '外甥外孙女' : ''
+    return ''
   }
 
-  return '晚辈亲属'
+  return ''
 }
 
 function cousinChildTitle(
@@ -534,7 +513,7 @@ function cousinChildTitle(
   const targetGender = genderOf(graph, targetId)
   if (targetGender === 'MALE') return `${prefix}侄`
   if (targetGender === 'FEMALE') return `${prefix}侄女`
-  return '晚辈亲属'
+  return ''
 }
 
 function cousinGrandchildTitle(
@@ -549,23 +528,24 @@ function cousinGrandchildTitle(
   const targetGender = genderOf(graph, targetId)
   const depth = path.length - 1
   if (depth === 1) return cousinChildTitle(graph, parentId, uncleId, targetId)
+  if (depth !== 2) return ''
   if (targetGender === 'MALE') return `${prefix}侄孙`
   if (targetGender === 'FEMALE') return `${prefix}侄孙女`
-  return '晚辈亲属'
+  return ''
 }
 
 function childSpouseTitle(graph: RelGraph, childId: number): string {
   const childGender = genderOf(graph, childId)
   if (childGender === 'MALE') return '儿媳'
   if (childGender === 'FEMALE') return '女婿'
-  return '姻亲'
+  return ''
 }
 
 function grandchildSpouseTitle(graph: RelGraph, grandchildId: number): string {
   const gender = genderOf(graph, grandchildId)
   if (gender === 'MALE') return '孙媳'
   if (gender === 'FEMALE') return '孙女婿'
-  return '姻亲'
+  return ''
 }
 
 function isSpouseSideRelative(graph: RelGraph, meId: number, targetId: number): boolean {
@@ -665,15 +645,24 @@ export function resolveRelativeTitle(graph: RelGraph, meId: number, targetId: nu
           return parentGenerationCousinTitle(graph, parentId, gpId, targetId, line)
         }
         for (const parentCousinId of childrenOf(graph, grandUncleId)) {
-          if (isSpouseOf(graph, parentCousinId, targetId)) return '姻亲'
+          if (isSpouseOf(graph, parentCousinId, targetId)) return ''
           const subPath = findBloodDescendantPath(graph, parentCousinId, targetId, 4)
-          if (subPath) {
+          if (!subPath) continue
+          const gap = bloodGenerationGap(graph, meId, targetId)
+          if (gap === null) continue
+          if (gap === 0) {
+            return cousinTitle(graph, meId, targetId, parentId, parentCousinId)
+          }
+          if (gap === 1) {
             const kind = line === 'paternalGrandfather' ? '堂' : '表'
             const tg = genderOf(graph, targetId)
-            if (subPath.length === 2) {
-              if (tg === 'MALE') return `${kind}侄`
-              if (tg === 'FEMALE') return `${kind}侄女`
-            }
+            if (tg === 'MALE') return `${kind}侄`
+            if (tg === 'FEMALE') return `${kind}侄女`
+            continue
+          }
+          if (gap === 2) {
+            const kind = line === 'paternalGrandfather' ? '堂' : '表'
+            const tg = genderOf(graph, targetId)
             if (tg === 'MALE') return `${kind}侄孙`
             if (tg === 'FEMALE') return `${kind}侄孙女`
           }
@@ -693,18 +682,90 @@ export function resolveRelativeTitle(graph: RelGraph, meId: number, targetId: nu
     for (const uncleId of siblingsOf(graph, parentId)) {
       for (const cousinId of childrenOf(graph, uncleId)) {
         const subPath = findBloodDescendantPath(graph, cousinId, targetId, 4)
-        if (subPath) return cousinGrandchildTitle(graph, parentId, uncleId, targetId, subPath)
+        if (!subPath) continue
+        const gap = bloodGenerationGap(graph, meId, targetId)
+        if (gap === null) continue
+        if (gap === 1 && subPath.length === 2) {
+          return cousinChildTitle(graph, parentId, uncleId, targetId)
+        }
+        if (gap === 2 && subPath.length === 3) {
+          return cousinGrandchildTitle(graph, parentId, uncleId, targetId, subPath)
+        }
       }
     }
   }
 
   for (const siblingId of siblingsOf(graph, meId)) {
     const subPath = findBloodDescendantPath(graph, siblingId, targetId, 6)
-    if (subPath && subPath.length > 2) return nephewDescendantTitle(graph, siblingId, targetId, subPath)
-    if (subPath && subPath.length === 2) return nephewTitle(graph, siblingId, targetId)
+    if (!subPath) continue
+    const gap = bloodGenerationGap(graph, meId, targetId)
+    if (gap === null) continue
+    if (gap === 1 && subPath.length === 2) return nephewTitle(graph, siblingId, targetId)
+    if (gap === 2 && subPath.length === 3) {
+      return nephewDescendantTitle(graph, siblingId, targetId, subPath)
+    }
   }
 
-  if (isSpouseSideRelative(graph, meId, targetId)) return '姻亲'
+  if (isSpouseSideRelative(graph, meId, targetId)) return ''
 
-  return '亲属'
+  return ''
+}
+
+export function resolveCanonicalRelativeTitle(
+  graph: RelGraph,
+  meId: number,
+  targetId: number
+): CanonicalKinshipResult {
+  const pathDescription = describeGraphObjectivePath(graph, meId, targetId)
+  const node = graph.nodeMap.get(meId)
+  if (node?.memberType === 'SPOUSE') {
+    return buildUnsupportedCanonicalResult(pathDescription, {
+      incompleteInfo: false,
+      explanation: '配偶节点不能作为族内称谓视角中心。'
+    })
+  }
+
+  const siblingCanonical = rankedSiblingCanonical(graph, meId, targetId)
+  if (siblingCanonical) {
+    const validated = validateRegistryRelativeTitle(siblingCanonical.canonicalTitle)
+    if (!validated.ok) {
+      return buildUnsupportedCanonicalResult(pathDescription, {
+        incompleteInfo: false,
+        explanation: '兄弟姐妹称谓未在官方注册表中登记。'
+      })
+    }
+    return {
+      canonicalTitle: validated.title,
+      rankLabel: siblingCanonical.rankLabel,
+      unsupportedCanonicalTitle: false,
+      incompleteInfo: false,
+      pathDescription
+    }
+  }
+
+  const title = resolveRelativeTitle(graph, meId, targetId)
+  if (!title) {
+    return buildUnsupportedCanonicalResult(pathDescription, {
+      incompleteInfo: false,
+      explanation: '暂无对应规范称谓。'
+    })
+  }
+
+  const validated = validateRegistryRelativeTitle(title)
+  if (!validated.ok) {
+    return buildUnsupportedCanonicalResult(pathDescription, {
+      incompleteInfo: false,
+      explanation:
+        validated.reason === 'forbidden'
+          ? '该关系仅有泛称，无规范称谓。'
+          : '该称谓尚未纳入官方注册表。'
+    })
+  }
+
+  return {
+    canonicalTitle: validated.title,
+    unsupportedCanonicalTitle: false,
+    incompleteInfo: false,
+    pathDescription
+  }
 }

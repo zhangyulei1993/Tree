@@ -52,14 +52,22 @@ async function sendNew() {
 }
 
 async function submit() {
-  submitting.value = true; errorMessage.value = ''
+  submitting.value = true
+  errorMessage.value = ''
   try {
-    const result = await changePhone({ oldPhoneCode: oldPhoneCode.value, newPhone: newPhone.value, newPhoneCode: newPhoneCode.value })
-    session.persistSession(result.accessToken, result.user)
+    await changePhone({
+      oldPhoneCode: oldPhoneCode.value,
+      newPhone: newPhone.value,
+      newPhoneCode: newPhoneCode.value
+    })
+    await session.refreshMe()
     uni.showToast({ title: '手机号已更改', icon: 'success' })
     setTimeout(() => uni.navigateBack(), 500)
-  } catch (error) { errorMessage.value = apiErrorMessage(error, '手机号更改失败。') }
-  finally { submitting.value = false }
+  } catch (error) {
+    errorMessage.value = apiErrorMessage(error, '手机号更改失败。')
+  } finally {
+    submitting.value = false
+  }
 }
 
 onShow(() => {

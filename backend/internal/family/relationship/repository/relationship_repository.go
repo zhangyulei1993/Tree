@@ -24,6 +24,7 @@ type Repository interface {
 	LockFamily(context.Context, uint64) (*familymodel.Family, error)
 	FindMemberForUpdate(context.Context, uint64, uint64) (*membermodel.FamilyMember, error)
 	CreateMember(context.Context, *membermodel.FamilyMember) error
+	UpdateMember(context.Context, uint64, uint64, map[string]any) error
 	FindActiveRelationship(context.Context, uint64, uint64) (*relationshipmodel.FamilyRelationship, error)
 	HasActiveRelationships(context.Context, uint64, uint64) (bool, error)
 	FindDuplicate(context.Context, uint64, uint64, uint64, string) (*relationshipmodel.FamilyRelationship, error)
@@ -69,6 +70,15 @@ func (r *GormRepository) FindMemberForUpdate(ctx context.Context, familyID uint6
 
 func (r *GormRepository) CreateMember(ctx context.Context, member *membermodel.FamilyMember) error {
 	return r.db.WithContext(ctx).Create(member).Error
+}
+
+func (r *GormRepository) UpdateMember(ctx context.Context, familyID uint64, memberID uint64, values map[string]any) error {
+	if len(values) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Model(&membermodel.FamilyMember{}).
+		Where("id = ? AND family_id = ? AND status = ? AND deleted_at IS NULL", memberID, familyID, string(enums.StatusActive)).
+		Updates(values).Error
 }
 
 func (r *GormRepository) FindActiveRelationship(ctx context.Context, familyID uint64, relationshipID uint64) (*relationshipmodel.FamilyRelationship, error) {

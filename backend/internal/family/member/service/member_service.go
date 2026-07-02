@@ -41,6 +41,10 @@ const (
 	profileNoteType = "M8_PROFILE_JSON"
 )
 
+var runMemberTransaction = func(ctx context.Context, db *gorm.DB, fn func(tx *gorm.DB) error) error {
+	return db.WithContext(ctx).Transaction(fn)
+}
+
 type profileNote struct {
 	Description *string `json:"description,omitempty"`
 	AvatarURL   *string `json:"avatarUrl,omitempty"`
@@ -94,7 +98,7 @@ func (s *memberService) Create(ctx context.Context, actorID uint64, familyID uin
 	}
 	applyMemberValues(member, values)
 
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
 		family, err := txRepo.LockFamily(ctx, familyID)
 		if err != nil {
@@ -166,7 +170,7 @@ func (s *memberService) Update(ctx context.Context, actorID uint64, familyID uin
 	if businessErr != nil {
 		return nil, businessErr
 	}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
 		family, err := txRepo.LockFamily(ctx, familyID)
 		if err != nil {
@@ -249,7 +253,7 @@ func (s *memberService) Delete(ctx context.Context, actorID uint64, familyID uin
 	if allowed, err := s.permissions.CanDeleteMember(ctx, actorID, familyID, memberID); err != nil || !allowed {
 		return memberError(CodeMemberDeleteForbidden, "无权删除成员")
 	}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
 		family, err := txRepo.LockFamily(ctx, familyID)
 		if err != nil {
@@ -308,7 +312,7 @@ func (s *memberService) BindUser(ctx context.Context, actorID uint64, familyID u
 	if allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !allowed {
 		return nil, memberError(CodeMemberEditForbidden, "无权绑定成员用户")
 	}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
 		family, err := txRepo.LockFamily(ctx, familyID)
 		if err != nil {
@@ -376,7 +380,7 @@ func (s *memberService) UnbindUser(ctx context.Context, actorID uint64, familyID
 	if allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !allowed {
 		return nil, memberError(CodeMemberEditForbidden, "无权解绑成员用户")
 	}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
 		family, err := txRepo.LockFamily(ctx, familyID)
 		if err != nil {

@@ -9,6 +9,7 @@ import type {
   RegisterPhoneInput,
   SendCodeResult,
   SendCodeScene,
+  StatusResult,
   UserInfo
 } from '@/types/api'
 
@@ -117,7 +118,7 @@ export async function logoutUser() {
 }
 
 export async function changePhone(input: ChangePhoneInput) {
-  return request<LoginResult, ChangePhoneInput>('/auth/change-phone', { method: 'POST', data: input })
+  return request<StatusResult, ChangePhoneInput>('/auth/change-phone', { method: 'POST', data: input })
 }
 
 export async function cancelAccount(input: CancelAccountInput) {

@@ -185,6 +185,16 @@ func (r *fakeRepo) CreateMember(_ context.Context, value *membermodel.FamilyMemb
 	r.members[value.ID] = &copy
 	return nil
 }
+func (r *fakeRepo) UpdateMember(_ context.Context, familyID, memberID uint64, values map[string]any) error {
+	member, ok := r.members[memberID]
+	if !ok || member.FamilyID != familyID {
+		return gorm.ErrRecordNotFound
+	}
+	if value, ok := values["member_type"].(string); ok {
+		member.MemberType = value
+	}
+	return nil
+}
 func (r *fakeRepo) FindMemberForUpdate(ctx context.Context, familyID, memberID uint64) (*membermodel.FamilyMember, error) {
 	return r.FindMember(ctx, familyID, memberID, true)
 }
@@ -479,6 +489,7 @@ func TestJoinRequestApprovalModes(t *testing.T) {
 			RelationshipType: "PARENT_CHILD", ParentLinkType: &primary, Status: "ACTIVE",
 		}
 		gender := "MALE"
+		memberType := "LINEAGE_MEMBER"
 		repo.requests[1] = &joinmodel.FamilyJoinRequest{
 			ID: 1, FamilyID: 2, ApplicantUserID: 9, ApplicantGender: &gender, RequestStatus: "PENDING",
 		}
@@ -489,6 +500,7 @@ func TestJoinRequestApprovalModes(t *testing.T) {
 			Location: &dto.MemberLocation{
 				BaseMemberID: 6,
 				AddType:      "ADD_FATHER",
+				MemberType:   &memberType,
 				Relationship: relationshipdto.RelationshipInput{},
 			},
 		}, AuditInput{})

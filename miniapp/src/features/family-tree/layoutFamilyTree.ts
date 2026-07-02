@@ -109,6 +109,8 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
         canvasHeight: 0,
         memberCount,
         renderedCount,
+        scrollIntoViewId: undefined,
+        unlocatedMembers: [],
         message: graph.message
       }
     }
@@ -119,7 +121,10 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
         ? collectDirectLineMemberIds(safeInput.viewerMemberId, memberGraph)
         : new Set<number>()
 
-    const branchData = [...graph.roots, ...graph.orphanBranches].map(branchToDatum)
+    const branchData = graph.roots.map(branchToDatum)
+    const unlocatedMembers = graph.unlocatedMemberIds
+      .map((memberId) => memberGraph.nodeMap.get(memberId))
+      .filter((node): node is import('@/types/api').TreeNode => Boolean(node))
     if (branchData.length === 0) {
       return {
         success: false,
@@ -129,6 +134,8 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
         canvasHeight: 0,
         memberCount,
         renderedCount,
+        scrollIntoViewId: undefined,
+        unlocatedMembers,
         message: '家谱结构暂时无法生成，可查看关系明细'
       }
     }
@@ -246,6 +253,7 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
       memberCount,
       renderedCount,
       scrollIntoViewId,
+      unlocatedMembers,
       message: renderNodes.length === 0 ? '家谱结构暂时无法生成，可查看关系明细' : undefined
     }
   } catch {
@@ -257,6 +265,8 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
       canvasHeight: 0,
       memberCount,
       renderedCount,
+      scrollIntoViewId: undefined,
+      unlocatedMembers: [],
       message: '家谱结构暂时无法生成，可查看关系明细'
     }
   }

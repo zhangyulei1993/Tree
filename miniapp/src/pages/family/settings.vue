@@ -6,7 +6,7 @@
       :family-name="family.familyName"
       section="公开展示与权限"
       subtitle="管理公开信息、家庭角色和高风险操作"
-      :role-label="family.role === 'FOUNDER' ? '创建者' : '管理员'"
+      :role-label="roleText(family.role)"
       @back="openFamilyOverview"
     />
 
@@ -22,10 +22,22 @@
     </MiniCard>
 
     <template v-else-if="family">
-      <MiniNotice v-if="family.status === 'DISSOLUTION_PENDING'" tone="warm" title="家庭解散申请审核中">
+      <MiniNotice v-if="family.status === 'DISSOLVED'" tone="warm" title="家庭已解散，等待恢复">
+        该家庭已停止对外服务，设置暂不可编辑。请等待平台管理员恢复家庭后再继续操作。
+      </MiniNotice>
+      <MiniCard v-if="family.status === 'DISSOLVED'">
+        <MiniEmptyState
+          symbol="⏸"
+          title="家庭已解散"
+          description="当前仅可查看家庭概览，公开展示、角色与高风险操作需恢复后可用。"
+        />
+      </MiniCard>
+
+      <MiniNotice v-else-if="family.status === 'DISSOLUTION_PENDING'" tone="warm" title="家庭解散申请审核中">
         审核完成或取消申请前，家庭资料、公开展示、角色和创建者转让暂不可调整。
       </MiniNotice>
 
+      <template v-if="familyOperational">
       <view class="settings-tabs">
         <button :class="{ active: settingsSection === 'public' }" @click="settingsSection = 'public'">公开展示</button>
         <button :class="{ active: settingsSection === 'roles' }" @click="settingsSection = 'roles'">角色权限</button>
@@ -168,6 +180,7 @@
           <MiniButton variant="secondary" @click="confirmCreateDissolution">申请解散家庭</MiniButton>
         </template>
       </MiniCard>
+      </template>
     </template>
   </view>
 </template>

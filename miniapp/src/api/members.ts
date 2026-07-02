@@ -110,3 +110,25 @@ export async function deleteFamilyMember(
     { method: 'DELETE', data: reason ? { reason } : {} }
   )
 }
+
+export async function unbindFamilyMemberUser(
+  familyId: number | string,
+  memberId: number | string,
+  reason?: string
+): Promise<FamilyMember> {
+  if (!isRealApiMode) {
+    const current = await getFamilyMember(familyId, memberId)
+    const updated: FamilyMember = {
+      ...current,
+      boundUserId: undefined,
+      boundFamilyRole: undefined,
+      updatedAt: new Date().toISOString()
+    }
+    mockMembers = mockMembers.map((member) => member.memberId === updated.memberId ? updated : member)
+    return { ...updated }
+  }
+  return request<FamilyMember, { reason?: string }>(
+    `/families/${familyId}/members/${memberId}/unbind-user`,
+    { method: 'POST', data: reason ? { reason } : {} }
+  )
+}

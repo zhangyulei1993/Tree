@@ -1,12 +1,13 @@
 import type { TreeEdge, TreeNode } from '@/types/api'
 
+import type { CanonicalKinshipResult } from '../kinship/canonicalTypes'
 import { buildRelGraph, type RelGraph } from './relativeGraph'
+import { resolveCanonicalRelativeTitle } from './relativeRules'
 import {
   buildTitleCacheKey,
   getCachedRelativeTitle,
   setCachedRelativeTitle
 } from './relativeTitleCache'
-import { resolveRelativeTitle } from './relativeRules'
 
 export interface BuildKinshipTitleMapInput {
   viewerMemberId: number | null | undefined
@@ -15,9 +16,49 @@ export interface BuildKinshipTitleMapInput {
   graphVersion?: number | string | null
 }
 
+export interface KinshipTitleEntry {
+  canonicalTitle?: string
+  rankLabel?: string
+  displayLabel: string
+  unsupportedCanonicalTitle: boolean
+  pathDescription: string
+}
+
+function toDisplayLabel(result: CanonicalKinshipResult): string {
+  if (!result.unsupportedCanonicalTitle && result.canonicalTitle) {
+    return result.canonicalTitle
+  }
+  if (result.incompleteInfo) {
+    return '关系信息不完整'
+  }
+  return result.pathDescription
+}
+
+export function resolveKinshipTitleEntry(
+  graph: RelGraph,
+  viewerMemberId: number,
+  targetMemberId: number
+): KinshipTitleEntry {
+  if (viewerMemberId === targetMemberId) {
+    return {
+      canonicalTitle: '我',
+      displayLabel: '我',
+      unsupportedCanonicalTitle: false,
+      pathDescription: '我'
+    }
+  }
+  const result = resolveCanonicalRelativeTitle(graph, viewerMemberId, targetMemberId)
+  return {
+    canonicalTitle: result.canonicalTitle,
+    rankLabel: result.rankLabel,
+    displayLabel: toDisplayLabel(result),
+    unsupportedCanonicalTitle: result.unsupportedCanonicalTitle,
+    pathDescription: result.pathDescription
+  }
+}
+
 /**
- * 基于当前视角（viewer）与目标成员在关系图中的结构，动态推导相对称谓。
- * 无 viewer 时不推导（返回 undefined）。
+ * 基于当前视角与目标成员在关系图中的结构，动态推导规范称谓。
  */
 export function getRelativeTitle(
   viewerMemberId: number | null | undefined,
@@ -25,8 +66,8 @@ export function getRelativeTitle(
   graph: RelGraph
 ): string | undefined {
   if (viewerMemberId == null) return undefined
-  if (viewerMemberId === targetMemberId) return '我'
-  return resolveRelativeTitle(graph, viewerMemberId, targetMemberId)
+  const entry = resolveKinshipTitleEntry(graph, viewerMemberId, targetMemberId)
+  return entry.displayLabel
 }
 
 function getRelativeTitleCached(
@@ -39,15 +80,11 @@ function getRelativeTitleCached(
   const cached = getCachedRelativeTitle(cacheKey)
   if (cached !== undefined) return cached
 
-  const title = getRelativeTitle(viewerMemberId, targetMemberId, graph) ?? '亲属'
+  const title = getRelativeTitle(viewerMemberId, targetMemberId, graph) ?? ''
   setCachedRelativeTitle(cacheKey, title)
   return title
 }
 
-/**
- * 为当前视角批量计算节点称谓（每次 viewer / graphVersion 变化时全量重算）。
- * 不写入节点数据，仅返回瞬时映射供 UI 绑定。
- */
 export function buildKinshipTitleMap(input: BuildKinshipTitleMapInput): Record<number, string> {
   const { viewerMemberId, nodes, edges } = input
   if (viewerMemberId == null) return {}
@@ -77,5 +114,5 @@ export function getRelativeTitleFromMe(
   edges: TreeEdge[]
 ): string {
   const graph = buildRelGraph(nodes, edges)
-  return getRelativeTitle(meMemberId, targetMemberId, graph) ?? '亲属'
+  return getRelativeTitle(meMemberId, targetMemberId, graph) ?? ''
 }
