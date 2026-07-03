@@ -7,10 +7,14 @@
   "transformPx": false,
   "mp-weixin": {
     "appid": "wx443accd1b2b899df",
+    "__usePrivacyCheck__": true,
     "setting": {
       "urlCheck": false,
       "minified": true
     },
-    "usingComponents": true
+    "usingComponents": true,
+    "requiredPrivateInfos": [
+      "chooseAvatar"
+    ]
   }
 }

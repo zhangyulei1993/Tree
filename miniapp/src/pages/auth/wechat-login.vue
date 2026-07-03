@@ -6,10 +6,11 @@
     </view>
 
     <MiniCard variant="soft" class="tree-auth-card">
+      <AuthLegalConsent v-model="legalAccepted" />
       <template v-if="isRealApiMode">
         <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
         <view class="btn-stack">
-          <MiniButton :disabled="submitting" :loading="submitting" @click="loginWithWechat">
+          <MiniButton :disabled="submitting || !legalAccepted" :loading="submitting" @click="loginWithWechat">
             微信登录
           </MiniButton>
           <MiniButton variant="secondary" :disabled="submitting" @click="go('/pages/auth/phone-login')">
@@ -36,13 +37,24 @@ import { ref } from 'vue'
 import { apiErrorMessage, isRealApiMode } from '@/api/client'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
+import AuthLegalConsent from '@/components/legal/AuthLegalConsent.vue'
+import { hasPrivacyConsent } from '@/features/legal/privacyConsent'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
 const submitting = ref(false)
 const errorMessage = ref('')
+const legalAccepted = ref(false)
 
 async function loginWithWechat() {
+  if (!legalAccepted.value) {
+    errorMessage.value = '请先阅读并同意用户协议与隐私政策。'
+    return
+  }
+  if (!hasPrivacyConsent()) {
+    errorMessage.value = '请先在首页隐私提示中同意个人信息处理规则。'
+    return
+  }
   errorMessage.value = ''
   submitting.value = true
   try {

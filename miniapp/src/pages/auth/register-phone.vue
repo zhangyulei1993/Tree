@@ -48,8 +48,9 @@
       />
       <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
       <text v-if="sendResult" class="tree-field-success">{{ sendResult }}</text>
+      <AuthLegalConsent v-model="legalAccepted" />
       <view class="btn-stack">
-        <MiniButton :disabled="submitting" :loading="submitting" @click="submit">
+        <MiniButton :disabled="submitting || !legalAccepted" :loading="submitting" @click="submit">
           注册并登录
         </MiniButton>
         <MiniButton variant="secondary" :disabled="submitting" @click="goLogin">
@@ -67,6 +68,8 @@ import { sendCode } from '@/api/auth'
 import { apiErrorMessage } from '@/api/client'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
+import AuthLegalConsent from '@/components/legal/AuthLegalConsent.vue'
+import { hasPrivacyConsent } from '@/features/legal/privacyConsent'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
@@ -79,6 +82,7 @@ const submitting = ref(false)
 const cooldown = ref(0)
 const errorMessage = ref('')
 const sendResult = ref('')
+const legalAccepted = ref(false)
 const showTestCodeHint = import.meta.env.MODE !== 'production'
 let timer: ReturnType<typeof setInterval> | undefined
 
@@ -111,6 +115,14 @@ async function send() {
 
 async function submit() {
   errorMessage.value = ''
+  if (!legalAccepted.value) {
+    errorMessage.value = '请先阅读并同意用户协议与隐私政策。'
+    return
+  }
+  if (!hasPrivacyConsent()) {
+    errorMessage.value = '请先在首页隐私提示中同意个人信息处理规则。'
+    return
+  }
   if (!/^1\d{10}$/.test(phone.value)) {
     errorMessage.value = '请输入正确的 11 位手机号。'
     return

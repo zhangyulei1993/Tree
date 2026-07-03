@@ -1,6 +1,10 @@
 <template>
-  <view />
+  <PrivacyConsentModal />
 </template>
+
+<script setup lang="ts">
+import PrivacyConsentModal from '@/components/legal/PrivacyConsentModal.vue'
+</script>
 
 <style>
 @import './styles/theme.css';

@@ -24,8 +24,9 @@
         placeholder="请输入密码"
       />
       <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
+      <AuthLegalConsent v-model="legalAccepted" />
       <view class="btn-stack">
-        <MiniButton :disabled="submitting" :loading="submitting" @click="submit">
+        <MiniButton :disabled="submitting || !legalAccepted" :loading="submitting" @click="submit">
           登录
         </MiniButton>
         <MiniButton variant="secondary" :disabled="submitting" @click="goRegister">
@@ -51,6 +52,8 @@ import { ref } from 'vue'
 import { apiErrorMessage } from '@/api/client'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
+import AuthLegalConsent from '@/components/legal/AuthLegalConsent.vue'
+import { hasPrivacyConsent } from '@/features/legal/privacyConsent'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
@@ -58,9 +61,18 @@ const phone = ref('')
 const password = ref('')
 const submitting = ref(false)
 const errorMessage = ref('')
+const legalAccepted = ref(false)
 
 async function submit() {
   errorMessage.value = ''
+  if (!legalAccepted.value) {
+    errorMessage.value = '请先阅读并同意用户协议与隐私政策。'
+    return
+  }
+  if (!hasPrivacyConsent()) {
+    errorMessage.value = '请先在首页隐私提示中同意个人信息处理规则。'
+    return
+  }
   if (!/^1\d{10}$/.test(phone.value)) {
     errorMessage.value = '请输入正确的 11 位手机号。'
     return

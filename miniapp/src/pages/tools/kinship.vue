@@ -18,6 +18,9 @@
     </view>
 
     <MiniNotice tone="info" class="beta-notice">规则持续完善中</MiniNotice>
+    <MiniNotice tone="security" class="local-only-notice" title="本地处理说明">
+      本工具仅在当前设备本地推测称谓，不上传你的性别、年龄或关系路径信息至服务器。
+    </MiniNotice>
 
     <MiniCard>
       <MiniSectionHeader title="本人信息" subtitle="出生日期优先用于判断长幼，年龄仅作为补充。" />
