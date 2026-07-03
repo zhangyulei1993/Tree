@@ -105,6 +105,7 @@
                   编辑 {{ member.name }} 资料
                 </MiniButton>
                 <MiniButton
+                  v-if="canDeleteForMember(member)"
                   variant="secondary"
                   size="sm"
                   :loading="deletingMemberId === String(member.memberId)"
@@ -237,6 +238,7 @@ import type {
   Invitation
 } from '@/types/api'
 import {
+  canDeleteMember,
   canEditMember as canEditMemberAction,
   canShowInviteButton,
   canUnbindMember,
@@ -338,6 +340,10 @@ function canEditMember(member: FamilyMember) {
 
 function canUnbindForMember(member: FamilyMember) {
   return canUnbindMember(member, canManageFamily.value)
+}
+
+function canDeleteForMember(member: FamilyMember) {
+  return canDeleteMember(member, canManageFamily.value)
 }
 
 function canShowInviteForMember(member: FamilyMember) {

@@ -178,6 +178,7 @@ import MiniNotice from '@/components/base/MiniNotice.vue'
 import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
 import FamilyContextHeader from '@/components/family/FamilyContextHeader.vue'
 import { filterUnlocatedLineageMemberIds } from '@/features/family-tree/graph'
+import { useSessionStore } from '@/stores/session'
 import type {
   FamilyDetail,
   FamilyMember,

@@ -49,7 +49,7 @@
         <MiniButton :loading="saving" :disabled="saving" @click="saveMember">保存成员资料</MiniButton>
       </MiniCard>
 
-      <MiniCard variant="soft" class="danger-card">
+      <MiniCard v-if="canDeleteCurrentMember" variant="soft" class="danger-card">
         <view class="danger-copy">
           <text class="danger-title">删除成员节点</text>
           <text class="danger-desc">只删除家谱节点。存在亲属关系、创建者或管理员身份时，系统会拒绝删除。</text>
@@ -69,21 +69,25 @@
 
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
+import { getFamilyDetail } from '@/api/families'
 import { deleteFamilyMember, getFamilyMember, updateFamilyMember } from '@/api/members'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
+import { canDeleteMember } from '@/features/family/memberListActions'
 import { useSessionStore } from '@/stores/session'
-import type { Gender } from '@/types/api'
+import type { FamilyDetail, FamilyMember, Gender } from '@/types/api'
 
 const session = useSessionStore()
 const familyId = ref('')
 const memberId = ref('')
+const family = ref<FamilyDetail | null>(null)
+const currentMember = ref<FamilyMember | null>(null)
 const authChecked = ref(false)
 const loading = ref(false)
 const saving = ref(false)
@@ -101,6 +105,14 @@ const form = reactive({
   isAlive: true,
   description: ''
 })
+
+const canManageFamily = computed(() =>
+  family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
+)
+
+const canDeleteCurrentMember = computed(() =>
+  currentMember.value ? canDeleteMember(currentMember.value, canManageFamily.value) : false
+)
 
 function routePath() {
   return `/pages/family/member-edit?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(memberId.value)}`
@@ -130,7 +142,12 @@ async function loadMember() {
   loadError.value = ''
   actionError.value = ''
   try {
-    const member = await getFamilyMember(familyId.value, memberId.value)
+    const [member, familyDetail] = await Promise.all([
+      getFamilyMember(familyId.value, memberId.value),
+      getFamilyDetail(familyId.value)
+    ])
+    family.value = familyDetail
+    currentMember.value = member
     form.name = member.name
     form.gender = (member.gender || 'UNKNOWN') as Gender
     genderIndex.value = Math.max(0, genderValues.indexOf(form.gender))

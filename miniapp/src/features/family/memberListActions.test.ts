@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  canDeleteMember,
   canInviteMember,
   canShowInviteButton,
   canUnbindMember,
@@ -73,14 +74,21 @@ test('pending invitation replaces invite button with view invite', () => {
   assert.equal(summary, '编辑、查看邀请、删除')
 })
 
-test('founder bound member does not show unbind', () => {
+test('founder bound member does not show unbind or delete', () => {
   const item = member({ boundUserId: 9, boundFamilyRole: 'FOUNDER' })
   assert.equal(canUnbindMember(item, true), false)
-  assert.equal(memberActionSummary(item, { canManageFamily: true }), '编辑、删除')
+  assert.equal(canDeleteMember(item, true), false)
+  assert.equal(memberActionSummary(item, { canManageFamily: true }), '编辑')
 })
 
-test('family admin bound member does not show unbind', () => {
+test('family admin bound member does not show unbind or delete', () => {
   const item = member({ boundUserId: 9, boundFamilyRole: 'FAMILY_ADMIN' })
   assert.equal(canUnbindMember(item, true), false)
-  assert.equal(memberActionSummary(item, { canManageFamily: true }), '编辑、删除')
+  assert.equal(canDeleteMember(item, true), false)
+  assert.equal(memberActionSummary(item, { canManageFamily: true }), '编辑')
+})
+
+test('regular active member remains deletable for manager', () => {
+  const item = member()
+  assert.equal(canDeleteMember(item, true), true)
 })
