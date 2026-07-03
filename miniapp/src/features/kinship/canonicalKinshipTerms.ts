@@ -528,8 +528,18 @@ export const CANONICAL_KINSHIP_TERMS: Record<CanonicalTermKey, CanonicalKinshipT
   },
   MATERNAL_GRANDSON: { key: 'MATERNAL_GRANDSON', canonicalTitle: '外孙', targetGender: 'male' },
   MATERNAL_GRANDDAUGHTER: { key: 'MATERNAL_GRANDDAUGHTER', canonicalTitle: '外孙女', targetGender: 'female' },
-  GREAT_GRANDSON: { key: 'GREAT_GRANDSON', canonicalTitle: '曾孙', targetGender: 'male' },
-  GREAT_GRANDDAUGHTER: { key: 'GREAT_GRANDDAUGHTER', canonicalTitle: '曾孙女', targetGender: 'female' },
+  GREAT_GRANDSON: {
+    key: 'GREAT_GRANDSON',
+    canonicalTitle: '曾孙',
+    pathKeys: ['child:male>child:male>child:male'],
+    targetGender: 'male'
+  },
+  GREAT_GRANDDAUGHTER: {
+    key: 'GREAT_GRANDDAUGHTER',
+    canonicalTitle: '曾孙女',
+    pathKeys: ['child:male>child:male>child:female'],
+    targetGender: 'female'
+  },
   MATERNAL_GREAT_GRANDSON: { key: 'MATERNAL_GREAT_GRANDSON', canonicalTitle: '外曾孙', targetGender: 'male' },
   MATERNAL_GREAT_GRANDDAUGHTER: {
     key: 'MATERNAL_GREAT_GRANDDAUGHTER',
@@ -547,8 +557,30 @@ export const CANONICAL_KINSHIP_TERMS: Record<CanonicalTermKey, CanonicalKinshipT
   NEPHEW_HUSBAND: { key: 'NEPHEW_HUSBAND', canonicalTitle: '侄女婿', targetGender: 'male' },
   MATERNAL_NEPHEW_WIFE: { key: 'MATERNAL_NEPHEW_WIFE', canonicalTitle: '甥媳', targetGender: 'female' },
   MATERNAL_NEPHEW_HUSBAND: { key: 'MATERNAL_NEPHEW_HUSBAND', canonicalTitle: '甥女婿', targetGender: 'male' },
-  GRANDSON_WIFE: { key: 'GRANDSON_WIFE', canonicalTitle: '孙媳', targetGender: 'female' },
-  GRANDDAUGHTER_HUSBAND: { key: 'GRANDDAUGHTER_HUSBAND', canonicalTitle: '孙女婿', targetGender: 'male' },
+  GRANDSON_WIFE: {
+    key: 'GRANDSON_WIFE',
+    canonicalTitle: '孙媳',
+    pathKeys: ['child:male>child:male>spouse:female'],
+    targetGender: 'female'
+  },
+  GRANDDAUGHTER_HUSBAND: {
+    key: 'GRANDDAUGHTER_HUSBAND',
+    canonicalTitle: '孙女婿',
+    pathKeys: ['child:male>child:female>spouse:male'],
+    targetGender: 'male'
+  },
+  GREAT_GRANDSON_WIFE: {
+    key: 'GREAT_GRANDSON_WIFE',
+    canonicalTitle: '曾孙媳妇',
+    pathKeys: ['child:male>child:male>child:male>spouse:female'],
+    targetGender: 'female'
+  },
+  GREAT_GRANDDAUGHTER_HUSBAND: {
+    key: 'GREAT_GRANDDAUGHTER_HUSBAND',
+    canonicalTitle: '曾孙女婿',
+    pathKeys: ['child:male>child:male>child:female>spouse:male'],
+    targetGender: 'male'
+  },
   TANG_NEPHEW_WIFE: { key: 'TANG_NEPHEW_WIFE', canonicalTitle: '堂侄媳', targetGender: 'female' },
   TANG_NEPHEW_HUSBAND: { key: 'TANG_NEPHEW_HUSBAND', canonicalTitle: '堂侄女婿', targetGender: 'male' },
   BIAO_NEPHEW_WIFE: { key: 'BIAO_NEPHEW_WIFE', canonicalTitle: '表侄媳', targetGender: 'female' },
@@ -566,13 +598,59 @@ export const CANONICAL_KINSHIP_TERMS: Record<CanonicalTermKey, CanonicalKinshipT
   BIAO_MATERNAL_AUNT: { key: 'BIAO_MATERNAL_AUNT', canonicalTitle: '表姨', targetGender: 'female' },
   BIAO_MATERNAL_UNCLE: { key: 'BIAO_MATERNAL_UNCLE', canonicalTitle: '表舅', targetGender: 'male' },
   BIAO_NEPHEW_GRANDSON: { key: 'BIAO_NEPHEW_GRANDSON', canonicalTitle: '表侄孙', targetGender: 'male' },
-  XUAN_GRANDSON: { key: 'XUAN_GRANDSON', canonicalTitle: '玄孙', targetGender: 'male' },
-  XUAN_GRANDDAUGHTER: { key: 'XUAN_GRANDDAUGHTER', canonicalTitle: '玄孙女', targetGender: 'female' },
+  XUAN_GRANDSON: {
+    key: 'XUAN_GRANDSON',
+    canonicalTitle: '玄孙',
+    pathKeys: ['child:male>child:male>child:male>child:male'],
+    targetGender: 'male'
+  },
+  XUAN_GRANDDAUGHTER: {
+    key: 'XUAN_GRANDDAUGHTER',
+    canonicalTitle: '玄孙女',
+    pathKeys: ['child:male>child:male>child:male>child:female'],
+    targetGender: 'female'
+  },
   MATERNAL_XUAN_GRANDSON: { key: 'MATERNAL_XUAN_GRANDSON', canonicalTitle: '外玄孙', targetGender: 'male' },
   MATERNAL_XUAN_GRANDDAUGHTER: {
     key: 'MATERNAL_XUAN_GRANDDAUGHTER',
     canonicalTitle: '外玄孙女',
     targetGender: 'female'
+  },
+  LAISUN_GRANDSON: {
+    key: 'LAISUN_GRANDSON',
+    canonicalTitle: '来孙',
+    pathKeys: ['child:male>child:male>child:male>child:male>child:male'],
+    targetGender: 'male'
+  },
+  LAISUN_GRANDDAUGHTER: {
+    key: 'LAISUN_GRANDDAUGHTER',
+    canonicalTitle: '来孙女',
+    pathKeys: ['child:male>child:male>child:male>child:male>child:female'],
+    targetGender: 'female'
+  },
+  XUAN_GRANDSON_WIFE: {
+    key: 'XUAN_GRANDSON_WIFE',
+    canonicalTitle: '玄孙媳妇',
+    pathKeys: ['child:male>child:male>child:male>child:male>spouse:female'],
+    targetGender: 'female'
+  },
+  XUAN_GRANDDAUGHTER_HUSBAND: {
+    key: 'XUAN_GRANDDAUGHTER_HUSBAND',
+    canonicalTitle: '玄孙女婿',
+    pathKeys: ['child:male>child:male>child:male>child:female>spouse:male'],
+    targetGender: 'male'
+  },
+  LAISUN_GRANDSON_WIFE: {
+    key: 'LAISUN_GRANDSON_WIFE',
+    canonicalTitle: '来孙媳妇',
+    pathKeys: ['child:male>child:male>child:male>child:male>child:male>spouse:female'],
+    targetGender: 'female'
+  },
+  LAISUN_GRANDDAUGHTER_HUSBAND: {
+    key: 'LAISUN_GRANDDAUGHTER_HUSBAND',
+    canonicalTitle: '来孙女婿',
+    pathKeys: ['child:male>child:male>child:male>child:male>child:female>spouse:male'],
+    targetGender: 'male'
   },
   MATERNAL_HIGH_GRANDFATHER: {
     key: 'MATERNAL_HIGH_GRANDFATHER',

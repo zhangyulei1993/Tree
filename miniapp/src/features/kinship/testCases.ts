@@ -229,8 +229,9 @@ export const kinshipTestCases: KinshipTestCase[] = [
   },
   {
     id: 'T022',
-    name: '五层后所有关系禁用',
+    name: '六层后所有关系禁用',
     context: createContext([
+      parentStep('male'),
       parentStep('male'),
       parentStep('male'),
       parentStep('male'),
@@ -672,8 +673,9 @@ export const kinshipTestCases: KinshipTestCase[] = [
   },
   {
     id: 'T073',
-    name: '五层与终点并存时五层优先',
+    name: '六层与终点并存时六层优先',
     context: createContext([
+      parentStep('male'),
       parentStep('male'),
       parentStep('male'),
       parentStep('male'),
@@ -1452,10 +1454,10 @@ export const kinshipTestCases: KinshipTestCase[] = [
   },
   {
     id: 'T148',
-    name: '三代直系下行解析为曾孙辈',
+    name: '三代直系下行解析为曾孙',
     context: createContext([childStep('male'), childStep('male'), childStep('male')]),
-    expectedStatus: 'ambiguous',
-    expectedOneOfTitles: ['曾孙', '曾孙女', '曾孙辈']
+    expectedStatus: 'resolved',
+    expectedTitle: '曾孙'
   },
   {
     id: 'T149',
@@ -1859,15 +1861,34 @@ export const kinshipTestCases: KinshipTestCase[] = [
   },
   {
     id: 'T179',
-    name: '从本人往下超过重孙辈被禁用',
-    context: createContext([childStep('male'), childStep('male'), childStep('male')]),
+    name: '从本人往下超过来孙辈被禁用',
+    context: createContext([
+      childStep('male'),
+      childStep('male'),
+      childStep('male'),
+      childStep('male'),
+      childStep('male')
+    ]),
     action: { relation: 'child' },
     expectedCanAppend: false,
     expectedDisabledReason: DIRECT_DESCENDANT_DEPTH_DISABLED_REASON
   },
   {
+    id: 'T179B',
+    name: '来孙辈后仍可选择配偶',
+    context: createContext([
+      childStep('male'),
+      childStep('male'),
+      childStep('male'),
+      childStep('male'),
+      childStep('male')
+    ]),
+    action: { relation: 'spouse' },
+    expectedCanAppend: true
+  },
+  {
     id: 'T180',
-    name: '曾孙 -> 配偶为曾孙媳并终止',
+    name: '曾孙 -> 配偶为曾孙媳妇并终止',
     context: createContext([
       childStep('male'),
       childStep('male'),
@@ -1875,7 +1896,7 @@ export const kinshipTestCases: KinshipTestCase[] = [
       spouseStep('female')
     ]),
     expectedStatus: 'resolved',
-    expectedTitle: '曾孙媳',
+    expectedTitle: '曾孙媳妇',
     action: { relation: 'parent' },
     expectedCanAppend: false
   },
@@ -2414,7 +2435,7 @@ export function runKinshipSelfChecks(): KinshipSelfCheckResult {
     if (testCase.id === 'T022') {
       const options = getRelationOptions(context)
       if (options.some((item) => item.enabled)) {
-        failures.push(`${testCase.id} ${testCase.name}: 五层后仍有可用关系`)
+        failures.push(`${testCase.id} ${testCase.name}: 六层后仍有可用关系`)
       }
     }
 

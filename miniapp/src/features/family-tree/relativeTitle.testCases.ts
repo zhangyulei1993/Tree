@@ -1,4 +1,4 @@
-import type { TreeEdge, TreeNode } from '@/types/api'
+import type { MemberType, TreeEdge, TreeNode } from '@/types/api'
 
 import { buildRelGraph } from './relativeGraph'
 import { buildTitleCacheKey, clearRelativeTitleCache, setCachedRelativeTitle } from './relativeTitleCache'
@@ -18,14 +18,15 @@ function n(
   memberId: number,
   displayName: string,
   gender: 'MALE' | 'FEMALE',
-  birthDate: string
+  birthDate: string,
+  memberType: MemberType = 'LINEAGE_MEMBER'
 ): TreeNode {
   return {
     memberId,
     displayName,
     gender,
     birthDate,
-    memberType: 'NORMAL',
+    memberType,
     userBindingState: 'NOT_REQUIRED',
     canExpand: false
   }
@@ -319,11 +320,11 @@ function inlawCases(): RelativeTitleTestCase[] {
     n(11, '姐夫', 'MALE', '1996-01-01'),
     n(12, '妹夫', 'MALE', '2005-01-01'),
     n(13, '儿', 'MALE', '2025-01-01'),
-    n(14, '媳', 'FEMALE', '2026-01-01'),
+    n(14, '媳', 'FEMALE', '2026-01-01', 'SPOUSE'),
     n(15, '女', 'FEMALE', '2027-01-01'),
-    n(16, '婿', 'MALE', '2028-01-01'),
+    n(16, '婿', 'MALE', '2028-01-01', 'SPOUSE'),
     n(17, '孙', 'MALE', '2050-01-01'),
-    n(18, '孙媳', 'FEMALE', '2051-01-01')
+    n(18, '孙媳', 'FEMALE', '2051-01-01', 'SPOUSE')
   ]
   const edges: TreeEdge[] = [
     pc(1, 3, 1),

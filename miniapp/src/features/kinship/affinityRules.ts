@@ -408,7 +408,7 @@ const AFFINITY_RULES: Record<string, KinshipRuleMatch> = {
   },
   'child:male>child:male>child:male>spouse:female': {
     status: 'resolved',
-    primaryTitle: '曾孙媳',
+    primaryTitle: '曾孙媳妇',
     terminal: true
   },
   'child:male>child:male>child:female>spouse:male': {
@@ -416,14 +416,24 @@ const AFFINITY_RULES: Record<string, KinshipRuleMatch> = {
     primaryTitle: '曾孙女婿',
     terminal: true
   },
-  'child:female>child:male>child:male>spouse:female': {
+  'child:male>child:male>child:male>child:male>spouse:female': {
     status: 'resolved',
-    primaryTitle: '外曾孙媳',
+    primaryTitle: '玄孙媳妇',
     terminal: true
   },
-  'child:female>child:female>child:female>spouse:male': {
+  'child:male>child:male>child:male>child:female>spouse:male': {
     status: 'resolved',
-    primaryTitle: '外曾孙女婿',
+    primaryTitle: '玄孙女婿',
+    terminal: true
+  },
+  'child:male>child:male>child:male>child:male>child:male>spouse:female': {
+    status: 'resolved',
+    primaryTitle: '来孙媳妇',
+    terminal: true
+  },
+  'child:male>child:male>child:male>child:male>child:female>spouse:male': {
+    status: 'resolved',
+    primaryTitle: '来孙女婿',
     terminal: true
   },
 
@@ -672,9 +682,23 @@ const GENERIC_TERMINAL_AFFINITY_RULES: Record<string, KinshipRuleMatch> = {
   'child>child>child>spouse': {
     status: 'ambiguous',
     primaryTitle: '重孙辈配偶',
-    candidates: ['曾孙媳', '曾孙女婿', '外曾孙媳', '外曾孙女婿', '重孙辈配偶'],
+    candidates: ['曾孙媳妇', '曾孙女婿', '重孙辈配偶'],
     terminal: true,
     explanation: '重孙辈配偶需要补充直系下行性别和配偶性别。'
+  },
+  'child>child>child>child>spouse': {
+    status: 'ambiguous',
+    primaryTitle: '玄孙辈配偶',
+    candidates: ['玄孙媳妇', '玄孙女婿', '玄孙辈配偶'],
+    terminal: true,
+    explanation: '玄孙辈配偶需要补充直系下行性别和配偶性别。'
+  },
+  'child>child>child>child>child>spouse': {
+    status: 'ambiguous',
+    primaryTitle: '来孙辈配偶',
+    candidates: ['来孙媳妇', '来孙女婿', '来孙辈配偶'],
+    terminal: true,
+    explanation: '来孙辈配偶需要补充直系下行性别和配偶性别。'
   },
   'spouse>sibling>child>spouse': {
     status: 'ambiguous',

@@ -46,6 +46,10 @@ export function genderOf(graph: RelGraph, memberId: number): string {
   return graph.nodeMap.get(memberId)?.gender || ''
 }
 
+export function memberTypeOf(graph: RelGraph, memberId: number): string {
+  return graph.nodeMap.get(memberId)?.memberType || ''
+}
+
 export function parentsOf(graph: RelGraph, memberId: number): number[] {
   return graph.parents.get(memberId) || []
 }

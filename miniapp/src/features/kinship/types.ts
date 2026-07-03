@@ -1,4 +1,4 @@
-export const MAX_KINSHIP_DEPTH = 5
+export const MAX_KINSHIP_DEPTH = 6
 
 export type KinshipRelation = 'parent' | 'child' | 'sibling' | 'spouse'
 

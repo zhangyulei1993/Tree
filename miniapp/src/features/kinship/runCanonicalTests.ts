@@ -1,8 +1,10 @@
 import { runCanonicalMatrixTest, runFullMatrix43x42Test, runReverseKinshipTest } from '../family-tree/canonicalKinshipMatrix'
 import { runParentSiblingSeniorityChecks } from '../family-tree/parentSiblingSeniorityCases'
 import { runRelativeTitleSelfCheck } from '../family-tree/relativeTitle.testCases'
+import { runDeepDirectDescendantKinshipTests } from './deepDirectDescendantKinship'
 import { resolveCanonicalKinship } from './resolveCanonicalKinship'
 import { runKinshipSelfChecks } from './testCases'
+import { MAX_KINSHIP_DEPTH } from './types'
 
 const FORBIDDEN_BARE = ['亲属', '姻亲', '祖辈亲属', '父母辈亲属', '晚辈亲属', '同辈亲属']
 
@@ -16,7 +18,7 @@ function assertGlobalCanonicalRules(): string[] {
     const result = resolveCanonicalKinship({
       self: { gender: 'male' },
       steps: sample.steps,
-      maxDepth: 5
+      maxDepth: MAX_KINSHIP_DEPTH
     })
     if (result.canonicalTitle && FORBIDDEN_BARE.includes(result.canonicalTitle)) {
       failures.push(`规范结果不得为裸称谓「${result.canonicalTitle}」`)
@@ -32,6 +34,7 @@ export function runAllCanonicalKinshipTests(): {
   fullMatrix: ReturnType<typeof runFullMatrix43x42Test>
   reverse: ReturnType<typeof runReverseKinshipTest>
   parentSiblingSeniority: ReturnType<typeof runParentSiblingSeniorityChecks>
+  deepDirectDescendant: ReturnType<typeof runDeepDirectDescendantKinshipTests>
   globalRuleFailures: string[]
   ok: boolean
 } {
@@ -41,6 +44,7 @@ export function runAllCanonicalKinshipTests(): {
   const matrix = runCanonicalMatrixTest()
   const fullMatrix = runFullMatrix43x42Test()
   const reverse = runReverseKinshipTest()
+  const deepDirectDescendant = runDeepDirectDescendantKinshipTests()
   const globalRuleFailures = assertGlobalCanonicalRules()
 
   const ok =
@@ -54,9 +58,20 @@ export function runAllCanonicalKinshipTests(): {
     fullMatrix.generationMismatchViolations === 0 &&
     reverse.failures.length === 0 &&
     parentSiblingSeniority.failures.length === 0 &&
+    deepDirectDescendant.failures.length === 0 &&
     globalRuleFailures.length === 0
 
-  return { pathChecks, relativeTitle, matrix, fullMatrix, reverse, parentSiblingSeniority, globalRuleFailures, ok }
+  return {
+    pathChecks,
+    relativeTitle,
+    matrix,
+    fullMatrix,
+    reverse,
+    parentSiblingSeniority,
+    deepDirectDescendant,
+    globalRuleFailures,
+    ok
+  }
 }
 
 const isDirectRun = typeof process !== 'undefined' && process.argv[1]?.includes('runCanonicalTests')
@@ -78,6 +93,9 @@ if (isDirectRun) {
   console.log(
     `parent-sibling-seniority: ${result.parentSiblingSeniority.passed}/${result.parentSiblingSeniority.total} passed`
   )
+  console.log(
+    `deep-direct-descendant: ${result.deepDirectDescendant.passed}/${result.deepDirectDescendant.total} passed`
+  )
 
   const allFailures = [
     ...result.pathChecks.failures.slice(0, 20),
@@ -86,6 +104,7 @@ if (isDirectRun) {
     ...result.fullMatrix.failures,
     ...result.reverse.failures,
     ...result.parentSiblingSeniority.failures,
+    ...result.deepDirectDescendant.failures,
     ...result.globalRuleFailures
   ]
 

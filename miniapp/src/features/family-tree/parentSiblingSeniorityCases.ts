@@ -15,7 +15,7 @@ function node(
     gender,
     birthDate: birth?.birthDate,
     birthYear: birth?.birthYear,
-    memberType: 'NORMAL',
+    memberType: 'LINEAGE_MEMBER',
     userBindingState: 'NOT_REQUIRED',
     canExpand: false
   }
