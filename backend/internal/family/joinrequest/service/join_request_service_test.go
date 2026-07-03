@@ -75,6 +75,7 @@ func newFakeRepo() *fakeRepo {
 	}
 }
 func (r *fakeRepo) WithTx(*gorm.DB) joinrepo.Repository { return r }
+func (r *fakeRepo) DB() *gorm.DB                        { return nil }
 func (r *fakeRepo) FindFamily(context.Context, uint64, bool) (*model.Family, error) {
 	v := r.family
 	return &v, nil
@@ -333,7 +334,7 @@ func (r *fakeRepo) clone() *fakeRepo {
 	return &copyRepo
 }
 func testService(repo *fakeRepo, allowed bool) *service {
-	s := NewService(repo, fakeUOW{repo}, fakePermission{allowed}).(*service)
+	s := NewService(repo, fakeUOW{repo}, fakePermission{allowed}, nil).(*service)
 	s.now = func() time.Time { return time.Date(2026, 6, 7, 0, 0, 0, 0, time.UTC) }
 	return s
 }
@@ -378,6 +379,14 @@ func TestJoinRequestCreationRules(t *testing.T) {
 		repo.links = append(repo.links, rolemodel.FamilyMemberUserLink{FamilyID: 2, MemberID: 6, UserID: 9, LinkStatus: "ACTIVE"})
 		if _, err := testService(repo, true).Create(context.Background(), 9, 2, createJoinRequestInput(), AuditInput{}); err == nil || err.Code != CodeApplicantUnavailable {
 			t.Fatalf("unexpected %#v", err)
+		}
+	})
+	t.Run("active user without phone verified allowed", func(t *testing.T) {
+		repo := newFakeRepo()
+		repo.users[9] = usermodel.User{ID: 9, Status: "ACTIVE", PhoneVerified: false}
+		result, err := testService(repo, true).Create(context.Background(), 9, 2, createJoinRequestInput(), AuditInput{})
+		if err != nil || result.RequestStatus != "PENDING" {
+			t.Fatalf("unexpected %#v %#v", result, err)
 		}
 	})
 }

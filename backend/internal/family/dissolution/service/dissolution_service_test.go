@@ -33,6 +33,7 @@ func newFakeRepo() *fakeRepo {
 }
 
 func (r *fakeRepo) WithTx(*gorm.DB) dissolutionrepo.Repository { return r }
+func (r *fakeRepo) DB() *gorm.DB                               { return nil }
 func (r *fakeRepo) FindAdmin(context.Context, uint64) (*adminmodel.AdminUser, error) {
 	return &adminmodel.AdminUser{ID: 1, Role: string(enums.AdminRoleRootAdmin)}, nil
 }
@@ -111,7 +112,7 @@ func (u fakeUOW) WithinTransaction(ctx context.Context, fn func(dissolutionrepo.
 }
 
 func newTestService(repo *fakeRepo) *service {
-	svc := NewService(repo, fakeUOW{repo: repo}).(*service)
+	svc := NewService(repo, fakeUOW{repo: repo}, nil).(*service)
 	svc.now = func() time.Time { return time.Date(2026, 6, 8, 10, 0, 0, 0, time.UTC) }
 	return svc
 }

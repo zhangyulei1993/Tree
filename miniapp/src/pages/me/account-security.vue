@@ -4,11 +4,16 @@
 
     <template v-if="session.isLoggedIn && session.user">
       <MiniCard>
-        <MiniSectionHeader title="账号与安全" subtitle="个人资料、手机号与账号管理" accent />
-        <MiniNotice v-if="showPasswordUnsetNotice" tone="info" class="password-notice">
-          建议设置登录密码，方便电脑网页登录。可在绑定手机号页面设置。
-        </MiniNotice>
+        <MiniSectionHeader title="账号与安全" subtitle="个人资料与账号管理" accent />
         <MiniActionList :items="securityItems" @select="onSecuritySelect" />
+      </MiniCard>
+
+      <MiniCard v-if="capabilities" class="quota-card">
+        <MiniSectionHeader title="账号权益" subtitle="当前可用额度与用量" />
+        <view class="quota-lines">
+          <text v-for="line in capabilityLines" :key="line" class="quota-line">{{ line }}</text>
+        </view>
+        <MiniNotice v-if="showQuotaHint" tone="info">当前扩展能力尚未开放。达到基础上限时，仅会阻止新增、恢复或加入，不影响查看与编辑已有内容。</MiniNotice>
       </MiniCard>
 
       <MiniCard class="danger-zone">
@@ -31,8 +36,9 @@
 
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
+import { fetchCapabilities } from '@/api/capabilities'
 import MiniActionList from '@/components/base/MiniActionList.vue'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
@@ -40,29 +46,28 @@ import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
+import { buildCapabilitiesSummary } from '@/features/quota/quotaDisplay'
+import type { UserCapabilities } from '@/types/api'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
+const capabilities = ref<UserCapabilities | null>(null)
 
-const showProfileIncompleteNotice = computed(() => {
-  if (!session.user) return false
-  return !session.user.nickname?.trim() || !session.user.avatarUrl
+const capabilityLines = computed(() => (capabilities.value ? buildCapabilitiesSummary(capabilities.value) : []))
+const showQuotaHint = computed(() => {
+  if (!capabilities.value) return false
+  const { limits, usage, trustTier } = capabilities.value
+  return trustTier === 'WECHAT_ONLY' && (
+    usage.ownedFamilies >= limits.maxOwnedFamilies ||
+    usage.joinedFamilies >= limits.maxJoinedFamilies
+  )
 })
-
-const showPasswordUnsetNotice = computed(() =>
-  session.isPhoneBound && session.user?.passwordSet === false
-)
 
 const securityItems = computed(() => [
   {
     key: 'profile',
-    title: showProfileIncompleteNotice.value ? '完善资料' : '更新资料',
-    desc: showProfileIncompleteNotice.value ? '设置昵称和头像' : '更新昵称和头像'
-  },
-  {
-    key: 'bind-phone',
-    title: session.user?.phoneVerified ? '更改手机号' : '绑定手机号',
-    desc: session.user?.phoneVerified ? '当前手机号已验证，可重新绑定' : '完成验证后可使用完整功能'
+    title: session.isProfileComplete ? '更新资料' : '完善资料',
+    desc: session.isProfileComplete ? '更新昵称和头像' : '设置昵称后即可使用完整功能'
   }
 ])
 
@@ -71,18 +76,20 @@ function go(url: string) {
 }
 
 function onSecuritySelect(key: string) {
-  switch (key) {
-    case 'profile':
-      go('/pages/me/profile')
-      break
-    case 'bind-phone':
-      go(session.user?.phoneVerified ? '/pages/account/change-phone' : '/pages/auth/bind-phone')
-      break
+  if (key === 'profile') {
+    go(session.isProfileComplete ? '/pages/me/profile' : '/pages/me/profile?onboarding=1')
   }
 }
 
-onShow(() => {
+onShow(async () => {
   session.restoreSession()
+  if (session.isLoggedIn) {
+    try {
+      capabilities.value = await fetchCapabilities()
+    } catch {
+      capabilities.value = null
+    }
+  }
 })
 </script>
 
@@ -93,13 +100,25 @@ onShow(() => {
     radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
 }
 
-.password-notice {
-  margin-bottom: 20rpx;
-}
-
 .danger-zone {
   margin-top: 20rpx;
   border-color: rgba(181, 71, 60, 0.2);
   background: rgba(255, 248, 246, 0.92);
+}
+
+.quota-card {
+  margin-top: 20rpx;
+}
+
+.quota-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
+
+.quota-line {
+  color: #4f5d6b;
+  font-size: 28rpx;
 }
 </style>

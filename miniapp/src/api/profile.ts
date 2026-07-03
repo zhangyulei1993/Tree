@@ -5,12 +5,12 @@ import type { ApiResponse, UpdateProfileInput, UserInfo } from '@/types/api'
 function mockUserInfo(): UserInfo {
   return {
     id: 'mock_user',
-    phone: mockUser.maskedPhone,
-    phoneVerified: true,
+    phone: null,
+    phoneVerified: false,
     nickname: mockUser.nickname,
     avatarUrl: null,
     status: mockUser.status,
-    passwordSet: true
+    passwordSet: false
   }
 }
 

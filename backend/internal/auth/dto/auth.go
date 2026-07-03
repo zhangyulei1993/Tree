@@ -46,3 +46,8 @@ type CancelAccountRequest struct {
 	PhoneCode    string `json:"phoneCode" binding:"required"`
 	CancelReason string `json:"cancelReason"`
 }
+
+type CancelAccountByWechatRequest struct {
+	Code         string `json:"code" binding:"required"`
+	CancelReason string `json:"cancelReason"`
+}

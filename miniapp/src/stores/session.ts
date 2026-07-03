@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 
-import { bindPhone, loginPhone, logoutUser, registerPhone, wechatMiniLogin } from '@/api/auth'
+import { logoutUser, wechatMiniLogin } from '@/api/auth'
 import { getMe, updateProfile, uploadAvatar } from '@/api/profile'
 import {
   apiMode,
@@ -9,7 +9,9 @@ import {
   sessionUserKey
 } from '@/api/client'
 import { mockUser, type UserState } from '@/mock/data'
-import type { BindPhoneInput, LoginPhoneInput, RegisterPhoneInput, UserInfo } from '@/types/api'
+import { isProfileComplete } from '@/features/session/profileComplete'
+import { isMpWeixinPlatform, resolveWechatLoginUnsupportedMessage } from '@/features/session/wechatLogin'
+import type { UserInfo } from '@/types/api'
 
 function restoredUser(): UserInfo | null {
   const value = uni.getStorageSync(sessionUserKey)
@@ -22,20 +24,23 @@ function restoredUser(): UserInfo | null {
   }
 }
 
+function deriveState(token: string, user: UserInfo | null): UserState {
+  if (!token || !user) return 'guest'
+  return isProfileComplete(user) ? 'wechatActive' : 'wechatProfileIncomplete'
+}
+
 const initialUser = restoredUser()
 const initialToken = (uni.getStorageSync(sessionTokenKey) as string) || ''
 
 export const useSessionStore = defineStore('session', {
   state: () => ({
-    state: (initialToken && initialUser
-      ? initialUser.phoneVerified ? 'phoneBoundActive' : 'wechatLoggedInPendingPhone'
-      : 'guest') as UserState,
+    state: deriveState(initialToken, initialUser) as UserState,
     user: initialUser as UserInfo | null,
     token: initialToken
   }),
   getters: {
     isLoggedIn: (state) => Boolean(state.token && state.user && state.state !== 'guest'),
-    isPhoneBound: (state) => Boolean(state.user?.phoneVerified && state.state === 'phoneBoundActive'),
+    isProfileComplete: (state) => state.state === 'wechatActive',
     mode: () => apiMode
   },
   actions: {
@@ -44,14 +49,12 @@ export const useSessionStore = defineStore('session', {
       const user = restoredUser()
       this.token = token
       this.user = user
-      this.state = token && user
-        ? user.phoneVerified ? 'phoneBoundActive' : 'wechatLoggedInPendingPhone'
-        : 'guest'
+      this.state = deriveState(token, user)
     },
     persistSession(token: string, user: UserInfo) {
       this.token = token
       this.user = user
-      this.state = user.phoneVerified ? 'phoneBoundActive' : 'wechatLoggedInPendingPhone'
+      this.state = deriveState(token, user)
       uni.setStorageSync(sessionTokenKey, token)
       uni.setStorageSync(sessionUserKey, JSON.stringify(user))
     },
@@ -62,16 +65,26 @@ export const useSessionStore = defineStore('session', {
       uni.removeStorageSync(sessionTokenKey)
       uni.removeStorageSync(sessionUserKey)
     },
-    async login(input: LoginPhoneInput) {
-      const result = await loginPhone(input)
-      this.persistSession(result.accessToken, result.user)
-    },
     async loginWithWechat() {
+      const unsupported = resolveWechatLoginUnsupportedMessage()
+      if (unsupported) {
+        throw new Error(unsupported)
+      }
+      if (!isMpWeixinPlatform()) {
+        throw new Error('微信快捷登录仅支持微信小程序。')
+      }
       const loginResult = await new Promise<UniApp.LoginRes>((resolve, reject) => {
         uni.login({
           provider: 'weixin',
           success: resolve,
-          fail: reject
+          fail: (error) => {
+            const message = typeof error?.errMsg === 'string' ? error.errMsg : ''
+            if (/not support|不支持|only.*mini program|provider.*weixin/i.test(message)) {
+              reject(new Error(resolveWechatLoginUnsupportedMessage('h5') || '微信快捷登录仅支持微信小程序。'))
+              return
+            }
+            reject(error)
+          }
         })
       })
       if (!loginResult.code) {
@@ -80,10 +93,6 @@ export const useSessionStore = defineStore('session', {
       const result = await wechatMiniLogin(loginResult.code)
       this.persistSession(result.accessToken, result.user)
       return result
-    },
-    async bindPhone(input: BindPhoneInput) {
-      const result = await bindPhone(input)
-      this.persistSession(result.accessToken, result.user)
     },
     async refreshMe() {
       const user = await getMe()
@@ -100,10 +109,6 @@ export const useSessionStore = defineStore('session', {
       this.persistSession(this.token, user)
       return user
     },
-    async register(input: RegisterPhoneInput) {
-      const result = await registerPhone(input)
-      this.persistSession(result.accessToken, result.user)
-    },
     requireLogin(route: string) {
       this.restoreSession()
       if (this.isLoggedIn) return true
@@ -111,16 +116,16 @@ export const useSessionStore = defineStore('session', {
       uni.reLaunch({ url: '/pages/auth/wechat-login' })
       return false
     },
-    requirePhoneBound(route: string) {
+    requireProfileComplete(route: string) {
       this.restoreSession()
       if (!this.isLoggedIn) {
         if (route) uni.setStorageSync(pendingRouteKey, route)
         uni.reLaunch({ url: '/pages/auth/wechat-login' })
         return false
       }
-      if (!this.isPhoneBound) {
+      if (!this.isProfileComplete) {
         if (route) uni.setStorageSync(pendingRouteKey, route)
-        uni.navigateTo({ url: '/pages/auth/bind-phone' })
+        uni.redirectTo({ url: '/pages/me/profile?onboarding=1' })
         return false
       }
       return true
@@ -130,26 +135,24 @@ export const useSessionStore = defineStore('session', {
       uni.removeStorageSync(pendingRouteKey)
       uni.reLaunch({ url: pending || defaultRoute })
     },
-    finishBind() {
+    routeAfterAuth() {
+      if (!this.isProfileComplete) {
+        uni.redirectTo({ url: '/pages/me/profile?onboarding=1' })
+        return
+      }
       this.finishLogin()
     },
-    mockWechatLogin() {
+    finishProfile() {
+      this.finishLogin()
+    },
+    mockWechatLogin(withProfile = false) {
       this.persistSession(mockUser.token, {
         id: 'mock_user',
         phone: null,
         phoneVerified: false,
-        nickname: mockUser.nickname,
+        nickname: withProfile ? mockUser.nickname : null,
         status: mockUser.status,
         passwordSet: false
-      })
-    },
-    mockBindPhone() {
-      if (!this.user) return
-      this.persistSession(this.token || mockUser.token, {
-        ...this.user,
-        phone: mockUser.maskedPhone,
-        phoneVerified: true,
-        passwordSet: true
       })
     },
     async logout() {

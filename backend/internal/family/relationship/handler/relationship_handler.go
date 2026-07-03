@@ -132,7 +132,8 @@ func writeError(ctx *gin.Context, businessErr *apperrors.BusinessError) {
 	case relationshipservice.CodeRelationshipForbidden:
 		status = http.StatusForbidden
 	case relationshipservice.CodeRelationshipMember,
-		relationshipservice.CodeRelationshipNotFound:
+		relationshipservice.CodeRelationshipNotFound,
+		apperrors.CodeResourceNotFound:
 		status = http.StatusNotFound
 	case apperrors.CodeSystemError:
 		status = http.StatusInternalServerError

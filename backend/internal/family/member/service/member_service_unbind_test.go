@@ -128,7 +128,7 @@ func (r *memberRepoFake) UnbindLink(_ context.Context, linkID, _ uint64, _ *stri
 }
 
 func testMemberService(repo *memberRepoFake, canManage bool) MemberService {
-	return NewMemberService(nil, repo, memberPermFake{canManage: canManage})
+	return NewMemberService(nil, repo, memberPermFake{canManage: canManage}, nil)
 }
 
 func TestUnbindUserRules(t *testing.T) {

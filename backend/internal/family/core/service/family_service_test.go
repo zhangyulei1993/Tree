@@ -37,6 +37,30 @@ func transactionalTestDB(t *testing.T) *gorm.DB {
 	return tx
 }
 
+func TestCreateFamilyWithoutPhoneVerified(t *testing.T) {
+	ctx := context.Background()
+	tx := transactionalTestDB(t)
+	user := &usermodel.User{
+		PhoneVerified: false, AccountOrigin: "P0_TEST", RegisterClient: "P0_TEST",
+		Status: string(enums.StatusActive),
+	}
+	if err := tx.WithContext(ctx).Create(user).Error; err != nil {
+		t.Fatalf("create user fixture: %v", err)
+	}
+
+	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil)
+	founderGender := string(enums.GenderMale)
+	result, businessErr := service.Create(ctx, user.ID, dto.CreateFamilyRequest{
+		Surname: "测", FounderGender: &founderGender,
+	}, AuditInput{IP: "127.0.0.1", UserAgent: "p0-test"})
+	if businessErr != nil {
+		t.Fatalf("Create without phone verified: %v", businessErr)
+	}
+	if result.ID == 0 {
+		t.Fatalf("expected created family, got %#v", result)
+	}
+}
+
 func TestCreateFamilyInitializesFounderAndGraphVersion(t *testing.T) {
 	ctx := context.Background()
 	tx := transactionalTestDB(t)
@@ -48,7 +72,7 @@ func TestCreateFamilyInitializesFounderAndGraphVersion(t *testing.T) {
 		t.Fatalf("create user fixture: %v", err)
 	}
 
-	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil)
+	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil)
 	founderGender := string(enums.GenderMale)
 	result, businessErr := service.Create(ctx, user.ID, dto.CreateFamilyRequest{
 		Surname: "测", FounderGender: &founderGender,
@@ -99,7 +123,7 @@ func (deniedFamilyPermission) CanManageFamily(context.Context, uint64, uint64) (
 }
 
 func TestNonFounderCannotCreateDissolutionRequest(t *testing.T) {
-	service := NewFamilyService(nil, nil, deniedFamilyPermission{})
+	service := NewFamilyService(nil, nil, deniedFamilyPermission{}, nil)
 	result, businessErr := service.CreateDissolutionRequest(
 		context.Background(), 99, 88, dto.CreateDissolutionRequest{}, AuditInput{},
 	)
@@ -120,7 +144,7 @@ func TestMemberCanLeaveWithoutDeletingTreeNodeOrChangingGraphVersion(t *testing.
 		t.Fatalf("create member user: %v", err)
 	}
 	repo := familyrepo.NewFamilyRepository(tx)
-	service := NewFamilyService(tx, repo, nil)
+	service := NewFamilyService(tx, repo, nil, nil)
 	created, businessErr := service.Create(ctx, founder.ID, dto.CreateFamilyRequest{Surname: "退"}, AuditInput{})
 	if businessErr != nil {
 		t.Fatalf("create family: %v", businessErr)
@@ -172,7 +196,7 @@ func TestFounderMustTransferBeforeLeave(t *testing.T) {
 	if err := tx.WithContext(ctx).Create(user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil)
+	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil)
 	created, businessErr := service.Create(ctx, user.ID, dto.CreateFamilyRequest{Surname: "创"}, AuditInput{})
 	if businessErr != nil {
 		t.Fatalf("create family: %v", businessErr)

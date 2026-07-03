@@ -89,7 +89,7 @@ async function submit() {
 }
 
 onShow(() => {
-  authChecked.value = session.requirePhoneBound('/pages/family/create')
+  authChecked.value = session.requireProfileComplete('/pages/family/create')
 })
 </script>
 

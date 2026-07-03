@@ -1,6 +1,6 @@
 <template>
   <view class="tree-page auth-page">
-    <MiniBackHome />
+    <MiniBackHome v-if="!onboarding" />
     <view class="tree-auth-brand">
       <text class="tree-auth-brand-title">{{ profileTitle }}</text>
       <text class="tree-auth-brand-desc">{{ profileDesc }}</text>
@@ -8,7 +8,7 @@
 
     <MiniCard variant="soft" class="tree-auth-card">
       <view class="avatar-section">
-        <text class="tree-field-label">头像</text>
+        <text class="tree-field-label">头像（可选）</text>
         <!-- #ifdef MP-WEIXIN -->
         <button class="avatar-picker" open-type="chooseAvatar" :disabled="uploading" @chooseavatar="onChooseAvatar">
           <image v-if="avatarPreview" class="avatar-image" :src="avatarPreview" mode="aspectFill" />
@@ -34,14 +34,14 @@
       <text v-if="successMessage" class="tree-field-success">{{ successMessage }}</text>
 
       <MiniButton class="btn-top" :disabled="saving" :loading="saving" @click="saveNickname">
-        保存资料
+        {{ onboarding ? '完成并继续' : '保存资料' }}
       </MiniButton>
     </MiniCard>
   </view>
 </template>
 
 <script setup lang="ts">
-import { onShow } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage, resolveAssetUrl } from '@/api/client'
@@ -49,6 +49,7 @@ import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
+import { isProfileComplete } from '@/features/session/profileComplete'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
@@ -58,13 +59,16 @@ const saving = ref(false)
 const uploading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+const onboarding = ref(false)
 
-const profileComplete = computed(() =>
-  Boolean(session.user?.nickname?.trim()) && Boolean(session.user?.avatarUrl)
-)
-const profileTitle = computed(() => (profileComplete.value ? '更新资料' : '完善资料'))
+const profileComplete = computed(() => isProfileComplete(session.user))
+const profileTitle = computed(() => (onboarding.value ? '完善资料' : profileComplete.value ? '更新资料' : '完善资料'))
 const profileDesc = computed(() =>
-  profileComplete.value ? '更新昵称和头像，保持家人可识别' : '设置昵称和头像，方便家人识别你'
+  onboarding.value
+    ? '设置昵称后即可使用家庭、邀请与加入等功能；头像可选。'
+    : profileComplete.value
+      ? '更新昵称和头像，保持家人可识别'
+      : '设置昵称后即可使用完整功能；头像可选。'
 )
 
 const avatarPreview = computed(() => {
@@ -116,6 +120,9 @@ async function saveNickname() {
     await session.refreshMe().catch(() => undefined)
     successMessage.value = '昵称已保存。'
     uni.showToast({ title: '保存成功', icon: 'success' })
+    if (onboarding.value) {
+      setTimeout(() => session.finishProfile(), 300)
+    }
   } catch (error) {
     errorMessage.value = apiErrorMessage(error, '昵称保存失败，请稍后重试。')
   } finally {
@@ -123,12 +130,21 @@ async function saveNickname() {
   }
 }
 
+onLoad((options) => {
+  onboarding.value = options?.onboarding === '1'
+})
+
 onShow(() => {
   session.restoreSession()
   if (!session.isLoggedIn) {
     uni.reLaunch({ url: '/pages/auth/wechat-login' })
     return
   }
+  if (onboarding.value && session.isProfileComplete) {
+    session.finishProfile()
+    return
+  }
+  nickname.value = session.user?.nickname || ''
   session.refreshMe().catch(() => undefined)
 })
 </script>

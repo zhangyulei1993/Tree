@@ -14,6 +14,7 @@ import (
 
 	"gorm.io/gorm"
 
+	quotaservice "tree/backend/internal/accountquota/service"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
@@ -60,12 +61,13 @@ type service struct {
 	repo        inviterepo.Repository
 	uow         inviterepo.UnitOfWork
 	permissions permission.FamilyPermissionService
+	quota       quotaservice.Service
 	now         func() time.Time
 	token       func() (string, error)
 }
 
-func NewService(repo inviterepo.Repository, uow inviterepo.UnitOfWork, permissions permission.FamilyPermissionService) Service {
-	return &service{repo: repo, uow: uow, permissions: permissions, now: time.Now, token: randomToken}
+func NewService(repo inviterepo.Repository, uow inviterepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service) Service {
+	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, now: time.Now, token: randomToken}
 }
 
 func (s *service) Create(ctx context.Context, actorID, familyID, memberID uint64, req dto.CreateInvitationRequest, audit AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError) {
@@ -127,7 +129,7 @@ func (s *service) Create(ctx context.Context, actorID, familyID, memberID uint64
 		}
 		if req.TargetUserID != nil {
 			user, err := repo.FindUser(ctx, *req.TargetUserID, true)
-			if err != nil || user.Status != string(enums.StatusActive) || !user.PhoneVerified {
+			if err != nil || user.Status != string(enums.StatusActive) {
 				return errMemberUnavailable
 			}
 			linked, err := linkExists(repo.FindActiveLinkByUser(ctx, familyID, *req.TargetUserID))
@@ -138,11 +140,23 @@ func (s *service) Create(ctx context.Context, actorID, familyID, memberID uint64
 				return errUserLinked
 			}
 		}
+		if s.quota != nil {
+			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), actorID); err != nil {
+				return err
+			}
+		}
 		if err := repo.Create(ctx, invitation); err != nil {
 			return err
 		}
 		return writeLog(ctx, repo, actorID, familyID, memberID, invitation.ID, "CREATE_INVITATION", audit)
 	})
+	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
+	}
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}
@@ -208,7 +222,7 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 			return errMemberUnavailable
 		}
 		user, err := repo.FindUser(ctx, actorID, true)
-		if err != nil || user.Status != string(enums.StatusActive) || !user.PhoneVerified {
+		if err != nil || user.Status != string(enums.StatusActive) {
 			return errUserUnavailable
 		}
 		linked, err := linkExists(repo.FindActiveLinkByMember(ctx, invitation.FamilyID, invitation.TargetMemberID))
@@ -224,6 +238,14 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 		}
 		if linked {
 			return errUserLinked
+		}
+		if s.quota != nil {
+			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), actorID); err != nil {
+				return err
+			}
+			if err := s.quota.AssertCanJoinFamily(ctx, repo.DB(), actorID); err != nil {
+				return err
+			}
 		}
 		link := &rolemodel.FamilyMemberUserLink{
 			FamilyID: invitation.FamilyID, MemberID: invitation.TargetMemberID, UserID: actorID,
@@ -249,6 +271,14 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 		}
 		return writeLog(ctx, repo, actorID, invitation.FamilyID, invitation.TargetMemberID, invitation.ID, "ACCEPT_INVITATION", audit)
 	})
+	if txErr != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(txErr); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				s.writeAcceptFailureLog(ctx, actorID, current, invitationID, current.TargetMemberID, businessErr, audit)
+				return nil, businessErr
+			}
+		}
+	}
 	if businessErr := mapError(txErr); businessErr != nil {
 		s.writeAcceptFailureLog(ctx, actorID, current, invitationID, current.TargetMemberID, businessErr, audit)
 		return nil, businessErr
@@ -382,6 +412,11 @@ func (s *service) Regenerate(ctx context.Context, actorID, invitationID uint64, 
 		if value.Status != inviteenum.StatusPending {
 			return errInvalidStatus
 		}
+		if s.quota != nil {
+			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), actorID); err != nil {
+				return err
+			}
+		}
 		if err := repo.UpdateStatus(ctx, value.ID, inviteenum.StatusPending, map[string]any{
 			"status":               inviteenum.StatusCancelled,
 			"cancelled_by_user_id": actorID,
@@ -403,6 +438,13 @@ func (s *service) Regenerate(ctx context.Context, actorID, invitationID uint64, 
 		}
 		return writeLog(ctx, repo, actorID, value.FamilyID, value.TargetMemberID, replacement.ID, "REGENERATE_INVITATION", audit)
 	})
+	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
+	}
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}

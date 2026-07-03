@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	accountmodel "tree/backend/internal/account/model"
+	"tree/backend/internal/common/enums"
 	familyrolemodel "tree/backend/internal/family/role/model"
 	"tree/backend/internal/user/model"
 )
@@ -20,6 +21,7 @@ type UserRepository interface {
 	CreateIdentity(ctx context.Context, identity *model.UserAuthIdentity) error
 	FindIdentityByOpenIDHash(ctx context.Context, provider string, appID string, openIDHash string) (*model.UserAuthIdentity, error)
 	UpdateIdentity(ctx context.Context, identityID uint64, values map[string]any) error
+	CancelActiveIdentities(ctx context.Context, userID uint64) error
 	MoveIdentities(ctx context.Context, sourceUserID uint64, targetUserID uint64) error
 	HasMemberBindingConflict(ctx context.Context, sourceUserID uint64, targetUserID uint64) (bool, error)
 	MoveFamilyLinks(ctx context.Context, sourceUserID uint64, targetUserID uint64) error
@@ -98,6 +100,17 @@ func (r *GormUserRepository) FindIdentityByOpenIDHash(ctx context.Context, provi
 
 func (r *GormUserRepository) UpdateIdentity(ctx context.Context, identityID uint64, values map[string]any) error {
 	return r.db.WithContext(ctx).Model(&model.UserAuthIdentity{}).Where("id = ?", identityID).Updates(values).Error
+}
+
+func (r *GormUserRepository) CancelActiveIdentities(ctx context.Context, userID uint64) error {
+	now := time.Now()
+	return r.db.WithContext(ctx).Model(&model.UserAuthIdentity{}).
+		Where("user_id = ? AND identity_status = ? AND deleted_at IS NULL", userID, string(enums.StatusActive)).
+		Updates(map[string]any{
+			"identity_status": string(enums.StatusCancelled),
+			"unbound_at":      now,
+			"updated_at":      now,
+		}).Error
 }
 
 func (r *GormUserRepository) MoveIdentities(ctx context.Context, sourceUserID uint64, targetUserID uint64) error {

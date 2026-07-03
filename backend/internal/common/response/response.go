@@ -51,7 +51,11 @@ func Created[T any](ctx Context, data T) {
 }
 
 func Error(ctx Context, httpStatus int, err *apperrors.BusinessError) {
-	Fail(ctx, httpStatus, int(err.Code), err.Message)
+	ctx.JSON(httpStatus, APIResponse[any]{
+		Code:    int(err.Code),
+		Message: err.Message,
+		Data:    err.Data,
+	})
 }
 
 func Abort(ctx Context, httpStatus int, code apperrors.Code) {

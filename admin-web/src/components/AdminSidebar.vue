@@ -53,6 +53,7 @@ const menus: MenuItem[] = [
   { path: '/admin/content', label: '内容中心', icon: Files },
   { path: '/admin/founder-transfer-requests', label: '创始人转让审核', icon: Connection, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
   { path: '/admin/dissolution-requests', label: '家庭解散审核', icon: MessageBox, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
+  { path: '/admin/account-quota-configs', label: '账号权益配置', icon: SetUp, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
   { path: '/admin/admin-users', label: '后台管理员管理', icon: UserFilled, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
   { path: '/admin/operation-logs', label: '操作日志', icon: Operation },
   { path: '/admin/families/family_001/members', label: '成员管理样例', icon: SetUp },

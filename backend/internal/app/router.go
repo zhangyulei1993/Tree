@@ -6,7 +6,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 
+	accountquotahandler "tree/backend/internal/accountquota/handler"
+	accountquotarepo "tree/backend/internal/accountquota/repository"
+	accountquotaservice "tree/backend/internal/accountquota/service"
 	adminhandler "tree/backend/internal/admin/handler"
 	adminrepo "tree/backend/internal/admin/repository"
 	adminservice "tree/backend/internal/admin/service"
@@ -110,6 +114,11 @@ func (s *Server) registerAdminRoutes(api *gin.RouterGroup) {
 	protected.GET("/families/:familyId/members", management.Members)
 	protected.GET("/admin-users", management.Admins)
 	protected.GET("/operation-logs", management.Logs)
+
+	quotaHandler := s.buildQuotaHandler(managementDB)
+	protected.GET("/account-quota-configs", quotaHandler.ListConfigs)
+	protected.PUT("/account-quota-configs/:tier", quotaHandler.UpdateConfig)
+	protected.POST("/account-quota-configs/:tier/impact-preview", quotaHandler.PreviewImpact)
 }
 
 func (s *Server) buildAdminAuth() (*adminhandler.AuthHandler, gin.HandlerFunc) {
@@ -163,14 +172,26 @@ func (s *Server) registerUserAuthRoutes(api *gin.RouterGroup) {
 	protected.POST("/wechat-mini/bind-phone", authHandler.BindPhone)
 	protected.POST("/change-phone", authHandler.ChangePhone)
 	protected.POST("/cancel-account", authHandler.CancelAccount)
+	protected.POST("/cancel-account/wechat-reauth", authHandler.CancelAccountByWechatReauth)
 
 	users := api.Group("/users/me")
 	users.Use(userAuth)
 	users.GET("", authHandler.GetMe)
 	users.PATCH("/profile", authHandler.UpdateProfile)
 	users.POST("/avatar", authHandler.UploadAvatar)
+	if db, err := database.Init(context.Background(), s.cfg.MySQL); err == nil {
+		users.GET("/capabilities", s.buildQuotaHandler(db).Capabilities)
+	} else {
+		s.logger.Error("init mysql for user capabilities", zap.Error(err))
+	}
 
 	api.Static("/static/avatars", authservice.AvatarStorageRoot())
+}
+
+func (s *Server) buildQuotaHandler(db *gorm.DB) *accountquotahandler.Handler {
+	quotaRepo := accountquotarepo.NewRepository(db)
+	quotaService := accountquotaservice.NewService(db, quotaRepo)
+	return accountquotahandler.NewHandler(quotaService)
 }
 
 func (s *Server) buildUserAuth() (*authhandler.AuthHandler, gin.HandlerFunc) {
@@ -374,20 +395,22 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 
 	repo := familyrepo.NewFamilyRepository(db)
 	permissionService := permission.NewFamilyPermissionService(db)
-	service := familyservice.NewFamilyService(db, repo, permissionService)
+	quotaRepo := accountquotarepo.NewRepository(db)
+	quotaService := accountquotaservice.NewService(db, quotaRepo)
+	service := familyservice.NewFamilyService(db, repo, permissionService, quotaService)
 	memberRepository := memberrepo.NewMemberRepository(db)
-	memberService := memberservice.NewMemberService(db, memberRepository, permissionService)
+	memberService := memberservice.NewMemberService(db, memberRepository, permissionService, quotaService)
 	relationshipRepository := relationshiprepo.NewRepository(db)
 	relationshipUnitOfWork := relationshiprepo.NewUnitOfWork(db, relationshipRepository)
-	relationshipService := relationshipservice.NewRelationshipService(relationshipRepository, relationshipUnitOfWork, permissionService)
+	relationshipService := relationshipservice.NewRelationshipService(relationshipRepository, relationshipUnitOfWork, permissionService, quotaService)
 	treeRepository := treerepo.NewRepository(db)
 	treeService := treeservice.NewTreeService(treeRepository, treeCache, permissionService)
 	invitationRepository := invitationrepo.NewRepository(db)
 	invitationUnitOfWork := invitationrepo.NewUnitOfWork(db, invitationRepository)
-	invitationService := invitationservice.NewService(invitationRepository, invitationUnitOfWork, permissionService)
+	invitationService := invitationservice.NewService(invitationRepository, invitationUnitOfWork, permissionService, quotaService)
 	joinRepository := joinrepo.NewRepository(db)
 	joinUnitOfWork := joinrepo.NewUnitOfWork(db, joinRepository)
-	joinRequestService := joinservice.NewService(joinRepository, joinUnitOfWork, permissionService)
+	joinRequestService := joinservice.NewService(joinRepository, joinUnitOfWork, permissionService, quotaService)
 	publicRepository := publicrepo.NewRepository(db)
 	publicUnitOfWork := publicrepo.NewUnitOfWork(db, publicRepository)
 	publicApplicationService := publicservice.NewService(publicRepository, publicUnitOfWork, permissionService)
@@ -399,10 +422,10 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 	roleService := roleservice.NewService(roleRepository, roleUnitOfWork)
 	transferRepository := transferrepo.NewRepository(db)
 	transferUnitOfWork := transferrepo.NewUnitOfWork(db, transferRepository)
-	transferService := transferservice.NewService(transferRepository, transferUnitOfWork)
+	transferService := transferservice.NewService(transferRepository, transferUnitOfWork, quotaService)
 	dissolutionRepository := dissolutionrepo.NewRepository(db)
 	dissolutionUnitOfWork := dissolutionrepo.NewUnitOfWork(db, dissolutionRepository)
-	dissolutionService := dissolutionservice.NewService(dissolutionRepository, dissolutionUnitOfWork)
+	dissolutionService := dissolutionservice.NewService(dissolutionRepository, dissolutionUnitOfWork, quotaService)
 	return familyhandler.NewFamilyHandler(service),
 		memberhandler.NewMemberHandler(memberService),
 		relationshiphandler.NewRelationshipHandler(relationshipService),

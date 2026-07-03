@@ -9,6 +9,7 @@ import (
 
 	"gorm.io/gorm"
 
+	quotaservice "tree/backend/internal/accountquota/service"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
@@ -49,11 +50,12 @@ type service struct {
 	repo        joinrepo.Repository
 	uow         joinrepo.UnitOfWork
 	permissions permission.FamilyPermissionService
+	quota       quotaservice.Service
 	now         func() time.Time
 }
 
-func NewService(repo joinrepo.Repository, uow joinrepo.UnitOfWork, permissions permission.FamilyPermissionService) Service {
-	return &service{repo: repo, uow: uow, permissions: permissions, now: time.Now}
+func NewService(repo joinrepo.Repository, uow joinrepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service) Service {
+	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, now: time.Now}
 }
 
 func (s *service) Create(ctx context.Context, actorID, familyID uint64, req dto.CreateJoinRequest, audit AuditInput) (*vo.JoinRequest, *apperrors.BusinessError) {
@@ -73,7 +75,7 @@ func (s *service) Create(ctx context.Context, actorID, familyID uint64, req dto.
 			return errApplicant
 		}
 		user, err := repo.FindUser(ctx, actorID, true)
-		if err != nil || user.Status != string(enums.StatusActive) || !user.PhoneVerified {
+		if err != nil || user.Status != string(enums.StatusActive) {
 			return errApplicant
 		}
 		linked, err := linkExists(repo.FindActiveLinkByUser(ctx, familyID, actorID))
@@ -82,6 +84,11 @@ func (s *service) Create(ctx context.Context, actorID, familyID uint64, req dto.
 		}
 		if linked {
 			return errApplicantLinked
+		}
+		if s.quota != nil {
+			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), actorID); err != nil {
+				return err
+			}
 		}
 		if _, err := repo.FindPending(ctx, familyID, actorID); err == nil {
 			return errDuplicate
@@ -93,6 +100,13 @@ func (s *service) Create(ctx context.Context, actorID, familyID uint64, req dto.
 		}
 		return writeLog(ctx, repo, actorID, familyID, value.ID, "CREATE_JOIN_REQUEST", audit)
 	})
+	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
+	}
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}
@@ -147,7 +161,7 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 			return errInvalidStatus
 		}
 		user, err := repo.FindUser(ctx, request.ApplicantUserID, true)
-		if err != nil || user.Status != string(enums.StatusActive) || !user.PhoneVerified {
+		if err != nil || user.Status != string(enums.StatusActive) {
 			return errApplicant
 		}
 		linked, err := linkExists(repo.FindActiveLinkByUser(ctx, familyID, request.ApplicantUserID))
@@ -156,6 +170,17 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 		}
 		if linked {
 			return errApplicantLinked
+		}
+		if s.quota != nil {
+			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), actorID); err != nil {
+				return err
+			}
+			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), request.ApplicantUserID); err != nil {
+				return err
+			}
+			if err := s.quota.AssertCanJoinFamily(ctx, repo.DB(), request.ApplicantUserID); err != nil {
+				return err
+			}
 		}
 
 		if mode == joinenum.ApproveBindExisting {
@@ -188,6 +213,11 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 			}
 			if request.ApplicantGender != nil && member.Gender != strings.ToUpper(strings.TrimSpace(*request.ApplicantGender)) {
 				return errApplicantGenderMismatch
+			}
+			if s.quota != nil {
+				if err := s.quota.AssertCanAddMember(ctx, repo.DB(), familyID, 1); err != nil {
+					return err
+				}
 			}
 			if err := repo.CreateMember(ctx, member); err != nil {
 				return err
@@ -263,6 +293,13 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 		}
 		return writeLog(ctx, repo, actorID, familyID, request.ID, "APPROVE_JOIN_REQUEST", audit)
 	})
+	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
+	}
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}

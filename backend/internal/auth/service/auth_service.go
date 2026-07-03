@@ -35,19 +35,20 @@ const (
 	ClientH5Web      = "H5_WEB"
 	ClientWechatMini = "WECHAT_MINI_PROGRAM"
 
-	authLogModule          = "USER_AUTH"
-	actionSendCode         = "SEND_CODE"
-	actionRegister         = "REGISTER_PHONE"
-	actionLogin            = "LOGIN_PHONE"
-	actionLogout           = "LOGOUT"
-	actionWechatLogin      = "WECHAT_MINI_LOGIN"
-	actionWechatPhoneLogin = "WECHAT_MINI_PHONE_LOGIN"
-	actionBindPhone        = "BIND_PHONE"
-	actionUpdateProfile    = "UPDATE_USER_PROFILE"
-	actionChangePhone      = "CHANGE_PHONE"
-	actionCancelAccount    = "CANCEL_ACCOUNT"
-	actionMergeAccount     = "ACCOUNT_MERGE"
-	actionClaimAccount     = "ACCOUNT_CLAIM"
+	authLogModule             = "USER_AUTH"
+	actionSendCode            = "SEND_CODE"
+	actionRegister            = "REGISTER_PHONE"
+	actionLogin               = "LOGIN_PHONE"
+	actionLogout              = "LOGOUT"
+	actionWechatLogin         = "WECHAT_MINI_LOGIN"
+	actionWechatPhoneLogin    = "WECHAT_MINI_PHONE_LOGIN"
+	actionBindPhone           = "BIND_PHONE"
+	actionUpdateProfile       = "UPDATE_USER_PROFILE"
+	actionChangePhone         = "CHANGE_PHONE"
+	actionCancelAccount       = "CANCEL_ACCOUNT"
+	actionCancelAccountWechat = "CANCEL_ACCOUNT_WECHAT_REAUTH"
+	actionMergeAccount        = "ACCOUNT_MERGE"
+	actionClaimAccount        = "ACCOUNT_CLAIM"
 
 	accountOriginPhoneRegister   = "PHONE_REGISTER"
 	accountOriginWechatMini      = "WECHAT_MINI_PROGRAM"
@@ -135,6 +136,16 @@ type CancelAccountInput struct {
 	UserAgent    string
 }
 
+type CancelAccountByWechatInput struct {
+	UserID       uint64
+	TokenID      string
+	ExpiresAt    int64
+	Code         string
+	CancelReason string
+	IP           string
+	UserAgent    string
+}
+
 type AuthService interface {
 	SendCode(ctx context.Context, input SendCodeInput) (*vo.SendCodeResponse, *apperrors.BusinessError)
 	RegisterPhone(ctx context.Context, input RegisterPhoneInput) (*vo.LoginResponse, *apperrors.BusinessError)
@@ -145,6 +156,7 @@ type AuthService interface {
 	BindPhone(ctx context.Context, input BindPhoneInput) (*vo.LoginResponse, *apperrors.BusinessError)
 	ChangePhone(ctx context.Context, input ChangePhoneInput) *apperrors.BusinessError
 	CancelAccount(ctx context.Context, input CancelAccountInput) *apperrors.BusinessError
+	CancelAccountByWechatReauth(ctx context.Context, input CancelAccountByWechatInput) *apperrors.BusinessError
 	GetMe(ctx context.Context, userID uint64) (*vo.UserInfo, *apperrors.BusinessError)
 	UpdateProfile(ctx context.Context, input UpdateProfileInput) (*vo.UserInfo, *apperrors.BusinessError)
 	UploadAvatar(ctx context.Context, input UploadAvatarInput) (*vo.UserInfo, *apperrors.BusinessError)
@@ -375,6 +387,18 @@ func (s *PhoneAuthService) WechatMiniLogin(ctx context.Context, input WechatMini
 			s.writeUserAction(ctx, user.ID, actionWechatLogin, input.IP, input.UserAgent, false, "status denied")
 			return nil, apperrors.New(apperrors.CodeWechatAccountInvalid)
 		}
+		if user.Status == string(enums.StatusPendingBind) &&
+			identity.Provider == providerWechatMini &&
+			identity.IdentityStatus == string(enums.StatusActive) {
+			now := time.Now()
+			if err := s.userRepo.UpdateUser(ctx, user.ID, map[string]any{
+				"status":     string(enums.StatusActive),
+				"updated_at": now,
+			}); err != nil {
+				return nil, apperrors.New(apperrors.CodeSystemError)
+			}
+			user.Status = string(enums.StatusActive)
+		}
 		now := time.Now()
 		_ = s.userRepo.UpdateIdentity(ctx, identity.ID, map[string]any{"last_login_at": now, "updated_at": now})
 		_ = s.userRepo.RecordLoginSuccess(ctx, user.ID, input.IP, input.ClientType, now)
@@ -390,8 +414,9 @@ func (s *PhoneAuthService) WechatMiniLogin(ctx context.Context, input WechatMini
 		user := &usermodel.User{
 			AccountOrigin:   accountOriginWechatMini,
 			RegisterClient:  input.ClientType,
-			Status:          string(enums.StatusPendingBind),
+			Status:          string(enums.StatusActive),
 			PhoneVerified:   false,
+			PasswordHash:    nil,
 			LastLoginAt:     &now,
 			LastLoginIP:     stringPtr(input.IP),
 			LastLoginClient: &input.ClientType,
@@ -629,42 +654,13 @@ func (s *PhoneAuthService) CancelAccount(ctx context.Context, input CancelAccoun
 	}
 
 	var businessErr *apperrors.BusinessError
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.withTransaction(ctx, func(tx *gorm.DB) error {
 		txUserRepo := s.userRepo.WithTx(tx)
 		txCodeRepo := s.codeRepo.WithTx(tx)
 		if businessErr = s.consumeCodeWithRepo(ctx, txCodeRepo, *user.Phone, *user.PhoneHash, SceneCancelAccount, input.PhoneCode, apperrors.CodeCancelCodeInvalid, apperrors.CodeCancelCodeInvalid); businessErr != nil {
 			return errors.New(errRollback)
 		}
-		now := time.Now()
-		oldPhone := *user.Phone
-		oldHash := *user.PhoneHash
-		if err := txUserRepo.UpdateUser(ctx, user.ID, map[string]any{
-			"status":         string(enums.StatusCancelled),
-			"phone":          nil,
-			"phone_hash":     nil,
-			"phone_verified": false,
-			"nickname":       nil,
-			"avatar_url":     nil,
-			"real_name":      nil,
-			"password_hash":  nil,
-			"cancelled_at":   now,
-			"cancel_reason":  input.CancelReason,
-			"updated_at":     now,
-		}); err != nil {
-			businessErr = apperrors.New(apperrors.CodeSystemError)
-			return errors.New(errRollback)
-		}
-		if err := txUserRepo.MoveIdentities(ctx, user.ID, user.ID); err != nil {
-			businessErr = apperrors.New(apperrors.CodeSystemError)
-			return errors.New(errRollback)
-		}
-		_ = txUserRepo.UpdateUser(ctx, user.ID, map[string]any{"updated_at": now})
-		_ = txUserRepo.CreatePhoneHistory(ctx, phoneHistory(user.ID, &oldPhone, &oldHash, "CANCEL_ACCOUNT", user.ID))
-		return tx.Model(&usermodel.UserAuthIdentity{}).Where("user_id = ? AND deleted_at IS NULL", user.ID).Updates(map[string]any{
-			"identity_status": string(enums.StatusCancelled),
-			"unbound_at":      now,
-			"updated_at":      now,
-		}).Error
+		return s.cancelUserInTx(ctx, txUserRepo, user, input.CancelReason)
 	})
 	if err != nil {
 		if businessErr != nil {
@@ -673,9 +669,84 @@ func (s *PhoneAuthService) CancelAccount(ctx context.Context, input CancelAccoun
 		}
 		return apperrors.New(apperrors.CodeSystemError)
 	}
-	_ = s.blacklist.Revoke(ctx, input.TokenID, time.Until(time.Unix(input.ExpiresAt, 0)))
-	_ = s.blacklist.RevokeUserTokens(ctx, user.ID, time.Now().Unix(), 30*24*time.Hour)
+	if s.blacklist != nil {
+		_ = s.blacklist.Revoke(ctx, input.TokenID, time.Until(time.Unix(input.ExpiresAt, 0)))
+		_ = s.blacklist.RevokeUserTokens(ctx, user.ID, time.Now().Unix(), 30*24*time.Hour)
+	}
 	s.writeUserAction(ctx, user.ID, actionCancelAccount, input.IP, input.UserAgent, true, "")
+	return nil
+}
+
+func (s *PhoneAuthService) CancelAccountByWechatReauth(ctx context.Context, input CancelAccountByWechatInput) *apperrors.BusinessError {
+	user, err := s.userRepo.FindByID(ctx, input.UserID)
+	if err != nil || user.Status != string(enums.StatusActive) {
+		return apperrors.New(apperrors.CodeCancelStatusDenied)
+	}
+	if businessErr := s.checkCanCancel(ctx, user.ID); businessErr != nil {
+		return businessErr
+	}
+
+	result, err := s.wechatClient.Code2Session(ctx, input.Code)
+	if err != nil {
+		s.writeUserAction(ctx, user.ID, actionCancelAccountWechat, input.IP, input.UserAgent, false, "wechat code2session failed")
+		return apperrors.New(apperrors.CodeCancelWechatCodeInvalid)
+	}
+	openIDHash := security.HashPlain(result.OpenID)
+	identity, err := s.userRepo.FindIdentityByOpenIDHash(ctx, providerWechatMini, s.wechatAppID, openIDHash)
+	if err != nil || identity.UserID != input.UserID || identity.IdentityStatus != string(enums.StatusActive) {
+		s.writeUserAction(ctx, user.ID, actionCancelAccountWechat, input.IP, input.UserAgent, false, "identity mismatch")
+		return apperrors.New(apperrors.CodeCancelWechatIdentityMismatch)
+	}
+
+	var businessErr *apperrors.BusinessError
+	err = s.withTransaction(ctx, func(tx *gorm.DB) error {
+		txUserRepo := s.userRepo.WithTx(tx)
+		return s.cancelUserInTx(ctx, txUserRepo, user, input.CancelReason)
+	})
+	if err != nil {
+		if businessErr != nil {
+			s.writeUserAction(ctx, user.ID, actionCancelAccountWechat, input.IP, input.UserAgent, false, businessErr.Message)
+			return businessErr
+		}
+		return apperrors.New(apperrors.CodeSystemError)
+	}
+	if s.blacklist != nil {
+		_ = s.blacklist.Revoke(ctx, input.TokenID, time.Until(time.Unix(input.ExpiresAt, 0)))
+		_ = s.blacklist.RevokeUserTokens(ctx, user.ID, time.Now().Unix(), 30*24*time.Hour)
+	}
+	s.writeUserAction(ctx, user.ID, actionCancelAccountWechat, input.IP, input.UserAgent, true, "")
+	return nil
+}
+
+func (s *PhoneAuthService) cancelUserInTx(ctx context.Context, txUserRepo repository.UserRepository, user *usermodel.User, cancelReason string) error {
+	now := time.Now()
+	updates := map[string]any{
+		"status":         string(enums.StatusCancelled),
+		"phone":          nil,
+		"phone_hash":     nil,
+		"phone_verified": false,
+		"nickname":       nil,
+		"avatar_url":     nil,
+		"real_name":      nil,
+		"password_hash":  nil,
+		"cancelled_at":   now,
+		"cancel_reason":  cancelReason,
+		"updated_at":     now,
+	}
+	if err := txUserRepo.UpdateUser(ctx, user.ID, updates); err != nil {
+		return errors.New(errRollback)
+	}
+	if user.Phone != nil && user.PhoneHash != nil {
+		oldPhone := *user.Phone
+		oldHash := *user.PhoneHash
+		_ = txUserRepo.CreatePhoneHistory(ctx, phoneHistory(user.ID, &oldPhone, &oldHash, "CANCEL_ACCOUNT", user.ID))
+	}
+	if err := txUserRepo.MoveIdentities(ctx, user.ID, user.ID); err != nil {
+		return errors.New(errRollback)
+	}
+	if err := txUserRepo.CancelActiveIdentities(ctx, user.ID); err != nil {
+		return errors.New(errRollback)
+	}
 	return nil
 }
 

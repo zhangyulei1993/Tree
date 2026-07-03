@@ -8,6 +8,7 @@ import (
 
 	"gorm.io/gorm"
 
+	quotaservice "tree/backend/internal/accountquota/service"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
@@ -71,15 +72,16 @@ type familyService struct {
 	db          *gorm.DB
 	repo        familyrepo.FamilyRepository
 	permissions permission.FamilyPermissionService
+	quota       quotaservice.Service
 }
 
-func NewFamilyService(db *gorm.DB, repo familyrepo.FamilyRepository, permissions permission.FamilyPermissionService) FamilyService {
-	return &familyService{db: db, repo: repo, permissions: permissions}
+func NewFamilyService(db *gorm.DB, repo familyrepo.FamilyRepository, permissions permission.FamilyPermissionService, quota quotaservice.Service) FamilyService {
+	return &familyService{db: db, repo: repo, permissions: permissions, quota: quota}
 }
 
 func (s *familyService) Create(ctx context.Context, userID uint64, req dto.CreateFamilyRequest, audit AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError) {
 	user, err := s.repo.FindUserByID(ctx, userID)
-	if err != nil || user.Status != string(enums.StatusActive) || !user.PhoneVerified {
+	if err != nil || user.Status != string(enums.StatusActive) {
 		return nil, familyError(CodeFamilyCreateStatusDenied, "当前账号状态不允许创建家庭")
 	}
 	surname := strings.TrimSpace(req.Surname)
@@ -130,6 +132,14 @@ func (s *familyService) Create(ctx context.Context, userID uint64, req dto.Creat
 
 	role := string(enums.FamilyRoleFounder)
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if s.quota != nil {
+			if err := s.quota.AssertProfileComplete(ctx, tx, userID); err != nil {
+				return err
+			}
+			if err := s.quota.AssertCanCreateFamily(ctx, tx, userID); err != nil {
+				return err
+			}
+		}
 		txRepo := s.repo.WithTx(tx)
 		if err := txRepo.CreateFamily(ctx, family); err != nil {
 			return err
@@ -170,6 +180,11 @@ func (s *familyService) Create(ctx context.Context, userID uint64, req dto.Creat
 		))
 	})
 	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
 	return familyDetail(family, role), nil

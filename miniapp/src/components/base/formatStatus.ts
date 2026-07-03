@@ -110,7 +110,7 @@ export function accountStatusText(status?: string): string {
     case 'CANCELLED':
       return '已注销'
     case 'PENDING_PHONE_BIND':
-      return '待绑定手机号'
+      return '资料待完善'
     default:
       return '未知'
   }

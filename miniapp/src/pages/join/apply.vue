@@ -34,14 +34,13 @@
           请先登录，再提交加入申请。
         </MiniNotice>
         <MiniButton @click="requireLogin">微信登录</MiniButton>
-        <MiniButton variant="secondary" class="btn-top" @click="goPhoneLogin">手机号登录</MiniButton>
       </MiniCard>
 
-      <MiniCard v-else-if="!session.isPhoneBound">
-        <MiniNotice tone="warm" title="需要绑定手机号">
-          请先绑定手机号并设置登录密码，再提交加入申请。
+      <MiniCard v-else-if="!session.isProfileComplete">
+        <MiniNotice tone="warm" title="需要完善资料">
+          请先设置昵称，再提交加入申请。
         </MiniNotice>
-        <MiniButton @click="requirePhoneBound">去绑定手机号</MiniButton>
+        <MiniButton @click="requireProfileComplete">去完善资料</MiniButton>
       </MiniCard>
 
       <MiniCard v-else-if="alreadyMember" variant="soft">
@@ -147,13 +146,8 @@ function requireLogin() {
   session.requireLogin(currentRoute())
 }
 
-function requirePhoneBound() {
-  session.requirePhoneBound(currentRoute())
-}
-
-function goPhoneLogin() {
-  uni.setStorageSync(pendingRouteKey, currentRoute())
-  uni.navigateTo({ url: '/pages/auth/phone-login' })
+function requireProfileComplete() {
+  session.requireProfileComplete(currentRoute())
 }
 
 const genders: Gender[] = ['MALE', 'FEMALE']
@@ -176,7 +170,7 @@ async function loadFamily() {
   alreadyMember.value = false
   try {
     family.value = await getPublicFamilyDetail(familyId.value)
-    if (session.isLoggedIn && session.isPhoneBound) {
+    if (session.isLoggedIn && session.isProfileComplete) {
       const [requests, myFamilies] = await Promise.all([
         listMyJoinRequests(),
         listMyFamilies()
@@ -195,7 +189,7 @@ async function loadFamily() {
 }
 
 async function submitApplication() {
-  if (!session.requirePhoneBound(currentRoute())) return
+  if (!session.requireProfileComplete(currentRoute())) return
   submitting.value = true
   submitError.value = ''
   try {

@@ -9,6 +9,7 @@ import (
 
 	"gorm.io/gorm"
 
+	quotaservice "tree/backend/internal/accountquota/service"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	membermodel "tree/backend/internal/family/member/model"
@@ -64,6 +65,11 @@ func (s *relationshipService) PlaceExisting(ctx context.Context, actorID uint64,
 		if family.Status != string(enums.StatusNormal) {
 			return errFamilyUnavailable
 		}
+		if s.quota != nil {
+			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), actorID); err != nil {
+				return err
+			}
+		}
 		member, err = repo.FindMemberForUpdate(ctx, familyID, req.MemberID)
 		if err != nil {
 			return errMemberUnavailable
@@ -88,6 +94,13 @@ func (s *relationshipService) PlaceExisting(ctx context.Context, actorID uint64,
 		}
 		return writeOperationLog(ctx, repo, actorID, familyID, "PLACE_EXISTING_MEMBER", createdRelationships, audit)
 	})
+	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
+	}
 	if businessErr := mapRepositoryError(err); businessErr != nil {
 		return nil, businessErr
 	}
@@ -102,10 +115,11 @@ type relationshipService struct {
 	repo        relationshiprepo.Repository
 	unitOfWork  relationshiprepo.UnitOfWork
 	permissions familyPermission
+	quota       quotaservice.Service
 }
 
-func NewRelationshipService(repo relationshiprepo.Repository, unitOfWork relationshiprepo.UnitOfWork, permissions familyPermission) RelationshipService {
-	return &relationshipService{repo: repo, unitOfWork: unitOfWork, permissions: permissions}
+func NewRelationshipService(repo relationshiprepo.Repository, unitOfWork relationshiprepo.UnitOfWork, permissions familyPermission, quota quotaservice.Service) RelationshipService {
+	return &relationshipService{repo: repo, unitOfWork: unitOfWork, permissions: permissions, quota: quota}
 }
 
 func (s *relationshipService) Create(ctx context.Context, actorID uint64, familyID uint64, req dto.CreateRelationshipRequest, audit AuditInput) (*vo.MutationResult, *apperrors.BusinessError) {
@@ -142,6 +156,14 @@ func (s *relationshipService) Create(ctx context.Context, actorID uint64, family
 		if err := validatePlacementMembers(baseMember, member, addType); err != nil {
 			return err
 		}
+		if s.quota != nil {
+			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), actorID); err != nil {
+				return err
+			}
+			if err := s.quota.AssertCanAddMember(ctx, repo.DB(), familyID, 1); err != nil {
+				return err
+			}
+		}
 		if err := repo.CreateMember(ctx, member); err != nil {
 			return err
 		}
@@ -161,6 +183,13 @@ func (s *relationshipService) Create(ctx context.Context, actorID uint64, family
 		}
 		return writeOperationLog(ctx, repo, actorID, familyID, "CREATE_RELATIONSHIP", createdRelationships, audit)
 	})
+	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
+	}
 	if businessErr := mapRepositoryError(err); businessErr != nil {
 		return nil, businessErr
 	}

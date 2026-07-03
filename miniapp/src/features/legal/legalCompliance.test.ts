@@ -86,7 +86,7 @@ test('privacy policy covers collection categories and rights', () => {
     '未满 14 周岁',
     '注销不会自动删除',
     '在世成员',
-    'getPhoneNumber'
+    '不收集手机号'
   ]
   for (const snippet of requiredSnippets) {
     assert.match(combined, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
@@ -120,15 +120,23 @@ test('kinship page documents local-only processing', () => {
   assert.match(source, /不上传|不上送|本地/)
 })
 
-test('app mounts privacy consent modal before collection', () => {
+test('app mounts privacy consent modal and triggers prompt on launch/show', () => {
   const appPath = join(miniappSrc, 'App.vue')
   const source = readFileSync(appPath, 'utf8')
   assert.match(source, /PrivacyConsentModal/)
+  assert.match(source, /onLaunch/)
+  assert.match(source, /onShow/)
+  assert.match(source, /promptPrivacyConsentIfNeeded/)
 })
 
-test('manifest enables wechat privacy check and chooseAvatar declaration', () => {
+test('manifest enables privacy check without invalid chooseAvatar private-info declaration', () => {
   const manifestPath = join(miniappSrc, 'manifest.json')
-  const source = readFileSync(manifestPath, 'utf8')
-  assert.match(source, /__usePrivacyCheck__/)
-  assert.match(source, /chooseAvatar/)
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    'mp-weixin'?: {
+      __usePrivacyCheck__?: boolean
+      requiredPrivateInfos?: string[]
+    }
+  }
+  assert.equal(manifest['mp-weixin']?.__usePrivacyCheck__, true)
+  assert.ok(!manifest['mp-weixin']?.requiredPrivateInfos?.includes('chooseAvatar'))
 })

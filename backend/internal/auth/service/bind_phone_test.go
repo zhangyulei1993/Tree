@@ -131,6 +131,7 @@ func (r *bindUserRepoFake) FindIdentityByOpenIDHash(context.Context, string, str
 }
 
 func (r *bindUserRepoFake) UpdateIdentity(context.Context, uint64, map[string]any) error { return nil }
+func (r *bindUserRepoFake) CancelActiveIdentities(context.Context, uint64) error         { return nil }
 func (r *bindUserRepoFake) MoveIdentities(context.Context, uint64, uint64) error         { return nil }
 func (r *bindUserRepoFake) HasMemberBindingConflict(context.Context, uint64, uint64) (bool, error) {
 	return false, nil
@@ -227,7 +228,7 @@ func TestApplyPasswordIfUnset(t *testing.T) {
 	}
 }
 
-func TestWechatMiniLoginCreatesPendingBindUser(t *testing.T) {
+func TestWechatMiniLoginCreatesActiveUserWithoutPhone(t *testing.T) {
 	const code = "wx-login-code"
 	users := newBindUserRepoFake()
 	logs := &authLogCapture{}
@@ -245,7 +246,7 @@ func TestWechatMiniLoginCreatesPendingBindUser(t *testing.T) {
 	if businessErr != nil {
 		t.Fatalf("WechatMiniLogin: %v", businessErr)
 	}
-	if result.User.Status != string(enums.StatusPendingBind) || result.User.PhoneVerified {
+	if result.User.Status != string(enums.StatusActive) || result.User.PhoneVerified || result.User.Phone != nil {
 		t.Fatalf("unexpected login user: %#v", result.User)
 	}
 	if len(users.users) != 1 {

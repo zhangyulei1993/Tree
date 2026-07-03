@@ -8,6 +8,7 @@ import (
 
 	"gorm.io/gorm"
 
+	quotaservice "tree/backend/internal/accountquota/service"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	dissolutiondto "tree/backend/internal/family/dissolution/dto"
@@ -40,13 +41,14 @@ type Service interface {
 }
 
 type service struct {
-	repo dissolutionrepo.Repository
-	uow  dissolutionrepo.UnitOfWork
-	now  func() time.Time
+	repo  dissolutionrepo.Repository
+	uow   dissolutionrepo.UnitOfWork
+	quota quotaservice.Service
+	now   func() time.Time
 }
 
-func NewService(repo dissolutionrepo.Repository, uow dissolutionrepo.UnitOfWork) Service {
-	return &service{repo: repo, uow: uow, now: time.Now}
+func NewService(repo dissolutionrepo.Repository, uow dissolutionrepo.UnitOfWork, quota quotaservice.Service) Service {
+	return &service{repo: repo, uow: uow, quota: quota, now: time.Now}
 }
 
 func (s *service) ListAdmin(ctx context.Context, adminID uint64, role string, req dissolutiondto.ListDissolutionQuery) (*vo.ListResult, *apperrors.BusinessError) {
@@ -135,6 +137,11 @@ func (s *service) Restore(ctx context.Context, adminID uint64, role string, fami
 		if family.Status != string(enums.StatusDissolved) {
 			return errRestoreStatus
 		}
+		if s.quota != nil {
+			if err := s.quota.AssertCanRestoreFamily(ctx, repo.DB(), familyID); err != nil {
+				return err
+			}
+		}
 		searchable := true
 		if req.Searchable != nil {
 			searchable = *req.Searchable
@@ -154,6 +161,13 @@ func (s *service) Restore(ctx context.Context, adminID uint64, role string, fami
 		result = &vo.RestoreResult{FamilyID: familyID, Status: string(enums.StatusNormal), PublicDisplayStatus: string(enums.StatusPrivate), Searchable: searchable, GraphVersion: family.GraphVersion, RestoredAt: &now}
 		return nil
 	})
+	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
+	}
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}

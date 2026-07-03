@@ -24,6 +24,7 @@ type InvitationRow struct {
 
 type Repository interface {
 	WithTx(*gorm.DB) Repository
+	DB() *gorm.DB
 	FindFamily(context.Context, uint64, bool) (*familymodel.Family, error)
 	FindMember(context.Context, uint64, uint64, bool) (*membermodel.FamilyMember, error)
 	FindUser(context.Context, uint64, bool) (*usermodel.User, error)
@@ -47,6 +48,7 @@ type GormRepository struct{ db *gorm.DB }
 
 func NewRepository(db *gorm.DB) *GormRepository         { return &GormRepository{db: db} }
 func (r *GormRepository) WithTx(tx *gorm.DB) Repository { return &GormRepository{db: tx} }
+func (r *GormRepository) DB() *gorm.DB                  { return r.db }
 
 func (r *GormRepository) FindFamily(ctx context.Context, id uint64, lock bool) (*familymodel.Family, error) {
 	var value familymodel.Family

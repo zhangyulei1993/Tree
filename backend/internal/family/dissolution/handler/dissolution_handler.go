@@ -115,7 +115,8 @@ func write(ctx *gin.Context, status int, result any, err *apperrors.BusinessErro
 	switch err.Code {
 	case dissolutionservice.CodeDissolutionAdminDenied, dissolutionservice.CodeFamilyRestoreAdminDenied:
 		httpStatus = http.StatusForbidden
-	case dissolutionservice.CodeDissolutionNotFound:
+	case dissolutionservice.CodeDissolutionNotFound,
+		apperrors.CodeResourceNotFound:
 		httpStatus = http.StatusNotFound
 	case apperrors.CodeSystemError:
 		httpStatus = http.StatusInternalServerError

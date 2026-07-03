@@ -24,6 +24,7 @@ type JoinRequestRow struct {
 
 type Repository interface {
 	WithTx(*gorm.DB) Repository
+	DB() *gorm.DB
 	FindFamily(context.Context, uint64, bool) (*familymodel.Family, error)
 	FindUser(context.Context, uint64, bool) (*usermodel.User, error)
 	FindMember(context.Context, uint64, uint64, bool) (*membermodel.FamilyMember, error)
@@ -51,6 +52,7 @@ func NewRepository(db *gorm.DB) *GormRepository {
 	return &GormRepository{db: db, relationships: relationshiprepo.NewRepository(db)}
 }
 func (r *GormRepository) WithTx(tx *gorm.DB) Repository { return NewRepository(tx) }
+func (r *GormRepository) DB() *gorm.DB                  { return r.db }
 
 func (r *GormRepository) FindFamily(ctx context.Context, id uint64, lock bool) (*familymodel.Family, error) {
 	var value familymodel.Family

@@ -35,10 +35,10 @@ export const LOCAL_ONLY_INFO = [
 export const COLLECTED_INFO_ITEMS: CollectedInfoItem[] = [
   {
     category: '账号与身份',
-    fields: '手机号、登录密码（哈希保存）、短信验证码（哈希保存）、微信登录凭证 code（服务端换取 openid/unionid）、昵称、头像',
-    purpose: '注册登录、绑定手机号、找回与变更联系方式、账号注销、身份识别与资料展示',
-    method: '你主动填写或授权；微信登录时由微信向服务端提供 openid/unionid（小程序前端不展示完整值）',
-    necessary: '使用家庭协作、加入申请、邀请绑定、留言等需登录且绑定手机号的功能所必需；浏览公开家庭主页、使用本地称谓工具可不提供',
+    fields: '微信登录凭证 code（服务端换取 openid/unionid）、昵称、头像（可选）',
+    purpose: '微信登录、身份识别、资料展示与账号注销重新认证',
+    method: '你授权微信登录；昵称与头像由你主动填写或选择',
+    necessary: '使用家庭协作、加入申请、邀请绑定等功能需登录并设置昵称；浏览公开家庭主页、使用本地称谓工具可不登录',
     retention: LEGAL_RETENTION_PLACEHOLDER
   },
   {
@@ -83,7 +83,7 @@ export const COLLECTED_INFO_ITEMS: CollectedInfoItem[] = [
   },
   {
     category: '安全与运行日志',
-    fields: 'IP 地址、User-Agent、登录时间、重要操作类型与时间（不含明文密码、验证码、完整 token、完整 openid/unionid）',
+    fields: 'IP 地址、User-Agent、登录时间、重要操作类型与时间（不含完整 token、完整 openid/unionid）',
     purpose: '保障账号与家庭数据安全、满足审计与纠纷核查',
     method: '你使用服务时由服务端自动记录',
     necessary: '网络安全与合规所必需',
@@ -95,8 +95,8 @@ export const WECHAT_PRIVACY_DECLARATIONS: WechatPrivacyDeclaration[] = [
   {
     apiOrScene: 'wx.login / uni.login（微信登录）',
     information: '微信登录凭证；服务端获取 openid、unionid（如可用）',
-    purpose: '创建或识别平台账号、完成微信登录',
-    usedInCode: 'pages/auth/wechat-login.vue、stores/session.ts'
+    purpose: '创建或识别平台账号、完成微信登录与注销重新认证',
+    usedInCode: 'pages/auth/wechat-login.vue、pages/account/cancel.vue、stores/session.ts'
   },
   {
     apiOrScene: 'chooseAvatar（选择头像）',
@@ -108,18 +108,13 @@ export const WECHAT_PRIVACY_DECLARATIONS: WechatPrivacyDeclaration[] = [
     apiOrScene: 'input type=nickname（昵称填写）',
     information: '昵称',
     purpose: '设置或更新账号昵称',
-    usedInCode: 'pages/me/profile.vue、pages/auth/register-phone.vue（可选）'
-  },
-  {
-    apiOrScene: '用户主动输入手机号 + 短信验证码',
-    information: '手机号、验证码',
-    purpose: '注册、登录、绑定手机号、变更手机号、注销账号',
-    usedInCode: 'pages/auth/phone-login.vue、pages/auth/bind-phone.vue、pages/auth/register-phone.vue、pages/account/cancel.vue、pages/account/change-phone.vue'
+    usedInCode: 'pages/me/profile.vue'
   }
 ]
 
 /** 代码中未使用、不得在隐私指引中声明的能力 */
 export const NOT_COLLECTED_IN_APP = [
+  '手机号、短信验证码、登录密码',
   '微信手机号一键获取（getPhoneNumber）',
   '通讯录、地理位置、麦克风、摄像头（除头像选择外）、蓝牙、日历、运动数据',
   '支付账号与交易信息（小程序当前无支付功能）'
@@ -130,11 +125,6 @@ export const THIRD_PARTY_PROCESSORS = [
     name: '深圳市腾讯计算机系统有限公司',
     role: '微信开放平台（登录、头像选择等微信能力）',
     region: '中国境内'
-  },
-  {
-    name: LEGAL_OPERATOR.smsProvider,
-    role: '短信验证码发送',
-    region: LEGAL_OPERATOR.serverRegion
   },
   {
     name: LEGAL_OPERATOR.serverProvider,

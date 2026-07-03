@@ -242,3 +242,34 @@ func (h *AuthHandler) CancelAccount(ctx *gin.Context) {
 
 	response.OK(ctx, gin.H{"status": "ok"})
 }
+
+func (h *AuthHandler) CancelAccountByWechatReauth(ctx *gin.Context) {
+	userID, err := middleware.CurrentUserID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	tokenID, _ := middleware.CurrentJWTID(ctx)
+	expiresAt, _ := middleware.CurrentJWTExpiresAt(ctx)
+
+	var req dto.CancelAccountByWechatRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+
+	if businessErr := h.service.CancelAccountByWechatReauth(ctx.Request.Context(), authservice.CancelAccountByWechatInput{
+		UserID:       userID,
+		TokenID:      tokenID,
+		ExpiresAt:    expiresAt,
+		Code:         req.Code,
+		CancelReason: req.CancelReason,
+		IP:           ctx.ClientIP(),
+		UserAgent:    ctx.Request.UserAgent(),
+	}); businessErr != nil {
+		response.Error(ctx, http.StatusBadRequest, businessErr)
+		return
+	}
+
+	response.OK(ctx, gin.H{"status": "ok"})
+}

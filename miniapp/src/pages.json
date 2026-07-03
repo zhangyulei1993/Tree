@@ -2,9 +2,6 @@
   "pages": [
     {"path": "pages/home/index", "style": {"navigationBarTitleText": "Tree"}},
     {"path": "pages/auth/wechat-login", "style": {"navigationBarTitleText": "微信快捷登录"}},
-    {"path": "pages/auth/bind-phone", "style": {"navigationBarTitleText": "绑定手机号"}},
-    {"path": "pages/auth/phone-login", "style": {"navigationBarTitleText": "手机号登录"}},
-    {"path": "pages/auth/register-phone", "style": {"navigationBarTitleText": "手机号注册"}},
     {"path": "pages/family/search", "style": {"navigationBarTitleText": "寻找公开家庭"}},
     {"path": "pages/content/index", "style": {"navigationBarTitleText": "阅读"}},
     {"path": "pages/content/detail", "style": {"navigationBarTitleText": "内容详情"}},
@@ -34,7 +31,6 @@
     {"path": "pages/legal/user-agreement", "style": {"navigationBarTitleText": "用户协议"}},
     {"path": "pages/legal/privacy-policy", "style": {"navigationBarTitleText": "隐私政策"}},
     {"path": "pages/account/cancel", "style": {"navigationBarTitleText": "注销账号"}},
-    {"path": "pages/account/change-phone", "style": {"navigationBarTitleText": "更改手机号"}},
     {"path": "pages/tools/kinship", "style": {"navigationBarTitleText": "亲属关系工具"}}
   ],
   "globalStyle": {

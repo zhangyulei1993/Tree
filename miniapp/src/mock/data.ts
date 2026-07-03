@@ -1,4 +1,4 @@
-export type UserState = 'guest' | 'wechatLoggedInPendingPhone' | 'phoneBoundActive'
+export type UserState = 'guest' | 'wechatProfileIncomplete' | 'wechatActive'
 
 export const mockUser = {
   nickname: '松山',

@@ -173,7 +173,8 @@ func writeError(ctx *gin.Context, businessErr *apperrors.BusinessError) {
 		memberservice.CodeMemberUnbindProtected:
 		status = http.StatusForbidden
 	case memberservice.CodeMemberNotFound,
-		memberservice.CodeMemberUserUnavailable:
+		memberservice.CodeMemberUserUnavailable,
+		apperrors.CodeResourceNotFound:
 		status = http.StatusNotFound
 	case apperrors.CodeSystemError:
 		status = http.StatusInternalServerError

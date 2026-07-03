@@ -8,6 +8,7 @@ import (
 
 	"gorm.io/gorm"
 
+	quotaservice "tree/backend/internal/accountquota/service"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	transferdto "tree/backend/internal/family/transfer/dto"
@@ -42,13 +43,14 @@ type Service interface {
 }
 
 type service struct {
-	repo transferrepo.Repository
-	uow  transferrepo.UnitOfWork
-	now  func() time.Time
+	repo  transferrepo.Repository
+	uow   transferrepo.UnitOfWork
+	quota quotaservice.Service
+	now   func() time.Time
 }
 
-func NewService(repo transferrepo.Repository, uow transferrepo.UnitOfWork) Service {
-	return &service{repo: repo, uow: uow, now: time.Now}
+func NewService(repo transferrepo.Repository, uow transferrepo.UnitOfWork, quota quotaservice.Service) Service {
+	return &service{repo: repo, uow: uow, quota: quota, now: time.Now}
 }
 
 func (s *service) Create(ctx context.Context, actorID uint64, familyID uint64, req transferdto.CreateTransferRequest, audit AuditInput) (*vo.TransferRequest, *apperrors.BusinessError) {
@@ -76,6 +78,14 @@ func (s *service) Create(ctx context.Context, actorID uint64, familyID uint64, r
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
+		if s.quota != nil {
+			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), actorID); err != nil {
+				return err
+			}
+			if err := s.quota.AssertFounderTransferReceiver(ctx, repo.DB(), toLink.UserID, familyID); err != nil {
+				return err
+			}
+		}
 		request := &transfermodel.FamilyFounderTransferRequest{
 			FamilyID: familyID, FromMemberID: fromLink.MemberID, FromUserID: actorID,
 			ToMemberID: req.ToMemberID, ToUserID: toLink.UserID,
@@ -87,6 +97,13 @@ func (s *service) Create(ctx context.Context, actorID uint64, familyID uint64, r
 		requestID = request.ID
 		return writeUserLog(ctx, repo, actorID, familyID, requestID, fromLink.MemberID, "CREATE_FOUNDER_TRANSFER_REQUEST", audit)
 	})
+	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
+	}
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}
@@ -189,6 +206,11 @@ func (s *service) review(ctx context.Context, adminID uint64, role string, reque
 			if err != nil {
 				return errTargetInvalid
 			}
+			if s.quota != nil {
+				if err := s.quota.AssertPostFounderTransfer(ctx, repo.DB(), request.FromUserID, toLink.UserID, request.FamilyID); err != nil {
+					return err
+				}
+			}
 			if err := repo.UpdateLinkRole(ctx, fromLink.ID, map[string]any{"family_role": string(enums.FamilyRoleMember)}); err != nil {
 				return err
 			}
@@ -222,6 +244,13 @@ func (s *service) review(ctx context.Context, adminID uint64, role string, reque
 		}
 		return writeAdminLog(ctx, repo, adminID, role, request.FamilyID, requestID, action, audit)
 	})
+	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
+	}
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}

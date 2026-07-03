@@ -21,6 +21,7 @@ type SpouseRelationshipRow struct {
 
 type Repository interface {
 	WithTx(*gorm.DB) Repository
+	DB() *gorm.DB
 	LockFamily(context.Context, uint64) (*familymodel.Family, error)
 	FindMemberForUpdate(context.Context, uint64, uint64) (*membermodel.FamilyMember, error)
 	CreateMember(context.Context, *membermodel.FamilyMember) error
@@ -50,6 +51,10 @@ func NewRepository(db *gorm.DB) *GormRepository {
 
 func (r *GormRepository) WithTx(tx *gorm.DB) Repository {
 	return &GormRepository{db: tx}
+}
+
+func (r *GormRepository) DB() *gorm.DB {
+	return r.db
 }
 
 func (r *GormRepository) LockFamily(ctx context.Context, familyID uint64) (*familymodel.Family, error) {

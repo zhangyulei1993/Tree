@@ -121,10 +121,11 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { listContentArticles, listContentCategories } from '@/api/content'
+import { promptPrivacyConsentIfNeeded } from '@/features/legal/privacyConsent'
 import { useSessionStore } from '@/stores/session'
 import type { ContentArticleSummary, ContentCategory } from '@/types/api'
 
@@ -174,7 +175,7 @@ function go(url: string) {
 }
 
 function goPhoneProtected(url: string) {
-  if (session.requirePhoneBound(url)) {
+  if (session.requireProfileComplete(url)) {
     go(url)
   }
 }
@@ -184,6 +185,10 @@ function goTab(url: string) {
 }
 
 onLoad(loadReading)
+
+onShow(() => {
+  promptPrivacyConsentIfNeeded()
+})
 </script>
 
 <style scoped>

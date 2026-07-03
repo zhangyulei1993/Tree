@@ -77,6 +77,7 @@ func newFakeRepo() *fakeRepo {
 	}
 }
 func (r *fakeRepo) WithTx(*gorm.DB) inviterepo.Repository { return r }
+func (r *fakeRepo) DB() *gorm.DB                          { return nil }
 func (r *fakeRepo) FindFamily(context.Context, uint64, bool) (*model.Family, error) {
 	v := r.family
 	return &v, nil
@@ -224,7 +225,7 @@ func (u fakeUOW) WithinTransaction(ctx context.Context, fn func(inviterepo.Repos
 }
 
 func testService(repo *fakeRepo, allowed bool, now time.Time) *service {
-	s := NewService(repo, fakeUOW{repo}, fakePermission{allowed: allowed, link: rolemodel.FamilyMemberUserLink{FamilyRole: "FOUNDER"}}).(*service)
+	s := NewService(repo, fakeUOW{repo}, fakePermission{allowed: allowed, link: rolemodel.FamilyMemberUserLink{FamilyRole: "FOUNDER"}}, nil).(*service)
 	s.now = func() time.Time { return now }
 	s.token = func() (string, error) { return "raw-secret-invite-token", nil }
 	return s
@@ -257,6 +258,15 @@ func TestInvitationCreationRules(t *testing.T) {
 		target := uint64(9)
 		result, err := svc.Create(context.Background(), 8, 2, 6, dto.CreateInvitationRequest{InviteChannel: "IN_APP", TargetUserID: &target}, AuditInput{})
 		if err != nil || result.Invitation.InviteChannel != "IN_APP" {
+			t.Fatalf("unexpected: %#v %#v", result, err)
+		}
+	})
+	t.Run("in-app invite allows active user without phone verified", func(t *testing.T) {
+		repo := newFakeRepo()
+		repo.users[9] = usermodel.User{ID: 9, Status: "ACTIVE", PhoneVerified: false}
+		target := uint64(9)
+		result, err := testService(repo, true, now).Create(context.Background(), 8, 2, 6, dto.CreateInvitationRequest{InviteChannel: "IN_APP", TargetUserID: &target}, AuditInput{})
+		if err != nil || result.Invitation.InvitationID == 0 {
 			t.Fatalf("unexpected: %#v %#v", result, err)
 		}
 	})
@@ -334,6 +344,15 @@ func TestInvitationMutations(t *testing.T) {
 		}
 		if repo.logs[1].result != operationlog.ResultSuccess {
 			t.Fatalf("accept success log expected SUCCESS, got %s", repo.logs[1].result)
+		}
+	})
+	t.Run("accept allows active user without phone verified", func(t *testing.T) {
+		repo := newFakeRepo()
+		repo.users[9] = usermodel.User{ID: 9, Status: "ACTIVE", PhoneVerified: false}
+		makeInvite(repo, "SHARE_LINK", "PENDING", nil, now.Add(time.Hour))
+		result, err := testService(repo, true, now).Accept(context.Background(), 9, 1, AuditInput{})
+		if err != nil || result.Status != "ACCEPTED" {
+			t.Fatalf("unexpected %#v %#v", result, err)
 		}
 	})
 	t.Run("expired and non-pending rejected", func(t *testing.T) {

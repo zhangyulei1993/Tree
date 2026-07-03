@@ -9,6 +9,7 @@ import (
 
 	"gorm.io/gorm"
 
+	quotaservice "tree/backend/internal/accountquota/service"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
@@ -69,10 +70,11 @@ type memberService struct {
 	db          *gorm.DB
 	repo        memberrepo.MemberRepository
 	permissions permission.FamilyPermissionService
+	quota       quotaservice.Service
 }
 
-func NewMemberService(db *gorm.DB, repo memberrepo.MemberRepository, permissions permission.FamilyPermissionService) MemberService {
-	return &memberService{db: db, repo: repo, permissions: permissions}
+func NewMemberService(db *gorm.DB, repo memberrepo.MemberRepository, permissions permission.FamilyPermissionService, quota quotaservice.Service) MemberService {
+	return &memberService{db: db, repo: repo, permissions: permissions, quota: quota}
 }
 
 func (s *memberService) Create(ctx context.Context, actorID uint64, familyID uint64, req dto.CreateMemberRequest, audit AuditInput) (*vo.Member, *apperrors.BusinessError) {
@@ -99,6 +101,11 @@ func (s *memberService) Create(ctx context.Context, actorID uint64, familyID uin
 	applyMemberValues(member, values)
 
 	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		if s.quota != nil {
+			if err := s.quota.AssertProfileComplete(ctx, tx, actorID); err != nil {
+				return err
+			}
+		}
 		txRepo := s.repo.WithTx(tx)
 		family, err := txRepo.LockFamily(ctx, familyID)
 		if err != nil {
@@ -106,6 +113,11 @@ func (s *memberService) Create(ctx context.Context, actorID uint64, familyID uin
 		}
 		if family.Status != string(enums.StatusNormal) {
 			return errFamilyUnavailable
+		}
+		if s.quota != nil {
+			if err := s.quota.AssertCanAddMember(ctx, tx, familyID, 1); err != nil {
+				return err
+			}
 		}
 		if err := txRepo.Create(ctx, member); err != nil {
 			return err
@@ -122,6 +134,11 @@ func (s *memberService) Create(ctx context.Context, actorID uint64, familyID uin
 		return nil, memberError(CodeMemberFamilyUnavailable, "家庭不存在或不可用")
 	}
 	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
 	row, err := s.repo.Find(ctx, familyID, member.ID)

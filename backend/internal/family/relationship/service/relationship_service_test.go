@@ -125,6 +125,7 @@ func newFakeRepository() *fakeRepository {
 }
 
 func (r *fakeRepository) WithTx(*gorm.DB) relationshiprepo.Repository { return r }
+func (r *fakeRepository) DB() *gorm.DB                                { return nil }
 
 func (r *fakeRepository) LockFamily(context.Context, uint64) (*familymodel.Family, error) {
 	return &r.family, nil
@@ -325,7 +326,7 @@ func (r *fakeRepository) WriteOperationLog(_ context.Context, input operationlog
 }
 
 func testService(repo *fakeRepository, allowed bool) RelationshipService {
-	return NewRelationshipService(repo, fakeUnitOfWork{repo: repo}, fakePermission{allowed: allowed})
+	return NewRelationshipService(repo, fakeUnitOfWork{repo: repo}, fakePermission{allowed: allowed}, nil)
 }
 
 func createRequest(addType string, name string) dto.CreateRelationshipRequest {

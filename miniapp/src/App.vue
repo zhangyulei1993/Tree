@@ -3,7 +3,18 @@
 </template>
 
 <script setup lang="ts">
+import { onLaunch, onShow } from '@dcloudio/uni-app'
+
 import PrivacyConsentModal from '@/components/legal/PrivacyConsentModal.vue'
+import { promptPrivacyConsentIfNeeded } from '@/features/legal/privacyConsent'
+
+onLaunch(() => {
+  promptPrivacyConsentIfNeeded()
+})
+
+onShow(() => {
+  promptPrivacyConsentIfNeeded()
+})
 </script>
 
 <style>

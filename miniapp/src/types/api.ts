@@ -60,9 +60,28 @@ export interface StatusResult {
   status: string
 }
 
+export interface CancelAccountByWechatInput {
+  code: string
+  cancelReason?: string
+}
+
 export interface CancelAccountInput {
   phoneCode: string
   cancelReason?: string
+}
+
+export interface UserCapabilities {
+  trustTier: 'WECHAT_ONLY' | 'PHONE_VERIFIED'
+  limits: {
+    maxOwnedFamilies: number
+    maxMembersPerOwnedFamily: number
+    maxJoinedFamilies: number
+  }
+  usage: {
+    ownedFamilies: number
+    joinedFamilies: number
+    membersPerOwnedFamily: Record<string, number>
+  }
 }
 
 export interface FamilySummary {

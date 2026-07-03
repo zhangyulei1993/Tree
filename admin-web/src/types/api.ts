@@ -298,3 +298,24 @@ export interface ContentArticleInput {
   isFeatured?: boolean
   sortOrder?: number
 }
+
+export interface AccountQuotaConfig {
+  trustTier: 'WECHAT_ONLY' | 'PHONE_VERIFIED'
+  maxOwnedFamilies: number
+  maxMembersPerOwnedFamily: number
+  maxJoinedFamilies: number
+  updatedByAdminId?: number | null
+  updatedAt: string
+}
+
+export interface UpdateAccountQuotaInput {
+  maxOwnedFamilies: number
+  maxMembersPerOwnedFamily: number
+  maxJoinedFamilies: number
+}
+
+export interface AccountQuotaImpactPreview extends UpdateAccountQuotaInput {
+  trustTier: string
+  affectedUsers: number
+  affectedFamilies: number
+}

@@ -12,9 +12,6 @@
       "urlCheck": false,
       "minified": true
     },
-    "usingComponents": true,
-    "requiredPrivateInfos": [
-      "chooseAvatar"
-    ]
+    "usingComponents": true
   }
 }

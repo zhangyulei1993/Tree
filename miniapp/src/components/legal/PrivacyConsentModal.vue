@@ -18,30 +18,30 @@
         <MiniButton :disabled="!checked" @click="agree">同意并继续</MiniButton>
       </view>
       <text class="privacy-footnote">
-        拒绝同意仍可浏览首页、公开家庭主页与本地亲属称谓工具；登录、绑定手机号、加入家庭等功能需同意后方可使用。
+        拒绝同意仍可浏览首页、公开家庭主页与本地亲属称谓工具；微信登录、完善昵称后加入家庭等功能需同意后方可使用。
       </text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { onShow } from '@dcloudio/uni-app'
-import { ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 
 import MiniButton from '@/components/base/MiniButton.vue'
-import {
-  hasPrivacyConsent,
-  openPrivacyPolicy,
-  openUserAgreement,
-  requestWechatPrivacyAuthorize,
-  setPrivacyConsent
-} from '@/features/legal/privacyConsent'
+import { hasPrivacyConsent, openPrivacyPolicy, openUserAgreement, promptPrivacyConsentIfNeeded, requestWechatPrivacyAuthorize, resolvePrivacyAuthorizeError, setPrivacyConsent, subscribePrivacyConsentPrompt } from '@/features/legal/privacyConsent'
 
 const visible = ref(false)
 const checked = ref(false)
 
 function toggleChecked() {
   checked.value = !checked.value
+}
+
+function showPrompt() {
+  if (!hasPrivacyConsent()) {
+    visible.value = true
+    checked.value = false
+  }
 }
 
 function decline() {
@@ -52,18 +52,23 @@ async function agree() {
   if (!checked.value) return
   try {
     await requestWechatPrivacyAuthorize()
-  } catch {
-    // 用户可在微信系统弹窗中另行处理；本地记录以产品弹窗为准
+  } catch (error) {
+    uni.showToast({ title: resolvePrivacyAuthorizeError(error), icon: 'none' })
+    return
   }
   setPrivacyConsent()
   visible.value = false
 }
 
-onShow(() => {
-  if (!hasPrivacyConsent()) {
-    visible.value = true
-    checked.value = false
-  }
+let unsubscribe: (() => void) | null = null
+
+onMounted(() => {
+  unsubscribe = subscribePrivacyConsentPrompt(showPrompt)
+  promptPrivacyConsentIfNeeded()
+})
+
+onUnmounted(() => {
+  unsubscribe?.()
 })
 
 defineExpose({

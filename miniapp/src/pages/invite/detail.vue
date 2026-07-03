@@ -77,7 +77,7 @@
       </MiniNotice>
 
       <MiniCard v-if="invitation.status === 'PENDING'">
-        <template v-if="session.isLoggedIn && session.isPhoneBound">
+        <template v-if="session.isLoggedIn && session.isProfileComplete">
           <text class="detail-block-title">处理邀请</text>
           <textarea
             v-model.trim="rejectReason"
@@ -101,18 +101,17 @@
             拒绝邀请
           </MiniButton>
         </template>
-        <template v-else-if="session.isLoggedIn && !session.isPhoneBound">
-          <MiniNotice tone="warm" title="需要绑定手机号">
-            请先绑定手机号并设置登录密码，再处理邀请。
+        <template v-else-if="session.isLoggedIn && !session.isProfileComplete">
+          <MiniNotice tone="warm" title="需要完善资料">
+            请先设置昵称，再处理邀请。
           </MiniNotice>
-          <MiniButton @click="requirePhoneBound">去绑定手机号</MiniButton>
+          <MiniButton @click="requireProfileComplete">去完善资料</MiniButton>
         </template>
         <template v-else>
           <MiniNotice tone="warm" title="需要登录">
             请先登录，再处理邀请。
           </MiniNotice>
           <MiniButton @click="requireLogin">微信登录</MiniButton>
-          <MiniButton variant="secondary" class="btn-top" @click="goPhoneLogin">手机号登录</MiniButton>
         </template>
       </MiniCard>
 
@@ -140,7 +139,7 @@ import { onLoad } from '@dcloudio/uni-app'
 import { ref } from 'vue'
 
 import { acceptInvitation, getInvitationDetail, rejectInvitation } from '@/api/invitations'
-import { apiErrorMessage, pendingRouteKey } from '@/api/client'
+import { apiErrorMessage } from '@/api/client'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
@@ -189,13 +188,8 @@ function requireLogin() {
   session.requireLogin(currentRoute())
 }
 
-function requirePhoneBound() {
-  session.requirePhoneBound(currentRoute())
-}
-
-function goPhoneLogin() {
-  uni.setStorageSync(pendingRouteKey, currentRoute())
-  uni.navigateTo({ url: '/pages/auth/phone-login' })
+function requireProfileComplete() {
+  session.requireProfileComplete(currentRoute())
 }
 
 function openMyFamilies() {
@@ -245,7 +239,7 @@ function confirmReject() {
 
 async function accept() {
   if (!invitation.value) return
-  if (!session.requirePhoneBound(currentRoute())) return
+  if (!session.requireProfileComplete(currentRoute())) return
   acting.value = 'accept'
   actionError.value = ''
   result.value = ''
@@ -261,7 +255,7 @@ async function accept() {
 
 async function reject() {
   if (!invitation.value) return
-  if (!session.requirePhoneBound(currentRoute())) return
+  if (!session.requireProfileComplete(currentRoute())) return
   acting.value = 'reject'
   actionError.value = ''
   result.value = ''

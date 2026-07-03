@@ -4,7 +4,7 @@
       <MiniCard variant="hero" class="profile-hero paper-surface">
         <ProfileHeader
           :name="session.user.nickname || '未设置昵称'"
-          :subtitle="maskedPhone"
+          :subtitle="profileSubtitle"
           :avatar-text="avatarText"
           :avatar-url="avatarUrl"
           :tags="profileTags"
@@ -12,18 +12,8 @@
       </MiniCard>
 
       <MiniCard v-if="showProfileIncompleteNotice" variant="soft" class="bind-notice-card">
-        <MiniNotice tone="info">完善头像和昵称，方便家人识别你。</MiniNotice>
-        <MiniButton class="btn-top" @click="go('/pages/me/profile')">去完善资料</MiniButton>
-      </MiniCard>
-
-      <MiniCard v-if="showPhoneBindNotice" variant="soft" class="bind-notice-card">
-        <MiniNotice tone="warm">请绑定手机号以使用家庭、邀请、加入申请等功能。</MiniNotice>
-        <MiniButton class="btn-top" @click="go('/pages/auth/bind-phone')">去绑定手机号</MiniButton>
-      </MiniCard>
-
-      <MiniCard v-if="showPasswordUnsetNotice" variant="soft" class="bind-notice-card">
-        <MiniNotice tone="info">建议设置登录密码，方便电脑网页登录。</MiniNotice>
-        <MiniButton class="btn-top" variant="secondary" @click="go('/pages/auth/bind-phone')">去设置密码</MiniButton>
+        <MiniNotice tone="info">设置昵称后即可使用家庭、邀请与加入等功能；头像可选。</MiniNotice>
+        <MiniButton class="btn-top" @click="go('/pages/me/profile?onboarding=1')">去完善资料</MiniButton>
       </MiniCard>
 
       <MiniCard class="directory-card directory-card--list">
@@ -35,7 +25,7 @@
         />
         <MiniDirectoryTile
           title="账号与安全"
-          desc="个人资料、手机号与账号管理"
+          desc="个人资料与账号管理"
           icon-class="tree-symbol-profile"
           @click="go('/pages/me/account-security')"
         />
@@ -69,8 +59,6 @@
         />
         <view class="guest-actions">
           <MiniButton @click="go('/pages/auth/wechat-login')">微信登录</MiniButton>
-          <MiniButton variant="secondary" @click="go('/pages/auth/phone-login')">手机号登录</MiniButton>
-          <MiniButton variant="ghost" @click="go('/pages/auth/register-phone')">注册账号</MiniButton>
         </view>
       </MiniCard>
 
@@ -104,12 +92,9 @@ const loggingOut = ref(false)
 const errorMessage = ref('')
 const navigating = ref(false)
 
-const maskedPhone = computed(() => {
-  const phone = session.user?.phone || ''
-  if (!phone) return '未绑定手机号'
-  if (phone.includes('*')) return phone
-  return phone.length === 11 ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : phone
-})
+const profileSubtitle = computed(() =>
+  session.user?.nickname?.trim() ? '微信账号已登录' : '请完善昵称以使用完整功能'
+)
 
 const avatarText = computed(() => {
   const name = session.user?.nickname?.trim()
@@ -119,29 +104,20 @@ const avatarText = computed(() => {
 
 const avatarUrl = computed(() => resolveAssetUrl(session.user?.avatarUrl))
 
-const showProfileIncompleteNotice = computed(() => {
-  if (!session.isLoggedIn || !session.user) return false
-  return !session.user.nickname?.trim() || !session.user.avatarUrl
-})
+const showProfileIncompleteNotice = computed(() =>
+  session.isLoggedIn && !session.isProfileComplete
+)
 
 const profileTags = computed(() => {
   if (!session.user) return []
   return [
     { label: accountStatusText(session.user.status), tone: statusTagTone(session.user.status) },
     {
-      label: session.user.phoneVerified ? '手机号已验证' : '手机号未验证',
-      tone: session.user.phoneVerified ? 'active' : 'pending'
+      label: session.isProfileComplete ? '资料已完善' : '待完善昵称',
+      tone: session.isProfileComplete ? 'active' : 'pending'
     }
   ] as Array<{ label: string; tone: 'active' | 'pending' | 'danger' | 'muted' }>
 })
-
-const showPasswordUnsetNotice = computed(() =>
-  session.isPhoneBound && session.user?.passwordSet === false
-)
-
-const showPhoneBindNotice = computed(() =>
-  session.isLoggedIn && !session.isPhoneBound
-)
 
 function go(url: string) {
   if (navigating.value) return
@@ -160,7 +136,7 @@ async function logout() {
   try {
     await session.logout()
     uni.showToast({ title: '已退出', icon: 'none' })
-    setTimeout(() => uni.reLaunch({ url: '/pages/auth/phone-login' }), 200)
+    setTimeout(() => uni.reLaunch({ url: '/pages/home/index' }), 200)
   } catch (error) {
     errorMessage.value = apiErrorMessage(error, '退出请求失败，本地登录状态已清理。')
   } finally {

@@ -79,14 +79,8 @@ function resetPageData() {
 
 async function loadFamilies() {
   session.restoreSession()
-  if (!session.isLoggedIn) {
+  if (!session.requireProfileComplete('/pages/family/my')) {
     resetPageData()
-    session.requirePhoneBound('/pages/family/my')
-    return
-  }
-  if (!session.isPhoneBound) {
-    resetPageData()
-    session.requirePhoneBound('/pages/family/my')
     return
   }
   authChecked.value = true

@@ -62,7 +62,7 @@ func insertPublicSearchFamily(t *testing.T, tx *gorm.DB, family familymodel.Fami
 }
 
 func publicSearchService(tx *gorm.DB) FamilyService {
-	return NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil)
+	return NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil)
 }
 
 func TestListPublicFamiliesVisibilityRules(t *testing.T) {

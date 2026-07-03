@@ -7,24 +7,22 @@
 
     <MiniCard variant="soft" class="tree-auth-card">
       <AuthLegalConsent v-model="legalAccepted" />
-      <template v-if="isRealApiMode">
+      <template v-if="isRealApiMode && isMpWeixin">
         <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
         <view class="btn-stack">
           <MiniButton :disabled="submitting || !legalAccepted" :loading="submitting" @click="loginWithWechat">
             微信登录
           </MiniButton>
-          <MiniButton variant="secondary" :disabled="submitting" @click="go('/pages/auth/phone-login')">
-            使用手机号密码登录
-          </MiniButton>
         </view>
+      </template>
+      <template v-else-if="isRealApiMode">
+        <text class="tree-muted">{{ h5LoginHint }}</text>
       </template>
       <template v-else>
         <text class="tree-muted">本地体验模式下，可先体验登录流程。</text>
         <view class="btn-stack">
-          <MiniButton @click="mockLogin">微信快捷登录</MiniButton>
-          <MiniButton variant="secondary" @click="go('/pages/auth/bind-phone')">
-            去绑定手机号
-          </MiniButton>
+          <MiniButton @click="mockLogin(false)">微信快捷登录（待完善资料）</MiniButton>
+          <MiniButton variant="secondary" @click="mockLogin(true)">微信快捷登录（已完善资料）</MiniButton>
         </view>
       </template>
     </MiniCard>
@@ -32,41 +30,35 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import { apiErrorMessage, isRealApiMode } from '@/api/client'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import AuthLegalConsent from '@/components/legal/AuthLegalConsent.vue'
-import { hasPrivacyConsent } from '@/features/legal/privacyConsent'
+import { ensurePrivacyConsentForLogin } from '@/features/legal/privacyConsent'
+import { isMpWeixinPlatform, resolveWechatLoginUnsupportedMessage } from '@/features/session/wechatLogin'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
 const submitting = ref(false)
 const errorMessage = ref('')
 const legalAccepted = ref(false)
+const isMpWeixin = isMpWeixinPlatform()
+const h5LoginHint = computed(() => resolveWechatLoginUnsupportedMessage('h5') || '')
 
 async function loginWithWechat() {
   if (!legalAccepted.value) {
     errorMessage.value = '请先阅读并同意用户协议与隐私政策。'
     return
   }
-  if (!hasPrivacyConsent()) {
-    errorMessage.value = '请先在首页隐私提示中同意个人信息处理规则。'
-    return
-  }
   errorMessage.value = ''
   submitting.value = true
   try {
-    const result = await session.loginWithWechat()
+    await ensurePrivacyConsentForLogin()
+    await session.loginWithWechat()
     uni.showToast({ title: '登录成功', icon: 'success' })
-    setTimeout(() => {
-      if (result.user.phoneVerified) {
-        session.finishLogin()
-      } else {
-        uni.navigateTo({ url: '/pages/auth/bind-phone' })
-      }
-    }, 300)
+    setTimeout(() => session.routeAfterAuth(), 300)
   } catch (error) {
     errorMessage.value = apiErrorMessage(error, '微信登录失败，请稍后重试。')
   } finally {
@@ -74,16 +66,10 @@ async function loginWithWechat() {
   }
 }
 
-function mockLogin() {
-  session.mockWechatLogin()
+function mockLogin(withProfile: boolean) {
+  session.mockWechatLogin(withProfile)
   uni.showToast({ title: '登录成功', icon: 'none' })
-  setTimeout(() => {
-    uni.navigateTo({ url: '/pages/auth/bind-phone' })
-  }, 500)
-}
-
-function go(url: string) {
-  uni.navigateTo({ url })
+  setTimeout(() => session.routeAfterAuth(), 300)
 }
 </script>
 

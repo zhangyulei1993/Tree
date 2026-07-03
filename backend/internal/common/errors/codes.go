@@ -49,31 +49,43 @@ const (
 )
 
 const (
-	CodeWechatCodeInvalid          Code = 40301
-	CodeWechatOpenIDFetchFailed    Code = 40302
-	CodeWechatIdentityExpired      Code = 40303
-	CodeWechatAccountInvalid       Code = 40304
-	CodeWechatConfigError          Code = 40305
-	CodeWechatPhoneCodeInvalid     Code = 40306
-	CodeWechatPhoneFetchFailed     Code = 40307
-	CodeWechatPhoneLoginInvalid    Code = 40308
-	CodeBindPhoneLoginRequired     Code = 40401
-	CodeBindPhoneCodeInvalid       Code = 40402
-	CodeBindPhoneStatusDenied      Code = 40403
-	CodeBindPhoneExists            Code = 40404
-	CodeAccountMergeFailed         Code = 40405
-	CodeAccountClaimFailed         Code = 40406
-	CodeAccountMergeMemberConflict Code = 40504
-	CodeProfileNicknameInvalid     Code = 40601
-	CodeChangeOldPhoneCodeInvalid  Code = 40701
-	CodeChangeNewPhoneCodeInvalid  Code = 40702
-	CodeChangeNewPhoneExists       Code = 40703
-	CodeCancelStatusDenied         Code = 41001
-	CodeCancelActiveFamily         Code = 41002
-	CodeCancelFounder              Code = 41003
-	CodeCancelPendingTransfer      Code = 41004
-	CodeCancelPendingDissolution   Code = 41005
-	CodeCancelCodeInvalid          Code = 41006
+	CodeWechatCodeInvalid            Code = 40301
+	CodeWechatOpenIDFetchFailed      Code = 40302
+	CodeWechatIdentityExpired        Code = 40303
+	CodeWechatAccountInvalid         Code = 40304
+	CodeWechatConfigError            Code = 40305
+	CodeWechatPhoneCodeInvalid       Code = 40306
+	CodeWechatPhoneFetchFailed       Code = 40307
+	CodeWechatPhoneLoginInvalid      Code = 40308
+	CodeBindPhoneLoginRequired       Code = 40401
+	CodeBindPhoneCodeInvalid         Code = 40402
+	CodeBindPhoneStatusDenied        Code = 40403
+	CodeBindPhoneExists              Code = 40404
+	CodeAccountMergeFailed           Code = 40405
+	CodeAccountClaimFailed           Code = 40406
+	CodeAccountMergeMemberConflict   Code = 40504
+	CodeProfileNicknameInvalid       Code = 40601
+	CodeChangeOldPhoneCodeInvalid    Code = 40701
+	CodeChangeNewPhoneCodeInvalid    Code = 40702
+	CodeChangeNewPhoneExists         Code = 40703
+	CodeCancelStatusDenied           Code = 41001
+	CodeCancelActiveFamily           Code = 41002
+	CodeCancelFounder                Code = 41003
+	CodeCancelPendingTransfer        Code = 41004
+	CodeCancelPendingDissolution     Code = 41005
+	CodeCancelCodeInvalid            Code = 41006
+	CodeCancelWechatCodeInvalid      Code = 41007
+	CodeCancelWechatIdentityMismatch Code = 41008
+)
+
+const (
+	CodeProfileIncomplete           Code = 41501
+	CodeQuotaOwnedFamiliesExceeded  Code = 41502
+	CodeQuotaJoinedFamiliesExceeded Code = 41503
+	CodeQuotaMembersExceeded        Code = 41504
+	CodeQuotaConfigInvalid          Code = 41505
+	CodeQuotaConfigForbidden        Code = 41506
+	CodeQuotaConfigTierOrder        Code = 41507
 )
 
 const (
@@ -160,6 +172,15 @@ var messages = map[Code]string{
 	CodeCancelPendingTransfer:          "存在未处理的创始人转让申请",
 	CodeCancelPendingDissolution:       "存在未处理的家庭解散申请",
 	CodeCancelCodeInvalid:              "验证码错误或已过期",
+	CodeCancelWechatCodeInvalid:        "微信重新认证失败，请重试",
+	CodeCancelWechatIdentityMismatch:   "当前微信身份与登录账号不匹配",
+	CodeProfileIncomplete:              "请先完善昵称",
+	CodeQuotaOwnedFamiliesExceeded:     "已达到可创建家庭数量上限",
+	CodeQuotaJoinedFamiliesExceeded:    "已达到可加入家庭数量上限",
+	CodeQuotaMembersExceeded:           "已达到家庭成员数量上限",
+	CodeQuotaConfigInvalid:             "权益配置参数不合法",
+	CodeQuotaConfigForbidden:           "无权修改账号权益配置",
+	CodeQuotaConfigTierOrder:           "高等级权益不得低于基础等级",
 	CodeAdminUsernameOrPasswordInvalid: "用户名或密码错误",
 	CodeAdminDisabled:                  "管理员账号已禁用",
 	CodeAdminLocked:                    "管理员账号已锁定",
@@ -187,6 +208,7 @@ func Message(code Code) string {
 type BusinessError struct {
 	Code    Code
 	Message string
+	Data    any
 }
 
 func New(code Code) *BusinessError {

@@ -1,13 +1,11 @@
 import type { ApiResponse } from '@/types/api'
+import { parseQuotaErrorMessage } from '@/features/quota/quotaDisplay'
+import { isMpWeixinPlatform } from '@/features/session/wechatLogin'
 
 const environment = import.meta.env as ImportMetaEnv & {
   VITE_API_MODE?: string
   VITE_API_BASE_URL?: string
-  UNI_PLATFORM?: string
 }
-
-const uniPlatform = environment.UNI_PLATFORM || ''
-const isMpWeixinPlatform = uniPlatform === 'mp-weixin'
 
 export const apiMode = environment.VITE_API_MODE === 'real' ? 'real' : 'mock'
 export const isRealApiMode = apiMode === 'real'
@@ -28,7 +26,7 @@ function resolveApiBaseURL() {
   }
 
   // 微信小程序 real 模式必须显式注入完整 HTTPS 地址，不能回落到 /api 或本地地址。
-  if (isMpWeixinPlatform) {
+  if (isMpWeixinPlatform()) {
     return configured
   }
 
@@ -36,14 +34,16 @@ function resolveApiBaseURL() {
   return configured || '/api'
 }
 
-export const apiBaseURL = resolveApiBaseURL()
+export function getApiBaseURL(): string {
+  return resolveApiBaseURL()
+}
 
 export function getMpWeixinApiConfigError(): string | null {
-  if (!isRealApiMode || !isMpWeixinPlatform) {
+  if (!isRealApiMode || !isMpWeixinPlatform()) {
     return null
   }
 
-  const base = apiBaseURL.trim()
+  const base = getApiBaseURL().trim()
   if (!base) {
     return '小程序未配置 API 地址。请使用 pnpm build:mp-weixin:staging 重新构建，或设置 VITE_API_BASE_URL=https://tapi.bigbigboy.cn/api。'
   }
@@ -59,8 +59,6 @@ export function getMpWeixinApiConfigError(): string | null {
   return null
 }
 
-export const mpWeixinApiConfigError = getMpWeixinApiConfigError()
-
 export const sessionTokenKey = 'tree_miniapp_user_token'
 export const sessionUserKey = 'tree_miniapp_user'
 export const pendingRouteKey = 'tree_miniapp_pending_route'
@@ -68,12 +66,17 @@ export const pendingRouteKey = 'tree_miniapp_pending_route'
 export class ApiError extends Error {
   code?: number
   statusCode?: number
+  data?: Record<string, unknown>
 
-  constructor(message: string, options: { code?: number; statusCode?: number } = {}) {
+  constructor(
+    message: string,
+    options: { code?: number; statusCode?: number; data?: Record<string, unknown> } = {}
+  ) {
     super(message)
     this.name = 'ApiError'
     this.code = options.code
     this.statusCode = options.statusCode
+    this.data = options.data
   }
 }
 
@@ -85,7 +88,7 @@ interface RequestOptions<T> {
 }
 
 export function apiUrl(path: string) {
-  const base = apiBaseURL.replace(/\/+$/, '')
+  const base = getApiBaseURL().replace(/\/+$/, '')
   const suffix = path.startsWith('/') ? path : `/${path}`
   return `${base}${suffix}`
 }
@@ -94,7 +97,7 @@ export function resolveAssetUrl(path?: string | null) {
   if (!path) return ''
   if (/^https?:\/\//i.test(path)) return path
   if (path.startsWith('/api/')) {
-    const origin = apiBaseURL.replace(/\/api\/?$/, '')
+    const origin = getApiBaseURL().replace(/\/api\/?$/, '')
     return `${origin}${path}`
   }
   return apiUrl(path)
@@ -120,18 +123,19 @@ function handleUnauthorized(skipRedirect: boolean) {
   if (skipRedirect) return
 
   const route = currentRoute()
-  if (route && route !== '/pages/auth/phone-login') {
+  if (route && route !== '/pages/auth/wechat-login') {
     uni.setStorageSync(pendingRouteKey, route)
   }
-  uni.reLaunch({ url: '/pages/auth/phone-login' })
+  uni.reLaunch({ url: '/pages/auth/wechat-login' })
 }
 
 function resolveNetworkErrorMessage(errMsg: string) {
-  if (mpWeixinApiConfigError) {
-    return mpWeixinApiConfigError
+  const mpConfigError = getMpWeixinApiConfigError()
+  if (mpConfigError) {
+    return mpConfigError
   }
   if (
-    isMpWeixinPlatform
+    isMpWeixinPlatform()
     && isRealApiMode
     && /ERR_CONNECTION_REFUSED|request:fail|cronet_error_code:-102/i.test(errMsg)
   ) {
@@ -144,8 +148,9 @@ export function request<TResponse, TData = unknown>(
   path: string,
   options: RequestOptions<TData> = {}
 ): Promise<TResponse> {
-  if (mpWeixinApiConfigError) {
-    return Promise.reject(new ApiError(mpWeixinApiConfigError))
+  const mpConfigError = getMpWeixinApiConfigError()
+  if (mpConfigError) {
+    return Promise.reject(new ApiError(mpConfigError))
   }
 
   const token = uni.getStorageSync(sessionTokenKey) as string
@@ -169,21 +174,24 @@ export function request<TResponse, TData = unknown>(
           handleUnauthorized(Boolean(options.public))
           reject(new ApiError(payload?.message || '登录状态已失效', {
             code: payload?.code,
-            statusCode: response.statusCode
+            statusCode: response.statusCode,
+            data: payload?.data
           }))
           return
         }
         if (response.statusCode < 200 || response.statusCode >= 300) {
           reject(new ApiError(payload?.message || `请求失败（HTTP ${response.statusCode}）`, {
             code: payload?.code,
-            statusCode: response.statusCode
+            statusCode: response.statusCode,
+            data: payload?.data
           }))
           return
         }
         if (!payload || payload.code !== 0) {
           reject(new ApiError(payload?.message || '请求失败', {
             code: payload?.code,
-            statusCode: response.statusCode
+            statusCode: response.statusCode,
+            data: payload?.data
           }))
           return
         }
@@ -197,5 +205,5 @@ export function request<TResponse, TData = unknown>(
 }
 
 export function apiErrorMessage(error: unknown, fallback = '请求失败，请稍后重试。') {
-  return error instanceof Error && error.message ? error.message : fallback
+  return parseQuotaErrorMessage(error, fallback)
 }

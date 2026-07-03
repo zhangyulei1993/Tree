@@ -48,6 +48,12 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: '家庭解散审核', roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] }
       },
       {
+        path: 'account-quota-configs',
+        name: 'AccountQuotaConfigs',
+        component: () => import('@/views/AccountQuotaConfigs.vue'),
+        meta: { title: '账号权益配置', roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] }
+      },
+      {
         path: 'admin-users',
         name: 'AdminUsers',
         component: () => import('@/views/AdminUsers.vue'),

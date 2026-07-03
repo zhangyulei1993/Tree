@@ -28,6 +28,7 @@ type ListQuery struct {
 
 type Repository interface {
 	WithTx(*gorm.DB) Repository
+	DB() *gorm.DB
 	FindAdmin(context.Context, uint64) (*adminmodel.AdminUser, error)
 	FindFamily(context.Context, uint64, bool) (*familymodel.Family, error)
 	FindByID(context.Context, uint64, bool) (*dissolutionmodel.FamilyDissolutionRequest, error)
@@ -41,6 +42,7 @@ type GormRepository struct{ db *gorm.DB }
 
 func NewRepository(db *gorm.DB) *GormRepository         { return &GormRepository{db: db} }
 func (r *GormRepository) WithTx(tx *gorm.DB) Repository { return &GormRepository{db: tx} }
+func (r *GormRepository) DB() *gorm.DB                  { return r.db }
 
 func (r *GormRepository) FindAdmin(ctx context.Context, id uint64) (*adminmodel.AdminUser, error) {
 	var admin adminmodel.AdminUser
