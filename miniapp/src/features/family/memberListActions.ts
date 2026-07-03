@@ -35,7 +35,9 @@ export function canUnbindMember(member: FamilyMember, canManageFamily: boolean) 
 }
 
 export function canDeleteMember(member: FamilyMember, canManageFamily: boolean) {
-  return canManageFamily && isActiveMember(member)
+  return canManageFamily
+    && isActiveMember(member)
+    && !isProtectedBoundRole(member)
 }
 
 export function hasPendingInvitation(ctx: MemberActionContext) {

@@ -4,7 +4,7 @@
     <view class="tree-tool-banner kinship-banner">
       <view class="banner-copy">
         <text class="tree-tool-banner-title">亲属关系工具</text>
-        <text class="tree-tool-banner-desc">推导关系结果仅供参考，最多支持 5 代关系推测。</text>
+        <text class="tree-tool-banner-desc">{{ maxDepthHint }}</text>
       </view>
       <view class="tree-pedigree-mark" aria-hidden="true">
         <view class="node node-root" />
@@ -182,6 +182,7 @@ import type { Gender, KinshipContext, KinshipRelation, KinshipStep, PersonFacts,
 import { MAX_KINSHIP_DEPTH } from '@/features/kinship/types'
 
 const maxDepth = MAX_KINSHIP_DEPTH
+const maxDepthHint = `推导关系结果仅供参考，最多支持 ${MAX_KINSHIP_DEPTH} 层关系路径。`
 const selfGenderOptions = [
   { value: 'male' as Gender, label: '男' },
   { value: 'female' as Gender, label: '女' }
