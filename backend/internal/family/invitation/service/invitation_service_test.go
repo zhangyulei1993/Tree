@@ -49,13 +49,18 @@ func (p fakePermission) GetActiveLink(context.Context, uint64, uint64) (*rolemod
 	return &value, nil
 }
 
+type logRecord struct {
+	input  operationlog.WriteInput
+	result string
+}
+
 type fakeRepo struct {
 	family              model.Family
 	member              membermodel.FamilyMember
 	users               map[uint64]usermodel.User
 	invitations         map[uint64]*invitationmodel.FamilyInvitation
 	links               []rolemodel.FamilyMemberUserLink
-	logs                []operationlog.WriteInput
+	logs                []logRecord
 	nextID              uint64
 	pendingJoinRequests int64
 }
@@ -203,7 +208,12 @@ func (r *fakeRepo) CreateLink(_ context.Context, value *rolemodel.FamilyMemberUs
 	return nil
 }
 func (r *fakeRepo) WriteLog(_ context.Context, input operationlog.WriteInput) error {
-	r.logs = append(r.logs, input)
+	r.logs = append(r.logs, logRecord{input: input, result: operationlog.ResultSuccess})
+	return nil
+}
+
+func (r *fakeRepo) WriteFailedLog(_ context.Context, input operationlog.WriteInput) error {
+	r.logs = append(r.logs, logRecord{input: input, result: operationlog.ResultFailed})
 	return nil
 }
 
@@ -319,8 +329,11 @@ func TestInvitationMutations(t *testing.T) {
 		if repo.pendingJoinRequests != 0 {
 			t.Fatal("accept must resolve the user's pending join request")
 		}
-		if len(repo.logs) != 2 || repo.logs[0].Action != "AUTO_CANCEL_JOIN_REQUESTS" || repo.logs[1].Action != "ACCEPT_INVITATION" {
+		if len(repo.logs) != 2 || repo.logs[0].input.Action != "AUTO_CANCEL_JOIN_REQUESTS" || repo.logs[1].input.Action != "ACCEPT_INVITATION" {
 			t.Fatalf("unexpected logs %#v", repo.logs)
+		}
+		if repo.logs[1].result != operationlog.ResultSuccess {
+			t.Fatalf("accept success log expected SUCCESS, got %s", repo.logs[1].result)
 		}
 	})
 	t.Run("expired and non-pending rejected", func(t *testing.T) {
@@ -381,9 +394,92 @@ func TestInvitationSenderManagement(t *testing.T) {
 	if repo.invitations[1].Status != "CANCELLED" || repo.invitations[2].Status != "PENDING" {
 		t.Fatalf("unexpected statuses old=%s new=%s", repo.invitations[1].Status, repo.invitations[2].Status)
 	}
-	if len(repo.logs) != 1 || repo.logs[0].Action != "REGENERATE_INVITATION" {
+	if len(repo.logs) != 1 || repo.logs[0].input.Action != "REGENERATE_INVITATION" {
 		t.Fatalf("unexpected logs %#v", repo.logs)
 	}
+}
+
+func TestInvitationAcceptFailureLogs(t *testing.T) {
+	now := time.Date(2026, 6, 7, 0, 0, 0, 0, time.UTC)
+	makeInvite := func(repo *fakeRepo, channel, status string, target *uint64, expiry time.Time) {
+		repo.invitations[1] = &invitationmodel.FamilyInvitation{
+			ID: 1, FamilyID: 2, TargetMemberID: 6, InviterUserID: uint64Ptr(8),
+			TargetUserID: target, InviteChannel: channel, FamilyRoleAfterAccept: "MEMBER",
+			Status: status, ExpiredAt: expiry,
+		}
+	}
+	countFailed := func(repo *fakeRepo) int {
+		count := 0
+		for _, item := range repo.logs {
+			if item.result == operationlog.ResultFailed && item.input.Action == "ACCEPT_INVITATION" {
+				count++
+			}
+		}
+		return count
+	}
+
+	t.Run("user already linked writes one failed log", func(t *testing.T) {
+		repo := newFakeRepo()
+		makeInvite(repo, "SHARE_LINK", "PENDING", nil, now.Add(time.Hour))
+		repo.links = append(repo.links, rolemodel.FamilyMemberUserLink{
+			FamilyID: 2, MemberID: 99, UserID: 9, LinkStatus: "ACTIVE",
+		})
+		beforeGV := repo.family.GraphVersion
+		_, err := testService(repo, true, now).Accept(context.Background(), 9, 1, AuditInput{})
+		if err == nil || err.Code != CodeUserAlreadyLinked {
+			t.Fatalf("unexpected %#v", err)
+		}
+		if len(repo.links) != 1 {
+			t.Fatal("failed accept must not create link")
+		}
+		if repo.family.GraphVersion != beforeGV {
+			t.Fatal("failed accept must not increment graph version")
+		}
+		if countFailed(repo) != 1 {
+			t.Fatalf("expected one failed log, got %#v", repo.logs)
+		}
+		if repo.logs[len(repo.logs)-1].input.ErrorMessage == nil {
+			t.Fatal("failed log must include error message")
+		}
+	})
+
+	t.Run("member already linked writes failed log", func(t *testing.T) {
+		repo := newFakeRepo()
+		makeInvite(repo, "SHARE_LINK", "PENDING", nil, now.Add(time.Hour))
+		repo.links = append(repo.links, rolemodel.FamilyMemberUserLink{
+			FamilyID: 2, MemberID: 6, UserID: 8, LinkStatus: "ACTIVE",
+		})
+		_, err := testService(repo, true, now).Accept(context.Background(), 9, 1, AuditInput{})
+		if err == nil || err.Code != CodeMemberAlreadyLinked {
+			t.Fatalf("unexpected %#v", err)
+		}
+		if countFailed(repo) != 1 {
+			t.Fatalf("expected one failed log, got %#v", repo.logs)
+		}
+	})
+
+	t.Run("expired invitation writes failed log", func(t *testing.T) {
+		repo := newFakeRepo()
+		makeInvite(repo, "SHARE_LINK", "PENDING", nil, now.Add(-time.Second))
+		_, err := testService(repo, true, now).Accept(context.Background(), 9, 1, AuditInput{})
+		if err == nil || err.Code != CodeInvitationExpired {
+			t.Fatalf("unexpected %#v", err)
+		}
+		if countFailed(repo) != 1 {
+			t.Fatalf("expected one failed log, got %#v", repo.logs)
+		}
+	})
+
+	t.Run("missing invitation writes failed log", func(t *testing.T) {
+		repo := newFakeRepo()
+		_, err := testService(repo, true, now).Accept(context.Background(), 9, 999, AuditInput{})
+		if err == nil || err.Code != CodeInvitationNotFound {
+			t.Fatalf("unexpected %#v", err)
+		}
+		if countFailed(repo) != 1 {
+			t.Fatalf("expected one failed log, got %#v", repo.logs)
+		}
+	})
 }
 
 func contains(value, needle string) bool {

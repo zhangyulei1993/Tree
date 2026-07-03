@@ -16,7 +16,7 @@
           <MiniButton variant="secondary" @click="loadFamilies">重新加载</MiniButton>
         </MiniCard>
 
-        <MiniCard v-else-if="loading" flat class="state-card">
+        <MiniCard v-else-if="loading && families.length === 0" flat class="state-card">
           <MiniEmptyState title="正在加载" description="正在加载家庭列表..." />
         </MiniCard>
 
@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
+import { onShow, onUnload } from '@dcloudio/uni-app'
 import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -70,7 +70,7 @@ const loading = ref(false)
 const errorMessage = ref('')
 const authChecked = ref(false)
 
-function resetAuthView() {
+function resetPageData() {
   authChecked.value = false
   loading.value = false
   errorMessage.value = ''
@@ -78,11 +78,20 @@ function resetAuthView() {
 }
 
 async function loadFamilies() {
-  authChecked.value = false
-  families.value = []
-  if (!session.requirePhoneBound('/pages/family/my')) return
+  session.restoreSession()
+  if (!session.isLoggedIn) {
+    resetPageData()
+    session.requirePhoneBound('/pages/family/my')
+    return
+  }
+  if (!session.isPhoneBound) {
+    resetPageData()
+    session.requirePhoneBound('/pages/family/my')
+    return
+  }
   authChecked.value = true
-  loading.value = true
+  const isInitialLoad = families.value.length === 0
+  loading.value = isInitialLoad
   errorMessage.value = ''
   try {
     families.value = await listMyFamilies()
@@ -152,8 +161,7 @@ function familyStatusTone(status: string) {
 }
 
 onShow(loadFamilies)
-onHide(resetAuthView)
-onUnload(resetAuthView)
+onUnload(resetPageData)
 </script>
 
 <style scoped>

@@ -1,16 +1,12 @@
 <template>
   <view class="tree-page private-tree-page">
     <MiniBackHome />
-    <MiniCard v-if="!authChecked">
-      <MiniEmptyState symbol="…" title="正在确认登录状态" description="请稍候..." />
-    </MiniCard>
-
-    <MiniCard v-else-if="errorMessage">
+    <MiniCard v-if="errorMessage && !tree">
       <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
       <MiniButton variant="secondary" @click="loadTree">重新加载</MiniButton>
     </MiniCard>
 
-    <MiniCard v-if="loading">
+    <MiniCard v-else-if="loading && !tree">
       <MiniEmptyState symbol="…" title="正在加载" description="正在组装家庭树..." />
     </MiniCard>
 
@@ -18,8 +14,8 @@
       <FamilyContextHeader
         v-if="family"
         :family-name="family.familyName"
-        section="私有家谱"
-        subtitle="查看家庭内部成员和亲属关系"
+        section="家谱"
+        :subtitle="canManageFamily ? '查看家谱结构，维护亲属关系' : '查看家谱结构与亲属关系描述'"
         :role-label="family.role === 'FOUNDER' ? '创建者' : family.role === 'FAMILY_ADMIN' ? '管理员' : '成员'"
         @back="openFamilyOverview"
       />
@@ -41,6 +37,15 @@
         </view>
       </view>
 
+      <view v-if="canManageFamily" class="genealogy-tools">
+        <text class="genealogy-tools-label">家谱管理</text>
+        <view class="genealogy-tools-links">
+          <button class="genealogy-tool-link" @click="openManageSection('create')">添加亲属</button>
+          <button class="genealogy-tool-link" @click="openManageSection('locate')">定位成员</button>
+          <button class="genealogy-tool-link" @click="openManageSection('relations')">关系维护</button>
+        </view>
+      </view>
+
       <view class="tree-space">
         <view class="tree-space-head">
           <text class="tree-space-title">家谱结构</text>
@@ -49,7 +54,7 @@
         <view class="tree-space-body section-pad">
           <TreeViewModeSwitch v-model="viewMode" />
           <MiniNotice v-if="canManageFamily && viewMode === 'structure'" tone="security" title="可直接管理家谱节点">
-            带“管理”标记的成员节点可点击。你可以编辑该成员，或以其为起点添加父母、子女、配偶和兄弟姐妹。
+            带“管理”标记的族内成员节点可点击，添加父母、子女、配偶和兄弟姐妹；配偶节点仅可编辑资料。
           </MiniNotice>
 
           <template v-if="viewMode === 'structure'">
@@ -85,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
+import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -108,6 +113,7 @@ import {
   treeViewLabel
 } from '@/features/family-tree/relationSentences'
 import type { FamilyTreeViewMode } from '@/features/family-tree/types'
+import { isLineageMember, isSpouseMember, isExternalMember } from '@/features/family-tree/graph'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyDetail, FamilyTreeResult, RelationshipAddType, TreeNode } from '@/types/api'
 
@@ -117,7 +123,6 @@ const family = ref<FamilyDetail | null>(null)
 const tree = ref<FamilyTreeResult | null>(null)
 const loading = ref(false)
 const errorMessage = ref('')
-const authChecked = ref(false)
 const viewMode = ref<FamilyTreeViewMode>('structure')
 const viewerMemberId = ref<number | null>(null)
 
@@ -135,8 +140,7 @@ const nodeActionTypes: RelationshipAddType[] = [
   'ADD_SIBLING'
 ]
 
-function resetAuthView() {
-  authChecked.value = false
+function resetPageData() {
   loading.value = false
   errorMessage.value = ''
   tree.value = null
@@ -145,19 +149,20 @@ function resetAuthView() {
 }
 
 async function loadTree() {
-  authChecked.value = false
-  tree.value = null
+  session.restoreSession()
   if (!familyId.value) {
-    authChecked.value = true
     errorMessage.value = '缺少家庭信息。'
     return
   }
   const route = `/pages/family/private-tree?familyId=${encodeURIComponent(familyId.value)}`
-  if (!session.requireLogin(route)) return
-  authChecked.value = true
-  loading.value = true
+  if (!session.isLoggedIn) {
+    resetPageData()
+    session.requireLogin(route)
+    return
+  }
+  const isInitialLoad = !tree.value
+  loading.value = isInitialLoad
   errorMessage.value = ''
-  viewerMemberId.value = null
   try {
     const [familyResult, treeResult] = await Promise.all([
       getFamilyDetail(familyId.value),
@@ -167,8 +172,8 @@ async function loadTree() {
     tree.value = treeResult
     if (session.user?.id) {
       try {
-        const members = await listFamilyMembers(familyId.value)
-        viewerMemberId.value = resolveCurrentMemberId(session.user.id, members)
+        const memberList = await listFamilyMembers(familyId.value)
+        viewerMemberId.value = resolveCurrentMemberId(session.user.id, memberList)
       } catch {
         // Tree nodes lack userId; members list is the supported way to locate "me".
       }
@@ -184,8 +189,20 @@ function openFamilyOverview() {
   uni.redirectTo({ url: `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}` })
 }
 
+function openManageSection(section: 'create' | 'locate' | 'relations') {
+  uni.navigateTo({
+    url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=${section}`
+  })
+}
+
 function openNodeActions(node: TreeNode) {
   if (!canManageFamily.value) return
+  if (isSpouseMember(node) || isExternalMember(node)) {
+    uni.navigateTo({
+      url: `/pages/family/member-edit?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(String(node.memberId))}`
+    })
+    return
+  }
   uni.showActionSheet({
     itemList: ['编辑成员资料', '添加父亲', '添加母亲', '添加子女', '添加配偶', '添加兄弟姐妹'],
     success: (result) => {
@@ -208,8 +225,7 @@ onLoad((options) => {
   familyId.value = String(options?.familyId || '')
 })
 onShow(loadTree)
-onHide(resetAuthView)
-onUnload(resetAuthView)
+onUnload(resetPageData)
 </script>
 
 <style scoped>
@@ -251,4 +267,51 @@ onUnload(resetAuthView)
     radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
     radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
 }
+
+.genealogy-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12rpx 16rpx;
+  margin-bottom: 20rpx;
+  border: 1rpx solid rgba(47, 107, 87, 0.12);
+  border-radius: 20rpx;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 16rpx 20rpx;
+}
+
+.genealogy-tools-label {
+  color: var(--tree-text-secondary, #64748b);
+  font-size: 22rpx;
+  font-weight: 600;
+}
+
+.genealogy-tools-links {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8rpx;
+}
+
+.genealogy-tool-link {
+  min-height: 64rpx;
+  margin: 0;
+  border: 1rpx solid rgba(47, 107, 87, 0.12);
+  border-radius: 14rpx;
+  background: rgba(240, 248, 244, 0.9);
+  color: var(--tree-green, #2f6b57);
+  padding: 8rpx 10rpx;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.genealogy-tool-link::after {
+  border: 0;
+}
+
+.genealogy-tool-link:active {
+  opacity: 0.72;
+}
+
 </style>

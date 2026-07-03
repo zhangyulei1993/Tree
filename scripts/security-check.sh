@@ -27,9 +27,9 @@ tracked_env="$(
   git ls-files |
     awk '
       /(^|\/)\.env($|\.)/ &&
-      $0 !~ /\.env\.example$/ &&
-      $0 !~ /\.env\.sample$/ &&
-      $0 !~ /\.env\.template$/ { print }
+      $0 !~ /\.env(\.[^\/]+)*\.example$/ &&
+      $0 !~ /\.env(\.[^\/]+)*\.sample$/ &&
+      $0 !~ /\.env(\.[^\/]+)*\.template$/ { print }
     '
 )"
 if [[ -n "$tracked_env" ]]; then

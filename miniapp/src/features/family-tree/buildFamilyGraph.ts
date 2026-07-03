@@ -2,8 +2,9 @@ import type { TreeNode } from '@/types/api'
 
 import {
   buildMemberGraph,
-  collectChildren,
+  collectLineageChildren,
   findTreeRoots,
+  isLineageMember,
   sortChildIds
 } from './graph'
 import { compareSpouses } from './memberSort'
@@ -19,7 +20,7 @@ function buildCoupleBranch(
   if (rendered.has(anchorMemberId)) return null
 
   const anchor = graph.nodeMap.get(anchorMemberId)
-  if (!anchor) return null
+  if (!anchor || !isLineageMember(anchor)) return null
 
   visiting.add(anchorMemberId)
 
@@ -37,18 +38,18 @@ function buildCoupleBranch(
     visiting.add(spouse.memberId)
   }
 
-  // 主成员在左，配偶始终在右
   const sortedParents = [anchor, ...spouses]
 
   const childIdSet = new Set<number>()
   for (const parent of sortedParents) {
-    for (const childId of collectChildren(parent.memberId, graph.childrenIds, graph.spouseIds)) {
+    for (const childId of collectLineageChildren(graph, parent.memberId)) {
       childIdSet.add(childId)
     }
   }
 
   const childBranches: FamilyTreeBranchNode[] = []
   for (const childId of sortChildIds([...childIdSet], graph.nodeMap)) {
+    if (!isLineageMember(graph.nodeMap.get(childId))) continue
     const nextVisiting = new Set(visiting)
     const branch = buildCoupleBranch(childId, graph, rendered, nextVisiting)
     if (branch) childBranches.push(branch)
@@ -74,6 +75,7 @@ export function buildFamilyGraph(input: FamilyTreeBuildInput): BuiltFamilyGraph 
       success: false,
       roots: [],
       orphanBranches: [],
+      unlocatedMemberIds: [],
       memberCount: 0,
       renderedCount: 0,
       message: '暂无成员'
@@ -84,26 +86,23 @@ export function buildFamilyGraph(input: FamilyTreeBuildInput): BuiltFamilyGraph 
     const graph = buildMemberGraph(input)
     const rendered = new Set<number>()
     const roots: FamilyTreeBranchNode[] = []
+    const rootIds = findTreeRoots(graph)
 
-    for (const rootId of findTreeRoots(graph)) {
+    for (const rootId of rootIds) {
       if (rendered.has(rootId)) continue
       const branch = buildCoupleBranch(rootId, graph, rendered, new Set())
       if (branch) roots.push(branch)
     }
 
-    const orphanMemberIds = [...graph.nodeMap.keys()].filter((memberId) => !rendered.has(memberId))
-    const orphanBranches: FamilyTreeBranchNode[] = []
-
-    for (const memberId of sortChildIds(orphanMemberIds, graph.nodeMap)) {
-      if (rendered.has(memberId)) continue
-      const branch = buildCoupleBranch(memberId, graph, rendered, new Set())
-      if (branch) orphanBranches.push(branch)
-    }
+    const unlocatedMemberIds = [...graph.nodeMap.keys()].filter(
+      (memberId) => !rendered.has(memberId) && isLineageMember(graph.nodeMap.get(memberId))
+    )
 
     return {
-      success: roots.length > 0 || orphanBranches.length > 0,
+      success: roots.length > 0,
       roots,
-      orphanBranches,
+      orphanBranches: [],
+      unlocatedMemberIds,
       memberCount,
       renderedCount: rendered.size,
       message: roots.length === 0 ? '家谱结构暂时无法生成，可查看关系明细' : undefined
@@ -113,6 +112,7 @@ export function buildFamilyGraph(input: FamilyTreeBuildInput): BuiltFamilyGraph 
       success: false,
       roots: [],
       orphanBranches: [],
+      unlocatedMemberIds: [],
       memberCount,
       renderedCount: 0,
       message: '家谱结构暂时无法生成，可查看关系明细'

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	familymodel "tree/backend/internal/family/core/model"
 	membermodel "tree/backend/internal/family/member/model"
 	"tree/backend/internal/family/relationship/dto"
+	relationshipenum "tree/backend/internal/family/relationship/enum"
 	relationshipmodel "tree/backend/internal/family/relationship/model"
 	relationshiprepo "tree/backend/internal/family/relationship/repository"
 	operationlog "tree/backend/internal/operationlog/service"
@@ -29,17 +31,84 @@ type fakeUnitOfWork struct {
 }
 
 func (u fakeUnitOfWork) WithinTransaction(ctx context.Context, fn func(relationshiprepo.Repository) error) error {
+	if repo, ok := u.repo.(*fakeRepository); ok {
+		snapshot := repo.snapshot()
+		if err := fn(u.repo); err != nil {
+			repo.restore(snapshot)
+			return err
+		}
+		return nil
+	}
 	return fn(u.repo)
 }
 
 type fakeRepository struct {
-	family         familymodel.Family
+	family                familymodel.Family
+	members               map[uint64]*membermodel.FamilyMember
+	relationships         map[uint64]*relationshipmodel.FamilyRelationship
+	nextMemberID          uint64
+	nextRelationID        uint64
+	graphVersion          int64
+	logActions            []string
+	updateMemberCalls     []memberUpdateCall
+	updateMemberErr       error
+	createRelationshipErr error
+}
+
+type memberUpdateCall struct {
+	FamilyID uint64
+	MemberID uint64
+	Values   map[string]any
+}
+
+type fakeRepositorySnapshot struct {
 	members        map[uint64]*membermodel.FamilyMember
 	relationships  map[uint64]*relationshipmodel.FamilyRelationship
-	nextMemberID   uint64
-	nextRelationID uint64
 	graphVersion   int64
 	logActions     []string
+	updateCalls    []memberUpdateCall
+	nextMemberID   uint64
+	nextRelationID uint64
+}
+
+func cloneMember(member *membermodel.FamilyMember) *membermodel.FamilyMember {
+	if member == nil {
+		return nil
+	}
+	copy := *member
+	return &copy
+}
+
+func (r *fakeRepository) snapshot() fakeRepositorySnapshot {
+	members := make(map[uint64]*membermodel.FamilyMember, len(r.members))
+	for id, member := range r.members {
+		members[id] = cloneMember(member)
+	}
+	relationships := make(map[uint64]*relationshipmodel.FamilyRelationship, len(r.relationships))
+	for id, relationship := range r.relationships {
+		copy := *relationship
+		relationships[id] = &copy
+	}
+	updateCalls := append([]memberUpdateCall(nil), r.updateMemberCalls...)
+	return fakeRepositorySnapshot{
+		members:        members,
+		relationships:  relationships,
+		graphVersion:   r.graphVersion,
+		logActions:     append([]string(nil), r.logActions...),
+		updateCalls:    updateCalls,
+		nextMemberID:   r.nextMemberID,
+		nextRelationID: r.nextRelationID,
+	}
+}
+
+func (r *fakeRepository) restore(snapshot fakeRepositorySnapshot) {
+	r.members = snapshot.members
+	r.relationships = snapshot.relationships
+	r.graphVersion = snapshot.graphVersion
+	r.logActions = snapshot.logActions
+	r.updateMemberCalls = snapshot.updateCalls
+	r.nextMemberID = snapshot.nextMemberID
+	r.nextRelationID = snapshot.nextRelationID
 }
 
 func newFakeRepository() *fakeRepository {
@@ -66,7 +135,7 @@ func (r *fakeRepository) FindMemberForUpdate(_ context.Context, familyID uint64,
 	if !ok || member.FamilyID != familyID || member.Status != string(enums.StatusActive) || member.DeletedAt != nil {
 		return nil, gorm.ErrRecordNotFound
 	}
-	return member, nil
+	return cloneMember(member), nil
 }
 
 func (r *fakeRepository) CreateMember(_ context.Context, member *membermodel.FamilyMember) error {
@@ -76,6 +145,37 @@ func (r *fakeRepository) CreateMember(_ context.Context, member *membermodel.Fam
 	member.UpdatedAt = member.CreatedAt
 	r.members[member.ID] = member
 	return nil
+}
+
+func (r *fakeRepository) UpdateMember(_ context.Context, familyID uint64, memberID uint64, values map[string]any) error {
+	r.updateMemberCalls = append(r.updateMemberCalls, memberUpdateCall{
+		FamilyID: familyID,
+		MemberID: memberID,
+		Values:   copyStringAnyMap(values),
+	})
+	if r.updateMemberErr != nil {
+		return r.updateMemberErr
+	}
+	member, ok := r.members[memberID]
+	if !ok || member.FamilyID != familyID {
+		return gorm.ErrRecordNotFound
+	}
+	if value, ok := values["member_type"].(string); ok {
+		member.MemberType = value
+	}
+	member.UpdatedAt = time.Now()
+	return nil
+}
+
+func copyStringAnyMap(values map[string]any) map[string]any {
+	if values == nil {
+		return nil
+	}
+	copy := make(map[string]any, len(values))
+	for key, value := range values {
+		copy[key] = value
+	}
+	return copy
 }
 
 func (r *fakeRepository) FindActiveRelationship(_ context.Context, familyID uint64, relationshipID uint64) (*relationshipmodel.FamilyRelationship, error) {
@@ -181,6 +281,9 @@ func (r *fakeRepository) ListActiveSpouseRelationshipsByGender(_ context.Context
 }
 
 func (r *fakeRepository) CreateRelationship(_ context.Context, relationship *relationshipmodel.FamilyRelationship) error {
+	if r.createRelationshipErr != nil {
+		return r.createRelationshipErr
+	}
 	r.nextRelationID++
 	relationship.ID = r.nextRelationID
 	relationship.CreatedAt = time.Now()
@@ -234,10 +337,28 @@ func createRequest(addType string, name string) dto.CreateRelationshipRequest {
 }
 
 func createRequestWithGender(addType string, name string, gender string) dto.CreateRelationshipRequest {
+	newMember := dto.NewMemberInput{Name: name, Gender: &gender}
+	if addType == "ADD_FATHER" || addType == "ADD_MOTHER" {
+		memberType := "LINEAGE_MEMBER"
+		newMember.MemberType = &memberType
+	}
 	return dto.CreateRelationshipRequest{
 		BaseMemberID: 3,
 		AddType:      addType,
-		NewMember:    dto.NewMemberInput{Name: name, Gender: &gender},
+		NewMember:    newMember,
+	}
+}
+
+func createParentRequest(addType string, name string, memberType string) dto.CreateRelationshipRequest {
+	gender := string(enums.GenderMale)
+	if addType == "ADD_MOTHER" {
+		gender = string(enums.GenderFemale)
+	}
+	newMember := dto.NewMemberInput{Name: name, Gender: &gender, MemberType: &memberType}
+	return dto.CreateRelationshipRequest{
+		BaseMemberID: 3,
+		AddType:      addType,
+		NewMember:    newMember,
 	}
 }
 
@@ -686,4 +807,328 @@ func seedRelationship(repo *fakeRepository) *relationshipmodel.FamilyRelationshi
 	}
 	repo.relationships[relationship.ID] = relationship
 	return relationship
+}
+
+func TestSpouseBaseMemberRejectsRelationshipExpansion(t *testing.T) {
+	repo := newFakeRepository()
+	spouseID := uint64(9)
+	repo.members[spouseID] = &membermodel.FamilyMember{
+		ID: spouseID, FamilyID: 2, DisplayName: "Spouse Base", Gender: string(enums.GenderFemale),
+		MemberType: "SPOUSE", Status: string(enums.StatusActive),
+	}
+	addTypes := []string{"ADD_FATHER", "ADD_MOTHER", "ADD_CHILD", "ADD_SPOUSE", "ADD_SIBLING"}
+	for _, addType := range addTypes {
+		t.Run(addType, func(t *testing.T) {
+			req := createRequest(addType, "Should Fail")
+			req.BaseMemberID = spouseID
+			_, businessErr := testService(repo, true).Create(context.Background(), 8, 2, req, AuditInput{})
+			if businessErr == nil || businessErr.Code != CodeRelationshipForbidden {
+				t.Fatalf("expected spouse base rejection for %s, got %#v", addType, businessErr)
+			}
+		})
+	}
+}
+
+func TestSecondParentBecomesSpouseWhenLineageParentExists(t *testing.T) {
+	repo := newFakeRepository()
+	repo.family.FamilySurname = "张"
+	fatherID := uint64(9)
+	repo.members[fatherID] = &membermodel.FamilyMember{
+		ID: fatherID, FamilyID: 2, DisplayName: "张父", Gender: string(enums.GenderMale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	primary := "PRIMARY"
+	repo.relationships[19] = &relationshipmodel.FamilyRelationship{
+		ID: 19, FamilyID: 2, FromMemberID: fatherID, ToMemberID: 3,
+		RelationshipType: "PARENT_CHILD", ParentLinkType: &primary, Status: string(enums.StatusActive),
+	}
+
+	result, businessErr := testService(repo, true).Create(context.Background(), 8, 2, createParentRequest("ADD_MOTHER", "王母", "SPOUSE"), AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("Create returned error: %v", businessErr)
+	}
+	created := repo.members[result.CreatedMember.MemberID]
+	if created == nil || created.MemberType != "SPOUSE" {
+		t.Fatalf("expected created mother to be SPOUSE, got %#v", created)
+	}
+	if len(result.Relationships) != 2 {
+		t.Fatalf("expected parent-child and spouse relationships, got %d", len(result.Relationships))
+	}
+	var hasSpouse bool
+	for _, rel := range result.Relationships {
+		if rel.RelationshipType == "SPOUSE" && rel.FromMemberID == fatherID && rel.ToMemberID == result.CreatedMember.MemberID {
+			hasSpouse = true
+		}
+	}
+	if !hasSpouse {
+		t.Fatalf("expected spouse link between lineage father and new mother, got %#v", result.Relationships)
+	}
+}
+
+func TestSpouseParentRequiresLineageParentFirst(t *testing.T) {
+	repo := newFakeRepository()
+	_, businessErr := testService(repo, true).Create(context.Background(), 8, 2, createParentRequest("ADD_MOTHER", "外姓母", "SPOUSE"), AuditInput{})
+	if businessErr == nil || businessErr.Code != CodeRelationshipType {
+		t.Fatalf("expected lineage parent required, got %#v", businessErr)
+	}
+}
+
+func TestLineageFatherThenSpouseFather(t *testing.T) {
+	repo := newFakeRepository()
+	repo.family.FamilySurname = "张"
+	motherID := uint64(9)
+	repo.members[motherID] = &membermodel.FamilyMember{
+		ID: motherID, FamilyID: 2, DisplayName: "张母", Gender: string(enums.GenderFemale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	primary := "PRIMARY"
+	repo.relationships[19] = &relationshipmodel.FamilyRelationship{
+		ID: 19, FamilyID: 2, FromMemberID: motherID, ToMemberID: 3,
+		RelationshipType: "PARENT_CHILD", ParentLinkType: &primary, Status: string(enums.StatusActive),
+	}
+
+	result, businessErr := testService(repo, true).Create(context.Background(), 8, 2, createParentRequest("ADD_FATHER", "王父", "SPOUSE"), AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("Create returned error: %v", businessErr)
+	}
+	created := repo.members[result.CreatedMember.MemberID]
+	if created == nil || created.MemberType != "SPOUSE" {
+		t.Fatalf("expected created father to be SPOUSE, got %#v", created)
+	}
+	var hasSpouse bool
+	for _, rel := range result.Relationships {
+		if rel.RelationshipType == "SPOUSE" && rel.FromMemberID == motherID && rel.ToMemberID == result.CreatedMember.MemberID {
+			hasSpouse = true
+		}
+	}
+	if !hasSpouse {
+		t.Fatalf("expected spouse link between lineage mother and new father, got %#v", result.Relationships)
+	}
+}
+
+func TestDuplicateSpouseRelationshipDoesNotFail(t *testing.T) {
+	repo := newFakeRepository()
+	motherID := uint64(9)
+	fatherID := uint64(11)
+	repo.members[motherID] = &membermodel.FamilyMember{
+		ID: motherID, FamilyID: 2, DisplayName: "张母", Gender: string(enums.GenderFemale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	repo.members[fatherID] = &membermodel.FamilyMember{
+		ID: fatherID, FamilyID: 2, DisplayName: "王父", Gender: string(enums.GenderMale),
+		MemberType: "SPOUSE", Status: string(enums.StatusActive),
+	}
+	primary := "PRIMARY"
+	repo.relationships[19] = &relationshipmodel.FamilyRelationship{
+		ID: 19, FamilyID: 2, FromMemberID: motherID, ToMemberID: 3,
+		RelationshipType: "PARENT_CHILD", ParentLinkType: &primary, Status: string(enums.StatusActive),
+	}
+	repo.relationships[20] = &relationshipmodel.FamilyRelationship{
+		ID: 20, FamilyID: 2, FromMemberID: motherID, ToMemberID: fatherID,
+		RelationshipType: "SPOUSE", Status: string(enums.StatusActive),
+	}
+
+	memberType := "SPOUSE"
+	created, err := placeExistingMember(
+		context.Background(), repo, 2, "张", 8, 3, repo.members[fatherID],
+		relationshipenum.AddTypeFather, &memberType, normalizedRelationshipInput{parentLinkType: &primary},
+	)
+	if err != nil {
+		t.Fatalf("placeExistingMember returned error: %v", err)
+	}
+	if len(created) != 1 {
+		t.Fatalf("expected only parent-child when spouse already exists, got %#v", created)
+	}
+	if created[0].RelationshipType != "PARENT_CHILD" {
+		t.Fatalf("expected parent-child relationship, got %#v", created[0])
+	}
+}
+
+func TestPlaceExistingSpousePersistsMemberType(t *testing.T) {
+	repo := newFakeRepository()
+	repo.members[4] = &membermodel.FamilyMember{
+		ID: 4, FamilyID: 2, DisplayName: "Existing Spouse", Gender: string(enums.GenderFemale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	result, businessErr := testService(repo, true).PlaceExisting(context.Background(), 8, 2, dto.PlaceExistingMemberRequest{
+		BaseMemberID: 3,
+		MemberID:     4,
+		AddType:      "ADD_SPOUSE",
+	}, AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("PlaceExisting returned error: %v", businessErr)
+	}
+	if repo.members[4].MemberType != "SPOUSE" {
+		t.Fatalf("expected persisted SPOUSE member type, got %s", repo.members[4].MemberType)
+	}
+	if len(repo.updateMemberCalls) != 1 {
+		t.Fatalf("expected exactly one UpdateMember call, got %d", len(repo.updateMemberCalls))
+	}
+	call := repo.updateMemberCalls[0]
+	if call.MemberID != 4 || call.Values["member_type"] != "SPOUSE" {
+		t.Fatalf("unexpected UpdateMember call: %#v", call)
+	}
+	if result.CreatedMember == nil || result.CreatedMember.MemberID != 4 {
+		t.Fatalf("unexpected placement result: %#v", result)
+	}
+}
+
+func placeExistingParentRequest(addType string, memberType string) dto.PlaceExistingMemberRequest {
+	return dto.PlaceExistingMemberRequest{
+		BaseMemberID: 3,
+		MemberID:     12,
+		AddType:      addType,
+		MemberType:   &memberType,
+	}
+}
+
+func TestPlaceExistingFatherRequiresLineageMemberType(t *testing.T) {
+	repo := newFakeRepository()
+	repo.members[12] = &membermodel.FamilyMember{
+		ID: 12, FamilyID: 2, DisplayName: "待定位父", Gender: string(enums.GenderMale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	result, businessErr := testService(repo, true).PlaceExisting(context.Background(), 8, 2, placeExistingParentRequest("ADD_FATHER", "LINEAGE_MEMBER"), AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("PlaceExisting returned error: %v", businessErr)
+	}
+	if len(result.Relationships) != 1 || result.Relationships[0].RelationshipType != "PARENT_CHILD" {
+		t.Fatalf("unexpected placement result: %#v", result)
+	}
+	if len(repo.updateMemberCalls) != 0 {
+		t.Fatalf("expected no UpdateMember when type unchanged, got %d", len(repo.updateMemberCalls))
+	}
+}
+
+func TestPlaceExistingMotherAsSpouse(t *testing.T) {
+	repo := newFakeRepository()
+	fatherID := uint64(9)
+	repo.members[fatherID] = &membermodel.FamilyMember{
+		ID: fatherID, FamilyID: 2, DisplayName: "张父", Gender: string(enums.GenderMale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	repo.members[12] = &membermodel.FamilyMember{
+		ID: 12, FamilyID: 2, DisplayName: "王母", Gender: string(enums.GenderFemale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	primary := "PRIMARY"
+	repo.relationships[19] = &relationshipmodel.FamilyRelationship{
+		ID: 19, FamilyID: 2, FromMemberID: fatherID, ToMemberID: 3,
+		RelationshipType: "PARENT_CHILD", ParentLinkType: &primary, Status: string(enums.StatusActive),
+	}
+	result, businessErr := testService(repo, true).PlaceExisting(context.Background(), 8, 2, placeExistingParentRequest("ADD_MOTHER", "SPOUSE"), AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("PlaceExisting returned error: %v", businessErr)
+	}
+	if repo.members[12].MemberType != "SPOUSE" {
+		t.Fatalf("expected placed mother to persist SPOUSE, got %s", repo.members[12].MemberType)
+	}
+	if len(result.Relationships) != 2 {
+		t.Fatalf("expected parent-child and spouse relationships, got %#v", result.Relationships)
+	}
+	if len(repo.updateMemberCalls) != 1 {
+		t.Fatalf("expected exactly one UpdateMember call, got %d", len(repo.updateMemberCalls))
+	}
+	if repo.updateMemberCalls[0].Values["member_type"] != "SPOUSE" {
+		t.Fatalf("expected member_type=SPOUSE update, got %#v", repo.updateMemberCalls[0])
+	}
+}
+
+func TestPlaceExistingTransactionRollsBackMemberTypeAndRelationships(t *testing.T) {
+	repo := newFakeRepository()
+	repo.members[4] = &membermodel.FamilyMember{
+		ID: 4, FamilyID: 2, DisplayName: "Existing Spouse", Gender: string(enums.GenderFemale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	repo.updateMemberErr = errors.New("update member failed")
+	relationshipCountBefore := len(repo.relationships)
+	_, businessErr := testService(repo, true).PlaceExisting(context.Background(), 8, 2, dto.PlaceExistingMemberRequest{
+		BaseMemberID: 3,
+		MemberID:     4,
+		AddType:      "ADD_SPOUSE",
+	}, AuditInput{})
+	if businessErr == nil {
+		t.Fatal("expected placement failure")
+	}
+	if repo.members[4].MemberType != "LINEAGE_MEMBER" {
+		t.Fatalf("member type should roll back, got %s", repo.members[4].MemberType)
+	}
+	if len(repo.relationships) != relationshipCountBefore {
+		t.Fatalf("relationships should roll back, got %d want %d", len(repo.relationships), relationshipCountBefore)
+	}
+	if repo.graphVersion != 1 {
+		t.Fatalf("graph version should roll back, got %d", repo.graphVersion)
+	}
+}
+
+func TestPlaceExistingLineageMotherThenSpouseFather(t *testing.T) {
+	repo := newFakeRepository()
+	motherID := uint64(9)
+	repo.members[motherID] = &membermodel.FamilyMember{
+		ID: motherID, FamilyID: 2, DisplayName: "张母", Gender: string(enums.GenderFemale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	repo.members[12] = &membermodel.FamilyMember{
+		ID: 12, FamilyID: 2, DisplayName: "王父", Gender: string(enums.GenderMale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	primary := "PRIMARY"
+	repo.relationships[19] = &relationshipmodel.FamilyRelationship{
+		ID: 19, FamilyID: 2, FromMemberID: motherID, ToMemberID: 3,
+		RelationshipType: "PARENT_CHILD", ParentLinkType: &primary, Status: string(enums.StatusActive),
+	}
+	memberType := "SPOUSE"
+	result, businessErr := testService(repo, true).PlaceExisting(context.Background(), 8, 2, dto.PlaceExistingMemberRequest{
+		BaseMemberID: 3,
+		MemberID:     12,
+		AddType:      "ADD_FATHER",
+		MemberType:   &memberType,
+	}, AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("PlaceExisting returned error: %v", businessErr)
+	}
+	if repo.members[12].MemberType != "SPOUSE" {
+		t.Fatalf("expected placed father to persist SPOUSE, got %s", repo.members[12].MemberType)
+	}
+	if len(result.Relationships) != 2 {
+		t.Fatalf("expected parent-child and spouse relationships, got %#v", result.Relationships)
+	}
+}
+
+func TestPlaceExistingParentRejectsMissingMemberType(t *testing.T) {
+	repo := newFakeRepository()
+	repo.members[12] = &membermodel.FamilyMember{
+		ID: 12, FamilyID: 2, DisplayName: "待定位父", Gender: string(enums.GenderMale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	_, businessErr := testService(repo, true).PlaceExisting(context.Background(), 8, 2, dto.PlaceExistingMemberRequest{
+		BaseMemberID: 3,
+		MemberID:     12,
+		AddType:      "ADD_FATHER",
+	}, AuditInput{})
+	if businessErr == nil || businessErr.Code != CodeRelationshipMember {
+		t.Fatalf("expected member type required, got %#v", businessErr)
+	}
+}
+
+func TestPlaceExistingSpouseParentRejectsNonLineageExistingParent(t *testing.T) {
+	repo := newFakeRepository()
+	spouseFatherID := uint64(9)
+	repo.members[spouseFatherID] = &membermodel.FamilyMember{
+		ID: spouseFatherID, FamilyID: 2, DisplayName: "外姓父", Gender: string(enums.GenderMale),
+		MemberType: "SPOUSE", Status: string(enums.StatusActive),
+	}
+	repo.members[12] = &membermodel.FamilyMember{
+		ID: 12, FamilyID: 2, DisplayName: "待定位母", Gender: string(enums.GenderFemale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	primary := "PRIMARY"
+	repo.relationships[19] = &relationshipmodel.FamilyRelationship{
+		ID: 19, FamilyID: 2, FromMemberID: spouseFatherID, ToMemberID: 3,
+		RelationshipType: "PARENT_CHILD", ParentLinkType: &primary, Status: string(enums.StatusActive),
+	}
+	_, businessErr := testService(repo, true).PlaceExisting(context.Background(), 8, 2, placeExistingParentRequest("ADD_MOTHER", "SPOUSE"), AuditInput{})
+	if businessErr == nil || businessErr.Code != CodeRelationshipType {
+		t.Fatalf("expected lineage parent required, got %#v", businessErr)
+	}
 }

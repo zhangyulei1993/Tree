@@ -1,4 +1,5 @@
 import type { KinshipContext, KinshipRuleMatch } from './types'
+import { inferRelativeAgeFromFacts } from './helpers'
 import { buildRelationKey } from './pathKey'
 
 const COUSIN_RULES: Record<string, KinshipRuleMatch> = {
@@ -76,6 +77,46 @@ function getCousinSide(pathKey: string): 'paternal' | 'maternalOrCross' | 'unkno
   return 'maternalOrCross'
 }
 
+function cousinPrefixFromPathKey(pathKey: string): '堂' | '表' | null {
+  const side = getCousinSide(pathKey)
+  if (side === 'paternal') return '堂'
+  if (side === 'maternalOrCross') return '表'
+  return null
+}
+
+/**
+ * 堂/表同辈称谓按「我 vs 堂表亲本人」出生先后判断，不按父母兄弟姐妹（伯父/叔父等）长幼。
+ * 仅在 self 与堂表亲子女 step 均有可比较生日/年龄时生效。
+ */
+export function matchCousinPeerSeniority(
+  context: KinshipContext,
+  pathKey: string
+): KinshipRuleMatch | null {
+  if (buildRelationKey(context) !== 'parent>sibling>child') return null
+
+  const childStep = context.steps[2]
+  const peerSeniority = inferRelativeAgeFromFacts(context.self, childStep.person, undefined)
+  if (peerSeniority !== 'older' && peerSeniority !== 'younger') return null
+
+  const prefix = cousinPrefixFromPathKey(pathKey)
+  if (!prefix) return null
+
+  const childGender = childStep.person.gender
+  if (childGender === 'male') {
+    return {
+      status: 'resolved',
+      primaryTitle: peerSeniority === 'older' ? `${prefix}兄` : `${prefix}弟`
+    }
+  }
+  if (childGender === 'female') {
+    return {
+      status: 'resolved',
+      primaryTitle: peerSeniority === 'older' ? `${prefix}姐` : `${prefix}妹`
+    }
+  }
+  return null
+}
+
 function genderedTitle(gender: string | undefined, male: string, female: string, neutral: string): KinshipRuleMatch {
   if (gender === 'male') return { status: 'resolved', primaryTitle: male }
   if (gender === 'female') return { status: 'resolved', primaryTitle: female }
@@ -125,6 +166,8 @@ function matchCousinDescendantRules(context: KinshipContext, pathKey: string): K
 }
 
 export function matchCousinRules(context: KinshipContext, pathKey: string): KinshipRuleMatch | null {
+  const peerMatch = matchCousinPeerSeniority(context, pathKey)
+  if (peerMatch) return peerMatch
   return COUSIN_RULES[pathKey] || matchCousinDescendantRules(context, pathKey)
 }
 

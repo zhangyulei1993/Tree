@@ -28,6 +28,7 @@ type ApproveJoinRequest struct {
 type MemberLocation struct {
 	BaseMemberID uint64                            `json:"baseMemberId" binding:"required"`
 	AddType      string                            `json:"addType" binding:"required"`
+	MemberType   *string                           `json:"memberType"`
 	Relationship relationshipdto.RelationshipInput `json:"relationship"`
 }
 

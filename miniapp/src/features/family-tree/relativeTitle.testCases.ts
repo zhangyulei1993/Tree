@@ -1,4 +1,4 @@
-import type { TreeEdge, TreeNode } from '@/types/api'
+import type { MemberType, TreeEdge, TreeNode } from '@/types/api'
 
 import { buildRelGraph } from './relativeGraph'
 import { buildTitleCacheKey, clearRelativeTitleCache, setCachedRelativeTitle } from './relativeTitleCache'
@@ -18,14 +18,15 @@ function n(
   memberId: number,
   displayName: string,
   gender: 'MALE' | 'FEMALE',
-  birthDate: string
+  birthDate: string,
+  memberType: MemberType = 'LINEAGE_MEMBER'
 ): TreeNode {
   return {
     memberId,
     displayName,
     gender,
     birthDate,
-    memberType: 'NORMAL',
+    memberType,
     userBindingState: 'NOT_REQUIRED',
     canExpand: false
   }
@@ -268,9 +269,9 @@ function zhangCases(): RelativeTitleTestCase[] {
     { name: 'granduncle-older', viewerMemberId: ids.me, targetMemberId: ids.gongBro1, expected: '伯祖父', ...base },
     { name: 'granduncle-younger', viewerMemberId: ids.me, targetMemberId: ids.gongBro2, expected: '叔祖父', ...base },
     { name: 'grandaunt', viewerMemberId: ids.me, targetMemberId: ids.gongSis, expected: '姑祖母', ...base },
-    { name: 'cousin-tang-older', viewerMemberId: ids.me, targetMemberId: ids.tangGe, expected: '堂哥', ...base },
+    { name: 'cousin-tang-older', viewerMemberId: ids.me, targetMemberId: ids.tangGe, expected: '堂兄', ...base },
     { name: 'cousin-tang-younger', viewerMemberId: ids.me, targetMemberId: ids.tangDi, expected: '堂弟', ...base },
-    { name: 'cousin-biao', viewerMemberId: ids.me, targetMemberId: ids.biaoGe, expected: '表哥', ...base }
+    { name: 'cousin-biao', viewerMemberId: ids.me, targetMemberId: ids.biaoGe, expected: '表兄', ...base }
   ]
 }
 
@@ -297,10 +298,10 @@ function siblingCases(): RelativeTitleTestCase[] {
     pc(2, 7, 10)
   ]
   return [
-    { name: 'sibling-elder-brother', viewerMemberId: 4, targetMemberId: 3, nodes, edges, expected: '大哥' },
+    { name: 'sibling-elder-brother', viewerMemberId: 4, targetMemberId: 3, nodes, edges, expected: '兄长' },
     { name: 'sibling-younger-brother', viewerMemberId: 4, targetMemberId: 5, nodes, edges, expected: '弟弟' },
-    { name: 'sibling-elder-sister', viewerMemberId: 4, targetMemberId: 6, nodes, edges, expected: '大姐' },
-    { name: 'sibling-younger-sister', viewerMemberId: 4, targetMemberId: 7, nodes, edges, expected: '小妹' }
+    { name: 'sibling-elder-sister', viewerMemberId: 4, targetMemberId: 6, nodes, edges, expected: '姐姐' },
+    { name: 'sibling-younger-sister', viewerMemberId: 4, targetMemberId: 7, nodes, edges, expected: '妹妹' }
   ]
 }
 
@@ -319,11 +320,11 @@ function inlawCases(): RelativeTitleTestCase[] {
     n(11, '姐夫', 'MALE', '1996-01-01'),
     n(12, '妹夫', 'MALE', '2005-01-01'),
     n(13, '儿', 'MALE', '2025-01-01'),
-    n(14, '媳', 'FEMALE', '2026-01-01'),
+    n(14, '媳', 'FEMALE', '2026-01-01', 'SPOUSE'),
     n(15, '女', 'FEMALE', '2027-01-01'),
-    n(16, '婿', 'MALE', '2028-01-01'),
+    n(16, '婿', 'MALE', '2028-01-01', 'SPOUSE'),
     n(17, '孙', 'MALE', '2050-01-01'),
-    n(18, '孙媳', 'FEMALE', '2051-01-01')
+    n(18, '孙媳', 'FEMALE', '2051-01-01', 'SPOUSE')
   ]
   const edges: TreeEdge[] = [
     pc(1, 3, 1),
@@ -491,7 +492,7 @@ function maternalLineCases(): RelativeTitleTestCase[] {
     { name: 'maternal-granduncle-younger', viewerMemberId: 7, targetMemberId: 9, nodes, edges, expected: '外叔祖父' },
     { name: 'maternal-grandaunt', viewerMemberId: 7, targetMemberId: 10, nodes, edges, expected: '外姑祖母' },
     { name: 'maternal-grand-uncle-maternal', viewerMemberId: 7, targetMemberId: 13, nodes, edges, expected: '外舅祖父' },
-    { name: 'maternal-grand-aunt-maternal', viewerMemberId: 7, targetMemberId: 14, nodes, edges, expected: '大外姨祖母' }
+    { name: 'maternal-grand-aunt-maternal', viewerMemberId: 7, targetMemberId: 14, nodes, edges, expected: '外姨祖母' }
   ]
 }
 
@@ -535,7 +536,7 @@ function parentSiblingSpouseCases(): RelativeTitleTestCase[] {
   ]
   return [
     { name: 'uncle-wife-elder', viewerMemberId: 7, targetMemberId: 11, nodes, edges, expected: '伯母' },
-    { name: 'uncle-wife-younger', viewerMemberId: 7, targetMemberId: 12, nodes, edges, expected: '婶婶' },
+    { name: 'uncle-wife-younger', viewerMemberId: 7, targetMemberId: 12, nodes, edges, expected: '婶母' },
     { name: 'aunt-husband', viewerMemberId: 7, targetMemberId: 13, nodes, edges, expected: '姑父' },
     { name: 'maternal-uncle-wife', viewerMemberId: 7, targetMemberId: 15, nodes, edges, expected: '舅母' }
   ]
@@ -557,7 +558,7 @@ function family12SampleCases(): RelativeTitleTestCase[] {
     { name: 'f12-son', viewerMemberId: me, targetMemberId: ids.zhangSiyuan, expected: '儿子', ...base },
     { name: 'f12-daughter', viewerMemberId: me, targetMemberId: ids.zhangSining, expected: '女儿', ...base },
     { name: 'f12-elder-brother', viewerMemberId: me, targetMemberId: ids.zhangMingcheng, expected: '弟弟', ...base },
-    { name: 'f12-younger-sister', viewerMemberId: me, targetMemberId: ids.zhangMinghui, expected: '小妹', ...base },
+    { name: 'f12-younger-sister', viewerMemberId: me, targetMemberId: ids.zhangMinghui, expected: '妹妹', ...base },
     { name: 'f12-uncle-paternal', viewerMemberId: me, targetMemberId: ids.zhangJianjun, expected: '叔父', ...base },
     { name: 'f12-aunt-paternal', viewerMemberId: me, targetMemberId: ids.zhangJianfang, expected: '姑母', ...base },
     { name: 'f12-cousin-tang', viewerMemberId: me, targetMemberId: ids.zhangJianmin, expected: '堂叔', ...base },
@@ -632,8 +633,8 @@ function rankedGrandparentCases(): RelativeTitleTestCase[] {
     pc(9, 10, 14)
   ]
   return [
-    { name: 'ranked-da-bo-grandfather', viewerMemberId: 10, targetMemberId: 3, nodes, edges, expected: '大伯祖父' },
-    { name: 'ranked-er-bo-grandfather', viewerMemberId: 10, targetMemberId: 4, nodes, edges, expected: '二伯祖父' },
+    { name: 'ranked-da-bo-grandfather', viewerMemberId: 10, targetMemberId: 3, nodes, edges, expected: '伯祖父' },
+    { name: 'ranked-er-bo-grandfather', viewerMemberId: 10, targetMemberId: 4, nodes, edges, expected: '伯祖父' },
     { name: 'ranked-shu-grandfather', viewerMemberId: 10, targetMemberId: 6, nodes, edges, expected: '叔祖父' },
     { name: 'ranked-xiao-gu-grandmother', viewerMemberId: 10, targetMemberId: 7, nodes, edges, expected: '姑祖母' }
   ]
@@ -695,7 +696,40 @@ function grandparentCollateralDescendantCases(): RelativeTitleTestCase[] {
     { name: 'gp-paternal-uncle-daughter', viewerMemberId: 11, targetMemberId: 14, nodes, edges, expected: '堂姑' },
     { name: 'gp-maternal-uncle-son', viewerMemberId: 11, targetMemberId: 15, nodes, edges, expected: '表伯' },
     { name: 'gp-maternal-aunt-daughter', viewerMemberId: 11, targetMemberId: 16, nodes, edges, expected: '表姑' },
-    { name: 'parent-sibling-child-peer', viewerMemberId: 11, targetMemberId: 17, nodes, edges, expected: '堂哥' }
+    { name: 'parent-sibling-child-peer', viewerMemberId: 11, targetMemberId: 17, nodes, edges, expected: '堂兄' }
+  ]
+}
+
+/** 父母辈堂亲（祖辈旁系）的子女 = 我同辈，不得误标为堂侄/堂侄女 */
+function parentCousinPeerCases(): RelativeTitleTestCase[] {
+  const nodes: TreeNode[] = [
+    n(99, '曾祖父', 'MALE', '1900-01-01'),
+    n(100, '曾祖母', 'FEMALE', '1902-01-01'),
+    n(1, '祖父', 'MALE', '1930-01-01'),
+    n(2, '祖母', 'FEMALE', '1932-01-01'),
+    n(3, '伯祖父', 'MALE', '1925-01-01'),
+    n(4, '父', 'MALE', '1960-01-01'),
+    n(5, '父的堂兄', 'MALE', '1958-01-01'),
+    n(6, '我', 'MALE', '1990-01-01'),
+    n(7, '堂兄', 'MALE', '1988-01-01'),
+    n(8, '堂妹', 'FEMALE', '1992-01-01')
+  ]
+  const edges: TreeEdge[] = [
+    pc(99, 1, 1),
+    pc(100, 1, 2),
+    pc(99, 3, 3),
+    pc(100, 3, 4),
+    pc(1, 4, 5),
+    pc(2, 4, 6),
+    pc(3, 5, 7),
+    pc(4, 6, 8),
+    pc(5, 7, 9),
+    pc(5, 8, 10)
+  ]
+  return [
+    { name: 'parent-cousin-son-elder', viewerMemberId: 6, targetMemberId: 7, nodes, edges, expected: '堂兄' },
+    { name: 'parent-cousin-daughter-younger', viewerMemberId: 6, targetMemberId: 8, nodes, edges, expected: '堂妹' },
+    { name: 'parent-cousin-peer-reverse', viewerMemberId: 7, targetMemberId: 6, nodes, edges, expected: '堂弟' }
   ]
 }
 
@@ -785,6 +819,67 @@ export function getFamily12SampleTitles(): Array<{ name: string; title: string }
   }))
 }
 
+function cousinPeerSeniorityCounterCases(): RelativeTitleTestCase[] {
+  /** 叔父（父辈年幼）之子，出生早于「我」→ 堂兄，不得因叔父支判为堂弟 */
+  const tangNodes: TreeNode[] = [
+    n(10, '祖父', 'MALE', '1940-01-01'),
+    n(11, '祖母', 'FEMALE', '1942-01-01'),
+    n(1, '父亲', 'MALE', '1970-01-01'),
+    n(4, '叔父', 'MALE', '1975-01-01'),
+    n(2, '母亲', 'FEMALE', '1972-01-01'),
+    n(3, '我', 'MALE', '2000-01-01'),
+    n(5, '堂亲', 'MALE', '1998-01-01')
+  ]
+  const tangEdges: TreeEdge[] = [
+    pc(10, 1, 1),
+    pc(11, 1, 2),
+    pc(10, 4, 3),
+    pc(11, 4, 4),
+    pc(1, 3, 5),
+    pc(2, 3, 6),
+    pc(4, 5, 7)
+  ]
+
+  /** 舅父（父辈年长）之子，出生晚于「我」→ 表弟，不得因舅父支判为表兄 */
+  const biaoNodes: TreeNode[] = [
+    n(20, '外祖父', 'MALE', '1945-01-01'),
+    n(21, '外祖母', 'FEMALE', '1947-01-01'),
+    n(1, '母亲', 'FEMALE', '1972-01-01'),
+    n(4, '舅父', 'MALE', '1968-01-01'),
+    n(2, '父亲', 'MALE', '1970-01-01'),
+    n(3, '我', 'MALE', '2000-01-01'),
+    n(5, '表亲', 'MALE', '2005-01-01')
+  ]
+  const biaoEdges: TreeEdge[] = [
+    pc(20, 1, 1),
+    pc(21, 1, 2),
+    pc(20, 4, 3),
+    pc(21, 4, 4),
+    pc(1, 3, 5),
+    pc(2, 3, 6),
+    pc(4, 5, 7)
+  ]
+
+  return [
+    {
+      name: 'cousin-tang-peer-older-not-paternal-branch',
+      viewerMemberId: 3,
+      targetMemberId: 5,
+      nodes: tangNodes,
+      edges: tangEdges,
+      expected: '堂兄'
+    },
+    {
+      name: 'cousin-biao-peer-younger-not-paternal-branch',
+      viewerMemberId: 3,
+      targetMemberId: 5,
+      nodes: biaoNodes,
+      edges: biaoEdges,
+      expected: '表弟'
+    }
+  ]
+}
+
 export function allRelativeTitleTestCases(): RelativeTitleTestCase[] {
   return [
     ...zhangCases(),
@@ -792,12 +887,14 @@ export function allRelativeTitleTestCases(): RelativeTitleTestCase[] {
     ...inlawCases(),
     ...nephewCases(),
     ...cousinChildCases(),
+    ...cousinPeerSeniorityCounterCases(),
     ...maternalLineCases(),
     ...parentSiblingSpouseCases(),
     ...family12SampleCases(),
     ...extraBloodCases(),
     ...rankedGrandparentCases(),
     ...grandparentCollateralDescendantCases(),
+    ...parentCousinPeerCases(),
     ...deepAncestorAndCollateralCases()
   ]
 }

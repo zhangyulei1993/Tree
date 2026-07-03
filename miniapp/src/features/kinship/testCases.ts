@@ -9,7 +9,8 @@ import {
   PARENT_CHILD_DISABLED_REASON
 } from './allowedRelations'
 import { inferRelativeAgeFromFacts, normalizePersonFacts } from './helpers'
-import { resolveKinship } from './resolveKinship'
+import { deriveCanonicalExpectation, isForbiddenCanonicalTitle } from './canonicalTestExpectations'
+import { resolveCanonicalKinship } from './resolveCanonicalKinship'
 import type { KinshipContext, KinshipRelation, KinshipStep } from './types'
 import { MAX_KINSHIP_DEPTH } from './types'
 
@@ -228,8 +229,9 @@ export const kinshipTestCases: KinshipTestCase[] = [
   },
   {
     id: 'T022',
-    name: '五层后所有关系禁用',
+    name: '六层后所有关系禁用',
     context: createContext([
+      parentStep('male'),
       parentStep('male'),
       parentStep('male'),
       parentStep('male'),
@@ -521,7 +523,8 @@ export const kinshipTestCases: KinshipTestCase[] = [
       parentStep('female'),
       parentStep('male')
     ]),
-    expectedStatus: 'ambiguous',
+    expectedStatus: 'resolved',
+    expectedTitle: '外五世祖父',
     expectedForbiddenTitles: ['五世祖父', '高祖父', '曾祖父']
   },
   {
@@ -558,7 +561,7 @@ export const kinshipTestCases: KinshipTestCase[] = [
       parentStep('female'),
       parentStep('female')
     ]),
-    expectedStatus: 'ambiguous',
+    expectedStatus: 'resolved',
     expectedTitle: '外高祖母',
     expectedForbiddenTitles: ['外高祖父', '外高外祖父', '高祖父'],
     expectedForbiddenAliases: ['母系高祖父'],
@@ -574,7 +577,7 @@ export const kinshipTestCases: KinshipTestCase[] = [
       parentStep('female'),
       parentStep('female')
     ]),
-    expectedStatus: 'ambiguous',
+    expectedStatus: 'resolved',
     expectedTitle: '外五世祖母',
     expectedForbiddenTitles: ['外五世祖父', '外五世外祖父', '五世祖父'],
     expectedForbiddenAliases: ['母系五世祖父'],
@@ -670,8 +673,9 @@ export const kinshipTestCases: KinshipTestCase[] = [
   },
   {
     id: 'T073',
-    name: '五层与终点并存时五层优先',
+    name: '六层与终点并存时六层优先',
     context: createContext([
+      parentStep('male'),
       parentStep('male'),
       parentStep('male'),
       parentStep('male'),
@@ -765,8 +769,8 @@ export const kinshipTestCases: KinshipTestCase[] = [
       parentStep('male'),
       siblingStep('male', 'older')
     ]),
-    expectedStatus: 'ambiguous',
-    expectedOneOfTitles: ['外伯祖父']
+    expectedStatus: 'resolved',
+    expectedTitle: '外伯祖父'
   },
   {
     id: 'T083',
@@ -776,8 +780,8 @@ export const kinshipTestCases: KinshipTestCase[] = [
       parentStep('female'),
       siblingStep('female', 'older')
     ]),
-    expectedStatus: 'ambiguous',
-    expectedOneOfTitles: ['外姨祖母']
+    expectedStatus: 'resolved',
+    expectedTitle: '外姨祖母'
   },
   {
     id: 'T084',
@@ -799,8 +803,8 @@ export const kinshipTestCases: KinshipTestCase[] = [
       parentStep('male'),
       siblingStep('male', 'younger')
     ]),
-    expectedStatus: 'ambiguous',
-    expectedOneOfTitles: ['外叔祖父']
+    expectedStatus: 'resolved',
+    expectedTitle: '外叔祖父'
   },
 
   // --- 堂表规则 ---
@@ -847,6 +851,36 @@ export const kinshipTestCases: KinshipTestCase[] = [
     ]),
     expectedStatus: 'resolved',
     expectedTitle: '堂妹'
+  },
+  {
+    id: 'T220',
+    name: '堂亲反例：叔父支但同辈年长仍称堂兄',
+    context: createContext(
+      [
+        parentStep('male'),
+        siblingStep('male', 'younger'),
+        childStep('male', { birthday: '1998-01-01' })
+      ],
+      { gender: 'male', birthday: '2000-01-01' }
+    ),
+    expectedStatus: 'resolved',
+    expectedTitle: '堂兄',
+    expectedForbiddenTitles: ['堂弟']
+  },
+  {
+    id: 'T221',
+    name: '表亲反例：舅父支但同辈年幼仍称表弟',
+    context: createContext(
+      [
+        parentStep('female'),
+        siblingStep('male', 'older'),
+        childStep('male', { birthday: '2005-01-01' })
+      ],
+      { gender: 'male', birthday: '2000-01-01' }
+    ),
+    expectedStatus: 'resolved',
+    expectedTitle: '表弟',
+    expectedForbiddenTitles: ['表兄']
   },
   {
     id: 'T090',
@@ -1420,10 +1454,10 @@ export const kinshipTestCases: KinshipTestCase[] = [
   },
   {
     id: 'T148',
-    name: '三代直系下行解析为曾孙辈',
+    name: '三代直系下行解析为曾孙',
     context: createContext([childStep('male'), childStep('male'), childStep('male')]),
-    expectedStatus: 'ambiguous',
-    expectedOneOfTitles: ['曾孙', '曾孙女', '曾孙辈']
+    expectedStatus: 'resolved',
+    expectedTitle: '曾孙'
   },
   {
     id: 'T149',
@@ -1827,15 +1861,34 @@ export const kinshipTestCases: KinshipTestCase[] = [
   },
   {
     id: 'T179',
-    name: '从本人往下超过重孙辈被禁用',
-    context: createContext([childStep('male'), childStep('male'), childStep('male')]),
+    name: '从本人往下超过来孙辈被禁用',
+    context: createContext([
+      childStep('male'),
+      childStep('male'),
+      childStep('male'),
+      childStep('male'),
+      childStep('male')
+    ]),
     action: { relation: 'child' },
     expectedCanAppend: false,
     expectedDisabledReason: DIRECT_DESCENDANT_DEPTH_DISABLED_REASON
   },
   {
+    id: 'T179B',
+    name: '来孙辈后仍可选择配偶',
+    context: createContext([
+      childStep('male'),
+      childStep('male'),
+      childStep('male'),
+      childStep('male'),
+      childStep('male')
+    ]),
+    action: { relation: 'spouse' },
+    expectedCanAppend: true
+  },
+  {
     id: 'T180',
-    name: '曾孙 -> 配偶为曾孙媳并终止',
+    name: '曾孙 -> 配偶为曾孙媳妇并终止',
     context: createContext([
       childStep('male'),
       childStep('male'),
@@ -1843,7 +1896,7 @@ export const kinshipTestCases: KinshipTestCase[] = [
       spouseStep('female')
     ]),
     expectedStatus: 'resolved',
-    expectedTitle: '曾孙媳',
+    expectedTitle: '曾孙媳妇',
     action: { relation: 'parent' },
     expectedCanAppend: false
   },
@@ -2300,11 +2353,13 @@ export interface KinshipSelfCheckResult {
   failures: string[]
 }
 
-function titleMatches(resolution: ReturnType<typeof resolveKinship>, testCase: KinshipTestCase) {
-  if (testCase.expectedOneOfTitles?.length) {
-    return testCase.expectedOneOfTitles.includes(resolution.primaryTitle || '')
+function titleMatches(resolution: ReturnType<typeof resolveCanonicalKinship>, testCase: KinshipTestCase) {
+  const expected = deriveCanonicalExpectation(testCase)
+  if (expected.kind === 'skip') return true
+  if (expected.kind === 'unsupported') {
+    return resolution.unsupportedCanonicalTitle
   }
-  return resolution.primaryTitle === testCase.expectedTitle
+  return resolution.canonicalTitle === expected.title
 }
 
 export function runKinshipSelfChecks(): KinshipSelfCheckResult {
@@ -2312,43 +2367,34 @@ export function runKinshipSelfChecks(): KinshipSelfCheckResult {
 
   for (const testCase of kinshipTestCases) {
     const context = testCase.context || createContext(testCase.steps || [])
+    const expected = deriveCanonicalExpectation(testCase)
 
-    if (testCase.expectedStatus || testCase.expectedTitle || testCase.expectedOneOfTitles) {
-      const resolution = resolveKinship(context)
-      if (testCase.expectedStatus && resolution.status !== testCase.expectedStatus) {
-        failures.push(`${testCase.id} ${testCase.name}: 期望状态 ${testCase.expectedStatus}，实际 ${resolution.status}`)
+    if (expected.kind !== 'skip' && (testCase.expectedStatus || testCase.expectedTitle || testCase.expectedOneOfTitles)) {
+      const resolution = resolveCanonicalKinship(context)
+
+      if (resolution.canonicalTitle && isForbiddenCanonicalTitle(resolution.canonicalTitle)) {
+        failures.push(`${testCase.id} ${testCase.name}: 不得返回裸称谓 ${resolution.canonicalTitle}`)
       }
-      if ((testCase.expectedTitle || testCase.expectedOneOfTitles) && !titleMatches(resolution, testCase)) {
-        failures.push(
-          `${testCase.id} ${testCase.name}: 期望称谓 ${testCase.expectedTitle || testCase.expectedOneOfTitles?.join('/')}，实际 ${resolution.primaryTitle || '无'}`
-        )
+
+      if (expected.kind === 'canonical') {
+        if (resolution.unsupportedCanonicalTitle || resolution.canonicalTitle !== expected.title) {
+          failures.push(
+            `${testCase.id} ${testCase.name}: 期望规范称谓 ${expected.title}，实际 ${resolution.canonicalTitle || resolution.pathDescription}`
+          )
+        }
+      } else if (expected.kind === 'unsupported') {
+        if (!resolution.unsupportedCanonicalTitle) {
+          failures.push(
+            `${testCase.id} ${testCase.name}: 期望无规范称谓（展示路径），实际 ${resolution.canonicalTitle || '已解析'}`
+          )
+        }
       }
+
       if (testCase.expectedForbiddenTitles?.length) {
-        const title = resolution.primaryTitle || ''
+        const title = resolution.canonicalTitle || ''
         const forbidden = testCase.expectedForbiddenTitles.find((item) => title === item)
         if (forbidden) {
           failures.push(`${testCase.id} ${testCase.name}: 不应返回称谓 ${forbidden}`)
-        }
-      }
-      if (testCase.expectedForbiddenAliases?.length) {
-        const forbidden = testCase.expectedForbiddenAliases.find((item) => resolution.aliases.includes(item))
-        if (forbidden) {
-          failures.push(`${testCase.id} ${testCase.name}: aliases 不应包含 ${forbidden}`)
-        }
-      }
-      if (testCase.expectedForbiddenCandidates?.length) {
-        const forbidden = testCase.expectedForbiddenCandidates.find((item) =>
-          resolution.candidates?.includes(item)
-        )
-        if (forbidden) {
-          failures.push(`${testCase.id} ${testCase.name}: candidates 不应包含 ${forbidden}`)
-        }
-      }
-      if (testCase.expectedCandidatesIncludes?.length) {
-        for (const item of testCase.expectedCandidatesIncludes) {
-          if (!resolution.candidates?.includes(item)) {
-            failures.push(`${testCase.id} ${testCase.name}: candidates 应包含 ${item}`)
-          }
         }
       }
     }
@@ -2389,7 +2435,7 @@ export function runKinshipSelfChecks(): KinshipSelfCheckResult {
     if (testCase.id === 'T022') {
       const options = getRelationOptions(context)
       if (options.some((item) => item.enabled)) {
-        failures.push(`${testCase.id} ${testCase.name}: 五层后仍有可用关系`)
+        failures.push(`${testCase.id} ${testCase.name}: 六层后仍有可用关系`)
       }
     }
 
@@ -2405,14 +2451,14 @@ export function runKinshipSelfChecks(): KinshipSelfCheckResult {
     }
 
     if (testCase.id === 'T042') {
-      const wifeBrother = resolveKinship(
+      const wifeBrother = resolveCanonicalKinship(
         createContext([spouseStep('female'), siblingStep('male', 'older')])
       )
-      const husbandBrother = resolveKinship(
+      const husbandBrother = resolveCanonicalKinship(
         createContext([spouseStep('male'), siblingStep('male', 'older')])
       )
-      if (wifeBrother.primaryTitle === husbandBrother.primaryTitle) {
-        failures.push(`${testCase.id} ${testCase.name}: 妻子与丈夫的兄弟称谓不应相同`)
+      if (!wifeBrother.unsupportedCanonicalTitle || !husbandBrother.unsupportedCanonicalTitle) {
+        failures.push(`${testCase.id} ${testCase.name}: 配偶兄弟姐妹路径应无规范称谓`)
       }
     }
   }

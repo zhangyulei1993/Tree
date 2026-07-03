@@ -8,18 +8,24 @@
     </view>
     <view class="context-side">
       <text v-if="roleLabel" class="context-role">{{ roleLabel }}</text>
-      <button class="context-back" @click="$emit('back')">家庭概览</button>
+      <button class="context-back" @click="$emit('back')">{{ backLabel }}</button>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  familyName?: string
-  section: string
-  subtitle?: string
-  roleLabel?: string
-}>()
+withDefaults(
+  defineProps<{
+    familyName?: string
+    section: string
+    subtitle?: string
+    roleLabel?: string
+    backLabel?: string
+  }>(),
+  {
+    backLabel: '家庭概览'
+  }
+)
 
 defineEmits<{ back: [] }>()
 </script>
@@ -107,6 +113,12 @@ defineEmits<{ back: [] }>()
   padding: 6rpx 16rpx;
   font-size: 22rpx;
   line-height: 1.4;
+  transition: transform 180ms ease-out, background-color 180ms ease-out;
+}
+
+.context-back:active {
+  background-color: rgba(24, 54, 83, 0.05);
+  transform: translateY(1rpx) scale(0.99);
 }
 
 .context-back::after {

@@ -12,6 +12,15 @@
       </view>
     </MiniCard>
 
+    <MiniCard class="directory-card directory-card--list">
+      <MiniDirectoryTile
+        title="我的家庭"
+        desc="查看和管理已加入的家庭"
+        icon-class="tree-symbol-home"
+        @click="openMyFamilies"
+      />
+    </MiniCard>
+
     <view class="affairs-tabs">
       <button :class="{ active: activeTab === 'invitations' }" @click="activeTab = 'invitations'">
         收到的邀请
@@ -23,7 +32,7 @@
       </button>
     </view>
 
-    <MiniCard v-if="!authChecked || loading">
+    <MiniCard v-if="!authChecked || (loading && invitations.length === 0 && requests.length === 0)">
       <MiniEmptyState symbol="…" title="正在加载" description="正在同步家庭事务..." />
     </MiniCard>
 
@@ -37,7 +46,7 @@
       />
     </MiniCard>
 
-    <template v-else-if="activeTab === 'invitations'">
+    <view v-else-if="activeTab === 'invitations'" key="invitations" class="tab-panel">
       <MiniNotice tone="security" title="核对成员身份">
         接受前请确认家庭名称、成员姓名和邀请发起人。
       </MiniNotice>
@@ -93,9 +102,9 @@
           </MiniButton>
         </MiniCard>
       </view>
-    </template>
+    </view>
 
-    <template v-else>
+    <view v-else key="requests" class="tab-panel">
       <MiniNotice tone="security" title="申请进度">
         待审核申请可主动取消；审核通过后可直接进入“我的家庭”。
       </MiniNotice>
@@ -141,7 +150,7 @@
           </MiniButton>
         </MiniCard>
       </view>
-    </template>
+    </view>
 
     <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
   </view>
@@ -157,6 +166,7 @@ import { cancelJoinRequest, listMyJoinRequests } from '@/api/joinRequests'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
+import MiniDirectoryTile from '@/components/base/MiniDirectoryTile.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import {
   invitationStatusText,
@@ -179,6 +189,7 @@ const actionError = ref('')
 const actingInvitationId = ref<number | string | null>(null)
 const invitationAction = ref<'' | 'accept' | 'reject'>('')
 const cancellingRequestId = ref<number | string | null>(null)
+const navigating = ref(false)
 
 const pendingInvitationCount = computed(() =>
   invitations.value.filter((item) => displayInvitationStatus(item) === 'PENDING').length
@@ -203,22 +214,34 @@ const requestGroups = computed(() => {
   ].filter((group) => group.items.length > 0)
 })
 
-function resetView() {
+function resetTransientUI() {
+  actionError.value = ''
+  actingInvitationId.value = null
+  invitationAction.value = ''
+  cancellingRequestId.value = null
+}
+
+function resetPageData() {
   authChecked.value = false
   loading.value = false
   loadError.value = ''
-  actionError.value = ''
   invitations.value = []
   requests.value = []
+  resetTransientUI()
 }
 
 async function loadAffairs() {
-  authChecked.value = false
-  if (!session.requireLogin(`/pages/me/family-affairs?tab=${activeTab.value}`)) return
+  if (!session.requireLogin(`/pages/me/family-affairs?tab=${activeTab.value}`)) {
+    authChecked.value = false
+    return
+  }
   authChecked.value = true
-  loading.value = true
-  loadError.value = ''
-  actionError.value = ''
+  const isInitialLoad = invitations.value.length === 0 && requests.value.length === 0
+  loading.value = isInitialLoad
+  if (isInitialLoad) {
+    loadError.value = ''
+    actionError.value = ''
+  }
   try {
     const [invitationResult, requestResult] = await Promise.all([
       listMyInvitations(),
@@ -227,7 +250,9 @@ async function loadAffairs() {
     invitations.value = invitationResult
     requests.value = requestResult
   } catch (error) {
-    loadError.value = apiErrorMessage(error, '家庭事务加载失败。')
+    if (isInitialLoad) {
+      loadError.value = apiErrorMessage(error, '家庭事务加载失败。')
+    }
   } finally {
     loading.value = false
   }
@@ -302,12 +327,19 @@ async function cancelRequest(item: JoinRequest) {
   }
 }
 
-function openSearch() {
-  uni.switchTab({ url: '/pages/family/search' })
+function openMyFamilies() {
+  if (navigating.value) return
+  navigating.value = true
+  uni.navigateTo({
+    url: '/pages/family/my',
+    complete: () => {
+      navigating.value = false
+    }
+  })
 }
 
-function openMyFamilies() {
-  uni.navigateTo({ url: '/pages/family/my' })
+function openSearch() {
+  uni.switchTab({ url: '/pages/family/search' })
 }
 
 onLoad((options) => {
@@ -317,8 +349,8 @@ onShow(() => {
   session.restoreSession()
   loadAffairs()
 })
-onHide(resetView)
-onUnload(resetView)
+onHide(resetTransientUI)
+onUnload(resetPageData)
 </script>
 
 <style scoped>
@@ -394,6 +426,12 @@ onUnload(resetView)
   background: transparent;
   color: var(--tree-text-secondary);
   font-size: 24rpx;
+  transition: transform 180ms ease-out, background-color 180ms ease-out;
+}
+
+.affairs-tabs button:active {
+  background-color: rgba(24, 54, 83, 0.05);
+  transform: translateY(1rpx) scale(0.99);
 }
 
 .affairs-tabs button::after {
@@ -404,6 +442,11 @@ onUnload(resetView)
   background: linear-gradient(135deg, var(--tree-primary) 0%, var(--tree-green) 100%);
   color: #fff;
   font-weight: 800;
+}
+
+.affairs-tabs button.active:active {
+  background: linear-gradient(135deg, var(--tree-primary) 0%, var(--tree-green) 100%);
+  transform: translateY(1rpx) scale(0.99);
 }
 
 .tab-count {
@@ -505,6 +548,30 @@ onUnload(resetView)
 
 .affair-card > :deep(.mini-button) {
   margin-top: 18rpx;
+}
+
+.directory-card {
+  margin-bottom: 16rpx;
+}
+
+.directory-card--list {
+  padding-top: 8rpx;
+  padding-bottom: 8rpx;
+}
+
+.tab-panel {
+  animation: tab-panel-in 200ms ease-out;
+}
+
+@keyframes tab-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(8rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .action-grid :deep(.mini-button) {

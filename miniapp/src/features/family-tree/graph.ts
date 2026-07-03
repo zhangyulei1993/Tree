@@ -5,6 +5,19 @@ import type { FamilyTreeBuildInput, MemberGraph } from './types'
 
 export { birthSortValue, sortChildMemberIds } from './memberSort'
 
+export function isLineageMember(node?: TreeNode): boolean {
+  if (!node) return false
+  return String(node.memberType || '').toUpperCase() === 'LINEAGE_MEMBER'
+}
+
+export function isSpouseMember(node?: TreeNode): boolean {
+  return String(node?.memberType || '').toUpperCase() === 'SPOUSE'
+}
+
+export function isExternalMember(node?: TreeNode): boolean {
+  return String(node?.memberType || '').toUpperCase() === 'EXTERNAL_MEMBER'
+}
+
 function pushMap(map: Map<number, number[]>, key: number, value: number) {
   if (key === value) return
   const list = map.get(key)
@@ -66,6 +79,19 @@ export function compareMembers(a: TreeNode, b: TreeNode): number {
   return compareMaleChildren(a, b)
 }
 
+export function lineageParentIds(graph: MemberGraph, memberId: number): number[] {
+  return (graph.parentIds.get(memberId) || []).filter((parentId) =>
+    isLineageMember(graph.nodeMap.get(parentId))
+  )
+}
+
+export function lineageFatherId(graph: MemberGraph, memberId: number): number | null {
+  for (const parentId of lineageParentIds(graph, memberId)) {
+    if (graph.nodeMap.get(parentId)?.gender === 'MALE') return parentId
+  }
+  return null
+}
+
 export function collectChildren(
   memberId: number,
   childrenIds: Map<number, number[]>,
@@ -80,49 +106,131 @@ export function collectChildren(
   return [...result]
 }
 
-export function findTreeRoots(graph: MemberGraph): number[] {
-  const memberIds = [...graph.nodeMap.keys()]
-  const { parentIds, childrenIds, spouseIds, nodeMap } = graph
+/** 仅收集 LINEAGE_MEMBER 子代，用于主干递归 */
+export function collectLineageChildren(graph: MemberGraph, memberId: number): number[] {
+  return collectChildren(memberId, graph.childrenIds, graph.spouseIds).filter((childId) =>
+    isLineageMember(graph.nodeMap.get(childId))
+  )
+}
 
-  let candidates = memberIds.filter((id) => !(parentIds.get(id)?.length))
-  candidates = candidates.filter((id) => {
-    const spouses = spouseIds.get(id) || []
-    return !spouses.some((spouseId) => (parentIds.get(spouseId)?.length || 0) > 0)
-  })
+function lineageMemberIds(graph: MemberGraph): number[] {
+  return [...graph.nodeMap.keys()].filter((id) => isLineageMember(graph.nodeMap.get(id)))
+}
 
-  const picked = new Set<number>()
-  const roots: number[] = []
-  const sorted = candidates
-    .slice()
-    .sort((a, b) => birthSortValue(nodeMap.get(a)) - birthSortValue(nodeMap.get(b)))
+function buildLineageAdjacency(graph: MemberGraph): Map<number, Set<number>> {
+  const ids = lineageMemberIds(graph)
+  const idSet = new Set(ids)
+  const adj = new Map<number, Set<number>>()
+  for (const id of ids) adj.set(id, new Set())
 
-  for (const memberId of sorted) {
-    if (picked.has(memberId)) continue
-
-    const spouseList = spouseIds.get(memberId) || []
-    const rootCoupleIds = [memberId, ...spouseList.filter((sid) => !(parentIds.get(sid)?.length))]
-    const maleAnchor = rootCoupleIds.find((id) => nodeMap.get(id)?.gender === 'MALE')
-    const anchorId = maleAnchor ?? memberId
-
-    if (picked.has(anchorId)) continue
-    roots.push(anchorId)
-    picked.add(anchorId)
-    for (const spouseId of spouseList) {
-      if (!(parentIds.get(spouseId)?.length)) {
-        picked.add(spouseId)
-      }
+  for (const id of ids) {
+    for (const parentId of graph.parentIds.get(id) || []) {
+      if (!idSet.has(parentId)) continue
+      adj.get(id)!.add(parentId)
+      adj.get(parentId)!.add(id)
     }
-    for (const id of rootCoupleIds) picked.add(id)
   }
 
-  if (roots.length > 0) return roots
+  const parentToChildren = new Map<number, number[]>()
+  for (const id of ids) {
+    for (const parentId of graph.parentIds.get(id) || []) {
+      const children = parentToChildren.get(parentId)
+      if (children) children.push(id)
+      else parentToChildren.set(parentId, [id])
+    }
+  }
+  for (const children of parentToChildren.values()) {
+    for (let i = 0; i < children.length; i += 1) {
+      for (let j = i + 1; j < children.length; j += 1) {
+        adj.get(children[i]!)!.add(children[j]!)
+        adj.get(children[j]!)!.add(children[i]!)
+      }
+    }
+  }
 
-  const withChildren = memberIds
-    .filter((id) => (childrenIds.get(id)?.length || 0) > 0)
-    .sort((a, b) => birthSortValue(nodeMap.get(a)) - birthSortValue(nodeMap.get(b)))
+  return adj
+}
 
-  if (withChildren.length > 0) return [withChildren[0]]
-  return memberIds.slice().sort((a, b) => birthSortValue(nodeMap.get(a)) - birthSortValue(nodeMap.get(b)))
+function componentStableKey(graph: MemberGraph, memberIds: number[]): string {
+  const sorted = memberIds.slice().sort((a, b) => {
+    const na = graph.nodeMap.get(a)
+    const nb = graph.nodeMap.get(b)
+    const birthDiff = birthSortValue(na) - birthSortValue(nb)
+    if (birthDiff !== 0) return birthDiff
+    return (na?.displayName || '').localeCompare(nb?.displayName || '', 'zh-CN')
+  })
+  return sorted.map((id) => graph.nodeMap.get(id)?.displayName || '').join('|')
+}
+
+function componentRelationScore(graph: MemberGraph, memberIds: number[]): number {
+  let score = 0
+  for (const id of memberIds) {
+    score += (graph.childrenIds.get(id) || []).length
+    score += (graph.parentIds.get(id) || []).length
+    score += (graph.spouseIds.get(id) || []).length
+  }
+  return score
+}
+
+function compareLineageComponents(graph: MemberGraph, a: number[], b: number[]): number {
+  if (b.length !== a.length) return b.length - a.length
+  const scoreDiff = componentRelationScore(graph, b) - componentRelationScore(graph, a)
+  if (scoreDiff !== 0) return scoreDiff
+  const oldestA = Math.min(...a.map((id) => birthSortValue(graph.nodeMap.get(id))))
+  const oldestB = Math.min(...b.map((id) => birthSortValue(graph.nodeMap.get(id))))
+  if (oldestA !== oldestB) return oldestA - oldestB
+  return componentStableKey(graph, a).localeCompare(componentStableKey(graph, b), 'zh-CN')
+}
+
+export function findMainLineageComponent(graph: MemberGraph): number[] {
+  const adj = buildLineageAdjacency(graph)
+  const visited = new Set<number>()
+  const components: number[][] = []
+
+  for (const startId of lineageMemberIds(graph)) {
+    if (visited.has(startId)) continue
+    const queue = [startId]
+    const component: number[] = []
+    visited.add(startId)
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      component.push(current)
+      for (const nextId of adj.get(current) || []) {
+        if (visited.has(nextId)) continue
+        visited.add(nextId)
+        queue.push(nextId)
+      }
+    }
+    components.push(component)
+  }
+
+  if (components.length === 0) return []
+
+  return components.slice().sort((a, b) => compareLineageComponents(graph, a, b))[0]!
+}
+
+function pickMainRootId(graph: MemberGraph, candidateIds: number[]): number | null {
+  if (candidateIds.length === 0) return null
+  const sorted = candidateIds.slice().sort((a, b) => {
+    const na = graph.nodeMap.get(a)
+    const nb = graph.nodeMap.get(b)
+    if (na?.gender === 'MALE' && nb?.gender !== 'MALE') return -1
+    if (nb?.gender === 'MALE' && na?.gender !== 'MALE') return 1
+    const birthDiff = birthSortValue(na) - birthSortValue(nb)
+    if (birthDiff !== 0) return birthDiff
+    return (na?.displayName || '').localeCompare(nb?.displayName || '', 'zh-CN')
+  })
+  return sorted[0] ?? null
+}
+
+export function findTreeRoots(graph: MemberGraph): number[] {
+  const mainComponent = findMainLineageComponent(graph)
+  if (mainComponent.length === 0) return []
+
+  const apexes = mainComponent.filter((id) => lineageParentIds(graph, id).length === 0)
+  const candidates = apexes.length > 0 ? apexes : mainComponent
+  const mainRoot = pickMainRootId(graph, candidates)
+  return mainRoot != null ? [mainRoot] : []
 }
 
 export function sortParents(nodes: TreeNode[]): TreeNode[] {
@@ -130,6 +238,20 @@ export function sortParents(nodes: TreeNode[]): TreeNode[] {
     if (a.gender === 'MALE' && b.gender !== 'MALE') return -1
     if (b.gender === 'MALE' && a.gender !== 'MALE') return 1
     return compareMembers(a, b)
+  })
+}
+
+export function filterUnlocatedLineageMemberIds(
+  memberIds: number[],
+  relatedMemberIds: Iterable<number>,
+  memberTypeById: Map<number, string>
+): number[] {
+  const related = new Set(relatedMemberIds)
+  return memberIds.filter((memberId) => {
+    if (related.has(memberId)) return false
+    const memberType = memberTypeById.get(memberId)
+    if (!memberType) return false
+    return memberType.toUpperCase() === 'LINEAGE_MEMBER'
   })
 }
 

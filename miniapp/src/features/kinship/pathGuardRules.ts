@@ -8,7 +8,7 @@ export const CHILD_SIBLING_DISABLED_REASON =
   '该路径通常会绕回你的其他子女，建议直接选择子女关系。'
 
 export const DIRECT_DESCENDANT_DEPTH_DISABLED_REASON =
-  '当前版本从本人往下最多支持到重孙辈，如需继续记录更晚辈关系，请在后续版本使用家谱功能。'
+  '当前版本从本人往下最多支持到来孙辈，如需继续记录更晚辈关系，请在后续版本使用家谱功能。'
 
 export const COLLATERAL_DESCENDANT_DEPTH_DISABLED_REASON =
   '当前版本从兄弟姐妹往下最多支持到侄重孙辈，可以继续选择其配偶，但不再继续下探更晚辈。'
@@ -40,7 +40,10 @@ export function canAppendExtendedTerminalSpouse(
   context: KinshipContext,
   nextRelation: KinshipRelation
 ): boolean {
-  return nextRelation === 'spouse' && buildRelationKey(context) === 'parent>sibling>child>child>child'
+  if (nextRelation !== 'spouse') return false
+  const relationKey = buildRelationKey(context)
+  if (relationKey === 'parent>sibling>child>child>child') return true
+  return isDirectDescendantPath(context) && context.steps.length === 5
 }
 
 export function validatePathGuard(
@@ -49,7 +52,7 @@ export function validatePathGuard(
 ): ValidationResult {
   const lastRelation = getLastRelation(context.steps)
 
-  if (nextRelation === 'child' && context.steps.length >= 3 && isDirectDescendantPath(context)) {
+  if (nextRelation === 'child' && context.steps.length >= 5 && isDirectDescendantPath(context)) {
     return { valid: false, reason: DIRECT_DESCENDANT_DEPTH_DISABLED_REASON }
   }
 

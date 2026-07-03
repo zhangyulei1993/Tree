@@ -47,7 +47,9 @@ export interface FamilyTreeBranchNode {
 export interface BuiltFamilyGraph {
   success: boolean
   roots: FamilyTreeBranchNode[]
+  /** @deprecated 未定位成员改由 unlocatedMemberIds 承载，主画布不再合并 orphan 分支 */
   orphanBranches: FamilyTreeBranchNode[]
+  unlocatedMemberIds: number[]
   memberCount: number
   renderedCount: number
   message?: string
@@ -94,5 +96,6 @@ export interface FamilyTreeLayoutResult {
   memberCount: number
   renderedCount: number
   scrollIntoViewId?: string
+  unlocatedMembers: TreeNode[]
   message?: string
 }

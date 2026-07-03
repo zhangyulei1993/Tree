@@ -4,10 +4,11 @@
     <FamilyContextHeader
       v-if="family"
       :family-name="family.familyName"
-      section="编辑家谱"
+      section="家谱管理"
       subtitle="添加亲属、定位成员并维护关系"
       :role-label="family.role === 'FOUNDER' ? '创建者' : '管理员'"
-      @back="openFamilyOverview"
+      back-label="返回家谱"
+      @back="openPrivateTree"
     />
 
     <MiniCard v-if="loading">
@@ -35,6 +36,14 @@
         </picker>
         <picker :range="relationLabels" :value="relationIndex" @change="onRelationChange">
           <view class="field-picker">{{ relationLabels[relationIndex] }}</view>
+        </picker>
+        <picker
+          v-if="showParentRolePicker"
+          :range="parentRoleLabels"
+          :value="parentRoleIndex"
+          @change="onParentRoleChange"
+        >
+          <view class="field-picker">父母身份：{{ parentRoleLabels[parentRoleIndex] }}</view>
         </picker>
         <input v-model.trim="relativeName" class="tree-input" maxlength="80" placeholder="新亲属姓名" />
         <picker :range="genderLabels" :value="relativeGenderIndex" @change="onRelativeGenderChange">
@@ -90,6 +99,19 @@
           <picker :range="relationLabels" :value="placeRelationIndex" @change="onPlaceRelationChange">
             <view class="field-picker">关系：{{ relationLabels[placeRelationIndex] }}</view>
           </picker>
+          <picker
+            v-if="showPlaceParentRolePicker"
+            :range="parentRoleLabels"
+            :value="placeParentRoleIndex"
+            @change="onPlaceParentRoleChange"
+          >
+            <view class="field-picker">父母身份：{{ parentRoleLabels[placeParentRoleIndex] }}</view>
+          </picker>
+          <MiniNotice v-if="unlocatedTypeAnomalies.length > 0" tone="warm" title="成员类型数据异常">
+            以下暂存成员缺少 memberType，已从未定位列表排除：{{
+              unlocatedTypeAnomalies.map((member) => member.name).join('、')
+            }}
+          </MiniNotice>
           <MiniNotice tone="security" title="定位说明">
             关系以“基准成员”为起点，例如选择“子女”表示待定位成员是基准成员的子女。
           </MiniNotice>
@@ -155,12 +177,13 @@ import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
 import FamilyContextHeader from '@/components/family/FamilyContextHeader.vue'
-import { useSessionStore } from '@/stores/session'
+import { filterUnlocatedLineageMemberIds } from '@/features/family-tree/graph'
 import type {
   FamilyDetail,
   FamilyMember,
   FamilyTreeResult,
   Gender,
+  MemberType,
   RelationshipAddType,
   TreeEdge
 } from '@/types/api'
@@ -191,8 +214,11 @@ const relationValues: RelationshipAddType[] = [
 const relationLabels = ['父亲', '母亲', '子女', '配偶', '兄弟姐妹']
 const genderValues: Gender[] = ['MALE', 'FEMALE']
 const genderLabels = ['男', '女']
+const parentRoleValues: MemberType[] = ['LINEAGE_MEMBER', 'SPOUSE']
+const parentRoleLabels = ['本家成员', '本家成员的配偶']
 const baseMemberIndex = ref(0)
 const relationIndex = ref(0)
+const parentRoleIndex = ref(0)
 const relativeName = ref('')
 const relativeGenderIndex = ref(0)
 const relativeBirthYear = ref('')
@@ -204,6 +230,7 @@ const creatingUnlocated = ref(false)
 const placeMemberIndex = ref(0)
 const placeBaseIndex = ref(0)
 const placeRelationIndex = ref(0)
+const placeParentRoleIndex = ref(0)
 const placingMember = ref(false)
 const manageSection = ref<'create' | 'locate' | 'relations'>('create')
 const initialBaseMemberId = ref('')
@@ -223,7 +250,34 @@ const relatedMemberIDs = computed(() => {
   })
   return ids
 })
-const unlocatedMembers = computed(() => members.value.filter((member) => !relatedMemberIDs.value.has(member.memberId)))
+const treeMemberTypeById = computed(() => {
+  const map = new Map<number, string>()
+  tree.value.nodes.forEach((node) => map.set(node.memberId, node.memberType))
+  return map
+})
+const unlocatedTypeAnomalies = computed(() =>
+  members.value.filter((member) => {
+    if (relatedMemberIDs.value.has(member.memberId)) return false
+    return !treeMemberTypeById.value.has(member.memberId)
+  })
+)
+const unlocatedMembers = computed(() =>
+  members.value.filter((member) =>
+    filterUnlocatedLineageMemberIds(
+      [member.memberId],
+      relatedMemberIDs.value,
+      treeMemberTypeById.value
+    ).includes(member.memberId)
+  )
+)
+const showParentRolePicker = computed(() => {
+  const addType = relationValues[relationIndex.value]
+  return addType === 'ADD_FATHER' || addType === 'ADD_MOTHER'
+})
+const showPlaceParentRolePicker = computed(() => {
+  const addType = relationValues[placeRelationIndex.value]
+  return addType === 'ADD_FATHER' || addType === 'ADD_MOTHER'
+})
 const unlocatedMemberLabels = computed(() => unlocatedMembers.value.map((member) => member.name))
 const selectedPlaceMember = computed(() => unlocatedMembers.value[placeMemberIndex.value])
 const placementBaseMembers = computed(() => members.value.filter((member) => member.memberId !== selectedPlaceMember.value?.memberId))
@@ -241,7 +295,12 @@ function onBaseMemberChange(event: { detail: { value: string | number } }) {
 
 function onRelationChange(event: { detail: { value: string | number } }) {
   relationIndex.value = asIndex(event)
+  parentRoleIndex.value = 0
   applyRelationGenderDefault()
+}
+
+function onParentRoleChange(event: { detail: { value: string | number } }) {
+  parentRoleIndex.value = asIndex(event)
 }
 
 function onRelativeGenderChange(event: { detail: { value: string | number } }) {
@@ -263,6 +322,11 @@ function onPlaceBaseChange(event: { detail: { value: string | number } }) {
 
 function onPlaceRelationChange(event: { detail: { value: string | number } }) {
   placeRelationIndex.value = asIndex(event)
+  placeParentRoleIndex.value = 0
+}
+
+function onPlaceParentRoleChange(event: { detail: { value: string | number } }) {
+  placeParentRoleIndex.value = asIndex(event)
 }
 
 function applyRelationGenderDefault() {
@@ -323,16 +387,28 @@ async function submitRelative() {
   submitting.value = true
   operationError.value = ''
   try {
+    const addType = relationValues[relationIndex.value]
+    const newMember: {
+      name: string
+      gender: Gender
+      birthYear?: number
+      isAlive: boolean
+      userBindingPolicy: 'OPTIONAL'
+      memberType?: MemberType
+    } = {
+      name: relativeName.value,
+      gender: genderValues[relativeGenderIndex.value],
+      birthYear: yearValue(relativeBirthYear.value),
+      isAlive: true,
+      userBindingPolicy: 'OPTIONAL'
+    }
+    if (addType === 'ADD_FATHER' || addType === 'ADD_MOTHER') {
+      newMember.memberType = parentRoleValues[parentRoleIndex.value]
+    }
     await createRelationship(familyId.value, {
       baseMemberId: base.memberId,
-      addType: relationValues[relationIndex.value],
-      newMember: {
-        name: relativeName.value,
-        gender: genderValues[relativeGenderIndex.value],
-        birthYear: yearValue(relativeBirthYear.value),
-        isAlive: true,
-        userBindingPolicy: 'OPTIONAL'
-      },
+      addType,
+      newMember,
       relationship: {
         parentLinkType: relationValues[relationIndex.value] === 'ADD_SPOUSE' ? undefined : 'PRIMARY',
         relationNote: relationNote.value || undefined
@@ -385,14 +461,24 @@ async function submitPlacement() {
   operationError.value = ''
   try {
     const addType = relationValues[placeRelationIndex.value]
-    await placeExistingMember(familyId.value, {
+    const payload: {
+      baseMemberId: number
+      memberId: number
+      addType: RelationshipAddType
+      memberType?: MemberType
+      relationship: { parentLinkType?: string }
+    } = {
       baseMemberId: base.memberId,
       memberId: member.memberId,
       addType,
       relationship: {
         parentLinkType: addType === 'ADD_SPOUSE' ? undefined : 'PRIMARY'
       }
-    })
+    }
+    if (addType === 'ADD_FATHER' || addType === 'ADD_MOTHER') {
+      payload.memberType = parentRoleValues[placeParentRoleIndex.value]
+    }
+    await placeExistingMember(familyId.value, payload)
     uni.showToast({ title: '成员已放入家谱', icon: 'success' })
     placeMemberIndex.value = 0
     placeBaseIndex.value = 0
@@ -467,8 +553,14 @@ async function removeRelationship(relationshipId: number) {
   }
 }
 
-function openFamilyOverview() {
-  uni.redirectTo({ url: `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}` })
+function openPrivateTree() {
+  if (getCurrentPages().length > 1) {
+    uni.navigateBack()
+    return
+  }
+  uni.redirectTo({
+    url: `/pages/family/private-tree?familyId=${encodeURIComponent(familyId.value)}`
+  })
 }
 
 onLoad((options) => {

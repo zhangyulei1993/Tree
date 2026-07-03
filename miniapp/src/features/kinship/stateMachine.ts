@@ -7,7 +7,7 @@ export const PARENT_CHILD_DISABLED_REASON =
 export const CHILD_PARENT_DISABLED_REASON =
   '子女的父母通常会回到本人、配偶或上一层关系，当前版本不通过回退路径表达。'
 
-export const MAX_DEPTH_DISABLED_REASON = '当前版本最多支持 5 层关系路径'
+export const MAX_DEPTH_DISABLED_REASON = '当前版本最多支持 6 层关系路径'
 
 export function getLastRelation(steps: { relation: KinshipRelation }[]): KinshipRelation | null {
   if (steps.length === 0) return null

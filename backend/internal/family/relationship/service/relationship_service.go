@@ -77,7 +77,7 @@ func (s *relationshipService) PlaceExisting(ctx context.Context, actorID uint64,
 		}
 		createdRelationships, err = PlaceExistingMember(
 			ctx, repo, familyID, family.FamilySurname, actorID,
-			req.BaseMemberID, member, req.AddType, req.Relationship,
+			req.BaseMemberID, member, req.AddType, req.MemberType, req.Relationship,
 		)
 		if err != nil {
 			return err
@@ -145,8 +145,12 @@ func (s *relationshipService) Create(ctx context.Context, actorID uint64, family
 		if err := repo.CreateMember(ctx, member); err != nil {
 			return err
 		}
+		var requestedMemberType *string
+		if addType == relationshipenum.AddTypeFather || addType == relationshipenum.AddTypeMother {
+			requestedMemberType = req.NewMember.MemberType
+		}
 		createdRelationships, err = placeExistingMember(
-			ctx, repo, familyID, family.FamilySurname, actorID, req.BaseMemberID, member, addType, input,
+			ctx, repo, familyID, family.FamilySurname, actorID, req.BaseMemberID, member, addType, requestedMemberType, input,
 		)
 		if err != nil {
 			return err
@@ -600,6 +604,14 @@ func mapRepositoryError(err error) *apperrors.BusinessError {
 		return relationshipError(CodeRelationshipNotFound, "关系不存在")
 	case errors.Is(err, errSelfRelationship):
 		return relationshipError(CodeRelationshipSelf, "不能与自己建立关系")
+	case errors.Is(err, errSpouseBaseExpansion):
+		return relationshipError(CodeRelationshipForbidden, "配偶节点不能作为家谱主干扩展，请从族内成员节点操作")
+	case errors.Is(err, errParentMemberTypeRequired):
+		return relationshipError(CodeRelationshipMember, "添加父母时必须选择成员身份")
+	case errors.Is(err, errParentMemberTypeInvalid):
+		return relationshipError(CodeRelationshipMember, "父母成员身份仅支持本家成员或本家成员的配偶")
+	case errors.Is(err, errLineageParentRequired):
+		return relationshipError(CodeRelationshipType, "请先录入本家成员作为父母，再添加配偶父母")
 	case errors.Is(err, errFamilyUnavailable):
 		return relationshipError(CodeRelationshipFamily, "家庭不存在或状态不允许操作")
 	default:
@@ -652,22 +664,26 @@ func relationshipError(code apperrors.Code, message string) *apperrors.BusinessE
 }
 
 var (
-	errSiblingParentRequired   = errors.New("sibling parent required")
-	errMemberUnavailable       = errors.New("relationship member unavailable")
-	errMemberAlreadyLocated    = errors.New("member already located")
-	errDuplicateRelationship   = errors.New("duplicate relationship")
-	errPrimaryFatherExists     = errors.New("primary father exists")
-	errPrimaryMotherExists     = errors.New("primary mother exists")
-	errPrimaryHusbandExists    = errors.New("primary husband exists")
-	errPrimaryWifeExists       = errors.New("primary wife exists")
-	errBaseGenderRequired      = errors.New("base gender required")
-	errFatherGenderRequired    = errors.New("father gender required")
-	errMotherGenderRequired    = errors.New("mother gender required")
-	errSpouseGenderMismatch    = errors.New("spouse gender mismatch")
-	errChildGenderRequired     = errors.New("child gender required")
-	errSiblingGenderRequired   = errors.New("sibling gender required")
-	errUnsupportedRelationship = errors.New("unsupported relationship")
-	errRelationshipNotFound    = errors.New("relationship not found")
-	errSelfRelationship        = errors.New("self relationship")
-	errFamilyUnavailable       = errors.New("family unavailable")
+	errSiblingParentRequired    = errors.New("sibling parent required")
+	errMemberUnavailable        = errors.New("relationship member unavailable")
+	errMemberAlreadyLocated     = errors.New("member already located")
+	errDuplicateRelationship    = errors.New("duplicate relationship")
+	errPrimaryFatherExists      = errors.New("primary father exists")
+	errPrimaryMotherExists      = errors.New("primary mother exists")
+	errPrimaryHusbandExists     = errors.New("primary husband exists")
+	errPrimaryWifeExists        = errors.New("primary wife exists")
+	errBaseGenderRequired       = errors.New("base gender required")
+	errFatherGenderRequired     = errors.New("father gender required")
+	errMotherGenderRequired     = errors.New("mother gender required")
+	errSpouseGenderMismatch     = errors.New("spouse gender mismatch")
+	errChildGenderRequired      = errors.New("child gender required")
+	errSiblingGenderRequired    = errors.New("sibling gender required")
+	errUnsupportedRelationship  = errors.New("unsupported relationship")
+	errRelationshipNotFound     = errors.New("relationship not found")
+	errSelfRelationship         = errors.New("self relationship")
+	errSpouseBaseExpansion      = errors.New("spouse base expansion forbidden")
+	errFamilyUnavailable        = errors.New("family unavailable")
+	errParentMemberTypeRequired = errors.New("parent member type required")
+	errParentMemberTypeInvalid  = errors.New("parent member type invalid")
+	errLineageParentRequired    = errors.New("lineage parent required before spouse parent")
 )

@@ -20,19 +20,13 @@
       <text v-if="operationError" class="tree-field-error">{{ operationError }}</text>
     </MiniCard>
 
-    <MiniCard v-if="!authChecked">
-      <view class="state-block">
-        <text class="tree-muted">正在确认登录状态...</text>
-      </view>
-    </MiniCard>
-
-    <MiniCard v-else-if="loading">
+    <MiniCard v-if="loading && requests.length === 0">
       <view class="state-block">
         <text class="tree-muted">正在加载加入申请...</text>
       </view>
     </MiniCard>
 
-    <MiniCard v-else-if="loadError">
+    <MiniCard v-else-if="loadError && requests.length === 0">
       <MiniEmptyState
         symbol="!"
         title="加载失败"
@@ -156,11 +150,24 @@
             <picker mode="selector" :range="relationOptionLabels" :value="addTypeIndex" @change="onSelectAddType">
               <view class="picker-field">{{ selectedAddTypeLabel }}</view>
             </picker>
+            <text v-if="showParentRolePicker" class="tree-field-label">父母身份</text>
+            <picker
+              v-if="showParentRolePicker"
+              mode="selector"
+              :range="parentRoleLabels"
+              :value="parentRoleIndex"
+              @change="onSelectParentRole"
+            >
+              <view class="picker-field">{{ parentRoleLabels[parentRoleIndex] }}</view>
+            </picker>
+            <MiniNotice v-if="showParentRolePicker && selectedParentMemberType === 'SPOUSE'" tone="warm">
+              选择「本家成员的配偶」时，基准成员必须已有相反性别的本家成员父母。
+            </MiniNotice>
             <MiniNotice :tone="placementTone">
               {{ selectedPlacement.message }}
             </MiniNotice>
             <MiniButton
-              :disabled="members.length === 0 || isActing(item)"
+              :disabled="orderedMembers.length === 0 || isActing(item)"
               :loading="actingId === item.requestId && actingType === 'approve'"
               @click="confirmCreateLocated(item)"
             >
@@ -216,6 +223,11 @@ import MiniNotice from '@/components/base/MiniNotice.vue'
 import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
 import MiniStatusTag from '@/components/base/MiniStatusTag.vue'
 import FamilyContextHeader from '@/components/family/FamilyContextHeader.vue'
+import {
+  buildApproveJoinLocation,
+  parentRoleLabels,
+  parentRoleValues
+} from '@/features/join/approveJoinLocation'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyMember, Gender, JoinRequest, RelationshipAddType, TreeEdge, TreeNode } from '@/types/api'
 
@@ -244,7 +256,6 @@ const treeEdges = ref<TreeEdge[]>([])
 const loading = ref(false)
 const loadError = ref('')
 const operationError = ref('')
-const authChecked = ref(false)
 const actingId = ref<number | string | null>(null)
 const actingType = ref<'' | 'approve' | 'reject'>('')
 const activeRequestId = ref<number | string | null>(null)
@@ -253,6 +264,7 @@ const selectedMemberIndex = ref(0)
 const baseMemberIndex = ref(0)
 const genderIndex = ref(0)
 const addTypeIndex = ref(1)
+const parentRoleIndex = ref(0)
 const resolveForm = reactive({
   name: '',
   gender: 'MALE' as Gender
@@ -270,19 +282,27 @@ const bindableMembers = computed(() =>
   )
 )
 const bindableMemberLabels = computed(() => bindableMembers.value.map(memberLabel))
-const memberLabels = computed(() => members.value.map(memberLabel))
+const orderedMembers = computed(() =>
+  [...members.value].sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
+)
+const memberLabels = computed(() => orderedMembers.value.map(memberLabel))
 const selectedExistingMemberLabel = computed(() =>
   bindableMemberLabels.value[selectedMemberIndex.value] || '请选择成员'
 )
 const selectedBaseMemberLabel = computed(() =>
   memberLabels.value[baseMemberIndex.value] || '请选择基准成员'
 )
-const selectedBaseMember = computed(() => members.value[baseMemberIndex.value])
+const selectedBaseMember = computed(() => orderedMembers.value[baseMemberIndex.value])
 const relationOptions = computed(() => buildRelationOptions(resolveForm.gender, selectedBaseMember.value))
 const relationOptionLabels = computed(() => relationOptions.value.map((option) => option.label))
 const selectedRelationOption = computed(() => relationOptions.value[addTypeIndex.value] || relationOptions.value[0])
 const selectedAddType = computed(() => selectedRelationOption.value?.addType || relationFallback)
 const selectedAddTypeLabel = computed(() => selectedRelationOption.value?.label || '关系')
+const showParentRolePicker = computed(() => {
+  const addType = selectedAddType.value
+  return addType === 'ADD_FATHER' || addType === 'ADD_MOTHER'
+})
+const selectedParentMemberType = computed(() => parentRoleValues[parentRoleIndex.value] || 'LINEAGE_MEMBER')
 const familyRoleLabel = computed(() => familyRole.value === 'FOUNDER' ? '创建者' : '管理员')
 const treeNodeMap = computed(() => new Map(treeNodes.value.map((node) => [Number(node.memberId), node])))
 const selectedPlacement = computed(() => placementState(selectedBaseMember.value, selectedAddType.value))
@@ -296,11 +316,16 @@ const requestGroups = computed(() => {
   ].filter((group) => group.items.length > 0)
 })
 
-function resetAuthView() {
-  authChecked.value = false
+function resetTransientUI() {
+  operationError.value = ''
+  actingId.value = null
+  actingType.value = ''
+  activeRequestId.value = null
+}
+
+function resetPageData() {
   loading.value = false
   loadError.value = ''
-  operationError.value = ''
   requests.value = []
   members.value = []
   treeNodes.value = []
@@ -308,7 +333,7 @@ function resetAuthView() {
   familySurname.value = ''
   familyName.value = ''
   familyRole.value = ''
-  activeRequestId.value = null
+  resetTransientUI()
 }
 
 function currentRoute() {
@@ -321,16 +346,18 @@ function formatDate(value: string) {
 }
 
 async function loadRequests() {
-  authChecked.value = false
-  requests.value = []
+  session.restoreSession()
   if (!familyId.value) {
-    authChecked.value = true
     loadError.value = '缺少家庭信息。'
     return
   }
-  if (!session.requireLogin(currentRoute())) return
-  authChecked.value = true
-  loading.value = true
+  if (!session.isLoggedIn) {
+    resetPageData()
+    session.requireLogin(currentRoute())
+    return
+  }
+  const isInitialLoad = requests.value.length === 0
+  loading.value = isInitialLoad
   loadError.value = ''
   operationError.value = ''
   try {
@@ -368,7 +395,7 @@ function memberLabel(member: FamilyMember) {
 
 function normalizePickerIndexes() {
   if (selectedMemberIndex.value >= bindableMembers.value.length) selectedMemberIndex.value = 0
-  if (baseMemberIndex.value >= members.value.length) baseMemberIndex.value = 0
+  if (baseMemberIndex.value >= orderedMembers.value.length) baseMemberIndex.value = 0
 }
 
 function isActing(item: JoinRequest) {
@@ -398,6 +425,7 @@ function openResolvePanel(item: JoinRequest, mode: 'bind' | 'locate' | 'standalo
   genderIndex.value = genders.indexOf(resolveForm.gender)
   if (genderIndex.value < 0) genderIndex.value = 0
   addTypeIndex.value = 1
+  parentRoleIndex.value = 0
   normalizePickerIndexes()
   normalizeRelationIndex()
 }
@@ -419,7 +447,12 @@ function onSelectGender(event: { detail: { value: number | string } }) {
 
 function onSelectAddType(event: { detail: { value: number | string } }) {
   addTypeIndex.value = Number(event.detail.value) || 0
+  parentRoleIndex.value = 0
   normalizeRelationIndex()
+}
+
+function onSelectParentRole(event: { detail: { value: number | string } }) {
+  parentRoleIndex.value = Number(event.detail.value) || 0
 }
 
 function normalizeRelationIndex() {
@@ -636,22 +669,16 @@ async function createLocatedAndApprove(item: JoinRequest, name: string, baseMemb
         isAlive: true,
         userBindingPolicy: 'REQUIRED'
       },
-      location: {
+      location: buildApproveJoinLocation({
         baseMemberId,
         addType,
-        relationship: addType === 'ADD_SPOUSE'
-          ? {
-              relationshipType: 'SPOUSE',
-              relationNoteType: placement.relationNoteType,
-              relationNote: placement.relationNote
-            }
-          : {
-              relationshipType: 'PARENT_CHILD',
-              parentLinkType: placement.parentLinkType || 'PRIMARY',
-              relationNoteType: placement.relationNoteType,
-              relationNote: placement.relationNote
-            }
-      },
+        parentMemberType: selectedParentMemberType.value,
+        placement: {
+          parentLinkType: placement.parentLinkType,
+          relationNoteType: placement.relationNoteType,
+          relationNote: placement.relationNote
+        }
+      }),
       handleComment: '小程序创建并定位成员后通过申请'
     })
     await loadRequests()
@@ -711,12 +738,9 @@ onLoad((options) => {
   familyId.value = String(options?.familyId || '')
 })
 
-onShow(() => {
-  session.restoreSession()
-  loadRequests()
-})
-onHide(resetAuthView)
-onUnload(resetAuthView)
+onShow(loadRequests)
+onHide(resetTransientUI)
+onUnload(resetPageData)
 </script>
 
 <style scoped>

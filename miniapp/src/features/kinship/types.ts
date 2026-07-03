@@ -1,4 +1,4 @@
-export const MAX_KINSHIP_DEPTH = 5
+export const MAX_KINSHIP_DEPTH = 6
 
 export type KinshipRelation = 'parent' | 'child' | 'sibling' | 'spouse'
 
@@ -39,10 +39,13 @@ export interface ValidationResult {
 export interface KinshipResolution {
   status: 'resolved' | 'ambiguous' | 'unsupported'
   primaryTitle?: string
+  /** @deprecated 规范称谓不再返回候选数组 */
   candidates?: string[]
+  /** @deprecated 规范称谓不再返回别称 */
   aliases: string[]
   pathDescription: string
   explanation?: string
+  incompleteInfo?: boolean
 }
 
 export interface KinshipRuleMatch {

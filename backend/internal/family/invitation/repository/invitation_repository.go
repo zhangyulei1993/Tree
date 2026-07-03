@@ -40,6 +40,7 @@ type Repository interface {
 	UpdateStatus(context.Context, uint64, string, map[string]any) error
 	CreateLink(context.Context, *rolemodel.FamilyMemberUserLink) error
 	WriteLog(context.Context, operationlog.WriteInput) error
+	WriteFailedLog(context.Context, operationlog.WriteInput) error
 }
 
 type GormRepository struct{ db *gorm.DB }
@@ -190,6 +191,10 @@ func (r *GormRepository) CreateLink(ctx context.Context, value *rolemodel.Family
 
 func (r *GormRepository) WriteLog(ctx context.Context, input operationlog.WriteInput) error {
 	return operationlog.NewGormService(r.db).WriteSuccess(ctx, input)
+}
+
+func (r *GormRepository) WriteFailedLog(ctx context.Context, input operationlog.WriteInput) error {
+	return operationlog.NewGormService(r.db).WriteFailed(ctx, input)
 }
 
 type UnitOfWork interface {

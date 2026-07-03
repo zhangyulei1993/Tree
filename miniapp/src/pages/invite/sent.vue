@@ -10,12 +10,7 @@
       @back="openFamilyOverview"
     />
 
-    <MiniCard v-if="!authChecked">
-      <MiniEmptyState symbol="…" title="正在确认权限" description="请稍候..." />
-    </MiniCard>
-
-    <template v-else>
-      <template v-if="shareResult">
+    <template v-if="shareResult">
         <MiniCard variant="soft" class="share-result-card">
           <view class="share-result-head">
             <view>
@@ -54,11 +49,11 @@
       </template>
 
       <template v-else>
-        <MiniCard v-if="loading">
+        <MiniCard v-if="loading && invitations.length === 0">
           <MiniEmptyState symbol="…" title="正在加载" description="正在加载发出的成员邀请..." />
         </MiniCard>
 
-        <MiniCard v-else-if="loadError">
+        <MiniCard v-else-if="loadError && invitations.length === 0">
           <MiniEmptyState
             symbol="!"
             title="加载失败"
@@ -120,7 +115,6 @@
 
         <text v-if="operationError" class="tree-field-error">{{ operationError }}</text>
       </template>
-    </template>
   </view>
 </template>
 
@@ -153,7 +147,6 @@ const familyName = ref('')
 const familyRole = ref('')
 const invitations = ref<Invitation[]>([])
 const loading = ref(false)
-const authChecked = ref(false)
 const loadError = ref('')
 const operationError = ref('')
 const actingId = ref<number | string | null>(null)
@@ -173,17 +166,35 @@ function currentRoute() {
   return `/pages/invite/sent?familyId=${encodeURIComponent(familyId.value)}`
 }
 
-async function loadInvitations() {
-  authChecked.value = false
+function resetTransientUI() {
+  shareResult.value = null
+  operationError.value = ''
+  actingId.value = null
+  actingType.value = ''
+}
+
+function resetPageData() {
+  loading.value = false
+  loadError.value = ''
+  familyName.value = ''
+  familyRole.value = ''
   invitations.value = []
+  resetTransientUI()
+}
+
+async function loadInvitations() {
+  session.restoreSession()
   if (!familyId.value) {
-    authChecked.value = true
     loadError.value = '缺少家庭信息。'
     return
   }
-  if (!session.requireLogin(currentRoute())) return
-  authChecked.value = true
-  loading.value = true
+  if (!session.isLoggedIn) {
+    resetPageData()
+    session.requireLogin(currentRoute())
+    return
+  }
+  const isInitialLoad = invitations.value.length === 0 && !shareResult.value
+  loading.value = isInitialLoad
   loadError.value = ''
   operationError.value = ''
   try {
@@ -305,16 +316,14 @@ onShareAppMessage(() => {
 
 onLoad((options) => {
   familyId.value = String(options?.familyId || '')
+  session.restoreSession()
+  if (session.isLoggedIn && familyId.value) {
+    loading.value = true
+  }
 })
 onShow(loadInvitations)
-onHide(() => {
-  authChecked.value = false
-  loading.value = false
-  invitations.value = []
-})
-onUnload(() => {
-  shareResult.value = null
-})
+onHide(resetTransientUI)
+onUnload(resetPageData)
 </script>
 
 <style scoped>
