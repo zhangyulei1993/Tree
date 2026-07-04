@@ -82,6 +82,9 @@ func (s *treeService) loadTree(ctx context.Context, familyID uint64, graphVersio
 		if json.Unmarshal(data, &result) == nil &&
 			result.FamilyID == familyID &&
 			result.GraphVersion == graphVersion {
+			if public {
+				return maskPublicTreeResult(&result), nil
+			}
 			return &result, nil
 		}
 	}
@@ -104,6 +107,9 @@ func (s *treeService) loadTree(ctx context.Context, familyID uint64, graphVersio
 	actualKey := BuildTreeCacheKey(familyID, result.GraphVersion)
 	if data, err := json.Marshal(result); err == nil {
 		_ = s.cache.Set(ctx, actualKey, data, treeCacheTTL)
+	}
+	if public {
+		return maskPublicTreeResult(result), nil
 	}
 	return result, nil
 }

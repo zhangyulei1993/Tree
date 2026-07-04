@@ -38,7 +38,7 @@ export const COLLECTED_INFO_ITEMS: CollectedInfoItem[] = [
     fields: '微信登录凭证 code（服务端换取 openid/unionid）、昵称、头像（可选）',
     purpose: '微信登录、身份识别、资料展示与账号注销重新认证',
     method: '你授权微信登录；昵称与头像由你主动填写或选择',
-    necessary: '使用家庭协作、加入申请、邀请绑定等功能需登录并设置昵称；浏览公开家庭主页、使用本地称谓工具可不登录',
+    necessary: '使用家庭协作、加入申请、邀请绑定等功能需登录并设置昵称；浏览展示家庭页面、经分享链接访问公开家庭主页、使用本地称谓工具可不登录',
     retention: LEGAL_RETENTION_TEXT
   },
   {
@@ -75,10 +75,10 @@ export const COLLECTED_INFO_ITEMS: CollectedInfoItem[] = [
   },
   {
     category: '公开家庭展示',
-    fields: '家庭名称、姓氏、地区、简介、公开联系方式、经审核的公开树字段',
-    purpose: '公开展示家庭主页与公开树',
-    method: '家庭管理员申请并经平台审核后展示',
-    necessary: '公开展示所必需；未申请公开前不对游客展示私有成员详情',
+    fields: '家庭名称、姓氏、地区、简介、脱敏后的公开联系方式、经审核的公开树字段',
+    purpose: '在展示家庭页面与分享链接中公开展示家庭主页与公开树',
+    method: '家庭管理员申请并经平台审核后，在展示家庭页面或通过分享链接对外展示',
+    necessary: '公开展示所必需；未申请公开前不对游客展示私有成员详情；公开姓名与联系方式将脱敏处理',
     retention: LEGAL_RETENTION_TEXT
   },
   {

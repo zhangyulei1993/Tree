@@ -32,9 +32,7 @@
         <MiniEmptyState
           symbol="邀"
           title="暂无邀请"
-          description="收到家庭邀请后，会在这里显示。你可以请家人发送邀请，或在公开家庭主页提交加入申请。"
-          action-text="寻找家庭"
-          @action="openSearch"
+          description="请家人发送家庭邀请或公开家庭分享链接。"
         />
       </MiniCard>
 
@@ -162,10 +160,6 @@ function inviteChannelText(channel: string) {
 
 function inviterRoleText(role?: string) {
   return role === 'FAMILY_FOUNDER' ? '家庭创建者' : '家庭管理员'
-}
-
-function openSearch() {
-  uni.switchTab({ url: '/pages/family/search' })
 }
 
 function openMyFamilies() {

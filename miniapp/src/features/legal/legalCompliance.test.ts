@@ -69,10 +69,16 @@ test('user agreement covers required topics', () => {
   for (const snippet of requiredSnippets) {
     assert.match(titles + body, new RegExp(snippet))
   }
-  assert.equal(LEGAL_DOCUMENT_VERSION, '1.2.0')
+  assert.equal(LEGAL_DOCUMENT_VERSION, '1.4.0')
   assert.equal(LEGAL_UPDATED_DATE, '2026-07-04')
   assert.match(LEGAL_EFFECTIVE_DATE, /^\d{4}-\d{2}-\d{2}$/)
   assert.match(LEGAL_UPDATED_DATE, /^\d{4}-\d{2}-\d{2}$/)
+  assert.match(body, /展示家庭/)
+  assert.match(body, /脱敏/)
+  const forbiddenPublicPhrases = ['浏览公开家庭列表', '公开家庭主页提交加入申请', '寻找家庭', '搜索公开家庭']
+  for (const phrase of forbiddenPublicPhrases) {
+    assert.equal(body.includes(phrase), false, `privacy policy must not include: ${phrase}`)
+  }
 })
 
 test('privacy policy covers collection categories and rights', () => {
@@ -88,7 +94,10 @@ test('privacy policy covers collection categories and rights', () => {
     '仅在本地处理、不上传',
     '未满 14 周岁',
     '注销不会自动删除',
-    '在世成员'
+    '在世成员',
+    '分享链接',
+    '展示家庭',
+    '脱敏'
   ]
   for (const snippet of requiredSnippets) {
     assert.match(combined, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))

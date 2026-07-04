@@ -4,11 +4,11 @@ import type {
   CreateFamilyInput,
   FamilyDetail,
   FamilySummary,
-  ListPublicFamiliesQuery,
   LeaveFamilyResult,
+  ListPublicFamilyShowcaseQuery,
   PaginatedResult,
   PublicFamily,
-  PublicFamilyListItem,
+  PublicFamilyShowcaseItem,
   UpdateFamilyInput
 } from '@/types/api'
 
@@ -126,8 +126,7 @@ export async function getPublicFamilyDetail(familyId: number | string): Promise<
   return request<PublicFamily>(`/families/${familyId}/public`, { public: true })
 }
 
-function mockPublicFamilyListItem(source: (typeof families)[number]): PublicFamilyListItem {
-  const hasContact = Boolean(source.contact)
+function mockPublicFamilyShowcaseItem(source: (typeof families)[number]): PublicFamilyShowcaseItem {
   return {
     id: source.id,
     familyName: source.name,
@@ -135,40 +134,20 @@ function mockPublicFamilyListItem(source: (typeof families)[number]): PublicFami
     nativePlace: source.nativePlace,
     regionText: source.regionText,
     description: source.description,
-    publicContactVisible: hasContact,
-    publicContactNote: hasContact ? source.contact : null,
     publicApprovedAt: null,
     createdAt: '',
     updatedAt: ''
   }
 }
 
-export async function listPublicFamilies(
-  query: ListPublicFamiliesQuery = {}
-): Promise<PaginatedResult<PublicFamilyListItem>> {
+export async function listPublicFamilyShowcase(
+  query: ListPublicFamilyShowcaseQuery = {}
+): Promise<PaginatedResult<PublicFamilyShowcaseItem>> {
   const page = query.page || 1
   const pageSize = query.pageSize || 20
 
   if (!isRealApiMode) {
-    let items = families.map(mockPublicFamilyListItem)
-    const keyword = query.keyword?.trim()
-    const familySurname = query.familySurname?.trim()
-    const regionText = query.regionText?.trim()
-
-    if (keyword) {
-      items = items.filter((item) =>
-        [item.familyName, item.familySurname, item.nativePlace, item.regionText, item.description]
-          .filter(Boolean)
-          .some((value) => String(value).includes(keyword))
-      )
-    }
-    if (familySurname) {
-      items = items.filter((item) => item.familySurname.includes(familySurname))
-    }
-    if (regionText) {
-      items = items.filter((item) => (item.regionText || '').includes(regionText))
-    }
-
+    const items = families.map(mockPublicFamilyShowcaseItem)
     const offset = (page - 1) * pageSize
     return {
       items: items.slice(offset, offset + pageSize),
@@ -178,17 +157,14 @@ export async function listPublicFamilies(
     }
   }
 
-  const params = buildPublicFamiliesQuery(query)
-  return request<PaginatedResult<PublicFamilyListItem>>(`/public/families?${params}`, { public: true })
+  const params = buildShowcaseQuery(query)
+  return request<PaginatedResult<PublicFamilyShowcaseItem>>(`/public/families?${params}`, { public: true })
 }
 
-function buildPublicFamiliesQuery(query: ListPublicFamiliesQuery) {
+function buildShowcaseQuery(query: ListPublicFamilyShowcaseQuery) {
   return buildQuery({
     page: String(query.page || 1),
-    pageSize: String(query.pageSize || 20),
-    keyword: query.keyword?.trim() || undefined,
-    familySurname: query.familySurname?.trim() || undefined,
-    regionText: query.regionText?.trim() || undefined
+    pageSize: String(query.pageSize || 20)
   })
 }
 

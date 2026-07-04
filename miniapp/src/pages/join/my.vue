@@ -32,9 +32,7 @@
         <MiniEmptyState
           symbol="申"
           title="暂无加入申请"
-          description="你提交的家庭加入申请会显示在这里。可在公开家庭主页提交加入申请，或请家人发送邀请。"
-          action-text="寻找家庭"
-          @action="openSearch"
+          description="你提交的家庭加入申请会显示在这里。请家人发送家庭邀请。"
         />
       </MiniCard>
 
@@ -133,10 +131,6 @@ function resetPageData() {
 function formatDate(value: string) {
   const time = new Date(value)
   return Number.isNaN(time.getTime()) ? value : time.toLocaleString('zh-CN')
-}
-
-function openSearch() {
-  uni.switchTab({ url: '/pages/family/search' })
 }
 
 function openMyFamilies() {

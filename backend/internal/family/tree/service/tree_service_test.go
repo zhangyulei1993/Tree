@@ -278,6 +278,169 @@ func TestTreeJSONContainsNoSensitiveFields(t *testing.T) {
 	}
 }
 
+func TestPublicTreeMasksDisplayNames(t *testing.T) {
+	repo := testRepository()
+	repo.snapshot.Members[0].DisplayName = "张建国"
+	service := NewTreeService(repo, newFakeCache(), fakePermission{})
+
+	result, businessErr := service.GetPublicTree(context.Background(), 2)
+	if businessErr != nil {
+		t.Fatalf("GetPublicTree returned error: %v", businessErr)
+	}
+	if result.Nodes[0].DisplayName != "张*国" {
+		t.Fatalf("public tree must mask display names, got %#v", result.Nodes)
+	}
+}
+
+func TestPrivateTreeKeepsFullDisplayNames(t *testing.T) {
+	repo := testRepository()
+	repo.snapshot.Members[0].DisplayName = "张建国"
+	service := NewTreeService(repo, newFakeCache(), fakePermission{allowed: true})
+
+	result, businessErr := service.GetPrivateTree(context.Background(), 8, 2)
+	if businessErr != nil {
+		t.Fatalf("GetPrivateTree returned error: %v", businessErr)
+	}
+	if result.Nodes[0].DisplayName != "张建国" {
+		t.Fatalf("private tree must keep full names, got %#v", result.Nodes)
+	}
+}
+
+func TestPublicThenPrivateTreeUsesUnmaskedCache(t *testing.T) {
+	repo := maskedNameRepository()
+	cache := newFakeCache()
+	service := NewTreeService(repo, cache, fakePermission{allowed: true})
+
+	publicResult, businessErr := service.GetPublicTree(context.Background(), 2)
+	if businessErr != nil {
+		t.Fatalf("GetPublicTree returned error: %v", businessErr)
+	}
+	if publicResult.Nodes[0].DisplayName != "张*国" {
+		t.Fatalf("public tree must mask display names, got %#v", publicResult.Nodes[0].DisplayName)
+	}
+
+	privateResult, businessErr := service.GetPrivateTree(context.Background(), 8, 2)
+	if businessErr != nil {
+		t.Fatalf("GetPrivateTree returned error: %v", businessErr)
+	}
+	if privateResult.Nodes[0].DisplayName != "张建国" {
+		t.Fatalf("private tree must read unmasked cache, got %#v", privateResult.Nodes[0].DisplayName)
+	}
+	if repo.snapshotCalls != 1 {
+		t.Fatalf("second read must hit cache, snapshotCalls=%d", repo.snapshotCalls)
+	}
+	assertCachedTreeHasFullName(t, cache, "张建国")
+}
+
+func TestPrivateThenPublicTreeUsesUnmaskedCache(t *testing.T) {
+	repo := maskedNameRepository()
+	cache := newFakeCache()
+	service := NewTreeService(repo, cache, fakePermission{allowed: true})
+
+	privateResult, businessErr := service.GetPrivateTree(context.Background(), 8, 2)
+	if businessErr != nil {
+		t.Fatalf("GetPrivateTree returned error: %v", businessErr)
+	}
+	if privateResult.Nodes[0].DisplayName != "张建国" {
+		t.Fatalf("private tree must keep full names, got %#v", privateResult.Nodes[0].DisplayName)
+	}
+
+	publicResult, businessErr := service.GetPublicTree(context.Background(), 2)
+	if businessErr != nil {
+		t.Fatalf("GetPublicTree returned error: %v", businessErr)
+	}
+	if publicResult.Nodes[0].DisplayName != "张*国" {
+		t.Fatalf("public tree must mask cached names, got %#v", publicResult.Nodes[0].DisplayName)
+	}
+	if repo.snapshotCalls != 1 {
+		t.Fatalf("second read must hit cache, snapshotCalls=%d", repo.snapshotCalls)
+	}
+	assertCachedTreeHasFullName(t, cache, "张建国")
+}
+
+func TestPublicTreeJSONOmitsReconstructableFields(t *testing.T) {
+	repo := maskedNameRepository()
+	repo.snapshot.Relationships[0].RelationNote = strPtr("建国备注")
+	stopReason := "隐私截止"
+	repo.snapshot.Members[0].TerminalReason = &stopReason
+	service := NewTreeService(repo, newFakeCache(), fakePermission{})
+
+	result, businessErr := service.GetPublicTree(context.Background(), 2)
+	if businessErr != nil {
+		t.Fatalf("GetPublicTree returned error: %v", businessErr)
+	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal public tree: %v", err)
+	}
+	body := string(payload)
+	for _, forbidden := range []string{"张建国", "generationCharacter", "relationNote", "stopReason", "建国备注", "隐私截止"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("public tree JSON leaked %q: %s", forbidden, body)
+		}
+	}
+	if !strings.Contains(body, "张*国") {
+		t.Fatalf("public tree JSON must contain masked displayName: %s", body)
+	}
+	if result.Nodes[0].GenerationCharacter != nil || result.Nodes[0].StopReason != nil {
+		t.Fatalf("public nodes must clear reconstructable fields: %#v", result.Nodes[0])
+	}
+	if len(result.Edges) > 0 && result.Edges[0].RelationNote != nil {
+		t.Fatalf("public edges must clear relationNote: %#v", result.Edges[0])
+	}
+}
+
+func TestPrivateTreeJSONKeepsReconstructableFields(t *testing.T) {
+	repo := maskedNameRepository()
+	repo.snapshot.Relationships[0].RelationNote = strPtr("建国备注")
+	genChar := "建"
+	repo.snapshot.Members[0].GenerationCharacter = &genChar
+	service := NewTreeService(repo, newFakeCache(), fakePermission{allowed: true})
+
+	result, businessErr := service.GetPrivateTree(context.Background(), 8, 2)
+	if businessErr != nil {
+		t.Fatalf("GetPrivateTree returned error: %v", businessErr)
+	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal private tree: %v", err)
+	}
+	body := string(payload)
+	for _, required := range []string{"张建国", "generationCharacter", "relationNote", "建国备注"} {
+		if !strings.Contains(body, required) {
+			t.Fatalf("private tree JSON must include %q: %s", required, body)
+		}
+	}
+}
+
+func maskedNameRepository() *fakeRepository {
+	repo := testRepository()
+	surname := "张"
+	genChar := "建"
+	repo.snapshot.Members[0].DisplayName = "张建国"
+	repo.snapshot.Members[0].Surname = &surname
+	repo.snapshot.Members[0].GenerationCharacter = &genChar
+	return repo
+}
+
+func assertCachedTreeHasFullName(t *testing.T, cache *fakeCache, fullName string) {
+	t.Helper()
+	if len(cache.setKeys) != 1 {
+		t.Fatalf("expected one cache write, got %#v", cache.setKeys)
+	}
+	var cached vo.TreeResult
+	if err := json.Unmarshal(cache.values[cache.setKeys[0]], &cached); err != nil {
+		t.Fatalf("unmarshal cached tree: %v", err)
+	}
+	if len(cached.Nodes) == 0 || cached.Nodes[0].DisplayName != fullName {
+		t.Fatalf("cache must store unmasked tree, got %#v", cached.Nodes)
+	}
+}
+
+func strPtr(value string) *string {
+	return &value
+}
+
 func testRepository() *fakeRepository {
 	snapshot := testSnapshot()
 	family := snapshot.Family

@@ -28,7 +28,6 @@
         </view>
         <view class="hero-actions">
           <MiniButton @click="openPublicTree">查看公开家谱</MiniButton>
-          <MiniButton variant="secondary" @click="openJoinApply">申请加入家庭</MiniButton>
         </view>
       </MiniCard>
 
@@ -50,9 +49,8 @@
             <text class="tree-info-label">微信</text>
             <text class="tree-info-value">{{ family.publicContactWechat }}</text>
           </view>
-          <view v-if="family.publicContactNote" class="info-block">
-            <text class="tree-field-label">备注</text>
-            <text class="tree-muted">{{ family.publicContactNote }}</text>
+          <view class="info-block">
+            <text class="tree-muted contact-hint">请通过家庭成员分享的邀请联系。</text>
           </view>
         </view>
       </view>
@@ -83,19 +81,12 @@ let requestVersion = 0
 const hasPublicContact = computed(() => Boolean(
   family.value?.publicContactName ||
   family.value?.publicContactPhone ||
-  family.value?.publicContactWechat ||
-  family.value?.publicContactNote
+  family.value?.publicContactWechat
 ))
 
 function openPublicTree() {
   uni.navigateTo({
     url: `/pages/family/public-tree?familyId=${encodeURIComponent(familyId.value)}`
-  })
-}
-
-function openJoinApply() {
-  uni.navigateTo({
-    url: `/pages/join/apply?familyId=${encodeURIComponent(familyId.value)}`
   })
 }
 
@@ -217,7 +208,7 @@ onUnmounted(() => {
 
 .hero-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 14rpx;
   margin-top: 22rpx;
 }

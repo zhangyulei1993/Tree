@@ -164,6 +164,21 @@ export interface PublicFamily {
   publicContactVisible: boolean
 }
 
+export interface PublicFamilyShowcaseItem {
+  id: number | string
+  familyName: string
+  familySurname: string
+  nativePlace?: string | null
+  regionText?: string | null
+  description?: string | null
+  avatarUrl?: string | null
+  publicApprovedAt?: string | null
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface ListPublicFamilyShowcaseQuery extends PaginationQuery {}
+
 export interface PublicFamilyListItem extends PublicFamily {
   publicApprovedAt?: string | null
   createdAt?: string

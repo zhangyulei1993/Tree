@@ -283,6 +283,148 @@ func TestListPublicFamiliesHidesSensitiveContactAndFields(t *testing.T) {
 	}
 }
 
+func TestListPublicFamilyShowcaseIgnoresSearchFilters(t *testing.T) {
+	ctx := context.Background()
+	tx := transactionalTestDB(t)
+	token := publicSearchToken(t)
+	now := time.Now().UTC().Truncate(time.Second)
+
+	insertPublicSearchFamily(t, tx, familymodel.Family{
+		FamilyName: token + "_张氏家族", FamilySurname: "张", Description: strPtr(token),
+		Status: "NORMAL", Searchable: true, PublicDisplayStatus: "APPROVED", PublicApprovedAt: &now,
+	})
+	insertPublicSearchFamily(t, tx, familymodel.Family{
+		FamilyName: token + "_李氏宗亲", FamilySurname: "李", Description: strPtr(token),
+		Status: "NORMAL", Searchable: true, PublicDisplayStatus: "APPROVED", PublicApprovedAt: &now,
+	})
+
+	service := publicSearchService(tx)
+	result, businessErr := service.ListPublicFamilyShowcase(ctx, dto.ListPublicFamilyShowcaseQuery{
+		Page: 1, PageSize: 50,
+	})
+	if businessErr != nil {
+		t.Fatalf("ListPublicFamilyShowcase: %v", businessErr)
+	}
+	found := 0
+	for _, item := range result.Items {
+		if strings.Contains(item.FamilyName, token) {
+			found++
+		}
+	}
+	if found != 2 {
+		t.Fatalf("showcase must return both token families without filters, found=%d items=%#v", found, result.Items)
+	}
+
+	filtered, businessErr := service.ListPublicFamilies(ctx, dto.ListPublicFamiliesQuery{
+		Keyword: token + "_张氏", Page: 1, PageSize: 20,
+	})
+	if businessErr != nil {
+		t.Fatalf("ListPublicFamilies: %v", businessErr)
+	}
+	if filtered.Total != 1 {
+		t.Fatalf("legacy search filter should still narrow results, total=%d", filtered.Total)
+	}
+}
+
+func TestListPublicFamilyShowcaseOmitsContactFields(t *testing.T) {
+	ctx := context.Background()
+	tx := transactionalTestDB(t)
+	token := publicSearchToken(t)
+	now := time.Now().UTC().Truncate(time.Second)
+
+	insertPublicSearchFamily(t, tx, familymodel.Family{
+		FamilyName: token + "_visible_contact_李氏", FamilySurname: "李", Description: strPtr(token),
+		PublicContactVisible: true,
+		PublicContactName:    strPtr("李四"),
+		PublicContactPhone:   strPtr("13900139000"),
+		PublicContactWechat:  strPtr("wx_visible"),
+		PublicContactNote:    strPtr("欢迎联系"),
+		Status:               "NORMAL",
+		Searchable:           true,
+		PublicDisplayStatus:  "APPROVED",
+		PublicApprovedAt:     &now,
+	})
+
+	service := publicSearchService(tx)
+	result, businessErr := service.ListPublicFamilyShowcase(ctx, dto.ListPublicFamilyShowcaseQuery{
+		Page: 1, PageSize: 20,
+	})
+	if businessErr != nil {
+		t.Fatalf("ListPublicFamilyShowcase: %v", businessErr)
+	}
+	var matched map[string]any
+	for _, item := range result.Items {
+		if !strings.Contains(item.FamilyName, token) {
+			continue
+		}
+		payload, err := json.Marshal(item)
+		if err != nil {
+			t.Fatalf("marshal item: %v", err)
+		}
+		if err := json.Unmarshal(payload, &matched); err != nil {
+			t.Fatalf("unmarshal item: %v", err)
+		}
+		for _, forbidden := range []string{
+			"publicContactVisible", "publicContactName", "publicContactPhone",
+			"publicContactWechat", "publicContactNote",
+		} {
+			if _, exists := matched[forbidden]; exists {
+				t.Fatalf("showcase list leaked %s in %#v", forbidden, matched)
+			}
+		}
+		if strings.Contains(string(payload), "李四") || strings.Contains(string(payload), "欢迎联系") {
+			t.Fatalf("showcase list leaked contact values: %s", string(payload))
+		}
+		return
+	}
+	t.Fatalf("expected token-scoped showcase family in %#v", result.Items)
+}
+
+func TestPublicDetailMasksSensitiveFields(t *testing.T) {
+	ctx := context.Background()
+	tx := transactionalTestDB(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	family := insertPublicSearchFamily(t, tx, familymodel.Family{
+		FamilyName:           "张氏武汉支系",
+		FamilySurname:        "张",
+		Status:               "NORMAL",
+		Searchable:           true,
+		PublicDisplayStatus:  "APPROVED",
+		PublicApprovedAt:     &now,
+		PublicContactVisible: true,
+		PublicContactName:    strPtr("张三"),
+		PublicContactPhone:   strPtr("13812345678"),
+		PublicContactWechat:  strPtr("wx_secret_01"),
+		PublicContactNote:    strPtr("欢迎来电"),
+		CreatorUserID:        uint64Ptr(1001),
+	})
+
+	service := publicSearchService(tx)
+	result, businessErr := service.PublicDetail(ctx, family.ID)
+	if businessErr != nil {
+		t.Fatalf("PublicDetail: %v", businessErr)
+	}
+	payload, err := json.Marshal(result)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	body := string(payload)
+	for _, forbidden := range []string{"张三", "13812345678", "wx_secret_01", "欢迎来电", "publicContactNote"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("public detail leaked raw value %q in %s", forbidden, body)
+		}
+	}
+	if result.PublicContactName == nil || *result.PublicContactName != "张*" {
+		t.Fatalf("masked contact name = %#v", result.PublicContactName)
+	}
+	if result.PublicContactPhone == nil || *result.PublicContactPhone != "138****5678" {
+		t.Fatalf("masked phone = %#v", result.PublicContactPhone)
+	}
+	if result.PublicContactWechat == nil || *result.PublicContactWechat != "wx****01" {
+		t.Fatalf("masked wechat = %#v", result.PublicContactWechat)
+	}
+}
+
 func TestListPublicFamiliesKeywordMatchesNativePlace(t *testing.T) {
 	ctx := context.Background()
 	tx := transactionalTestDB(t)

@@ -54,9 +54,7 @@
         <MiniEmptyState
           symbol="邀"
           title="暂无收到的邀请"
-          description="家人发出的成员绑定邀请会显示在这里。"
-          action-text="寻找家庭"
-          @action="openSearch"
+          description="请家人发送家庭邀请或公开家庭分享链接。"
         />
       </MiniCard>
       <view v-for="group in invitationGroups" v-else :key="group.key" class="affair-group">
@@ -112,9 +110,7 @@
         <MiniEmptyState
           symbol="申"
           title="暂无加入申请"
-          description="你在公开家庭主页提交的申请会显示在这里。"
-          action-text="寻找家庭"
-          @action="openSearch"
+          description="你提交的家庭加入申请会显示在这里。请家人发送家庭邀请。"
         />
       </MiniCard>
       <view v-for="group in requestGroups" v-else :key="group.key" class="affair-group">
@@ -336,10 +332,6 @@ function openMyFamilies() {
       navigating.value = false
     }
   })
-}
-
-function openSearch() {
-  uni.switchTab({ url: '/pages/family/search' })
 }
 
 onLoad((options) => {

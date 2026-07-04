@@ -67,6 +67,26 @@ type PublicFamilyListItem struct {
 	UpdatedAt            time.Time  `json:"updatedAt"`
 }
 
+type PublicFamilyShowcaseItem struct {
+	ID               uint64     `json:"id"`
+	FamilyName       string     `json:"familyName"`
+	FamilySurname    string     `json:"familySurname"`
+	NativePlace      *string    `json:"nativePlace,omitempty"`
+	RegionText       *string    `json:"regionText,omitempty"`
+	Description      *string    `json:"description,omitempty"`
+	AvatarURL        *string    `json:"avatarUrl,omitempty"`
+	PublicApprovedAt *time.Time `json:"publicApprovedAt,omitempty"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	UpdatedAt        time.Time  `json:"updatedAt"`
+}
+
+type ListPublicFamilyShowcaseResult struct {
+	Items    []PublicFamilyShowcaseItem `json:"items"`
+	Page     int                        `json:"page"`
+	PageSize int                        `json:"pageSize"`
+	Total    int64                      `json:"total"`
+}
+
 type ListPublicFamiliesResult struct {
 	Items    []PublicFamilyListItem `json:"items"`
 	Page     int                    `json:"page"`

@@ -16,6 +16,12 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import process from 'node:process'
 
+import {
+  formatPlaywrightSessionExample,
+  redactToken,
+  sanitizeLogValue
+} from './lib/h5-session-redaction.mjs'
+
 const CONFIG = {
   runId: 'tree-h5-real-e2e-v1',
   apiBase: process.env.TREE_E2E_API_BASE || 'https://tapi.bigbigboy.cn/api',
@@ -61,15 +67,11 @@ function maskPhone(phone) {
   return `${phone.slice(0, 3)}****${phone.slice(-4)}`
 }
 
-function redactToken(token) {
-  if (!token) return ''
-  return `${token.slice(0, 8)}…(${token.length})`
-}
-
 function log(section, message, extra) {
   const prefix = `[tree-h5-e2e:${section}]`
   if (extra !== undefined) {
-    console.log(prefix, message, typeof extra === 'string' ? extra : JSON.stringify(extra, null, 2))
+    const safeExtra = typeof extra === 'string' ? sanitizeLogValue(extra) : sanitizeLogValue(extra)
+    console.log(prefix, message, typeof safeExtra === 'string' ? safeExtra : JSON.stringify(safeExtra, null, 2))
     return
   }
   console.log(prefix, message)
@@ -83,8 +85,12 @@ function readJson(filePath, fallback = null) {
   }
 }
 
-function writeJson(filePath, data) {
-  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8')
+function writeJson(filePath, data, { mode } = {}) {
+  const fileMode = mode || 0o644
+  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, { encoding: 'utf8', mode: fileMode })
+  if (mode !== undefined) {
+    fs.chmodSync(filePath, mode)
+  }
 }
 
 async function apiRequest(pathname, { method = 'GET', token, body } = {}) {
@@ -883,7 +889,12 @@ async function prepareH5Session(accountKey = 'founder') {
   if (!password) {
     throw new Error(`missing password in ${CONFIG.credentialsFile}; run setup first`)
   }
-  const session = await loginAccount(accountKey, password)
+  const session = process.env.TREE_E2E_DRY_RUN_SESSION === '1'
+    ? {
+        accessToken: 'eyJkcnlSdW4uVE9LRU4iOiJ0ZXN0LXRva2VuLXNlY3JldC1kYXRhLXNob3VsZC1ub3QtcHJpbnQ',
+        user: { id: 46, nickname: '张承志', phone: '16600020101' }
+      }
+    : await loginAccount(accountKey, password)
   const inject = {
     updatedAt: new Date().toISOString(),
     apiBase: CONFIG.apiBase,
@@ -894,17 +905,15 @@ async function prepareH5Session(accountKey = 'founder') {
     }
   }
   const outputFile = process.env.TREE_E2E_SESSION_FILE || '/tmp/tree-h5-real-e2e-session-inject.json'
-  writeJson(outputFile, inject)
+  writeJson(outputFile, inject, { mode: 0o600 })
   log('session', 'prepared H5 login injection payload', {
     outputFile,
     userId: session.user.id,
     tokenPreview: redactToken(session.accessToken)
   })
-  console.log('Playwright example:')
-  console.log(`await page.addInitScript((payload) => {`)
-  console.log(`  localStorage.setItem('tree_miniapp_user_token', payload.tree_miniapp_user_token)`)
-  console.log(`  localStorage.setItem('tree_miniapp_user', payload.tree_miniapp_user)`)
-  console.log(`}, ${JSON.stringify(inject.localStorage)})`)
+  for (const line of formatPlaywrightSessionExample()) {
+    console.log(line)
+  }
   return inject
 }
 
@@ -925,6 +934,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('[tree-h5-e2e:fatal]', error.message)
+  console.error('[tree-h5-e2e:fatal]', sanitizeLogValue(error.message || String(error)))
   process.exitCode = 1
 })

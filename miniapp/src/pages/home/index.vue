@@ -40,17 +40,6 @@
         </view>
         <text class="primary-arrow">›</text>
       </view>
-      <view
-        class="primary-card primary-card-light"
-        @click="goTab('/pages/family/search')"
-      >
-        <view class="primary-card-content">
-          <view class="primary-icon primary-icon-search" />
-          <text class="primary-title">寻找家庭</text>
-          <text class="primary-desc">浏览公开主页</text>
-        </view>
-        <text class="primary-arrow">›</text>
-      </view>
     </view>
 
     <view class="kinship-card" @click="go('/pages/tools/kinship')">
@@ -102,16 +91,31 @@
       </view>
     </view>
 
-    <view class="public-card section-entry-card" @click="goTab('/pages/family/search')">
-      <view class="public-copy">
-        <text class="section-kicker">公开家庭</text>
-        <text class="public-title">看看别人如何展示家庭主页</text>
-        <text class="public-desc">浏览已审核公开的家庭简介与公开家谱。</text>
+    <view class="showcase-card section-entry-card">
+      <view class="section-row showcase-head" @click="goTab('/pages/family/showcase')">
+        <view>
+          <text class="section-kicker">展示家庭</text>
+          <text class="section-title">看看别人如何展示家庭主页</text>
+        </view>
+        <text class="section-entry-arrow">›</text>
       </view>
-      <view class="public-avatar">
-        <text>张</text>
+
+      <view v-if="showcaseFamilies.length > 0" class="showcase-preview-list">
+        <FamilyMiniCard
+          v-for="family in showcaseFamilies"
+          :key="family.id"
+          :name="family.familyName"
+          :surname="family.familySurname"
+          :region="family.regionText || family.nativePlace || undefined"
+          :desc="family.description || '该家庭暂未填写公开简介。'"
+          @click="openShowcaseFamily(family.id)"
+        />
       </view>
-      <text class="section-entry-arrow">›</text>
+
+      <view class="showcase-more-row" @click="goTab('/pages/family/showcase')">
+        <text class="showcase-more-text">查看更多展示家庭</text>
+        <text class="showcase-more-arrow">›</text>
+      </view>
     </view>
 
     <view class="home-privacy">
@@ -125,13 +129,16 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { listContentArticles, listContentCategories } from '@/api/content'
+import { listPublicFamilyShowcase } from '@/api/families'
 import { promptPrivacyConsentIfNeeded } from '@/features/legal/privacyConsent'
 import { useSessionStore } from '@/stores/session'
-import type { ContentArticleSummary, ContentCategory } from '@/types/api'
+import FamilyMiniCard from '@/components/family/FamilyMiniCard.vue'
+import type { ContentArticleSummary, ContentCategory, PublicFamilyShowcaseItem } from '@/types/api'
 
 const session = useSessionStore()
 const categories = ref<ContentCategory[]>([])
 const articles = ref<ContentArticleSummary[]>([])
+const showcaseFamilies = ref<PublicFamilyShowcaseItem[]>([])
 const featuredRead = computed(() => articles.value.find((item) => item.isFeatured) || articles.value[0] || null)
 const secondaryReadHighlights = computed(() => {
   const selected: Array<{ category: { key: string; title: string; desc: string }; article: ContentArticleSummary | null }> = []
@@ -170,6 +177,21 @@ async function loadReading() {
   }
 }
 
+async function loadShowcasePreview() {
+  try {
+    const result = await listPublicFamilyShowcase({ page: 1, pageSize: 2 })
+    showcaseFamilies.value = result.items
+  } catch {
+    showcaseFamilies.value = []
+  }
+}
+
+function openShowcaseFamily(familyId: number | string) {
+  uni.navigateTo({
+    url: `/pages/family/public-profile?familyId=${encodeURIComponent(String(familyId))}`
+  })
+}
+
 function go(url: string) {
   uni.navigateTo({ url })
 }
@@ -184,7 +206,10 @@ function goTab(url: string) {
   uni.switchTab({ url })
 }
 
-onLoad(loadReading)
+onLoad(() => {
+  loadReading()
+  loadShowcasePreview()
+})
 
 onShow(() => {
   promptPrivacyConsentIfNeeded()
@@ -392,7 +417,7 @@ onShow(() => {
 
 .primary-grid {
   display: grid;
-  grid-template-columns: 1.08fr 0.92fr;
+  grid-template-columns: 1fr;
   gap: 16rpx;
   margin-bottom: 20rpx;
 }
@@ -540,6 +565,7 @@ onShow(() => {
 }
 
 .read-card,
+.showcase-card,
 .public-card,
 .kinship-card {
   margin-bottom: 20rpx;
@@ -827,6 +853,42 @@ onShow(() => {
   font-size: 24rpx;
   font-weight: 700;
   line-height: 1.45;
+}
+
+.showcase-card {
+  margin-bottom: 20rpx;
+  padding: 24rpx;
+  border-radius: 30rpx;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.92) 100%);
+  box-shadow: 0 14rpx 34rpx rgba(31, 58, 95, 0.08);
+}
+
+.showcase-head {
+  margin-bottom: 18rpx;
+}
+
+.showcase-preview-list {
+  margin-bottom: 12rpx;
+}
+
+.showcase-more-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8rpx;
+}
+
+.showcase-more-text {
+  color: var(--tree-green);
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.showcase-more-arrow {
+  color: var(--tree-green);
+  font-size: 28rpx;
+  font-weight: 700;
 }
 
 .public-card {

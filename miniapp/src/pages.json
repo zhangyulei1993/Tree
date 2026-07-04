@@ -3,8 +3,8 @@
     {"path": "pages/home/index", "style": {"navigationBarTitleText": "Tree"}},
     {"path": "pages/auth/wechat-login", "style": {"navigationBarTitleText": "微信快捷登录"}},
     {"path": "pages/auth/phone-login", "style": {"navigationBarTitleText": "手机号登录"}},
-    {"path": "pages/family/search", "style": {"navigationBarTitleText": "寻找公开家庭"}},
     {"path": "pages/content/index", "style": {"navigationBarTitleText": "阅读"}},
+    {"path": "pages/family/showcase", "style": {"navigationBarTitleText": "展示家庭"}},
     {"path": "pages/content/detail", "style": {"navigationBarTitleText": "内容详情"}},
     {"path": "pages/family/public-profile", "style": {"navigationBarTitleText": "公开家庭"}},
     {"path": "pages/family/public-tree", "style": {"navigationBarTitleText": "公开树"}},
@@ -53,8 +53,8 @@
         "selectedIconPath": "static/tabbar/home-active.png"
       },
       {
-        "pagePath": "pages/family/search",
-        "text": "找家庭",
+        "pagePath": "pages/family/showcase",
+        "text": "展示家庭",
         "iconPath": "static/tabbar/search.png",
         "selectedIconPath": "static/tabbar/search-active.png"
       },

@@ -240,7 +240,7 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	}
 
 	api.GET("/families/:familyId/public", handler.PublicDetail)
-	api.GET("/public/families", handler.ListPublicFamilies)
+	api.GET("/public/families", handler.ListPublicFamilyShowcase)
 	api.GET("/public/families/:familyId/tree", treeHandler.PublicTree)
 	api.GET("/invitations/:inviteToken", invitationHandler.Detail)
 

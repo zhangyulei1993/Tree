@@ -23,9 +23,7 @@
         <MiniCard v-else-if="families.length === 0" flat class="state-card">
           <MiniEmptyState
             title="暂无家庭"
-            description="当前账号还没有创建或加入家庭。你可以查看公开家庭，或通过家人发送的邀请加入家庭。"
-            action-text="查看公开家庭"
-            @action="openSearch"
+            description="请家人发送家庭邀请或公开家庭分享链接。"
           />
           <MiniButton variant="secondary" @click="openInvitations">查看收到的家庭邀请</MiniButton>
         </MiniCard>
@@ -98,10 +96,6 @@ async function loadFamilies() {
 
 function openFamily(familyId: number | string) {
   uni.navigateTo({ url: `/pages/family/detail?familyId=${encodeURIComponent(String(familyId))}` })
-}
-
-function openSearch() {
-  uni.switchTab({ url: '/pages/family/search' })
 }
 
 function openInvitations() {

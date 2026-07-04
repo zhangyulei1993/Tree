@@ -18,7 +18,7 @@
         <MiniButton :disabled="!checked" @click="agree">同意并继续</MiniButton>
       </view>
       <text class="privacy-footnote">
-        拒绝同意仍可浏览首页、公开家庭主页与本地亲属称谓工具；微信登录、完善昵称后加入家庭等功能需同意后方可使用。
+        拒绝同意仍可浏览首页、展示家庭页面、经分享链接访问的公开家庭主页与本地亲属称谓工具；微信登录、完善昵称后加入家庭等功能需同意后方可使用。
       </text>
     </view>
   </view>

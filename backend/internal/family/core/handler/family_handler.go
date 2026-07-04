@@ -70,6 +70,20 @@ func (h *FamilyHandler) PublicDetail(ctx *gin.Context) {
 	})
 }
 
+func (h *FamilyHandler) ListPublicFamilyShowcase(ctx *gin.Context) {
+	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(ctx.DefaultQuery("pageSize", "20"))
+	result, businessErr := h.service.ListPublicFamilyShowcase(ctx.Request.Context(), dto.ListPublicFamilyShowcaseQuery{
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if businessErr != nil {
+		response.Error(ctx, http.StatusInternalServerError, businessErr)
+		return
+	}
+	response.OK(ctx, result)
+}
+
 func (h *FamilyHandler) ListPublicFamilies(ctx *gin.Context) {
 	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(ctx.DefaultQuery("pageSize", "20"))

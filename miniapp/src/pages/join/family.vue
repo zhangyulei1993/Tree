@@ -40,7 +40,7 @@
       <MiniEmptyState
         symbol="申"
         title="暂无加入申请"
-        description="有用户从公开家庭主页提交申请后，会在这里显示。"
+        description="有用户提交加入申请后，会在这里显示。"
       />
     </MiniCard>
 

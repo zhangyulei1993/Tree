@@ -61,6 +61,7 @@ type FamilyService interface {
 	Detail(context.Context, uint64, uint64) (*vo.FamilyDetail, *apperrors.BusinessError)
 	PublicDetail(context.Context, uint64) (*vo.PublicFamily, *apperrors.BusinessError)
 	ListPublicFamilies(context.Context, dto.ListPublicFamiliesQuery) (*vo.ListPublicFamiliesResult, *apperrors.BusinessError)
+	ListPublicFamilyShowcase(context.Context, dto.ListPublicFamilyShowcaseQuery) (*vo.ListPublicFamilyShowcaseResult, *apperrors.BusinessError)
 	Update(context.Context, uint64, uint64, dto.UpdateFamilyRequest, AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError)
 	CreateDissolutionRequest(context.Context, uint64, uint64, dto.CreateDissolutionRequest, AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	CurrentDissolutionRequest(context.Context, uint64, uint64) (*vo.DissolutionRequest, *apperrors.BusinessError)
@@ -242,9 +243,8 @@ func (s *familyService) PublicDetail(ctx context.Context, familyID uint64) (*vo.
 		result.PublicContactName = family.PublicContactName
 		result.PublicContactPhone = family.PublicContactPhone
 		result.PublicContactWechat = family.PublicContactWechat
-		result.PublicContactNote = family.PublicContactNote
 	}
-	return result, nil
+	return vo.MaskPublicFamily(result), nil
 }
 
 func (s *familyService) ListPublicFamilies(ctx context.Context, req dto.ListPublicFamiliesQuery) (*vo.ListPublicFamiliesResult, *apperrors.BusinessError) {
@@ -264,6 +264,27 @@ func (s *familyService) ListPublicFamilies(ctx context.Context, req dto.ListPubl
 		items = append(items, publicFamilyListItem(&rows[i]))
 	}
 	return &vo.ListPublicFamiliesResult{
+		Items:    items,
+		Page:     page,
+		PageSize: pageSize,
+		Total:    total,
+	}, nil
+}
+
+func (s *familyService) ListPublicFamilyShowcase(ctx context.Context, req dto.ListPublicFamilyShowcaseQuery) (*vo.ListPublicFamilyShowcaseResult, *apperrors.BusinessError) {
+	page, pageSize := normalizePublicSearchPage(req.Page, req.PageSize)
+	rows, total, err := s.repo.SearchPublicFamilies(ctx, familyrepo.PublicFamilySearchQuery{
+		Page:     page,
+		PageSize: pageSize,
+	})
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	items := make([]vo.PublicFamilyShowcaseItem, 0, len(rows))
+	for i := range rows {
+		items = append(items, publicFamilyShowcaseItem(&rows[i]))
+	}
+	return &vo.ListPublicFamilyShowcaseResult{
 		Items:    items,
 		Page:     page,
 		PageSize: pageSize,
@@ -479,6 +500,21 @@ func publicFamilyListItem(family *familymodel.Family) vo.PublicFamilyListItem {
 		item.PublicContactNote = family.PublicContactNote
 	}
 	return item
+}
+
+func publicFamilyShowcaseItem(family *familymodel.Family) vo.PublicFamilyShowcaseItem {
+	return vo.PublicFamilyShowcaseItem{
+		ID:               family.ID,
+		FamilyName:       family.FamilyName,
+		FamilySurname:    family.FamilySurname,
+		NativePlace:      family.NativePlace,
+		RegionText:       family.RegionText,
+		Description:      family.Description,
+		AvatarURL:        family.AvatarURL,
+		PublicApprovedAt: family.PublicApprovedAt,
+		CreatedAt:        family.CreatedAt,
+		UpdatedAt:        family.UpdatedAt,
+	}
 }
 
 func normalizePublicSearchPage(page, pageSize int) (int, int) {
