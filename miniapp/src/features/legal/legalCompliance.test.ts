@@ -69,7 +69,7 @@ test('user agreement covers required topics', () => {
   for (const snippet of requiredSnippets) {
     assert.match(titles + body, new RegExp(snippet))
   }
-  assert.equal(LEGAL_DOCUMENT_VERSION, '1.1.0')
+  assert.equal(LEGAL_DOCUMENT_VERSION, '1.2.0')
   assert.equal(LEGAL_UPDATED_DATE, '2026-07-04')
   assert.match(LEGAL_EFFECTIVE_DATE, /^\d{4}-\d{2}-\d{2}$/)
   assert.match(LEGAL_UPDATED_DATE, /^\d{4}-\d{2}-\d{2}$/)
@@ -84,7 +84,6 @@ test('privacy policy covers collection categories and rights', () => {
     '手机号',
     '登录密码',
     '不使用短信验证码',
-    '访客留言',
     'IP、User-Agent',
     '仅在本地处理、不上传',
     '未满 14 周岁',
@@ -94,7 +93,7 @@ test('privacy policy covers collection categories and rights', () => {
   for (const snippet of requiredSnippets) {
     assert.match(combined, new RegExp(snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
   }
-  assert.ok(COLLECTED_INFO_ITEMS.length >= 8)
+  assert.ok(COLLECTED_INFO_ITEMS.length >= 7)
   assert.ok(LOCAL_ONLY_INFO.length >= 1)
 })
 

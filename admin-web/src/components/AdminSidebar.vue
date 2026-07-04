@@ -18,7 +18,6 @@
 
 <script setup lang="ts">
 import {
-  ChatDotRound,
   Connection,
   Document,
   Files,
@@ -49,7 +48,6 @@ const menus: MenuItem[] = [
   { path: '/admin/users', label: '用户管理', icon: User },
   { path: '/admin/families', label: '家庭管理', icon: House },
   { path: '/admin/public-applications', label: '公开申请审核', icon: Document },
-  { path: '/admin/visitor-messages', label: '游客留言审核', icon: ChatDotRound },
   { path: '/admin/content', label: '内容中心', icon: Files },
   { path: '/admin/founder-transfer-requests', label: '创始人转让审核', icon: Connection, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
   { path: '/admin/dissolution-requests', label: '家庭解散审核', icon: MessageBox, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },

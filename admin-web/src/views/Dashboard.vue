@@ -25,9 +25,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { getDashboard } from '@/api/management'; import { getApiErrorMessage } from '@/api/client'; import PageHeader from '@/components/PageHeader.vue'; import type { DashboardStats } from '@/types/api'
-const stats=ref<DashboardStats>({users:0,families:0,pendingPublicApplications:0,pendingVisitorMessages:0,pendingFounderTransfers:0,pendingDissolutions:0});const loading=ref(true);const error=ref('')
-const pendingTotal = computed(() => stats.value.pendingPublicApplications + stats.value.pendingVisitorMessages + stats.value.pendingFounderTransfers + stats.value.pendingDissolutions)
-const cards=computed(()=>[{label:'用户数',value:stats.value.users,note:'平台账号'},{label:'家庭数',value:stats.value.families,note:'全部家庭'},{label:'公开申请',value:stats.value.pendingPublicApplications,note:'待审核',urgent:stats.value.pendingPublicApplications>0},{label:'游客留言',value:stats.value.pendingVisitorMessages,note:'待审核',urgent:stats.value.pendingVisitorMessages>0},{label:'创建者转让',value:stats.value.pendingFounderTransfers,note:'待审核',urgent:stats.value.pendingFounderTransfers>0},{label:'家庭解散',value:stats.value.pendingDissolutions,note:'待审核',urgent:stats.value.pendingDissolutions>0}])
+const stats=ref<DashboardStats>({users:0,families:0,pendingPublicApplications:0,pendingFounderTransfers:0,pendingDissolutions:0});const loading=ref(true);const error=ref('')
+const pendingTotal = computed(() => stats.value.pendingPublicApplications + stats.value.pendingFounderTransfers + stats.value.pendingDissolutions)
+const cards=computed(()=>[{label:'用户数',value:stats.value.users,note:'平台账号'},{label:'家庭数',value:stats.value.families,note:'全部家庭'},{label:'公开申请',value:stats.value.pendingPublicApplications,note:'待审核',urgent:stats.value.pendingPublicApplications>0},{label:'创建者转让',value:stats.value.pendingFounderTransfers,note:'待审核',urgent:stats.value.pendingFounderTransfers>0},{label:'家庭解散',value:stats.value.pendingDissolutions,note:'待审核',urgent:stats.value.pendingDissolutions>0}])
 onMounted(async()=>{try{stats.value=await getDashboard()}catch(e){error.value=getApiErrorMessage(e)}finally{loading.value=false}})
 </script>
 <style scoped>

@@ -15,7 +15,7 @@ export const families = [
     nativePlace: '山东济南',
     regionText: '山东省济南市',
     contact: '张先生 / 138****0000',
-    description: '记录张氏一支的家族成员、亲缘关系与公开留言，供宗亲查找和联系。',
+    description: '记录张氏一支的家族成员与亲缘关系，供宗亲查找和联系。',
     memberCount: 6,
     graphVersion: 14,
     status: 'NORMAL'
@@ -39,11 +39,6 @@ export const treeNodes = [
   { memberId: 'member_002', name: '林婉清', gender: '女', birthText: '1951', parentIds: [], spouseIds: ['member_001'], childrenIds: ['member_003', 'member_004'], description: '配偶节点' },
   { memberId: 'member_003', name: '张明远', gender: '男', birthText: '1976', parentIds: ['member_001', 'member_002'], spouseIds: [], childrenIds: [], description: '第二代成员' },
   { memberId: 'member_004', name: '张明禾', gender: '女', birthText: '1982', parentIds: ['member_001', 'member_002'], spouseIds: [], childrenIds: [], description: '第二代成员' }
-]
-
-export const messages = [
-  { id: 'message_001', visitorName: '寻亲访客 A', content: '希望联系同宗分支核对族谱。' },
-  { id: 'message_002', visitorName: '宗亲 B', content: '公开留言样例，不展示联系方式。' }
 ]
 
 export const invite = {

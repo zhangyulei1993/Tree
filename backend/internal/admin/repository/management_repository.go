@@ -27,7 +27,6 @@ type Dashboard struct {
 	Users                     int64 `json:"users"`
 	Families                  int64 `json:"families"`
 	PendingPublicApplications int64 `json:"pendingPublicApplications"`
-	PendingVisitorMessages    int64 `json:"pendingVisitorMessages"`
 	PendingFounderTransfers   int64 `json:"pendingFounderTransfers"`
 	PendingDissolutions       int64 `json:"pendingDissolutions"`
 }
@@ -155,7 +154,6 @@ func (r *ManagementRepository) Dashboard(ctx context.Context) (*Dashboard, error
 		{&result.Users, "users", "deleted_at IS NULL"},
 		{&result.Families, "families", "deleted_at IS NULL"},
 		{&result.PendingPublicApplications, "family_public_applications", "application_status = 'PENDING'"},
-		{&result.PendingVisitorMessages, "visitor_messages", "status = 'PENDING' AND deleted_at IS NULL"},
 		{&result.PendingFounderTransfers, "family_founder_transfer_requests", "request_status = 'PENDING'"},
 		{&result.PendingDissolutions, "family_dissolution_requests", "request_status = 'PENDING'"},
 	}

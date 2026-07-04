@@ -106,7 +106,7 @@
       <view class="public-copy">
         <text class="section-kicker">公开家庭</text>
         <text class="public-title">看看别人如何展示家庭主页</text>
-        <text class="public-desc">浏览已审核公开的家庭简介、公开树与留言。</text>
+        <text class="public-desc">浏览已审核公开的家庭简介与公开家谱。</text>
       </view>
       <view class="public-avatar">
         <text>张</text>

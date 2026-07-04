@@ -222,29 +222,6 @@ export interface ContentArticleDetail extends ContentArticleSummary {
   body: string
 }
 
-export interface CreateVisitorMessageInput {
-  visitorName?: string
-  visitorPhone?: string
-  visitorWechat?: string
-  messageContent: string
-}
-
-export interface PublicVisitorMessage {
-  messageId: number | string
-  familyId: number | string
-  visitorName?: string | null
-  messageContent: string
-  createdAt: string
-  reviewedAt?: string | null
-}
-
-export interface VisitorMessageRecord extends PublicVisitorMessage {
-  visitorPhone?: string | null
-  visitorWechat?: string | null
-  status: string
-  updatedAt: string
-}
-
 export interface RejectInvitationInput {
   reason?: string
 }

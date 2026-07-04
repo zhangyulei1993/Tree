@@ -26,7 +26,6 @@ export interface DashboardStats {
   users: number
   families: number
   pendingPublicApplications: number
-  pendingVisitorMessages: number
   pendingFounderTransfers: number
   pendingDissolutions: number
 }
@@ -208,10 +207,6 @@ export interface FamilyPublicStatus {
   publicTakenDownAt?: string
 }
 
-export interface DeleteVisitorMessageRequest {
-  deleteReason?: string
-}
-
 export interface PublicApplication {
   applicationId: number
   familyId: number
@@ -227,23 +222,6 @@ export interface PublicApplication {
   reviewComment?: string
   cancelledAt?: string
   cancelReason?: string
-  createdAt: string
-  updatedAt: string
-}
-
-export interface VisitorMessage {
-  messageId: number
-  familyId: number
-  familyName?: string
-  visitorName?: string
-  visitorPhone?: string
-  visitorWechat?: string
-  messageContent: string
-  status: string
-  reviewedByAdminId?: number
-  reviewedAt?: string
-  reviewComment?: string
-  deletedAt?: string
   createdAt: string
   updatedAt: string
 }

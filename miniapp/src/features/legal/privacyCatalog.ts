@@ -74,14 +74,6 @@ export const COLLECTED_INFO_ITEMS: CollectedInfoItem[] = [
     retention: LEGAL_RETENTION_TEXT
   },
   {
-    category: '访客留言',
-    fields: '留言称呼、留言内容、联系电话、微信号（后两者不公开显示）',
-    purpose: '游客向公开家庭留言，供家庭管理员审核与联系',
-    method: '你在公开家庭主页主动填写并提交',
-    necessary: '提交留言所必需；联系方式为可选',
-    retention: LEGAL_RETENTION_TEXT
-  },
-  {
     category: '公开家庭展示',
     fields: '家庭名称、姓氏、地区、简介、公开联系方式、经审核的公开树字段',
     purpose: '公开展示家庭主页与公开树',

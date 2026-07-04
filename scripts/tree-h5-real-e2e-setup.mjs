@@ -814,19 +814,6 @@ async function cleanupStaging() {
   try {
     const admin = await adminLogin()
     const adminToken = admin.accessToken
-    const pendingMessages = await apiRequest('/admin/visitor-messages?status=PENDING&page=1&pageSize=100', {
-      token: adminToken
-    })
-    for (const item of pendingMessages.items || []) {
-      if (item.visitorName === '武汉访客' || (item.messageContent || '').includes('武汉')) {
-        await apiRequest(`/admin/visitor-messages/${item.messageId}/reject`, {
-          method: 'POST',
-          token: adminToken,
-          body: { reviewComment: 'H5 E2E cleanup' }
-        })
-        report.actions.push(`rejected visitor message ${item.messageId} ${item.visitorName}`)
-      }
-    }
     if (CONFIG.preservedFamilyIds.includes(8)) {
       report.skipped.push('family 8 is preserved; skipping take-down')
     } else {

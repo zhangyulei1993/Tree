@@ -7,8 +7,7 @@ import {
   memberTree as mockMemberTree,
   operationLogs as mockOperationLogs,
   publicApplications as mockPublicApplications,
-  users as mockUsers,
-  visitorMessages as mockVisitorMessages
+  users as mockUsers
 } from '@/mock/data'
 import type {
   AdminRole,
@@ -23,8 +22,7 @@ import type {
   ManagedUserDetail,
   OperationLogRecord,
   PageResult,
-  PublicApplication,
-  VisitorMessage
+  PublicApplication
 } from '@/types/api'
 
 export interface PageQuery { keyword?: string; status?: string; role?: AdminRole | ''; result?: string; familyId?: number | string; page?: number; pageSize?: number }
@@ -141,23 +139,6 @@ export function listMockPublicApplications(query: { status?: string; page?: numb
   return paginate(items, query.page, query.pageSize)
 }
 
-export function listMockVisitorMessages(query: { status?: string; page?: number; pageSize?: number }): PageResult<VisitorMessage> {
-  const items: VisitorMessage[] = mockVisitorMessages
-    .map((item, index) => ({
-      messageId: index + 1,
-      familyId: (index % mockFamilies.length) + 1,
-      familyName: item.familyName,
-      visitorName: item.visitorName,
-      visitorPhone: '138****0000',
-      messageContent: item.publicContent,
-      status: item.status,
-      createdAt: item.createdAt,
-      updatedAt: item.createdAt
-    }))
-    .filter((item) => !query.status || item.status === query.status)
-  return paginate(items, query.page, query.pageSize)
-}
-
 export function listMockFounderTransferRequests(query: { status?: string; page?: number; pageSize?: number }): PageResult<FounderTransferRequest> {
   const items: FounderTransferRequest[] = mockFounderTransfers
     .map((item, index) => ({
@@ -201,7 +182,6 @@ export async function getDashboard() {
       users: mockUsers.length,
       families: mockFamilies.length,
       pendingPublicApplications: mockPublicApplications.filter((item) => item.status === 'PENDING').length,
-      pendingVisitorMessages: mockVisitorMessages.filter((item) => item.status === 'PENDING').length,
       pendingFounderTransfers: mockFounderTransfers.filter((item) => item.status === 'PENDING').length,
       pendingDissolutions: mockDissolutionRequests.filter((item) => item.status === 'PENDING').length
     } satisfies DashboardStats

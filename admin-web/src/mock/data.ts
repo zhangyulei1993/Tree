@@ -47,16 +47,6 @@ export interface AuditRow {
   createdAt: string
 }
 
-export interface VisitorMessageRow {
-  id: string
-  familyName: string
-  visitorName: string
-  publicContent: string
-  contactSummary: string
-  status: string
-  createdAt: string
-}
-
 export interface FounderTransferRow {
   id: string
   familyName: string
@@ -170,12 +160,6 @@ export const publicApplications: AuditRow[] = [
   { id: 'pub_app_001', familyName: '李氏宗亲', applicant: '李清禾', reason: '希望展示公开家谱供宗亲查找', status: 'PENDING', createdAt: '2026-06-07 14:20' },
   { id: 'pub_app_002', familyName: '张氏家族', applicant: '张一明', reason: '完善公开展示资料后重新提交', status: 'APPROVED', createdAt: '2026-06-05 10:11' },
   { id: 'pub_app_003', familyName: '王氏家谱', applicant: '王明远', reason: '资料不足的申请样例', status: 'REJECTED', createdAt: '2026-06-01 09:36' }
-]
-
-export const visitorMessages: VisitorMessageRow[] = [
-  { id: 'msg_001', familyName: '张氏家族', visitorName: '寻亲访客 A', publicContent: '希望联系同宗分支核对族谱。', contactSummary: '联系方式已加密存储，仅后台可见', status: 'PENDING', createdAt: '2026-06-08 09:12' },
-  { id: 'msg_002', familyName: '张氏家族', visitorName: '访客 B', publicContent: '公开留言展示样例。', contactSummary: '公开列表不展示联系方式', status: 'APPROVED', createdAt: '2026-06-07 19:22' },
-  { id: 'msg_003', familyName: '李氏宗亲', visitorName: '访客 C', publicContent: '内容不完整的拒绝样例。', contactSummary: '联系方式已隐藏', status: 'REJECTED', createdAt: '2026-06-06 16:40' }
 ]
 
 export const founderTransfers: FounderTransferRow[] = [
