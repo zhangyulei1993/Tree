@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	accountmodel "tree/backend/internal/account/model"
 	"tree/backend/internal/common/enums"
@@ -15,11 +17,13 @@ import (
 type UserRepository interface {
 	FindByPhoneHash(ctx context.Context, phoneHash string) (*model.User, error)
 	FindByID(ctx context.Context, id uint64) (*model.User, error)
+	LockByID(ctx context.Context, id uint64) (*model.User, error)
 	Create(ctx context.Context, user *model.User) error
 	RecordLoginSuccess(ctx context.Context, userID uint64, ip string, clientType string, now time.Time) error
 	UpdateUser(ctx context.Context, userID uint64, values map[string]any) error
 	CreateIdentity(ctx context.Context, identity *model.UserAuthIdentity) error
 	FindIdentityByOpenIDHash(ctx context.Context, provider string, appID string, openIDHash string) (*model.UserAuthIdentity, error)
+	HasActiveWechatMiniIdentity(ctx context.Context, userID uint64, appID string) (bool, error)
 	UpdateIdentity(ctx context.Context, identityID uint64, values map[string]any) error
 	CancelActiveIdentities(ctx context.Context, userID uint64) error
 	MoveIdentities(ctx context.Context, sourceUserID uint64, targetUserID uint64) error
@@ -66,6 +70,17 @@ func (r *GormUserRepository) FindByID(ctx context.Context, id uint64) (*model.Us
 	return &user, nil
 }
 
+func (r *GormUserRepository) LockByID(ctx context.Context, id uint64) (*model.User, error) {
+	var user model.User
+	if err := r.db.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND deleted_at IS NULL", id).
+		First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
 func (r *GormUserRepository) Create(ctx context.Context, user *model.User) error {
 	return r.db.WithContext(ctx).Create(user).Error
 }
@@ -85,6 +100,22 @@ func (r *GormUserRepository) UpdateUser(ctx context.Context, userID uint64, valu
 
 func (r *GormUserRepository) CreateIdentity(ctx context.Context, identity *model.UserAuthIdentity) error {
 	return r.db.WithContext(ctx).Create(identity).Error
+}
+
+const wechatMiniProvider = "WECHAT_MINI"
+
+func (r *GormUserRepository) HasActiveWechatMiniIdentity(ctx context.Context, userID uint64, appID string) (bool, error) {
+	if strings.TrimSpace(appID) == "" {
+		return false, nil
+	}
+	var count int64
+	err := r.db.WithContext(ctx).Model(&model.UserAuthIdentity{}).
+		Where(
+			"user_id = ? AND provider = ? AND provider_app_id = ? AND identity_status = ? AND deleted_at IS NULL",
+			userID, wechatMiniProvider, appID, string(enums.StatusActive),
+		).
+		Count(&count).Error
+	return count > 0, err
 }
 
 func (r *GormUserRepository) FindIdentityByOpenIDHash(ctx context.Context, provider string, appID string, openIDHash string) (*model.UserAuthIdentity, error) {

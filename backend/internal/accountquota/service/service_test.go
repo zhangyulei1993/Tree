@@ -3,6 +3,7 @@ package service_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"tree/backend/internal/common/database"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
+	"tree/backend/internal/common/security"
 	coredto "tree/backend/internal/family/core/dto"
 	familymodel "tree/backend/internal/family/core/model"
 	familyrepo "tree/backend/internal/family/core/repository"
@@ -57,18 +59,18 @@ func seedQuotaConfigs(t *testing.T, tx *gorm.DB) {
 	}
 	rows := []quotamodel.AccountQuotaConfig{
 		{TrustTier: quotaenum.TrustTierWechatOnly, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1},
-		{TrustTier: quotaenum.TrustTierPhoneVerified, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5},
+		{TrustTier: quotaenum.TrustTierPhoneBound, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5},
 	}
 	if err := tx.Create(&rows).Error; err != nil {
 		t.Fatalf("seed quota configs: %v", err)
 	}
 }
 
-func createQuotaUser(t *testing.T, tx *gorm.DB, phoneVerified bool, nickname string) *usermodel.User {
+func createQuotaUser(t *testing.T, tx *gorm.DB, phoneLoginEnabled bool, nickname string) *usermodel.User {
 	t.Helper()
 	nick := nickname
 	user := &usermodel.User{
-		PhoneVerified: phoneVerified, AccountOrigin: "P0_TEST", RegisterClient: "P0_TEST",
+		AccountOrigin: "P0_TEST", RegisterClient: "P0_TEST",
 		Status: string(enums.StatusActive), Nickname: &nick,
 	}
 	if nickname == "" {
@@ -76,6 +78,24 @@ func createQuotaUser(t *testing.T, tx *gorm.DB, phoneVerified bool, nickname str
 	}
 	if err := tx.Create(user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
+	}
+	if phoneLoginEnabled {
+		phone := fmt.Sprintf("138%08d", user.ID%100000000)
+		phoneHash := security.PhoneHash(phone)
+		passwordHash, err := security.HashPassword("quota-test-password")
+		if err != nil {
+			t.Fatalf("HashPassword: %v", err)
+		}
+		if err := tx.Model(user).Updates(map[string]any{
+			"phone": phone, "phone_hash": phoneHash, "password_hash": passwordHash,
+			"phone_login_enabled": true,
+		}).Error; err != nil {
+			t.Fatalf("enable phone login: %v", err)
+		}
+		user.Phone = &phone
+		user.PhoneHash = &phoneHash
+		user.PasswordHash = &passwordHash
+		user.PhoneLoginEnabled = true
 	}
 	return user
 }
@@ -98,7 +118,7 @@ func TestPhoneVerifiedUserUsesHigherTier(t *testing.T) {
 	user := createQuotaUser(t, tx, true, "高级用户")
 	svc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
 	result, err := svc.GetCapabilities(ctx, user.ID)
-	if err != nil || result.TrustTier != quotaenum.TrustTierPhoneVerified ||
+	if err != nil || result.TrustTier != quotaenum.TrustTierPhoneBound ||
 		result.Limits.MaxMembersPerOwnedFamily != 20 || result.Limits.MaxJoinedFamilies != 5 {
 		t.Fatalf("unexpected phone verified capabilities: %#v %#v", result, err)
 	}
@@ -204,7 +224,7 @@ func TestPhoneVerifiedConfigCannotBeLowerThanWechatOnly(t *testing.T) {
 	ctx := context.Background()
 	tx := quotaTestDB(t)
 	svc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
-	_, err := svc.UpdateConfig(ctx, 1, string(enums.AdminRoleSuperAdmin), quotaenum.TrustTierPhoneVerified, quotaValues(1, 5, 5), quotaservice.AuditInput{})
+	_, err := svc.UpdateConfig(ctx, 1, string(enums.AdminRoleSuperAdmin), quotaenum.TrustTierPhoneBound, quotaValues(1, 5, 5), quotaservice.AuditInput{})
 	if err == nil || err.Code != 41507 {
 		t.Fatalf("expected tier order error, got %#v", err)
 	}
@@ -443,7 +463,7 @@ func TestConcurrentUpdateConfigPreservesTierOrdering(t *testing.T) {
 	}()
 	go func() {
 		defer wg.Done()
-		item, err := svc.UpdateConfig(ctx, 1, string(enums.AdminRoleRootAdmin), quotaenum.TrustTierPhoneVerified, quotaValues(1, 17, 5), quotaservice.AuditInput{})
+		item, err := svc.UpdateConfig(ctx, 1, string(enums.AdminRoleRootAdmin), quotaenum.TrustTierPhoneBound, quotaValues(1, 17, 5), quotaservice.AuditInput{})
 		outcomes[1] = updateOutcome{item: item, err: err}
 	}()
 	wg.Wait()
@@ -476,7 +496,7 @@ func TestConcurrentUpdateConfigPreservesTierOrdering(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load wechat config: %v", err)
 	}
-	phone, err := repo.FindConfigByTier(ctx, quotaenum.TrustTierPhoneVerified)
+	phone, err := repo.FindConfigByTier(ctx, quotaenum.TrustTierPhoneBound)
 	if err != nil {
 		t.Fatalf("load phone config: %v", err)
 	}

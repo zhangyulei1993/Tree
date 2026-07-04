@@ -10,7 +10,7 @@ const mockConfigs: AccountQuotaConfig[] = [
     updatedAt: '2026-06-01T10:00:00+08:00'
   },
   {
-    trustTier: 'PHONE_VERIFIED',
+    trustTier: 'PHONE_BOUND',
     maxOwnedFamilies: 1,
     maxMembersPerOwnedFamily: 20,
     maxJoinedFamilies: 5,

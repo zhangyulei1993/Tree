@@ -77,11 +77,17 @@ func NewManager(cfg config.JWTConfig, appName string) (*Manager, error) {
 }
 
 func (m *Manager) GenerateAccessToken(subject uint64, tokenType TokenType, role string, tokenID string) (string, error) {
-	return m.GenerateToken(subject, tokenType, role, tokenID, m.accessTTL)
+	return m.GenerateAccessTokenWithIssuedAt(subject, tokenType, role, tokenID, time.Now().Unix())
 }
 
-func (m *Manager) GenerateRefreshToken(subject uint64, tokenType TokenType, role string, tokenID string) (string, error) {
-	return m.GenerateToken(subject, tokenType, role, tokenID, m.refreshTTL)
+func (m *Manager) GenerateAccessTokenWithIssuedAt(subject uint64, tokenType TokenType, role string, tokenID string, issuedAt int64) (string, error) {
+	if subject == 0 {
+		return "", errors.New("jwt subject is required")
+	}
+	if issuedAt <= 0 {
+		return "", errors.New("jwt issuedAt is required")
+	}
+	return m.generateSignedToken(subject, tokenType, role, tokenID, issuedAt, int64(m.accessTTL.Seconds()))
 }
 
 func (m *Manager) GenerateToken(subject uint64, tokenType TokenType, role string, tokenID string, ttl time.Duration) (string, error) {
@@ -91,14 +97,19 @@ func (m *Manager) GenerateToken(subject uint64, tokenType TokenType, role string
 	if ttl <= 0 {
 		return "", errors.New("jwt ttl must be positive")
 	}
+	return m.generateSignedToken(subject, tokenType, role, tokenID, time.Now().Unix(), int64(ttl.Seconds()))
+}
 
-	now := time.Now()
+func (m *Manager) generateSignedToken(subject uint64, tokenType TokenType, role string, tokenID string, issuedAt int64, ttlSeconds int64) (string, error) {
+	if ttlSeconds <= 0 {
+		return "", errors.New("jwt ttl must be positive")
+	}
 	claims := Claims{
 		Subject:   subject,
 		TokenType: tokenType,
 		Issuer:    m.issuer,
-		IssuedAt:  now.Unix(),
-		ExpiresAt: now.Add(ttl).Unix(),
+		IssuedAt:  issuedAt,
+		ExpiresAt: issuedAt + ttlSeconds,
 		TokenID:   tokenID,
 		Role:      role,
 	}
@@ -123,6 +134,10 @@ func (m *Manager) GenerateToken(subject uint64, tokenType TokenType, role string
 	}
 
 	return unsigned + "." + signature, nil
+}
+
+func (m *Manager) GenerateRefreshToken(subject uint64, tokenType TokenType, role string, tokenID string) (string, error) {
+	return m.GenerateToken(subject, tokenType, role, tokenID, m.refreshTTL)
 }
 
 func (m *Manager) Parse(token string, expectedType TokenType) (*Claims, error) {

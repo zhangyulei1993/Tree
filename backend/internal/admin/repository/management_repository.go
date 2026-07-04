@@ -33,16 +33,21 @@ type Dashboard struct {
 }
 
 type UserRow struct {
-	ID             uint64     `json:"id"`
-	Phone          *string    `json:"phone,omitempty"`
-	Nickname       *string    `json:"nickname,omitempty"`
-	RealName       *string    `json:"realName,omitempty"`
-	AccountOrigin  string     `json:"accountOrigin"`
-	RegisterClient string     `json:"registerClient"`
-	PhoneVerified  bool       `json:"phoneVerified"`
-	Status         string     `json:"status"`
-	LastLoginAt    *time.Time `json:"lastLoginAt,omitempty"`
-	CreatedAt      time.Time  `json:"createdAt"`
+	ID                  uint64     `json:"id"`
+	Phone               *string    `json:"phone,omitempty"`
+	Nickname            *string    `json:"nickname,omitempty"`
+	RealName            *string    `json:"realName,omitempty"`
+	AccountOrigin       string     `json:"accountOrigin"`
+	RegisterClient      string     `json:"registerClient"`
+	PhoneVerified       bool       `json:"phoneVerified"`
+	PhoneLoginEnabled   bool       `json:"phoneLoginEnabled"`
+	HasWechatLogin      bool       `json:"hasWechatLogin"`
+	CanUnbindPhoneLogin bool       `json:"canUnbindPhoneLogin"`
+	TrustTier           string     `json:"trustTier"`
+	LoginMethod         string     `json:"loginMethod"`
+	Status              string     `json:"status"`
+	LastLoginAt         *time.Time `json:"lastLoginAt,omitempty"`
+	CreatedAt           time.Time  `json:"createdAt"`
 }
 
 type FamilyRow struct {
@@ -119,9 +124,14 @@ type LogRow struct {
 	CreatedAt       time.Time       `json:"createdAt"`
 }
 
-type ManagementRepository struct{ db *gorm.DB }
+type ManagementRepository struct {
+	db          *gorm.DB
+	wechatAppID string
+}
 
-func NewManagementRepository(db *gorm.DB) *ManagementRepository { return &ManagementRepository{db: db} }
+func NewManagementRepository(db *gorm.DB, wechatAppID string) *ManagementRepository {
+	return &ManagementRepository{db: db, wechatAppID: wechatAppID}
+}
 
 func page(page, size int) (int, int) {
 	if page < 1 {
@@ -176,14 +186,72 @@ func (r *ManagementRepository) Users(ctx context.Context, query PageQuery) ([]Us
 		return nil, 0, err
 	}
 	rows := make([]UserRow, 0, len(models))
+	wechatFlags, err := r.wechatLoginUserIDs(ctx, models)
+	if err != nil {
+		return nil, 0, err
+	}
 	for _, value := range models {
-		rows = append(rows, userRow(value))
+		rows = append(rows, userRow(value, wechatFlags[value.ID]))
 	}
 	return rows, total, nil
 }
 
-func userRow(value usermodel.User) UserRow {
-	return UserRow{ID: value.ID, Phone: maskPhone(value.Phone), Nickname: value.Nickname, RealName: value.RealName, AccountOrigin: value.AccountOrigin, RegisterClient: value.RegisterClient, PhoneVerified: value.PhoneVerified, Status: value.Status, LastLoginAt: value.LastLoginAt, CreatedAt: value.CreatedAt}
+const wechatMiniProvider = "WECHAT_MINI"
+
+func (r *ManagementRepository) wechatLoginUserIDs(ctx context.Context, users []usermodel.User) (map[uint64]bool, error) {
+	result := make(map[uint64]bool, len(users))
+	if len(users) == 0 {
+		return result, nil
+	}
+	ids := make([]uint64, 0, len(users))
+	for _, user := range users {
+		ids = append(ids, user.ID)
+	}
+	var rows []struct {
+		UserID uint64 `gorm:"column:user_id"`
+	}
+	err := r.db.WithContext(ctx).Table("user_auth_identities").
+		Select("DISTINCT user_id").
+		Where(
+			"user_id IN ? AND provider = ? AND provider_app_id = ? AND identity_status = ? AND deleted_at IS NULL",
+			ids, wechatMiniProvider, r.wechatAppID, "ACTIVE",
+		).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.UserID] = true
+	}
+	return result, nil
+}
+
+func resolveLoginMethod(hasWechatLogin, phoneLoginEnabled bool) string {
+	switch {
+	case hasWechatLogin && phoneLoginEnabled:
+		return "微信 + 手机号"
+	case hasWechatLogin:
+		return "仅微信"
+	case phoneLoginEnabled:
+		return "仅手机号"
+	default:
+		return "未设置"
+	}
+}
+
+func userRow(value usermodel.User, hasWechatLogin bool) UserRow {
+	trustTier := "WECHAT_ONLY"
+	if value.PhoneLoginEnabled {
+		trustTier = "PHONE_BOUND"
+	}
+	return UserRow{
+		ID: value.ID, Phone: maskPhone(value.Phone), Nickname: value.Nickname, RealName: value.RealName,
+		AccountOrigin: value.AccountOrigin, RegisterClient: value.RegisterClient, PhoneVerified: value.PhoneVerified,
+		PhoneLoginEnabled: value.PhoneLoginEnabled, HasWechatLogin: hasWechatLogin,
+		CanUnbindPhoneLogin: value.PhoneLoginEnabled && hasWechatLogin,
+		TrustTier:           trustTier, LoginMethod: resolveLoginMethod(hasWechatLogin, value.PhoneLoginEnabled),
+		Status: value.Status, LastLoginAt: value.LastLoginAt, CreatedAt: value.CreatedAt,
+	}
 }
 func maskPhone(value *string) *string {
 	if value == nil {
@@ -203,7 +271,14 @@ func (r *ManagementRepository) UserDetail(ctx context.Context, id uint64) (*User
 	}
 	var links []UserFamilyLink
 	err := r.db.WithContext(ctx).Table("family_member_user_links AS link").Select("link.family_id, family.family_name, link.member_id, member.display_name AS member_name, link.family_role").Joins("JOIN families AS family ON family.id = link.family_id").Joins("JOIN family_members AS member ON member.id = link.member_id").Where("link.user_id = ? AND link.link_status = 'ACTIVE'", id).Scan(&links).Error
-	return &UserDetail{User: userRow(user), Families: links}, err
+	if err != nil {
+		return nil, err
+	}
+	wechatFlags, err := r.wechatLoginUserIDs(ctx, []usermodel.User{user})
+	if err != nil {
+		return nil, err
+	}
+	return &UserDetail{User: userRow(user, wechatFlags[user.ID]), Families: links}, nil
 }
 
 func (r *ManagementRepository) Families(ctx context.Context, query PageQuery) ([]FamilyRow, int64, error) {

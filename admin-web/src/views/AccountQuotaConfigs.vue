@@ -67,7 +67,7 @@ const operationError = ref('')
 const forms = reactive<QuotaForm[]>([])
 
 function tierLabel(tier: string) {
-  return tier === 'PHONE_VERIFIED' ? '手机号已验证' : '仅微信登录'
+  return tier === 'PHONE_BOUND' ? '备用登录已开启' : '仅微信登录'
 }
 
 function formatTime(value?: string) {

@@ -7,6 +7,7 @@ type User struct {
 	Phone             *string    `gorm:"column:phone;size:30"`
 	PhoneHash         *string    `gorm:"column:phone_hash;size:128"`
 	PhoneVerified     bool       `gorm:"column:phone_verified"`
+	PhoneLoginEnabled bool       `gorm:"column:phone_login_enabled"`
 	PasswordHash      *string    `gorm:"column:password_hash;size:255"`
 	Nickname          *string    `gorm:"column:nickname;size:100"`
 	RealName          *string    `gorm:"column:real_name;size:100"`

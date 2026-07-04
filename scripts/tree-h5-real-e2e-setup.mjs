@@ -9,7 +9,7 @@
  *   node scripts/tree-h5-real-e2e-setup.mjs cleanup
  *   node scripts/tree-h5-real-e2e-setup.mjs repair-tree
  *   node scripts/tree-h5-real-e2e-setup.mjs cleanup-staging
- *   node scripts/tree-h5-real-e2e-setup.mjs setup-admin
+ *   node scripts/tree-h5-real-e2e-setup.mjs prepare-h5-session [founder|familyAdmin|member|outsider]
  */
 
 import crypto from 'node:crypto'
@@ -890,6 +890,37 @@ async function cleanup() {
   log('cleanup', 'done', actions)
 }
 
+async function prepareH5Session(accountKey = 'founder') {
+  const credentials = readJson(CONFIG.credentialsFile)
+  const password = credentials?.password
+  if (!password) {
+    throw new Error(`missing password in ${CONFIG.credentialsFile}; run setup first`)
+  }
+  const session = await loginAccount(accountKey, password)
+  const inject = {
+    updatedAt: new Date().toISOString(),
+    apiBase: CONFIG.apiBase,
+    account: accountKey,
+    localStorage: {
+      tree_miniapp_user_token: session.accessToken,
+      tree_miniapp_user: JSON.stringify(session.user)
+    }
+  }
+  const outputFile = process.env.TREE_E2E_SESSION_FILE || '/tmp/tree-h5-real-e2e-session-inject.json'
+  writeJson(outputFile, inject)
+  log('session', 'prepared H5 login injection payload', {
+    outputFile,
+    userId: session.user.id,
+    tokenPreview: redactToken(session.accessToken)
+  })
+  console.log('Playwright example:')
+  console.log(`await page.addInitScript((payload) => {`)
+  console.log(`  localStorage.setItem('tree_miniapp_user_token', payload.tree_miniapp_user_token)`)
+  console.log(`  localStorage.setItem('tree_miniapp_user', payload.tree_miniapp_user)`)
+  console.log(`}, ${JSON.stringify(inject.localStorage)})`)
+  return inject
+}
+
 async function main() {
   const command = process.argv[2] || 'status'
   if (command === 'audit') await auditStaging()
@@ -899,6 +930,7 @@ async function main() {
   else if (command === 'repair-tree') await repairTree()
   else if (command === 'cleanup-staging') await cleanupStaging()
   else if (command === 'setup-admin') await setupAdmin()
+  else if (command === 'prepare-h5-session') await prepareH5Session(process.argv[3] || 'founder')
   else {
     console.error(`Unknown command: ${command}`)
     process.exitCode = 1

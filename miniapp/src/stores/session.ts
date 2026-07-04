@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 
-import { logoutUser, wechatMiniLogin } from '@/api/auth'
+import { bindPhoneCredential as bindPhoneCredentialApi, changePhoneLoginPassword as changePhoneLoginPasswordApi, loginPhone, logoutUser, wechatMiniLogin } from '@/api/auth'
+import { fetchCapabilities } from '@/api/capabilities'
 import { getMe, updateProfile, uploadAvatar } from '@/api/profile'
 import {
   apiMode,
@@ -11,7 +12,7 @@ import {
 import { mockUser, type UserState } from '@/mock/data'
 import { isProfileComplete } from '@/features/session/profileComplete'
 import { isMpWeixinPlatform, resolveWechatLoginUnsupportedMessage } from '@/features/session/wechatLogin'
-import type { UserInfo } from '@/types/api'
+import type { BindPhoneCredentialInput, LoginPhoneInput, UserCapabilities, UserInfo } from '@/types/api'
 
 function restoredUser(): UserInfo | null {
   const value = uni.getStorageSync(sessionUserKey)
@@ -64,6 +65,31 @@ export const useSessionStore = defineStore('session', {
       this.state = 'guest'
       uni.removeStorageSync(sessionTokenKey)
       uni.removeStorageSync(sessionUserKey)
+    },
+    async refreshAuthContext() {
+      const user = await this.refreshMe()
+      let capabilities: UserCapabilities | null = null
+      try {
+        capabilities = await fetchCapabilities()
+      } catch {
+        capabilities = null
+      }
+      return { user, capabilities }
+    },
+    async loginWithPhone(input: LoginPhoneInput) {
+      const result = await loginPhone(input)
+      this.persistSession(result.accessToken, result.user)
+      return this.refreshAuthContext()
+    },
+    async bindPhoneCredential(input: BindPhoneCredentialInput) {
+      const result = await bindPhoneCredentialApi(input)
+      this.persistSession(result.accessToken, result.user)
+      return this.refreshAuthContext()
+    },
+    async changePhoneLoginPassword(input: { currentPassword: string; newPassword: string }) {
+      const result = await changePhoneLoginPasswordApi(input)
+      this.persistSession(result.accessToken, result.user)
+      return this.refreshAuthContext()
     },
     async loginWithWechat() {
       const unsupported = resolveWechatLoginUnsupportedMessage()
@@ -150,6 +176,7 @@ export const useSessionStore = defineStore('session', {
         id: 'mock_user',
         phone: null,
         phoneVerified: false,
+        phoneLoginEnabled: false,
         nickname: withProfile ? mockUser.nickname : null,
         status: mockUser.status,
         passwordSet: false

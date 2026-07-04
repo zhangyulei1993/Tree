@@ -7,6 +7,7 @@ function mockUserInfo(): UserInfo {
     id: 'mock_user',
     phone: null,
     phoneVerified: false,
+    phoneLoginEnabled: false,
     nickname: mockUser.nickname,
     avatarUrl: null,
     status: mockUser.status,

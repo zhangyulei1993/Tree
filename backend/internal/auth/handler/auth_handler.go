@@ -20,6 +20,10 @@ func NewAuthHandler(service authservice.AuthService) *AuthHandler {
 	return &AuthHandler{service: service}
 }
 
+func (h *AuthHandler) Service() authservice.AuthService {
+	return h.service
+}
+
 func (h *AuthHandler) SendCode(ctx *gin.Context) {
 	var req dto.SendCodeRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -181,6 +185,67 @@ func (h *AuthHandler) BindPhone(ctx *gin.Context) {
 		return
 	}
 
+	response.OK(ctx, result)
+}
+
+func (h *AuthHandler) BindPhoneCredential(ctx *gin.Context) {
+	userID, err := middleware.CurrentUserID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	tokenID, _ := middleware.CurrentJWTID(ctx)
+	expiresAt, _ := middleware.CurrentJWTExpiresAt(ctx)
+
+	var req dto.BindPhoneCredentialRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+
+	result, businessErr := h.service.BindPhoneCredential(ctx.Request.Context(), authservice.BindPhoneCredentialInput{
+		UserID:          userID,
+		TokenID:         tokenID,
+		ExpiresAt:       expiresAt,
+		Phone:           req.Phone,
+		Password:        req.Password,
+		ConfirmPassword: req.ConfirmPassword,
+		IP:              ctx.ClientIP(),
+		UserAgent:       ctx.Request.UserAgent(),
+	})
+	if businessErr != nil {
+		response.Error(ctx, http.StatusBadRequest, businessErr)
+		return
+	}
+	response.OK(ctx, result)
+}
+
+func (h *AuthHandler) ChangePhoneLoginPassword(ctx *gin.Context) {
+	userID, err := middleware.CurrentUserID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	tokenID, _ := middleware.CurrentJWTID(ctx)
+	expiresAt, _ := middleware.CurrentJWTExpiresAt(ctx)
+	var req dto.ChangePhoneLoginPasswordRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	result, businessErr := h.service.ChangePhoneLoginPassword(ctx.Request.Context(), authservice.ChangePhoneLoginPasswordInput{
+		UserID:          userID,
+		TokenID:         tokenID,
+		ExpiresAt:       expiresAt,
+		CurrentPassword: req.CurrentPassword,
+		NewPassword:     req.NewPassword,
+		IP:              ctx.ClientIP(),
+		UserAgent:       ctx.Request.UserAgent(),
+	})
+	if businessErr != nil {
+		response.Error(ctx, http.StatusBadRequest, businessErr)
+		return
+	}
 	response.OK(ctx, result)
 }
 

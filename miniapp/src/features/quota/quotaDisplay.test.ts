@@ -32,7 +32,7 @@ test('account security page refetches capabilities on each onShow for admin conf
 
 test('quota reached message does not route to phone pages', () => {
   assert.equal(quotaReachedMessage('WECHAT_ONLY'), '当前扩展能力尚未开放')
-  assert.equal(quotaReachedMessage('PHONE_VERIFIED'), '已达到当前账号权益上限')
+  assert.equal(quotaReachedMessage('PHONE_BOUND'), '已达到当前账号权益上限')
 })
 
 test('parseQuotaErrorMessage uses trustTier from ApiError data', () => {
@@ -45,7 +45,7 @@ test('parseQuotaErrorMessage uses trustTier from ApiError data', () => {
   assert.equal(parseQuotaErrorMessage(wechatError, 'fallback'), '当前扩展能力尚未开放')
 
   const phoneError = quotaApiError('已达到可加入家庭数量上限', 41503, {
-    trustTier: 'PHONE_VERIFIED',
+    trustTier: 'PHONE_BOUND',
     quotaType: 'joinedFamilies',
     limit: 5,
     usage: 5

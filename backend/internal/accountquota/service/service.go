@@ -582,7 +582,7 @@ func defaultConfigItems() []quotavo.ConfigItem {
 	now := time.Now().Format(time.RFC3339)
 	return []quotavo.ConfigItem{
 		{TrustTier: quotaenum.TrustTierWechatOnly, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1, UpdatedAt: now},
-		{TrustTier: quotaenum.TrustTierPhoneVerified, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5, UpdatedAt: now},
+		{TrustTier: quotaenum.TrustTierPhoneBound, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5, UpdatedAt: now},
 	}
 }
 

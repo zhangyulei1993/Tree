@@ -39,6 +39,11 @@ export interface ManagedUser {
   accountOrigin: string
   registerClient: string
   phoneVerified: boolean
+  phoneLoginEnabled: boolean
+  hasWechatLogin: boolean
+  canUnbindPhoneLogin: boolean
+  trustTier: 'WECHAT_ONLY' | 'PHONE_BOUND'
+  loginMethod: string
   status: string
   lastLoginAt?: string | null
   createdAt: string
@@ -300,7 +305,7 @@ export interface ContentArticleInput {
 }
 
 export interface AccountQuotaConfig {
-  trustTier: 'WECHAT_ONLY' | 'PHONE_VERIFIED'
+  trustTier: 'WECHAT_ONLY' | 'PHONE_BOUND'
   maxOwnedFamilies: number
   maxMembersPerOwnedFamily: number
   maxJoinedFamilies: number

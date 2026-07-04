@@ -30,6 +30,22 @@ type WechatMiniPhoneLoginRequest struct {
 	ClientType string `json:"clientType" binding:"required"`
 }
 
+type BindPhoneCredentialRequest struct {
+	Phone           string `json:"phone" binding:"required"`
+	Password        string `json:"password" binding:"required"`
+	ConfirmPassword string `json:"confirmPassword" binding:"required"`
+}
+
+type ChangePhoneLoginPasswordRequest struct {
+	CurrentPassword string `json:"currentPassword" binding:"required"`
+	NewPassword     string `json:"newPassword" binding:"required"`
+}
+
+type AdminUnbindPhoneLoginRequest struct {
+	Confirm bool   `json:"confirm" binding:"required"`
+	Reason  string `json:"reason"`
+}
+
 type BindPhoneRequest struct {
 	Phone    string  `json:"phone" binding:"required"`
 	Code     string  `json:"code" binding:"required"`

@@ -8,6 +8,7 @@ export interface UserInfo {
   id: number | string
   phone?: string | null
   phoneVerified: boolean
+  phoneLoginEnabled?: boolean
   nickname?: string | null
   avatarUrl?: string | null
   status: string
@@ -42,6 +43,17 @@ export interface LoginPhoneInput {
   password: string
 }
 
+export interface BindPhoneCredentialInput {
+  phone: string
+  password: string
+  confirmPassword: string
+}
+
+export interface ChangePhoneLoginPasswordInput {
+  currentPassword: string
+  newPassword: string
+}
+
 export interface BindPhoneInput {
   phone: string
   code: string
@@ -71,7 +83,7 @@ export interface CancelAccountInput {
 }
 
 export interface UserCapabilities {
-  trustTier: 'WECHAT_ONLY' | 'PHONE_VERIFIED'
+  trustTier: 'WECHAT_ONLY' | 'PHONE_BOUND'
   limits: {
     maxOwnedFamilies: number
     maxMembersPerOwnedFamily: number

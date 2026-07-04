@@ -105,10 +105,19 @@ func (s *Server) registerAdminRoutes(api *gin.RouterGroup) {
 		s.logger.Error("init mysql for admin management", zap.Error(err))
 		return
 	}
-	management := adminhandler.NewManagementHandler(adminservice.NewManagementService(adminrepo.NewManagementRepository(managementDB)))
+	userAuthHandler, _ := s.buildUserAuth()
+	var userAuthService authservice.AuthService
+	if userAuthHandler != nil {
+		userAuthService = userAuthHandler.Service()
+	}
+	management := adminhandler.NewManagementHandler(
+		adminservice.NewManagementService(adminrepo.NewManagementRepository(managementDB, s.cfg.Wechat.MiniAppID)),
+		userAuthService,
+	)
 	protected.GET("/dashboard", management.Dashboard)
 	protected.GET("/users", management.Users)
 	protected.GET("/users/:userId", management.User)
+	protected.POST("/users/:userId/unbind-phone-login", management.UnbindPhoneLogin)
 	protected.GET("/families", management.Families)
 	protected.GET("/families/:familyId", management.Family)
 	protected.GET("/families/:familyId/members", management.Members)
@@ -160,18 +169,14 @@ func (s *Server) registerUserAuthRoutes(api *gin.RouterGroup) {
 	}
 
 	auth := api.Group("/auth")
-	auth.POST("/send-code", authHandler.SendCode)
-	auth.POST("/register-phone", authHandler.RegisterPhone)
 	auth.POST("/login-phone", authHandler.LoginPhone)
 	auth.POST("/wechat-mini/login", authHandler.WechatMiniLogin)
-	auth.POST("/wechat-mini/phone-login", authHandler.WechatMiniPhoneLogin)
 
 	protected := auth.Group("")
 	protected.Use(userAuth)
 	protected.POST("/logout", authHandler.Logout)
-	protected.POST("/wechat-mini/bind-phone", authHandler.BindPhone)
-	protected.POST("/change-phone", authHandler.ChangePhone)
-	protected.POST("/cancel-account", authHandler.CancelAccount)
+	protected.POST("/wechat-mini/bind-phone-credential", authHandler.BindPhoneCredential)
+	protected.POST("/wechat-mini/change-phone-login-password", authHandler.ChangePhoneLoginPassword)
 	protected.POST("/cancel-account/wechat-reauth", authHandler.CancelAccountByWechatReauth)
 
 	users := api.Group("/users/me")

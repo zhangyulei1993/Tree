@@ -4,7 +4,7 @@
       <div class="login-brand">
         <div class="brand-mark">T</div>
         <h1>Tree 管理后台</h1>
-        <p>{{ apiMode === 'real' ? '使用管理员账号登录本地联调环境。' : '静态原型使用 mock 登录。' }}</p>
+        <p>{{ apiMode === 'real' ? '使用管理员账号登录管理后台。' : '静态原型使用 mock 登录。' }}</p>
       </div>
       <el-form label-position="top" @submit.prevent="login">
         <el-form-item v-if="apiMode === 'mock'" label="管理员角色">

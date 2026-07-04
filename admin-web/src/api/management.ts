@@ -40,18 +40,27 @@ function paginate<T>(items: T[], page = 1, pageSize = 20): PageResult<T> {
 }
 
 function mapManagedUsers(): ManagedUser[] {
-  return mockUsers.map((item, index) => ({
-    id: index + 1,
-    phone: item.maskedPhone,
-    nickname: item.nickname,
-    realName: item.realName,
-    accountOrigin: item.origin,
-    registerClient: item.clientType,
-    phoneVerified: item.phoneVerified,
-    status: item.status === 'PENDING' ? 'PENDING_BIND' : item.status,
-    lastLoginAt: item.lastLoginAt === '-' ? null : item.lastLoginAt,
-    createdAt: item.createdAt
-  }))
+  return mockUsers.map((item, index) => {
+    const phoneLoginEnabled = item.phoneVerified
+    const hasWechatLogin = item.clientType.includes('WECHAT') || item.origin.includes('WECHAT')
+    return {
+      id: index + 1,
+      phone: item.maskedPhone,
+      nickname: item.nickname,
+      realName: item.realName,
+      accountOrigin: item.origin,
+      registerClient: item.clientType,
+      phoneVerified: item.phoneVerified,
+      phoneLoginEnabled,
+      hasWechatLogin,
+      canUnbindPhoneLogin: phoneLoginEnabled && hasWechatLogin,
+      trustTier: phoneLoginEnabled ? 'PHONE_BOUND' : 'WECHAT_ONLY',
+      loginMethod: phoneLoginEnabled && hasWechatLogin ? '微信 + 手机号' : hasWechatLogin ? '仅微信' : phoneLoginEnabled ? '仅手机号' : '未设置',
+      status: item.status === 'PENDING' ? 'PENDING_BIND' : item.status,
+      lastLoginAt: item.lastLoginAt === '-' ? null : item.lastLoginAt,
+      createdAt: item.createdAt
+    }
+  })
 }
 
 function mapManagedFamilies(): ManagedFamily[] {
@@ -261,6 +270,24 @@ export async function listAdmins(params: PageQuery) {
     return paginate(items, params.page, params.pageSize)
   }
   return unwrapData(await apiClient.get<ApiResponse<PageResult<ManagedAdmin>>>('/admin/admin-users', { params }))
+}
+
+export async function unbindPhoneLogin(userId: number | string, reason?: string) {
+  if (apiMode === 'mock') {
+    const user = mapManagedUsers().find((item) => String(item.id) === String(userId))
+    if (user) {
+      user.phoneLoginEnabled = false
+      user.trustTier = 'WECHAT_ONLY'
+      user.loginMethod = '仅微信'
+    }
+    return { status: 'ok' }
+  }
+  return unwrapData(
+    await apiClient.post<ApiResponse<{ status: string }>>(`/admin/users/${userId}/unbind-phone-login`, {
+      confirm: true,
+      reason: reason || ''
+    })
+  )
 }
 
 export async function listOperationLogs(params: PageQuery) {

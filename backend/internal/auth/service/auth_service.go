@@ -154,6 +154,9 @@ type AuthService interface {
 	WechatMiniLogin(ctx context.Context, input WechatMiniLoginInput) (*vo.LoginResponse, *apperrors.BusinessError)
 	WechatMiniPhoneLogin(ctx context.Context, input WechatMiniPhoneLoginInput) (*vo.LoginResponse, *apperrors.BusinessError)
 	BindPhone(ctx context.Context, input BindPhoneInput) (*vo.LoginResponse, *apperrors.BusinessError)
+	BindPhoneCredential(ctx context.Context, input BindPhoneCredentialInput) (*vo.LoginResponse, *apperrors.BusinessError)
+	ChangePhoneLoginPassword(ctx context.Context, input ChangePhoneLoginPasswordInput) (*vo.LoginResponse, *apperrors.BusinessError)
+	AdminUnbindPhoneLogin(ctx context.Context, input AdminUnbindPhoneLoginInput) *apperrors.BusinessError
 	ChangePhone(ctx context.Context, input ChangePhoneInput) *apperrors.BusinessError
 	CancelAccount(ctx context.Context, input CancelAccountInput) *apperrors.BusinessError
 	CancelAccountByWechatReauth(ctx context.Context, input CancelAccountByWechatInput) *apperrors.BusinessError
@@ -312,14 +315,15 @@ func (s *PhoneAuthService) RegisterPhone(ctx context.Context, input RegisterPhon
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
 	user := &usermodel.User{
-		Phone:          &input.Phone,
-		PhoneHash:      &phoneHash,
-		PhoneVerified:  true,
-		PasswordHash:   &passwordHash,
-		Nickname:       input.Nickname,
-		AccountOrigin:  accountOriginPhoneRegister,
-		RegisterClient: input.ClientType,
-		Status:         string(enums.StatusActive),
+		Phone:             &input.Phone,
+		PhoneHash:         &phoneHash,
+		PhoneVerified:     true,
+		PhoneLoginEnabled: true,
+		PasswordHash:      &passwordHash,
+		Nickname:          input.Nickname,
+		AccountOrigin:     accountOriginPhoneRegister,
+		RegisterClient:    input.ClientType,
+		Status:            string(enums.StatusActive),
 	}
 	if err := s.userRepo.Create(ctx, user); err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
@@ -345,6 +349,10 @@ func (s *PhoneAuthService) LoginPhone(ctx context.Context, input LoginPhoneInput
 	if businessErr := loginStatusError(user); businessErr != nil {
 		s.writeUserAction(ctx, user.ID, actionLogin, input.IP, input.UserAgent, false, "status denied")
 		return nil, businessErr
+	}
+	if !user.PhoneLoginEnabled {
+		s.writeUserAction(ctx, user.ID, actionLogin, input.IP, input.UserAgent, false, "phone login disabled")
+		return nil, apperrors.New(apperrors.CodeLoginPhonePasswordInvalid)
 	}
 	if user.PasswordHash == nil || !security.CheckPassword(input.Password, *user.PasswordHash) {
 		s.writeUserAction(ctx, user.ID, actionLogin, input.IP, input.UserAgent, false, "invalid credentials")
@@ -721,17 +729,18 @@ func (s *PhoneAuthService) CancelAccountByWechatReauth(ctx context.Context, inpu
 func (s *PhoneAuthService) cancelUserInTx(ctx context.Context, txUserRepo repository.UserRepository, user *usermodel.User, cancelReason string) error {
 	now := time.Now()
 	updates := map[string]any{
-		"status":         string(enums.StatusCancelled),
-		"phone":          nil,
-		"phone_hash":     nil,
-		"phone_verified": false,
-		"nickname":       nil,
-		"avatar_url":     nil,
-		"real_name":      nil,
-		"password_hash":  nil,
-		"cancelled_at":   now,
-		"cancel_reason":  cancelReason,
-		"updated_at":     now,
+		"status":              string(enums.StatusCancelled),
+		"phone":               nil,
+		"phone_hash":          nil,
+		"phone_verified":      false,
+		"phone_login_enabled": false,
+		"nickname":            nil,
+		"avatar_url":          nil,
+		"real_name":           nil,
+		"password_hash":       nil,
+		"cancelled_at":        now,
+		"cancel_reason":       cancelReason,
+		"updated_at":          now,
 	}
 	if err := txUserRepo.UpdateUser(ctx, user.ID, updates); err != nil {
 		return errors.New(errRollback)
@@ -782,11 +791,15 @@ func (s *PhoneAuthService) consumeCodeWithRepo(ctx context.Context, codeRepo rep
 }
 
 func (s *PhoneAuthService) issueUserToken(user *usermodel.User) (*vo.LoginResponse, *apperrors.BusinessError) {
+	return s.issueUserTokenWithIssuedAt(user, time.Now().Unix())
+}
+
+func (s *PhoneAuthService) issueUserTokenWithIssuedAt(user *usermodel.User, issuedAt int64) (*vo.LoginResponse, *apperrors.BusinessError) {
 	tokenID, err := newTokenID()
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	token, err := s.jwtManager.GenerateAccessToken(user.ID, commonjwt.TokenTypeUser, "", tokenID)
+	token, err := s.jwtManager.GenerateAccessTokenWithIssuedAt(user.ID, commonjwt.TokenTypeUser, "", tokenID, issuedAt)
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
@@ -822,13 +835,15 @@ func (s *PhoneAuthService) mergeUsers(ctx context.Context, repo repository.UserR
 		return nil, apperrors.New(apperrors.CodeAccountMergeFailed)
 	}
 	if err := repo.UpdateUser(ctx, source.ID, map[string]any{
-		"status":            string(enums.StatusMerged),
-		"merged_to_user_id": target.ID,
-		"merged_at":         now,
-		"phone":             nil,
-		"phone_hash":        nil,
-		"phone_verified":    false,
-		"updated_at":        now,
+		"status":              string(enums.StatusMerged),
+		"merged_to_user_id":   target.ID,
+		"merged_at":           now,
+		"phone":               nil,
+		"phone_hash":          nil,
+		"phone_verified":      false,
+		"phone_login_enabled": false,
+		"password_hash":       nil,
+		"updated_at":          now,
 	}); err != nil {
 		return nil, apperrors.New(apperrors.CodeAccountMergeFailed)
 	}
@@ -873,13 +888,15 @@ func (s *PhoneAuthService) claimUser(ctx context.Context, repo repository.UserRe
 		return nil, apperrors.New(apperrors.CodeAccountClaimFailed)
 	}
 	if err := repo.UpdateUser(ctx, temp.ID, map[string]any{
-		"status":            string(enums.StatusMerged),
-		"merged_to_user_id": target.ID,
-		"merged_at":         now,
-		"phone":             nil,
-		"phone_hash":        nil,
-		"phone_verified":    false,
-		"updated_at":        now,
+		"status":              string(enums.StatusMerged),
+		"merged_to_user_id":   target.ID,
+		"merged_at":           now,
+		"phone":               nil,
+		"phone_hash":          nil,
+		"phone_verified":      false,
+		"phone_login_enabled": false,
+		"password_hash":       nil,
+		"updated_at":          now,
 	}); err != nil {
 		return nil, apperrors.New(apperrors.CodeAccountClaimFailed)
 	}
@@ -1009,13 +1026,14 @@ func (s *PhoneAuthService) setPasswordIfUnset(ctx context.Context, repo reposito
 
 func userInfo(user *usermodel.User) vo.UserInfo {
 	return vo.UserInfo{
-		ID:            user.ID,
-		Phone:         user.Phone,
-		PhoneVerified: user.PhoneVerified,
-		Nickname:      user.Nickname,
-		AvatarURL:     user.AvatarURL,
-		Status:        user.Status,
-		PasswordSet:   user.PasswordHash != nil && *user.PasswordHash != "",
+		ID:                user.ID,
+		Phone:             user.Phone,
+		PhoneVerified:     user.PhoneVerified,
+		PhoneLoginEnabled: user.PhoneLoginEnabled,
+		Nickname:          user.Nickname,
+		AvatarURL:         user.AvatarURL,
+		Status:            user.Status,
+		PasswordSet:       user.PasswordHash != nil && *user.PasswordHash != "",
 	}
 }
 

@@ -25,6 +25,9 @@
           <MiniButton variant="secondary" @click="mockLogin(true)">微信快捷登录（已完善资料）</MiniButton>
         </view>
       </template>
+      <view v-if="isRealApiMode" class="tree-auth-foot auth-switch">
+        <text class="auth-switch-link" @click="goPhoneLogin">使用手机号密码登录</text>
+      </view>
     </MiniCard>
   </view>
 </template>
@@ -71,6 +74,10 @@ function mockLogin(withProfile: boolean) {
   uni.showToast({ title: '登录成功', icon: 'none' })
   setTimeout(() => session.routeAfterAuth(), 300)
 }
+
+function goPhoneLogin() {
+  uni.navigateTo({ url: '/pages/auth/phone-login' })
+}
 </script>
 
 <style scoped>
@@ -93,5 +100,16 @@ function mockLogin(withProfile: boolean) {
     radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.10), transparent 180rpx),
     rgba(255, 255, 255, 0.94);
   box-shadow: 0 18rpx 44rpx rgba(24, 54, 83, 0.08);
+}
+
+.auth-switch {
+  display: flex;
+  justify-content: center;
+}
+
+.auth-switch-link {
+  color: var(--tree-green);
+  font-size: 26rpx;
+  font-weight: 600;
 }
 </style>

@@ -55,6 +55,18 @@ func (r *wechatIdentityUserRepoFake) FindIdentityByOpenIDHash(_ context.Context,
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (r *wechatIdentityUserRepoFake) HasActiveWechatMiniIdentity(_ context.Context, userID uint64, appID string) (bool, error) {
+	for _, identity := range r.identityRecords {
+		if identity.UserID == userID &&
+			identity.Provider == providerWechatMini &&
+			derefString(identity.ProviderAppID) == appID &&
+			identity.IdentityStatus == string(enums.StatusActive) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (r *wechatIdentityUserRepoFake) WithTx(*gorm.DB) authrepo.UserRepository { return r }
 
 func derefString(value *string) string {
@@ -177,7 +189,7 @@ func TestCancelAccountByWechatReauthSuccess(t *testing.T) {
 	openIDHash := security.HashPlain(openID)
 	appID := "test-app-id"
 	users := newWechatIdentityUserRepoFake(&usermodel.User{
-		ID: 701, Status: string(enums.StatusActive), PhoneVerified: false,
+		ID: 701, Status: string(enums.StatusActive), PhoneVerified: false, PhoneLoginEnabled: true,
 		Nickname: stringPointer("测试用户"),
 	})
 	users.seedActiveIdentity(3, 701, providerWechatMini, appID, openIDHash)
@@ -195,6 +207,9 @@ func TestCancelAccountByWechatReauthSuccess(t *testing.T) {
 	}
 	if users.users[701].Status != string(enums.StatusCancelled) {
 		t.Fatalf("expected cancelled user, got %#v", users.users[701])
+	}
+	if users.users[701].PhoneLoginEnabled {
+		t.Fatal("cancel must clear phone_login_enabled")
 	}
 	if len(logs.success) != 1 || logs.success[0].Action != actionCancelAccountWechat {
 		t.Fatalf("unexpected success log: %#v", logs.success)

@@ -14,6 +14,7 @@ import (
 	"tree/backend/internal/common/config"
 	"tree/backend/internal/common/database"
 	"tree/backend/internal/common/enums"
+	"tree/backend/internal/common/security"
 	usermodel "tree/backend/internal/user/model"
 )
 
@@ -82,7 +83,7 @@ func LoadUser(t *testing.T, tx *gorm.DB, userID uint64) *usermodel.User {
 	return &user
 }
 
-func CreateActiveUser(t *testing.T, tx *gorm.DB, nickname string, phoneVerified bool) *usermodel.User {
+func CreateActiveUser(t *testing.T, tx *gorm.DB, nickname string, phoneLoginEnabled bool) *usermodel.User {
 	t.Helper()
 	var nick *string
 	if nickname != "" {
@@ -90,11 +91,29 @@ func CreateActiveUser(t *testing.T, tx *gorm.DB, nickname string, phoneVerified 
 		nick = &n
 	}
 	user := &usermodel.User{
-		PhoneVerified: phoneVerified, AccountOrigin: "FRESH_QUOTA_TEST", RegisterClient: "WECHAT_MINI_PROGRAM",
+		AccountOrigin: "FRESH_QUOTA_TEST", RegisterClient: "WECHAT_MINI_PROGRAM",
 		Status: string(enums.StatusActive), Nickname: nick,
 	}
 	if err := tx.Create(user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
+	}
+	if phoneLoginEnabled {
+		phone := fmt.Sprintf("166%08d", (time.Now().UnixNano()+int64(user.ID))%100000000)
+		phoneHash := security.PhoneHash(phone)
+		passwordHash, err := security.HashPassword("fresh-quota-test-password")
+		if err != nil {
+			t.Fatalf("HashPassword: %v", err)
+		}
+		if err := tx.Model(user).Updates(map[string]any{
+			"phone": phone, "phone_hash": phoneHash, "password_hash": passwordHash,
+			"phone_login_enabled": true,
+		}).Error; err != nil {
+			t.Fatalf("enable phone login: %v", err)
+		}
+		user.Phone = &phone
+		user.PhoneHash = &phoneHash
+		user.PasswordHash = &passwordHash
+		user.PhoneLoginEnabled = true
 	}
 	return user
 }

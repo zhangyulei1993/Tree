@@ -133,7 +133,7 @@ func TestPhoneVerifiedTierBoundariesAfterBindPhone(t *testing.T) {
 
 	adminCfg := freshquota.ListTierConfigs(t, quotaSvc, string(enums.AdminRoleRootAdmin))
 	wechatLimits := adminCfg[quotaenum.TrustTierWechatOnly]
-	phoneLimits := adminCfg[quotaenum.TrustTierPhoneVerified]
+	phoneLimits := adminCfg[quotaenum.TrustTierPhoneBound]
 
 	code := wechatClient.BindUniqueCode(runID, "phone-verified")
 	login, err := authSvc.WechatMiniLogin(ctx, authservice.WechatMiniLoginInput{
@@ -154,10 +154,12 @@ func TestPhoneVerifiedTierBoundariesAfterBindPhone(t *testing.T) {
 	}
 
 	phone := freshquota.UniquePhone(runID, "upgrade")
-	const smsCode = "135790"
-	freshquota.SeedBindPhoneCode(t, tx, phone, smsCode)
-	if _, err := authSvc.BindPhone(ctx, authservice.BindPhoneInput{UserID: userID, Phone: phone, Code: smsCode, IP: "127.0.0.1", UserAgent: "fresh-quota-test"}); err != nil {
-		t.Fatalf("BindPhone: %v", err)
+	password := "bind-pass-" + runID[len(runID)-4:]
+	if _, err := authSvc.BindPhoneCredential(ctx, authservice.BindPhoneCredentialInput{
+		UserID: userID, Phone: phone, Password: password, ConfirmPassword: password,
+		IP: "127.0.0.1", UserAgent: "fresh-quota-test",
+	}); err != nil {
+		t.Fatalf("BindPhoneCredential: %v", err)
 	}
 
 	caps, err := quotaSvc.GetCapabilities(ctx, userID)

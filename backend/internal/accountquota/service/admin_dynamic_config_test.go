@@ -47,7 +47,7 @@ func TestMigrationDefaultConfigsViaAdminList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("phone GetCapabilities: %v", err)
 	}
-	freshquota.AssertCapabilitiesLimits(t, phoneCaps, freshquota.MigrationDefaults()[quotaenum.TrustTierPhoneVerified])
+	freshquota.AssertCapabilitiesLimits(t, phoneCaps, freshquota.MigrationDefaults()[quotaenum.TrustTierPhoneBound])
 }
 
 func TestAdminDynamicConfigDrivesCapabilitiesAndBoundaries(t *testing.T) {
@@ -62,7 +62,7 @@ func TestAdminDynamicConfigDrivesCapabilitiesAndBoundaries(t *testing.T) {
 	freshquota.ApplyDynamicTestConfigs(t, svc, testRootAdminID)
 	dynamic := freshquota.ListTierConfigs(t, svc, string(enums.AdminRoleRootAdmin))
 	wechatCfg := dynamic[quotaenum.TrustTierWechatOnly]
-	phoneCfg := dynamic[quotaenum.TrustTierPhoneVerified]
+	phoneCfg := dynamic[quotaenum.TrustTierPhoneBound]
 
 	wechatClient := freshquota.NewFakeWechatMiniClient("fresh-quota-test-app")
 	authSvc := freshauth.NewAuthService(t, tx, wechatClient)
@@ -135,17 +135,20 @@ func TestAdminDynamicConfigDrivesCapabilitiesAndBoundaries(t *testing.T) {
 	}
 
 	phone := freshquota.UniquePhone(runID, "dynamic-bind")
-	freshquota.SeedBindPhoneCode(t, tx, phone, "864200")
-	if _, err := authSvc.BindPhone(ctx, authservice.BindPhoneInput{UserID: userID, Phone: phone, Code: "864200", IP: "127.0.0.1", UserAgent: "fresh-quota-test"}); err != nil {
-		t.Fatalf("BindPhone: %v", err)
+	password := "dynamic-pass-" + runID[len(runID)-4:]
+	if _, err := authSvc.BindPhoneCredential(ctx, authservice.BindPhoneCredentialInput{
+		UserID: userID, Phone: phone, Password: password, ConfirmPassword: password,
+		IP: "127.0.0.1", UserAgent: "fresh-quota-test",
+	}); err != nil {
+		t.Fatalf("BindPhoneCredential: %v", err)
 	}
 	phoneCaps, err := svc.GetCapabilities(ctx, userID)
 	if err != nil {
 		t.Fatalf("phone capabilities: %v", err)
 	}
 	freshquota.AssertCapabilitiesLimits(t, phoneCaps, phoneCfg)
-	if phoneCaps.TrustTier != quotaenum.TrustTierPhoneVerified {
-		t.Fatalf("expected PHONE_VERIFIED tier, got %s", phoneCaps.TrustTier)
+	if phoneCaps.TrustTier != quotaenum.TrustTierPhoneBound {
+		t.Fatalf("expected PHONE_BOUND tier, got %s", phoneCaps.TrustTier)
 	}
 
 	if _, err := familySvc.Create(ctx, userID, coredto.CreateFamilyRequest{Surname: "手机第三家", FounderGender: &gender}, familyservice.AuditInput{}); err != nil {
@@ -216,7 +219,7 @@ func TestAdminTierOrderReturns41507(t *testing.T) {
 	svc := freshquota.NewQuotaService(tx)
 	freshquota.ApplyDynamicTestConfigs(t, svc, testRootAdminID)
 
-	_, err := svc.UpdateConfig(context.Background(), testRootAdminID, string(enums.AdminRoleRootAdmin), quotaenum.TrustTierPhoneVerified, quotadto.ConfigValues{
+	_, err := svc.UpdateConfig(context.Background(), testRootAdminID, string(enums.AdminRoleRootAdmin), quotaenum.TrustTierPhoneBound, quotadto.ConfigValues{
 		MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 5, MaxJoinedFamilies: 4,
 	}, quotaservice.AuditInput{})
 	if err == nil || err.Code != apperrors.CodeQuotaConfigTierOrder {

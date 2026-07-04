@@ -2,6 +2,7 @@
   "pages": [
     {"path": "pages/home/index", "style": {"navigationBarTitleText": "Tree"}},
     {"path": "pages/auth/wechat-login", "style": {"navigationBarTitleText": "微信快捷登录"}},
+    {"path": "pages/auth/phone-login", "style": {"navigationBarTitleText": "手机号登录"}},
     {"path": "pages/family/search", "style": {"navigationBarTitleText": "寻找公开家庭"}},
     {"path": "pages/content/index", "style": {"navigationBarTitleText": "阅读"}},
     {"path": "pages/content/detail", "style": {"navigationBarTitleText": "内容详情"}},

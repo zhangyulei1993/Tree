@@ -31,7 +31,7 @@ func MigrationDefaults() ConfigMap {
 		quotaenum.TrustTierWechatOnly: {
 			MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1,
 		},
-		quotaenum.TrustTierPhoneVerified: {
+		quotaenum.TrustTierPhoneBound: {
 			MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5,
 		},
 	}
@@ -47,10 +47,10 @@ func migrationSeedRows() []quotamodel.AccountQuotaConfig {
 			MaxJoinedFamilies:        defaults[quotaenum.TrustTierWechatOnly].MaxJoinedFamilies,
 		},
 		{
-			TrustTier:                quotaenum.TrustTierPhoneVerified,
-			MaxOwnedFamilies:         defaults[quotaenum.TrustTierPhoneVerified].MaxOwnedFamilies,
-			MaxMembersPerOwnedFamily: defaults[quotaenum.TrustTierPhoneVerified].MaxMembersPerOwnedFamily,
-			MaxJoinedFamilies:        defaults[quotaenum.TrustTierPhoneVerified].MaxJoinedFamilies,
+			TrustTier:                quotaenum.TrustTierPhoneBound,
+			MaxOwnedFamilies:         defaults[quotaenum.TrustTierPhoneBound].MaxOwnedFamilies,
+			MaxMembersPerOwnedFamily: defaults[quotaenum.TrustTierPhoneBound].MaxMembersPerOwnedFamily,
+			MaxJoinedFamilies:        defaults[quotaenum.TrustTierPhoneBound].MaxJoinedFamilies,
 		},
 	}
 }
@@ -87,7 +87,7 @@ func DeferRestoreQuotaConfigs(t *testing.T, db *gorm.DB, adminID uint64, role st
 
 func restoreConfigsStaged(svc quotaservice.Service, adminID uint64, role string, want ConfigMap) error {
 	wechatWant, okW := want[quotaenum.TrustTierWechatOnly]
-	phoneWant, okP := want[quotaenum.TrustTierPhoneVerified]
+	phoneWant, okP := want[quotaenum.TrustTierPhoneBound]
 	if !okW || !okP {
 		return nil
 	}
@@ -104,7 +104,7 @@ func restoreConfigsStaged(svc quotaservice.Service, adminID uint64, role string,
 			MaxJoinedFamilies: item.MaxJoinedFamilies,
 		}
 	}
-	phoneNow := currentMap[quotaenum.TrustTierPhoneVerified]
+	phoneNow := currentMap[quotaenum.TrustTierPhoneBound]
 	interimMembers := wechatWant.MaxMembersPerOwnedFamily
 	if phoneNow.MaxMembersPerOwnedFamily < interimMembers {
 		interimMembers = phoneNow.MaxMembersPerOwnedFamily
@@ -117,7 +117,7 @@ func restoreConfigsStaged(svc quotaservice.Service, adminID uint64, role string,
 	if _, businessErr = svc.UpdateConfig(ctx, adminID, role, quotaenum.TrustTierWechatOnly, toDTOValues(interim), audit); businessErr != nil {
 		return businessErr
 	}
-	if _, businessErr = svc.UpdateConfig(ctx, adminID, role, quotaenum.TrustTierPhoneVerified, toDTOValues(phoneWant), audit); businessErr != nil {
+	if _, businessErr = svc.UpdateConfig(ctx, adminID, role, quotaenum.TrustTierPhoneBound, toDTOValues(phoneWant), audit); businessErr != nil {
 		return businessErr
 	}
 	if _, businessErr = svc.UpdateConfig(ctx, adminID, role, quotaenum.TrustTierWechatOnly, toDTOValues(wechatWant), audit); businessErr != nil {
@@ -201,7 +201,7 @@ var DynamicTestConfigs = ConfigMap{
 	quotaenum.TrustTierWechatOnly: {
 		MaxOwnedFamilies: 2, MaxMembersPerOwnedFamily: 6, MaxJoinedFamilies: 2,
 	},
-	quotaenum.TrustTierPhoneVerified: {
+	quotaenum.TrustTierPhoneBound: {
 		MaxOwnedFamilies: 3, MaxMembersPerOwnedFamily: 8, MaxJoinedFamilies: 4,
 	},
 }
@@ -210,11 +210,11 @@ func ApplyDynamicTestConfigs(t *testing.T, svc quotaservice.Service, adminID uin
 	t.Helper()
 	// Tier-order validation requires staged updates from migration defaults (1/10/1 + 1/20/5).
 	wechatTarget := DynamicTestConfigs[quotaenum.TrustTierWechatOnly]
-	phoneTarget := DynamicTestConfigs[quotaenum.TrustTierPhoneVerified]
+	phoneTarget := DynamicTestConfigs[quotaenum.TrustTierPhoneBound]
 	UpdateTierConfig(t, svc, adminID, string(enums.AdminRoleRootAdmin), quotaenum.TrustTierWechatOnly, TierConfig{
 		MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: wechatTarget.MaxMembersPerOwnedFamily, MaxJoinedFamilies: 1,
 	})
-	UpdateTierConfig(t, svc, adminID, string(enums.AdminRoleSuperAdmin), quotaenum.TrustTierPhoneVerified, phoneTarget)
+	UpdateTierConfig(t, svc, adminID, string(enums.AdminRoleSuperAdmin), quotaenum.TrustTierPhoneBound, phoneTarget)
 	UpdateTierConfig(t, svc, adminID, string(enums.AdminRoleRootAdmin), quotaenum.TrustTierWechatOnly, wechatTarget)
 }
 

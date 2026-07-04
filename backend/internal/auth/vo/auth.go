@@ -7,13 +7,14 @@ type SendCodeResponse struct {
 }
 
 type UserInfo struct {
-	ID            uint64  `json:"id"`
-	Phone         *string `json:"phone,omitempty"`
-	PhoneVerified bool    `json:"phoneVerified"`
-	Nickname      *string `json:"nickname,omitempty"`
-	AvatarURL     *string `json:"avatarUrl,omitempty"`
-	Status        string  `json:"status"`
-	PasswordSet   bool    `json:"passwordSet"`
+	ID                uint64  `json:"id"`
+	Phone             *string `json:"phone,omitempty"`
+	PhoneVerified     bool    `json:"phoneVerified"`
+	PhoneLoginEnabled bool    `json:"phoneLoginEnabled"`
+	Nickname          *string `json:"nickname,omitempty"`
+	AvatarURL         *string `json:"avatarUrl,omitempty"`
+	Status            string  `json:"status"`
+	PasswordSet       bool    `json:"passwordSet"`
 }
 
 type LoginResponse struct {

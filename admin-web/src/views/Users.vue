@@ -1,5 +1,115 @@
-<template><div class="page-stack"><PageHeader title="用户管理" description="真实用户账号列表；敏感手机号默认脱敏。"/><SearchPanel><el-form inline><el-form-item label="关键词" class="field-wide"><el-input v-model="keyword" placeholder="ID / 昵称 / 姓名 / 手机号"/></el-form-item><el-form-item label="状态"><el-select v-model="status" clearable style="width:140px"><el-option label="正常" value="ACTIVE"/><el-option label="待绑定" value="PENDING_BIND"/><el-option label="禁用" value="DISABLED"/><el-option label="已注销" value="CANCELLED"/></el-select></el-form-item><el-button type="primary" @click="search">查询</el-button></el-form></SearchPanel><el-alert v-if="error" :title="error" type="error" show-icon/><DataTable><el-table v-loading="loading" :data="items" stripe><el-table-column prop="id" label="用户 ID" width="100"/><el-table-column prop="phone" label="手机号" width="140"/><el-table-column prop="nickname" label="昵称"/><el-table-column prop="realName" label="姓名"/><el-table-column prop="accountOrigin" label="来源"/><el-table-column prop="registerClient" label="注册端"/><el-table-column label="状态"><template #default="{row}"><StatusTag :status="row.status"/></template></el-table-column><el-table-column prop="createdAt" label="创建时间" min-width="170"/><el-table-column label="操作" width="90"><template #default="{row}"><el-button size="small" @click="$router.push(`/admin/users/${row.id}`)">详情</el-button></template></el-table-column></el-table><el-pagination class="pager" layout="total, prev, pager, next" :total="total" :page-size="20" @current-change="changePage"/></DataTable></div></template>
+<template>
+  <div class="page-stack">
+    <PageHeader title="用户管理" description="真实用户账号列表；敏感手机号默认脱敏。" />
+    <SearchPanel>
+      <el-form inline>
+        <el-form-item label="关键词" class="field-wide">
+          <el-input v-model="keyword" placeholder="ID / 昵称 / 姓名 / 手机号" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="status" clearable style="width: 140px">
+            <el-option label="正常" value="ACTIVE" />
+            <el-option label="待绑定" value="PENDING_BIND" />
+            <el-option label="禁用" value="DISABLED" />
+            <el-option label="已注销" value="CANCELLED" />
+          </el-select>
+        </el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+      </el-form>
+    </SearchPanel>
+    <el-alert v-if="error" :title="error" type="error" show-icon />
+    <DataTable>
+      <el-table v-loading="loading" :data="items" stripe>
+        <el-table-column prop="id" label="用户 ID" width="100" />
+        <el-table-column label="手机号" width="140">
+          <template #default="{ row }">{{ row.phone || '未绑定' }}</template>
+        </el-table-column>
+        <el-table-column prop="nickname" label="昵称" />
+        <el-table-column prop="realName" label="姓名" />
+        <el-table-column prop="loginMethod" label="登录方式" width="130" />
+        <el-table-column label="信任等级" width="120">
+          <template #default="{ row }">{{ trustTierLabel(row.trustTier) }}</template>
+        </el-table-column>
+        <el-table-column prop="accountOrigin" label="来源" />
+        <el-table-column prop="registerClient" label="注册端" />
+        <el-table-column label="状态">
+          <template #default="{ row }"><StatusTag :status="row.status" /></template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="创建时间" min-width="170" />
+        <el-table-column label="操作" width="90">
+          <template #default="{ row }">
+            <el-button size="small" @click="$router.push(`/admin/users/${row.id}`)">详情</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination
+        class="pager"
+        layout="total, prev, pager, next"
+        :total="total"
+        :page-size="20"
+        @current-change="changePage"
+      />
+    </DataTable>
+  </div>
+</template>
+
 <script setup lang="ts">
-import{onMounted,ref}from'vue';import{getApiErrorMessage}from'@/api/client';import{listUsers}from'@/api/management';import DataTable from'@/components/DataTable.vue';import PageHeader from'@/components/PageHeader.vue';import SearchPanel from'@/components/SearchPanel.vue';import StatusTag from'@/components/StatusTag.vue';import type{ManagedUser}from'@/types/api';const keyword=ref(''),status=ref(''),items=ref<ManagedUser[]>([]),total=ref(0),page=ref(1),loading=ref(false),error=ref('');async function load(){loading.value=true;error.value='';try{const r=await listUsers({keyword:keyword.value,status:status.value,page:page.value,pageSize:20});items.value=r.items;total.value=r.total}catch(e){error.value=getApiErrorMessage(e)}finally{loading.value=false}}function search(){page.value=1;void load()}function changePage(v:number){page.value=v;void load()}onMounted(load);
+import { onMounted, ref } from 'vue'
+
+import { getApiErrorMessage } from '@/api/client'
+import { listUsers } from '@/api/management'
+import DataTable from '@/components/DataTable.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import SearchPanel from '@/components/SearchPanel.vue'
+import StatusTag from '@/components/StatusTag.vue'
+import type { ManagedUser } from '@/types/api'
+
+const keyword = ref('')
+const status = ref('')
+const items = ref<ManagedUser[]>([])
+const total = ref(0)
+const page = ref(1)
+const loading = ref(false)
+const error = ref('')
+
+function trustTierLabel(tier: string) {
+  return tier === 'PHONE_BOUND' ? '备用登录已开启' : '仅微信'
+}
+
+async function load() {
+  loading.value = true
+  error.value = ''
+  try {
+    const r = await listUsers({ keyword: keyword.value, status: status.value, page: page.value, pageSize: 20 })
+    items.value = r.items
+    total.value = r.total
+  } catch (e) {
+    error.value = getApiErrorMessage(e)
+  } finally {
+    loading.value = false
+  }
+}
+
+function search() {
+  page.value = 1
+  void load()
+}
+
+function changePage(v: number) {
+  page.value = v
+  void load()
+}
+
+onMounted(load)
 </script>
-<style scoped>.pager{justify-content:flex-end;padding:18px}.field-wide{min-width:280px}</style>
+
+<style scoped>
+.pager {
+  justify-content: flex-end;
+  padding: 18px;
+}
+
+.field-wide {
+  min-width: 280px;
+}
+</style>
