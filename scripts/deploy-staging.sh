@@ -38,6 +38,7 @@ done
 require_var STAGING_ROOT
 require_var RELEASE_ID
 require_var BACKEND_BINARY
+require_var BACKEND_MIGRATIONS
 require_var ADMIN_DIST
 require_var WEB_DIST
 require_var STAGING_BACKUP_SCRIPT
@@ -49,6 +50,9 @@ assert_safe_path "$STAGING_ROOT"
 
 [[ "$RELEASE_ID" =~ ^[A-Za-z0-9._-]+$ ]] || die 'RELEASE_ID contains unsafe characters'
 [[ -x "$BACKEND_BINARY" ]] || die "Backend binary is not executable: $BACKEND_BINARY"
+[[ -d "$BACKEND_MIGRATIONS" ]] || die "Backend migrations directory does not exist: $BACKEND_MIGRATIONS"
+compgen -G "$BACKEND_MIGRATIONS/*.up.sql" >/dev/null ||
+  die "Backend migrations directory contains no up migrations: $BACKEND_MIGRATIONS"
 [[ -d "$ADMIN_DIST" ]] || die "Admin dist directory does not exist: $ADMIN_DIST"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 node "$SCRIPT_DIR/verify-admin-build-meta.mjs" "$ADMIN_DIST" ||
@@ -67,7 +71,7 @@ previous_link="$STAGING_ROOT/previous"
 [[ ! -e "$release_dir" ]] || die "Release already exists: $release_dir"
 
 mkdir -p "$releases_dir"
-mkdir -p "$release_dir/backend" "$release_dir/admin-web/dist" "$release_dir/web/dist"
+mkdir -p "$release_dir/backend/migrations" "$release_dir/admin-web/dist" "$release_dir/web/dist"
 
 cleanup_failed_release() {
   if [[ ! -L "$current_link" || "$(readlink "$current_link" 2>/dev/null || true)" != "$release_dir" ]]; then
@@ -80,11 +84,12 @@ printf 'Creating staging backup through the configured hook\n'
 "$STAGING_BACKUP_SCRIPT"
 
 install -m 0755 "$BACKEND_BINARY" "$release_dir/backend/tree-api"
+cp -R "$BACKEND_MIGRATIONS"/. "$release_dir/backend/migrations/"
 cp -R "$ADMIN_DIST"/. "$release_dir/admin-web/dist/"
 cp -R "$WEB_DIST"/. "$release_dir/web/dist/"
 
 printf 'Running forward-only staging migration hook\n'
-"$STAGING_MIGRATE_SCRIPT" up
+STAGING_MIGRATIONS_DIR="$release_dir/backend/migrations" "$STAGING_MIGRATE_SCRIPT" up
 
 if [[ -L "$current_link" ]]; then
   ln -sfn "$(readlink "$current_link")" "$previous_link"
