@@ -35,6 +35,7 @@ function mockArticle(item: MockArticle): ContentArticleDetail {
     categoryId: 0,
     categoryKey: item.category,
     categoryName: category?.title || '内容',
+    contentType: 'INTERNAL',
     title: item.title,
     slug: item.id,
     summary: item.summary,

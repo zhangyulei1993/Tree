@@ -35,6 +35,13 @@
           <el-table v-loading="articleLoading" :data="articles" stripe empty-text="暂无文章">
             <el-table-column prop="id" label="ID" width="60" />
             <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip />
+            <el-table-column label="类型" width="110">
+              <template #default="{ row }">
+                <el-tag :type="row.contentType === 'WECHAT_OFFICIAL' ? 'success' : 'info'">
+                  {{ row.contentType === 'WECHAT_OFFICIAL' ? '公众号文章' : '站内文章' }}
+                </el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="categoryName" label="分类" width="100" />
             <el-table-column prop="slug" label="路径" min-width="150" show-overflow-tooltip />
             <el-table-column label="状态" width="90">
@@ -111,6 +118,12 @@
 
     <el-dialog v-model="articleDialogVisible" :title="articleEditingId ? '编辑文章' : '新建文章'" width="760px">
       <el-form label-width="88px">
+        <el-form-item label="文章类型">
+          <el-radio-group v-model="articleForm.contentType">
+            <el-radio-button value="INTERNAL">站内文章</el-radio-button>
+            <el-radio-button value="WECHAT_OFFICIAL">公众号文章</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
         <el-form-item label="分类">
           <el-select v-model="articleForm.categoryKey" placeholder="请选择分类">
             <el-option v-for="item in categories" :key="item.key" :label="item.name" :value="item.key" />
@@ -119,7 +132,26 @@
         <el-form-item label="标题"><el-input v-model="articleForm.title" /></el-form-item>
         <el-form-item label="路径"><el-input v-model="articleForm.slug" placeholder="如 tutorial-create-family" /></el-form-item>
         <el-form-item label="摘要"><el-input v-model="articleForm.summary" type="textarea" :rows="2" /></el-form-item>
-        <el-form-item label="正文"><el-input v-model="articleForm.body" type="textarea" :rows="10" /></el-form-item>
+        <el-form-item v-if="articleForm.contentType === 'INTERNAL'" label="正文">
+          <el-input v-model="articleForm.body" type="textarea" :rows="10" />
+        </el-form-item>
+        <template v-else>
+          <el-form-item label="文章链接">
+            <el-input
+              v-model="articleForm.externalUrl"
+              placeholder="https://mp.weixin.qq.com/s/..."
+              clearable
+            />
+          </el-form-item>
+          <el-form-item label=" ">
+            <el-alert
+              type="info"
+              :closable="false"
+              show-icon
+              title="请填写公众号已发布文章的永久链接；小程序内将通过微信官方能力打开。"
+            />
+          </el-form-item>
+        </template>
         <el-form-item label="作者"><el-input v-model="articleForm.authorName" /></el-form-item>
         <el-form-item label="来源"><el-input v-model="articleForm.source" /></el-form-item>
         <el-form-item label="属性">
@@ -210,10 +242,12 @@ const articleEditingId = ref<number | null>(null)
 
 const articleForm = reactive<ContentArticleInput>({
   categoryKey: '',
+  contentType: 'INTERNAL',
   title: '',
   slug: '',
   summary: '',
   body: '',
+  externalUrl: '',
   authorName: '',
   source: '',
   status: 'DRAFT',
@@ -286,10 +320,12 @@ function openArticleCreate() {
   articleEditingId.value = null
   Object.assign(articleForm, {
     categoryKey: categories.value[0]?.key || '',
+    contentType: 'INTERNAL',
     title: '',
     slug: '',
     summary: '',
     body: '',
+    externalUrl: '',
     authorName: 'Tree 编辑部',
     source: '平台内容',
     status: 'DRAFT',
@@ -306,10 +342,12 @@ async function openArticleEdit(id: number) {
     articleEditingId.value = id
     Object.assign(articleForm, {
       categoryKey: article.categoryKey,
+      contentType: article.contentType || 'INTERNAL',
       title: article.title,
       slug: article.slug,
       summary: article.summary || '',
       body: article.body,
+      externalUrl: article.externalUrl || '',
       authorName: article.authorName || '',
       source: article.source || '',
       status: article.status,
@@ -323,6 +361,14 @@ async function openArticleEdit(id: number) {
 }
 
 async function submitArticle() {
+  if (articleForm.contentType === 'INTERNAL' && !articleForm.body.trim()) {
+    ElMessage.warning('请填写站内文章正文')
+    return
+  }
+  if (articleForm.contentType === 'WECHAT_OFFICIAL' && !isWechatArticleUrl(articleForm.externalUrl || '')) {
+    ElMessage.warning('请填写有效的微信公众号文章永久链接')
+    return
+  }
   submitting.value = true
   operationError.value = ''
   try {
@@ -340,6 +386,10 @@ async function submitArticle() {
   } finally {
     submitting.value = false
   }
+}
+
+function isWechatArticleUrl(value: string) {
+  return /^https:\/\/mp\.weixin\.qq\.com\/s(?:\/[^?\s#]+|\?[^#\s]+)$/i.test(value.trim())
 }
 
 async function publishArticle(id: number) {

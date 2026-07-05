@@ -70,9 +70,12 @@
       <view
         v-if="featuredRead"
         class="featured-read"
-        @click="go(articleUrl(featuredRead.id))"
+        @click="openReadingArticle(featuredRead)"
       >
-        <text class="featured-label">{{ categoryTitle(featuredRead.category) }}</text>
+        <text class="featured-label">
+          {{ categoryTitle(featuredRead.categoryKey) }}
+          <template v-if="featuredRead.contentType === 'WECHAT_OFFICIAL'"> · 公众号</template>
+        </text>
         <text class="featured-title">{{ featuredRead.title }}</text>
         <text class="featured-summary">{{ featuredRead.summary }}</text>
       </view>
@@ -83,7 +86,7 @@
           :key="item.category.key"
           class="read-mini"
           :class="`read-mini-${item.category.key}`"
-          @click="item.article ? go(articleUrl(item.article.id)) : goTab('/pages/content/index')"
+          @click="item.article ? openReadingArticle(item.article) : goTab('/pages/content/index')"
         >
           <text class="read-mini-label">{{ item.category.title }}</text>
           <text class="read-mini-title">{{ item.article?.title || item.category.desc }}</text>
@@ -131,6 +134,7 @@ import { computed, ref } from 'vue'
 import { listContentArticles, listContentCategories } from '@/api/content'
 import { listPublicFamilyShowcase } from '@/api/families'
 import { promptPrivacyConsentIfNeeded } from '@/features/legal/privacyConsent'
+import { openWechatOfficialArticle } from '@/features/content/wechatOfficialArticle'
 import { useSessionStore } from '@/stores/session'
 import FamilyMiniCard from '@/components/family/FamilyMiniCard.vue'
 import type { ContentArticleSummary, ContentCategory, PublicFamilyShowcaseItem } from '@/types/api'
@@ -161,6 +165,18 @@ function categoryTitle(key: string) {
 
 function articleUrl(id: number | string) {
   return `/pages/content/detail?id=${encodeURIComponent(id)}`
+}
+
+async function openReadingArticle(article: ContentArticleSummary) {
+  if (article.contentType === 'WECHAT_OFFICIAL') {
+    try {
+      await openWechatOfficialArticle(article.externalUrl || '')
+    } catch (err) {
+      uni.showToast({ title: err instanceof Error ? err.message : '公众号文章暂时无法打开', icon: 'none' })
+    }
+    return
+  }
+  go(articleUrl(article.id))
 }
 
 async function loadReading() {

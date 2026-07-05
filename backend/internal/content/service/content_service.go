@@ -184,9 +184,20 @@ func (s *service) CreateArticle(ctx context.Context, adminID uint64, role string
 	if businessErr != nil {
 		return nil, businessErr
 	}
-	title, slug, body := cleanValue(req.Title), normalizeKey(req.Slug), strings.TrimSpace(req.Body)
-	if title == "" || slug == "" || body == "" {
-		return nil, contentError(CodeContentInvalidInput, "标题、路径和正文不能为空")
+	title, slug := cleanValue(req.Title), normalizeKey(req.Slug)
+	if title == "" || slug == "" {
+		return nil, contentError(CodeContentInvalidInput, "标题和路径不能为空")
+	}
+	articleType := normalizeArticleType(req.ContentType)
+	if articleType == "" {
+		articleType = contentenum.ArticleTypeInternal
+	}
+	if !contentenum.ValidArticleType(articleType) {
+		return nil, contentError(CodeContentInvalidInput, "文章类型不合法")
+	}
+	body, externalURL, contentErr := validateArticleContent(articleType, req.Body, req.ExternalURL)
+	if contentErr != nil {
+		return nil, contentErr
 	}
 	status := normalizeStatus(req.Status)
 	if status == "" {
@@ -201,8 +212,8 @@ func (s *service) CreateArticle(ctx context.Context, adminID uint64, role string
 		publishedAt = &now
 	}
 	article := &contentmodel.ContentArticle{
-		CategoryID: category.ID, CategoryKey: category.Key, Title: title, Slug: slug,
-		Summary: cleanPtr(req.Summary), CoverURL: cleanPtr(req.CoverURL), Body: body,
+		CategoryID: category.ID, CategoryKey: category.Key, ContentType: articleType, Title: title, Slug: slug,
+		Summary: cleanPtr(req.Summary), CoverURL: cleanPtr(req.CoverURL), Body: body, ExternalURL: externalURL,
 		AuthorName: cleanPtr(req.AuthorName), Source: cleanPtr(req.Source), Status: status,
 		IsFeatured: req.IsFeatured, SortOrder: req.SortOrder, PublishedAt: publishedAt,
 		CreatedByAdminID: &adminID, UpdatedByAdminID: &adminID,
@@ -218,6 +229,14 @@ func (s *service) CreateArticle(ctx context.Context, adminID uint64, role string
 }
 
 func (s *service) UpdateArticle(ctx context.Context, adminID uint64, role string, articleID uint64, req contentdto.UpdateArticleRequest) (*vo.ArticleDetail, *apperrors.BusinessError) {
+	current, err := s.repo.FindArticleByID(ctx, articleID, false)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, contentError(CodeContentArticleNotFound, "内容不存在")
+	}
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+
 	values := map[string]any{"updated_by_admin_id": adminID}
 	if req.CategoryKey != nil {
 		category, businessErr := s.categoryByKey(ctx, *req.CategoryKey)
@@ -240,13 +259,6 @@ func (s *service) UpdateArticle(ctx context.Context, adminID uint64, role string
 			return nil, contentError(CodeContentInvalidInput, "路径不能为空")
 		}
 		values["slug"] = slug
-	}
-	if req.Body != nil {
-		body := strings.TrimSpace(*req.Body)
-		if body == "" {
-			return nil, contentError(CodeContentInvalidInput, "正文不能为空")
-		}
-		values["body"] = body
 	}
 	if req.Summary != nil {
 		values["summary"] = cleanPtr(req.Summary)
@@ -280,6 +292,31 @@ func (s *service) UpdateArticle(ctx context.Context, adminID uint64, role string
 	if req.SortOrder != nil {
 		values["sort_order"] = *req.SortOrder
 	}
+	articleType := current.ContentType
+	if articleType == "" {
+		articleType = contentenum.ArticleTypeInternal
+	}
+	if req.ContentType != nil {
+		articleType = normalizeArticleType(*req.ContentType)
+	}
+	if !contentenum.ValidArticleType(articleType) {
+		return nil, contentError(CodeContentInvalidInput, "文章类型不合法")
+	}
+	body := current.Body
+	if req.Body != nil {
+		body = *req.Body
+	}
+	externalURL := current.ExternalURL
+	if req.ExternalURL != nil {
+		externalURL = req.ExternalURL
+	}
+	body, externalURL, contentErr := validateArticleContent(articleType, body, externalURL)
+	if contentErr != nil {
+		return nil, contentErr
+	}
+	values["content_type"] = articleType
+	values["body"] = body
+	values["external_url"] = externalURL
 	if err := s.repo.UpdateArticle(ctx, articleID, values); err != nil {
 		if duplicate(err) {
 			return nil, contentError(CodeContentDuplicateKey, "内容路径已存在")

@@ -30,11 +30,13 @@ type ListArticlesQuery struct {
 
 type CreateArticleRequest struct {
 	CategoryKey string  `json:"categoryKey" binding:"required"`
+	ContentType string  `json:"contentType"`
 	Title       string  `json:"title" binding:"required"`
 	Slug        string  `json:"slug" binding:"required"`
 	Summary     *string `json:"summary"`
 	CoverURL    *string `json:"coverUrl"`
-	Body        string  `json:"body" binding:"required"`
+	Body        string  `json:"body"`
+	ExternalURL *string `json:"externalUrl"`
 	AuthorName  *string `json:"authorName"`
 	Source      *string `json:"source"`
 	Status      string  `json:"status"`
@@ -44,11 +46,13 @@ type CreateArticleRequest struct {
 
 type UpdateArticleRequest struct {
 	CategoryKey *string `json:"categoryKey"`
+	ContentType *string `json:"contentType"`
 	Title       *string `json:"title"`
 	Slug        *string `json:"slug"`
 	Summary     *string `json:"summary"`
 	CoverURL    *string `json:"coverUrl"`
 	Body        *string `json:"body"`
+	ExternalURL *string `json:"externalUrl"`
 	AuthorName  *string `json:"authorName"`
 	Source      *string `json:"source"`
 	Status      *string `json:"status"`

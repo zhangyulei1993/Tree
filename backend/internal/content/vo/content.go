@@ -18,12 +18,14 @@ type ArticleSummary struct {
 	CategoryID   uint64     `json:"categoryId"`
 	CategoryKey  string     `json:"categoryKey"`
 	CategoryName string     `json:"categoryName"`
+	ContentType  string     `json:"contentType"`
 	Title        string     `json:"title"`
 	Slug         string     `json:"slug"`
 	Summary      *string    `json:"summary,omitempty"`
 	CoverURL     *string    `json:"coverUrl,omitempty"`
 	AuthorName   *string    `json:"authorName,omitempty"`
 	Source       *string    `json:"source,omitempty"`
+	ExternalURL  *string    `json:"externalUrl,omitempty"`
 	Status       string     `json:"status"`
 	IsFeatured   bool       `json:"isFeatured"`
 	SortOrder    int        `json:"sortOrder"`

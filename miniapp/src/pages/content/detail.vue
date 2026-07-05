@@ -17,7 +17,12 @@
         <text class="article-summary">{{ article.summary }}</text>
       </view>
 
-      <view class="article-body">
+      <view v-if="article.contentType === 'WECHAT_OFFICIAL'" class="article-body external-article-card">
+        <text class="external-article-note">本文发布于微信公众号，将通过微信官方页面打开。</text>
+        <MiniButton @click="openOfficialArticle">阅读公众号文章</MiniButton>
+      </view>
+
+      <view v-else class="article-body">
         <text
           v-for="(paragraph, index) in bodyParagraphs"
           :key="index"
@@ -40,6 +45,7 @@ import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
+import { openWechatOfficialArticle } from '@/features/content/wechatOfficialArticle'
 import type { ContentArticleDetail } from '@/types/api'
 
 const articleId = ref('')
@@ -84,6 +90,18 @@ async function loadArticle() {
     error.value = apiErrorMessage(err, '内容不存在或暂未发布')
   } finally {
     loading.value = false
+  }
+}
+
+async function openOfficialArticle() {
+  if (!article.value?.externalUrl) {
+    uni.showToast({ title: '公众号文章链接缺失', icon: 'none' })
+    return
+  }
+  try {
+    await openWechatOfficialArticle(article.value.externalUrl)
+  } catch (err) {
+    uni.showToast({ title: err instanceof Error ? err.message : '公众号文章暂时无法打开', icon: 'none' })
   }
 }
 </script>
@@ -133,6 +151,18 @@ async function loadArticle() {
   background: #fff;
   padding: 28rpx 24rpx;
   box-shadow: 0 2rpx 14rpx rgba(15, 23, 42, 0.04);
+}
+
+.external-article-card {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.external-article-note {
+  color: var(--tree-text-secondary);
+  font-size: 26rpx;
+  line-height: 1.65;
 }
 
 .article-paragraph {

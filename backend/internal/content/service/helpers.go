@@ -3,12 +3,14 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"net/url"
 	"sort"
 	"strings"
 
 	"gorm.io/gorm"
 
 	apperrors "tree/backend/internal/common/errors"
+	contentenum "tree/backend/internal/content/enum"
 	contentmodel "tree/backend/internal/content/model"
 	contentrepo "tree/backend/internal/content/repository"
 	"tree/backend/internal/content/vo"
@@ -55,18 +57,61 @@ func articleSummaryVO(row *contentrepo.ArticleRow) vo.ArticleSummary {
 		CategoryID:   row.CategoryID,
 		CategoryKey:  row.CategoryKey,
 		CategoryName: row.CategoryName,
+		ContentType:  row.ContentType,
 		Title:        row.Title,
 		Slug:         row.Slug,
 		Summary:      row.Summary,
 		CoverURL:     row.CoverURL,
 		AuthorName:   row.AuthorName,
 		Source:       row.Source,
+		ExternalURL:  row.ExternalURL,
 		Status:       row.Status,
 		IsFeatured:   row.IsFeatured,
 		SortOrder:    row.SortOrder,
 		PublishedAt:  row.PublishedAt,
 		CreatedAt:    row.CreatedAt,
 		UpdatedAt:    row.UpdatedAt,
+	}
+}
+
+func normalizeArticleType(value string) string {
+	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func normalizeWechatArticleURL(value *string) (*string, bool) {
+	cleaned := cleanPtr(value)
+	if cleaned == nil {
+		return nil, false
+	}
+	parsed, err := url.Parse(*cleaned)
+	if err != nil || parsed.Scheme != "https" || !strings.EqualFold(parsed.Host, "mp.weixin.qq.com") || parsed.User != nil {
+		return nil, false
+	}
+	if parsed.Path != "/s" && !strings.HasPrefix(parsed.Path, "/s/") {
+		return nil, false
+	}
+	if parsed.Path == "/s" && parsed.RawQuery == "" {
+		return nil, false
+	}
+	return cleaned, true
+}
+
+func validateArticleContent(articleType string, body string, externalURL *string) (string, *string, *apperrors.BusinessError) {
+	switch articleType {
+	case contentenum.ArticleTypeInternal:
+		body = strings.TrimSpace(body)
+		if body == "" {
+			return "", nil, contentError(CodeContentInvalidInput, "站内文章正文不能为空")
+		}
+		return body, nil, nil
+	case contentenum.ArticleTypeWechatOfficial:
+		normalizedURL, ok := normalizeWechatArticleURL(externalURL)
+		if !ok {
+			return "", nil, contentError(CodeContentInvalidInput, "请输入已发布的微信公众号文章永久链接")
+		}
+		return "", normalizedURL, nil
+	default:
+		return "", nil, contentError(CodeContentInvalidInput, "文章类型不合法")
 	}
 }
 

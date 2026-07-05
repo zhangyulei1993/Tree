@@ -29,7 +29,7 @@
     <view
       v-if="spotlightArticle"
       class="spotlight-card"
-      @click="goArticle(spotlightArticle.id)"
+      @click="goArticle(spotlightArticle)"
     >
       <view class="spotlight-art">
         <view class="art-line art-line-a" />
@@ -40,7 +40,12 @@
       </view>
       <view class="spotlight-copy">
         <view class="spotlight-meta">
-          <text class="spotlight-badge">精选推荐</text>
+          <view class="spotlight-badges">
+            <text class="spotlight-badge">精选推荐</text>
+            <text v-if="spotlightArticle.contentType === 'WECHAT_OFFICIAL'" class="spotlight-badge spotlight-badge-wechat">
+              公众号
+            </text>
+          </view>
           <text class="spotlight-read">{{ readMinutes(spotlightArticle) }} 分钟</text>
         </view>
         <text class="spotlight-category">{{ spotlightArticle.categoryName }}</text>
@@ -76,14 +81,17 @@
           v-for="article in displayArticles"
           :key="article.id"
           class="article-card"
-          @click="goArticle(article.id)"
+          @click="goArticle(article)"
         >
           <view class="article-leading" :class="`article-leading-${article.categoryKey}`">
             <text>{{ categoryShort(article.categoryKey) }}</text>
           </view>
           <view class="article-copy">
             <view class="article-meta">
-              <text class="article-tag">{{ article.categoryName }}</text>
+              <view class="article-tags">
+                <text class="article-tag">{{ article.categoryName }}</text>
+                <text v-if="article.contentType === 'WECHAT_OFFICIAL'" class="article-tag article-tag-wechat">公众号</text>
+              </view>
               <text class="article-read">{{ readMinutes(article) }} 分钟</text>
             </view>
             <text class="article-title">{{ article.title }}</text>
@@ -103,6 +111,7 @@ import { listContentArticles, listContentCategories } from '@/api/content'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
+import { openWechatOfficialArticle } from '@/features/content/wechatOfficialArticle'
 import type { ContentArticleSummary, ContentCategory } from '@/types/api'
 
 const activeCategory = ref('all')
@@ -180,8 +189,16 @@ function articleUrl(id: number | string) {
   return `/pages/content/detail?id=${encodeURIComponent(article?.slug || String(id))}`
 }
 
-function goArticle(id: number | string) {
-  uni.navigateTo({ url: articleUrl(id) })
+async function goArticle(article: ContentArticleSummary) {
+  if (article.contentType === 'WECHAT_OFFICIAL') {
+    try {
+      await openWechatOfficialArticle(article.externalUrl || '')
+    } catch (err) {
+      uni.showToast({ title: err instanceof Error ? err.message : '公众号文章暂时无法打开', icon: 'none' })
+    }
+    return
+  }
+  uni.navigateTo({ url: articleUrl(article.id) })
 }
 </script>
 
@@ -410,6 +427,18 @@ function goArticle(id: number | string) {
   font-weight: 800;
 }
 
+.spotlight-badges,
+.article-tags {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.spotlight-badge-wechat {
+  background: rgba(82, 196, 26, 0.18);
+  color: rgba(236, 255, 229, 0.92);
+}
+
 .spotlight-read {
   color: rgba(255, 255, 255, 0.62);
   font-size: 21rpx;
@@ -552,6 +581,13 @@ function goArticle(id: number | string) {
   color: var(--tree-text-secondary);
   font-size: 21rpx;
   font-weight: 700;
+}
+
+.article-tag-wechat {
+  border-radius: 999rpx;
+  background: rgba(47, 107, 87, 0.1);
+  color: var(--tree-green);
+  padding: 3rpx 10rpx;
 }
 
 .article-read {

@@ -219,12 +219,14 @@ export interface ContentArticleSummary {
   categoryId: number
   categoryKey: string
   categoryName: string
+  contentType: 'INTERNAL' | 'WECHAT_OFFICIAL'
   title: string
   slug: string
   summary?: string | null
   coverUrl?: string | null
   authorName?: string | null
   source?: string | null
+  externalUrl?: string | null
   status: string
   isFeatured: boolean
   sortOrder: number
