@@ -32,7 +32,7 @@ type CreateArticleRequest struct {
 	CategoryKey string  `json:"categoryKey" binding:"required"`
 	ContentType string  `json:"contentType"`
 	Title       string  `json:"title" binding:"required"`
-	Slug        string  `json:"slug" binding:"required"`
+	Slug        string  `json:"slug"`
 	Summary     *string `json:"summary"`
 	CoverURL    *string `json:"coverUrl"`
 	Body        string  `json:"body"`

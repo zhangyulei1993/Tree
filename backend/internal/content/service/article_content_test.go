@@ -1,6 +1,7 @@
 package service
 
 import (
+	"strings"
 	"testing"
 
 	contentenum "tree/backend/internal/content/enum"
@@ -49,5 +50,20 @@ func TestValidateWechatOfficialArticleRejectsUntrustedURL(t *testing.T) {
 		if _, _, err := validateArticleContent(contentenum.ArticleTypeWechatOfficial, "", &rawURL); err == nil {
 			t.Fatalf("expected URL to be rejected: %s", rawURL)
 		}
+	}
+}
+
+func TestWechatArticleSlugIsStableAndDoesNotExposeURLToken(t *testing.T) {
+	url := "https://mp.weixin.qq.com/s/SecretArticleToken"
+	first := wechatArticleSlug(url)
+	second := wechatArticleSlug("  " + url + "  ")
+	if first != second {
+		t.Fatalf("expected stable slug, got %q and %q", first, second)
+	}
+	if first == "" || first[:7] != "wechat-" {
+		t.Fatalf("unexpected slug: %q", first)
+	}
+	if strings.Contains(strings.ToLower(first), "secretarticletoken") {
+		t.Fatalf("slug must not expose article token: %q", first)
 	}
 }

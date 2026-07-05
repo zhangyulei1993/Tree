@@ -1,8 +1,10 @@
 package service
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"sort"
 	"strings"
@@ -113,6 +115,11 @@ func validateArticleContent(articleType string, body string, externalURL *string
 	default:
 		return "", nil, contentError(CodeContentInvalidInput, "文章类型不合法")
 	}
+}
+
+func wechatArticleSlug(externalURL string) string {
+	digest := sha256.Sum256([]byte(strings.TrimSpace(externalURL)))
+	return "wechat-" + fmt.Sprintf("%x", digest[:8])
 }
 
 func cleanValue(value string) string {

@@ -185,8 +185,8 @@ func (s *service) CreateArticle(ctx context.Context, adminID uint64, role string
 		return nil, businessErr
 	}
 	title, slug := cleanValue(req.Title), normalizeKey(req.Slug)
-	if title == "" || slug == "" {
-		return nil, contentError(CodeContentInvalidInput, "标题和路径不能为空")
+	if title == "" {
+		return nil, contentError(CodeContentInvalidInput, "标题不能为空")
 	}
 	articleType := normalizeArticleType(req.ContentType)
 	if articleType == "" {
@@ -198,6 +198,12 @@ func (s *service) CreateArticle(ctx context.Context, adminID uint64, role string
 	body, externalURL, contentErr := validateArticleContent(articleType, req.Body, req.ExternalURL)
 	if contentErr != nil {
 		return nil, contentErr
+	}
+	if slug == "" {
+		if articleType != contentenum.ArticleTypeWechatOfficial || externalURL == nil {
+			return nil, contentError(CodeContentInvalidInput, "站内文章路径不能为空")
+		}
+		slug = wechatArticleSlug(*externalURL)
 	}
 	status := normalizeStatus(req.Status)
 	if status == "" {

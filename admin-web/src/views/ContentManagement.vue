@@ -130,7 +130,13 @@
           </el-select>
         </el-form-item>
         <el-form-item label="标题"><el-input v-model="articleForm.title" /></el-form-item>
-        <el-form-item label="路径"><el-input v-model="articleForm.slug" placeholder="如 tutorial-create-family" /></el-form-item>
+        <el-form-item :label="articleForm.contentType === 'WECHAT_OFFICIAL' ? '系统路径' : '路径'">
+          <el-input
+            v-model="articleForm.slug"
+            :disabled="articleForm.contentType === 'WECHAT_OFFICIAL'"
+            :placeholder="articleForm.contentType === 'WECHAT_OFFICIAL' ? '保存时自动生成' : '如 tutorial-create-family'"
+          />
+        </el-form-item>
         <el-form-item label="摘要"><el-input v-model="articleForm.summary" type="textarea" :rows="2" /></el-form-item>
         <el-form-item v-if="articleForm.contentType === 'INTERNAL'" label="正文">
           <el-input v-model="articleForm.body" type="textarea" :rows="10" />
@@ -361,12 +367,24 @@ async function openArticleEdit(id: number) {
 }
 
 async function submitArticle() {
+  if (!articleForm.categoryKey) {
+    ElMessage.warning('请选择文章分类')
+    return
+  }
+  if (!articleForm.title.trim()) {
+    ElMessage.warning('请填写文章标题')
+    return
+  }
   if (articleForm.contentType === 'INTERNAL' && !articleForm.body.trim()) {
     ElMessage.warning('请填写站内文章正文')
     return
   }
   if (articleForm.contentType === 'WECHAT_OFFICIAL' && !isWechatArticleUrl(articleForm.externalUrl || '')) {
     ElMessage.warning('请填写有效的微信公众号文章永久链接')
+    return
+  }
+  if (articleForm.contentType === 'INTERNAL' && !articleForm.slug.trim()) {
+    ElMessage.warning('请填写站内文章路径')
     return
   }
   submitting.value = true
