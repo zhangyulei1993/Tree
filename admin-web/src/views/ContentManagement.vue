@@ -138,6 +138,13 @@
           />
         </el-form-item>
         <el-form-item label="摘要"><el-input v-model="articleForm.summary" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="封面图片">
+          <el-input
+            v-model="articleForm.coverUrl"
+            placeholder="填写 HTTPS 图片地址或小程序静态资源路径"
+            clearable
+          />
+        </el-form-item>
         <el-form-item v-if="articleForm.contentType === 'INTERNAL'" label="正文">
           <el-input v-model="articleForm.body" type="textarea" :rows="10" />
         </el-form-item>
@@ -252,6 +259,7 @@ const articleForm = reactive<ContentArticleInput>({
   title: '',
   slug: '',
   summary: '',
+  coverUrl: '',
   body: '',
   externalUrl: '',
   authorName: '',
@@ -330,6 +338,7 @@ function openArticleCreate() {
     title: '',
     slug: '',
     summary: '',
+    coverUrl: '',
     body: '',
     externalUrl: '',
     authorName: 'Tree 编辑部',
@@ -352,6 +361,7 @@ async function openArticleEdit(id: number) {
       title: article.title,
       slug: article.slug,
       summary: article.summary || '',
+      coverUrl: article.coverUrl || '',
       body: article.body,
       externalUrl: article.externalUrl || '',
       authorName: article.authorName || '',

@@ -23,6 +23,12 @@
       </view>
 
       <view v-else class="article-body">
+        <image
+          v-if="article.coverUrl"
+          class="article-cover"
+          :src="article.coverUrl"
+          mode="widthFix"
+        />
         <text
           v-for="(paragraph, index) in bodyParagraphs"
           :key="index"
@@ -170,6 +176,13 @@ async function openOfficialArticle() {
   background: #fff;
   padding: 28rpx 24rpx;
   box-shadow: 0 2rpx 14rpx rgba(15, 23, 42, 0.04);
+}
+
+.article-cover {
+  display: block;
+  width: 100%;
+  margin-bottom: 28rpx;
+  border-radius: 16rpx;
 }
 
 .external-article-card {
