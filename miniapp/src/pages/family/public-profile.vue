@@ -28,6 +28,9 @@
         </view>
         <view class="hero-actions">
           <MiniButton @click="openPublicTree">查看公开家谱</MiniButton>
+          <!-- #ifdef MP-WEIXIN -->
+          <button class="wechat-share-button public-share-button" open-type="share">分享公开家庭</button>
+          <!-- #endif -->
         </view>
       </MiniCard>
 
@@ -59,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -70,6 +73,7 @@ import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
+import { buildPublicFamilySharePayload } from '@/features/share/wechatShare'
 import type { PublicFamily } from '@/types/api'
 
 const familyId = ref('')
@@ -160,6 +164,11 @@ onLoad((options) => {
   reloadForFamilyId(String(options?.familyId || ''))
 })
 
+onShareAppMessage(() => buildPublicFamilySharePayload({
+  id: family.value?.id || familyId.value,
+  familyName: family.value?.familyName || '公开家庭'
+}))
+
 onMounted(() => {
   if (typeof window !== 'undefined') {
     window.addEventListener('hashchange', handleHashChange)
@@ -211,6 +220,12 @@ onUnmounted(() => {
   grid-template-columns: 1fr;
   gap: 14rpx;
   margin-top: 22rpx;
+}
+
+.public-share-button {
+  min-height: 80rpx;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 0 0 1rpx rgba(255, 255, 255, 0.2);
 }
 
 .info-block {

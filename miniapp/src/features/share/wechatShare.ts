@@ -23,6 +23,11 @@ export function buildInviteSharePath(inviteToken: string): string {
   return `/pages/invite/detail?inviteToken=${encodeURIComponent(inviteToken.trim())}`
 }
 
+export function buildPublicFamilySharePath(familyId: string | number): string {
+  const normalized = String(familyId).trim()
+  return `/pages/family/public-profile?familyId=${encodeURIComponent(normalized)}`
+}
+
 export function resolveArticleShareImage(coverUrl?: string | null): string {
   const trimmed = coverUrl?.trim()
   if (trimmed && /^https:\/\//i.test(trimmed)) {
@@ -49,6 +54,18 @@ export function buildArticleSharePayload(input: {
     title,
     path: buildContentDetailSharePath(input.id),
     imageUrl: resolveArticleShareImage(input.coverUrl)
+  }
+}
+
+export function buildPublicFamilySharePayload(input: {
+  id: string | number
+  familyName: string
+}): WechatSharePayload {
+  const familyName = input.familyName.trim() || '公开家庭'
+  return {
+    title: `${familyName}｜公开家庭主页`,
+    path: buildPublicFamilySharePath(input.id),
+    imageUrl: DEFAULT_MINI_PROGRAM_SHARE_IMAGE
   }
 }
 

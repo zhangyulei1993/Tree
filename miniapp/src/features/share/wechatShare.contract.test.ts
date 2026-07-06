@@ -10,6 +10,8 @@ import {
   buildHomeSharePayload,
   buildInviteSharePath,
   buildInviteSharePayload,
+  buildPublicFamilySharePath,
+  buildPublicFamilySharePayload,
   HOME_SHARE_PATH,
   MINI_PROGRAM_SHARE_TITLE
 } from './wechatShare'
@@ -66,6 +68,20 @@ test('article share uses cover when https and falls back otherwise', () => {
   assert.match(withoutCover.imageUrl, /^\/static\/share\//)
 })
 
+test('public family share returns to the approved public profile', () => {
+  const path = buildPublicFamilySharePath('family/20')
+  assert.equal(path, '/pages/family/public-profile?familyId=family%2F20')
+
+  const payload = buildPublicFamilySharePayload({
+    id: 20,
+    familyName: '张氏家族'
+  })
+  assert.equal(payload.title, '张氏家族｜公开家庭主页')
+  assert.equal(payload.path, '/pages/family/public-profile?familyId=20')
+  assert.equal(payload.path.includes('/pages/join/'), false)
+  assert.equal(payload.path.includes('inviteToken'), false)
+})
+
 test('content detail page wires wechat share button and handler', () => {
   const source = readPage('pages/content/detail.vue')
   assert.match(source, /onShareAppMessage/)
@@ -88,4 +104,12 @@ test('invite sent page keeps inviteToken share semantics', () => {
   const source = readPage('pages/invite/sent.vue')
   assert.match(source, /buildInviteSharePayload/)
   assert.match(source, /shareResult\.value\.inviteToken/)
+})
+
+test('public family profile wires a privacy-safe share entry', () => {
+  const source = readPage('pages/family/public-profile.vue')
+  assert.match(source, /onShareAppMessage/)
+  assert.match(source, /buildPublicFamilySharePayload/)
+  assert.match(source, /open-type="share"/)
+  assert.equal(source.includes('/pages/join/apply'), false)
 })
