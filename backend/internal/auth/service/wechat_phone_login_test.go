@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"tree/backend/internal/common/config"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/security"
@@ -52,7 +53,7 @@ func (f *wechatClientFake) GetPhoneNumber(_ context.Context, phoneCode string) (
 
 func newWechatPhoneService(t *testing.T, users *userRepoFake, wechatClient wechat.Client, logs *authLogCapture) *PhoneAuthService {
 	t.Helper()
-	return NewPhoneAuthService(nil, users, &codeRepoFake{}, wechatClient, authTestManager(t), nil, logs, &config.Config{
+	return NewPhoneAuthService(nil, users, &codeRepoFake{}, wechatClient, authTestManager(t), nil, logs, contentsafety.AlwaysPass(), &config.Config{
 		App:        config.AppConfig{Env: "test"},
 		VerifyCode: config.VerifyCodeConfig{ExpireSeconds: 300, CooldownSeconds: 60},
 	})

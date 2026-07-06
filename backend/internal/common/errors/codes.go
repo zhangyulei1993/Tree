@@ -105,12 +105,15 @@ const (
 )
 
 const (
-	CodeContentCategoryNotFound Code = 49001
-	CodeContentArticleNotFound  Code = 49002
-	CodeContentInvalidStatus    Code = 49003
-	CodeContentDuplicateKey     Code = 49004
-	CodeContentForbidden        Code = 49005
-	CodeContentInvalidInput     Code = 49006
+	CodeContentCategoryNotFound     Code = 49001
+	CodeContentArticleNotFound      Code = 49002
+	CodeContentInvalidStatus        Code = 49003
+	CodeContentDuplicateKey         Code = 49004
+	CodeContentForbidden            Code = 49005
+	CodeContentInvalidInput         Code = 49006
+	CodeContentSafetyRejected       Code = 49007
+	CodeContentSafetyUnavailable    Code = 49008
+	CodeContentSafetyWechatRequired Code = 49009
 )
 
 var messages = map[Code]string{
@@ -204,6 +207,9 @@ var messages = map[Code]string{
 	CodeContentDuplicateKey:                  "内容标识已存在",
 	CodeContentForbidden:                     "无权操作内容",
 	CodeContentInvalidInput:                  "内容参数错误",
+	CodeContentSafetyRejected:                "内容可能不符合平台规范，请修改后重试",
+	CodeContentSafetyUnavailable:             "内容安全检测暂时不可用，请稍后重试",
+	CodeContentSafetyWechatRequired:          "请先使用微信小程序登录后再提交内容",
 }
 
 func Message(code Code) string {

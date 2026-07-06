@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	quotaservice "tree/backend/internal/accountquota/service"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
@@ -70,14 +71,18 @@ type FamilyService interface {
 }
 
 type familyService struct {
-	db          *gorm.DB
-	repo        familyrepo.FamilyRepository
-	permissions permission.FamilyPermissionService
-	quota       quotaservice.Service
+	db            *gorm.DB
+	repo          familyrepo.FamilyRepository
+	permissions   permission.FamilyPermissionService
+	quota         quotaservice.Service
+	contentSafety contentsafety.Service
 }
 
-func NewFamilyService(db *gorm.DB, repo familyrepo.FamilyRepository, permissions permission.FamilyPermissionService, quota quotaservice.Service) FamilyService {
-	return &familyService{db: db, repo: repo, permissions: permissions, quota: quota}
+func NewFamilyService(db *gorm.DB, repo familyrepo.FamilyRepository, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service) FamilyService {
+	if contentSafety == nil {
+		contentSafety = contentsafety.FailClosed()
+	}
+	return &familyService{db: db, repo: repo, permissions: permissions, quota: quota, contentSafety: contentSafety}
 }
 
 func (s *familyService) Create(ctx context.Context, userID uint64, req dto.CreateFamilyRequest, audit AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError) {
@@ -103,6 +108,14 @@ func (s *familyService) Create(ctx context.Context, userID uint64, req dto.Creat
 		if founderGender != string(enums.GenderMale) && founderGender != string(enums.GenderFemale) {
 			return nil, familyError(CodeFamilyCreateStatusDenied, "创建者性别必须选择男或女")
 		}
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: userID,
+		Scene:  contentsafety.SceneProfile,
+		Fields: familyCreateTextFields(surname, familyName, req.NativePlace, req.RegionText, req.Description, req.PublicContact),
+		IP:     audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
 	}
 
 	family := &familymodel.Family{
@@ -307,6 +320,15 @@ func (s *familyService) Update(ctx context.Context, userID uint64, familyID uint
 	if family.Status != familyStatusNormal {
 		return nil, familyError(CodeFamilyUpdateStatusDenied, "当前家庭状态不允许修改")
 	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID:   userID,
+		Scene:    contentsafety.SceneProfile,
+		Fields:   familyUpdateTextFields(req),
+		FamilyID: &familyID,
+		IP:       audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
 	values := updateValues(req)
 	if len(values) > 0 {
 		err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -330,6 +352,13 @@ func (s *familyService) Update(ctx context.Context, userID uint64, familyID uint
 }
 
 func (s *familyService) Leave(ctx context.Context, userID uint64, familyID uint64, req dto.LeaveFamilyRequest, audit AuditInput) (*vo.LeaveFamilyResult, *apperrors.BusinessError) {
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: userID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("leave_reason", req.Reason),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
 	var memberID uint64
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		repo := s.repo.WithTx(tx)
@@ -382,6 +411,13 @@ func (s *familyService) CreateDissolutionRequest(ctx context.Context, userID uin
 	}
 	if link.FamilyRole != string(enums.FamilyRoleFounder) {
 		return nil, familyError(CodeFamilyDissolutionForbidden, "无权操作家庭解散申请")
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: userID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("dissolution_request_reason", req.RequestReason),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
 	}
 	request := &dissolutionmodel.FamilyDissolutionRequest{
 		FamilyID: familyID, RequesterMemberID: link.MemberID, RequesterUserID: userID,
@@ -457,6 +493,13 @@ func (s *familyService) CancelDissolutionRequest(ctx context.Context, userID uin
 	admin, adminErr := s.permissions.IsFamilyAdmin(ctx, userID, familyID)
 	if request.RequesterUserID != userID && (adminErr != nil || !admin) {
 		return nil, familyError(CodeFamilyDissolutionForbidden, "无权操作家庭解散申请")
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: userID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("dissolution_cancel_reason", req.CancelReason),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
 	}
 	now := time.Now()
 	reason := cleanString(req.CancelReason)
@@ -550,6 +593,36 @@ func dissolutionVO(request *dissolutionmodel.FamilyDissolutionRequest) *vo.Disso
 		RequestReason: request.RequestReason, CancelledAt: request.CancelledAt,
 		CancelReason: request.CancelReason, CreatedAt: request.CreatedAt,
 	}
+}
+
+func familyCreateTextFields(surname, familyName string, nativePlace, regionText, description *string, contact *dto.PublicContact) []contentsafety.Field {
+	fields := contentsafety.MergeFields(
+		contentsafety.StringField("surname", surname),
+		contentsafety.StringField("family_name", familyName),
+		contentsafety.OptionalField("native_place", nativePlace),
+		contentsafety.OptionalField("region_text", regionText),
+		contentsafety.OptionalField("description", description),
+	)
+	if contact != nil {
+		fields = contentsafety.MergeFields(fields,
+			contentsafety.OptionalField("public_contact_name", contact.Name),
+			contentsafety.OptionalField("public_contact_wechat", contact.Wechat),
+			contentsafety.OptionalField("public_contact_note", contact.Note),
+		)
+	}
+	return fields
+}
+
+func familyUpdateTextFields(req dto.UpdateFamilyRequest) []contentsafety.Field {
+	return contentsafety.MergeFields(
+		contentsafety.OptionalField("family_name", req.FamilyName),
+		contentsafety.OptionalField("native_place", req.NativePlace),
+		contentsafety.OptionalField("region_text", req.RegionText),
+		contentsafety.OptionalField("description", req.Description),
+		contentsafety.OptionalField("public_contact_name", req.PublicContactName),
+		contentsafety.OptionalField("public_contact_wechat", req.PublicContactWechat),
+		contentsafety.OptionalField("public_contact_note", req.PublicContactNote),
+	)
 }
 
 func updateValues(req dto.UpdateFamilyRequest) map[string]any {

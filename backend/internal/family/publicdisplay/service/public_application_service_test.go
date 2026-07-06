@@ -9,6 +9,7 @@ import (
 
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
+	"tree/backend/internal/common/contentsafety"
 	familymodel "tree/backend/internal/family/core/model"
 	publicdto "tree/backend/internal/family/publicdisplay/dto"
 	publicenum "tree/backend/internal/family/publicdisplay/enum"
@@ -166,7 +167,7 @@ func (u fakeUOW) WithinTransaction(ctx context.Context, fn func(publicrepo.Repos
 }
 
 func newTestService(repo *fakeRepo, allowed bool, now time.Time) *service {
-	svc := NewService(repo, fakeUOW{repo: repo}, fakePermission{allowed: allowed}).(*service)
+	svc := NewService(repo, fakeUOW{repo: repo}, fakePermission{allowed: allowed}, contentsafety.AlwaysPass()).(*service)
 	svc.now = func() time.Time { return now }
 	return svc
 }
@@ -288,4 +289,31 @@ func TestPublicApplicationAdminReviewAndTakeDown(t *testing.T) {
 			t.Fatalf("unexpected %#v %#v", result, err)
 		}
 	})
+}
+
+type publicCSOpenID struct{}
+
+func (publicCSOpenID) ActiveWechatMiniOpenID(context.Context, uint64) (string, error) {
+	return "public-test-openid", nil
+}
+
+func TestPublicApplicationSubmitContentSafetyRejected(t *testing.T) {
+	now := time.Date(2026, 6, 8, 10, 0, 0, 0, time.UTC)
+	repo := newFakeRepo()
+	beforeGV := repo.family.GraphVersion
+	beforeApps := len(repo.applications)
+	client := contentsafety.NewFakeClient(contentsafety.SuggestReview)
+	contentSafety := contentsafety.NewChecker(client, publicCSOpenID{}, nil)
+	svc := NewService(repo, fakeUOW{repo: repo}, fakePermission{allowed: true}, contentSafety).(*service)
+	svc.now = func() time.Time { return now }
+	reason := "违规公开申请理由"
+	_, businessErr := svc.Submit(context.Background(), 8, 2, publicdto.CreatePublicApplicationRequest{
+		ApplicationReason: &reason,
+	}, AuditInput{})
+	if businessErr == nil || businessErr.Code != apperrors.CodeContentSafetyRejected {
+		t.Fatalf("expected 49007, got %#v", businessErr)
+	}
+	if repo.family.GraphVersion != beforeGV || len(repo.applications) != beforeApps {
+		t.Fatal("submit must not persist application or change graph version")
+	}
 }

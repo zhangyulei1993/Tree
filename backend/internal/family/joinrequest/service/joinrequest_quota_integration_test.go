@@ -9,6 +9,7 @@ import (
 
 	authservice "tree/backend/internal/auth/service"
 	apperrors "tree/backend/internal/common/errors"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/family/joinrequest/dto"
 	joinmodel "tree/backend/internal/family/joinrequest/model"
 	joinrepo "tree/backend/internal/family/joinrequest/repository"
@@ -20,7 +21,7 @@ import (
 func newFreshJoinRequestService(tx *gorm.DB) Service {
 	quotaSvc := freshquota.NewQuotaService(tx)
 	repo := joinrepo.NewRepository(tx)
-	return NewService(repo, joinrepo.NewUnitOfWork(tx, repo), freshquota.AllowAllFamilyPerm{}, quotaSvc)
+	return NewService(repo, joinrepo.NewUnitOfWork(tx, repo), freshquota.AllowAllFamilyPerm{}, quotaSvc, contentsafety.AlwaysPass())
 }
 
 func TestJoinRequestApproveRespectsJoinedQuotaFreshAccount(t *testing.T) {

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"tree/backend/internal/auth/vo"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	usermodel "tree/backend/internal/user/model"
@@ -71,6 +72,17 @@ func (s *PhoneAuthService) UpdateProfile(ctx context.Context, input UpdateProfil
 	if businessErr != nil {
 		s.writeUserAction(ctx, input.UserID, actionUpdateProfile, input.IP, input.UserAgent, false, "invalid nickname")
 		return nil, businessErr
+	}
+	if input.Nickname != nil && nickname != nil {
+		if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+			UserID: input.UserID,
+			Scene:  contentsafety.SceneProfile,
+			Fields: contentsafety.StringField("nickname", *nickname),
+			IP:     input.IP, UserAgent: input.UserAgent,
+		}); businessErr != nil {
+			s.writeUserAction(ctx, input.UserID, actionUpdateProfile, input.IP, input.UserAgent, false, "content safety rejected")
+			return nil, businessErr
+		}
 	}
 
 	updates := map[string]any{"updated_at": time.Now()}

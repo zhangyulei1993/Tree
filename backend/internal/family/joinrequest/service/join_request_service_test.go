@@ -8,6 +8,8 @@ import (
 
 	"gorm.io/gorm"
 
+	"tree/backend/internal/common/contentsafety"
+	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/family/core/model"
 	"tree/backend/internal/family/joinrequest/dto"
 	joinmodel "tree/backend/internal/family/joinrequest/model"
@@ -334,7 +336,7 @@ func (r *fakeRepo) clone() *fakeRepo {
 	return &copyRepo
 }
 func testService(repo *fakeRepo, allowed bool) *service {
-	s := NewService(repo, fakeUOW{repo}, fakePermission{allowed}, nil).(*service)
+	s := NewService(repo, fakeUOW{repo}, fakePermission{allowed}, nil, contentsafety.AlwaysPass()).(*service)
 	s.now = func() time.Time { return time.Date(2026, 6, 7, 0, 0, 0, 0, time.UTC) }
 	return s
 }
@@ -568,4 +570,51 @@ func containsSensitive(value string) bool {
 		}
 	}
 	return false
+}
+
+type joinCSOpenID struct{}
+
+func (joinCSOpenID) ActiveWechatMiniOpenID(context.Context, uint64) (string, error) {
+	return "join-test-openid", nil
+}
+
+func TestJoinRequestCreateContentSafetyRejected(t *testing.T) {
+	repo := newFakeRepo()
+	before := len(repo.requests)
+	client := contentsafety.NewFakeClient(contentsafety.SuggestRisky)
+	contentSafety := contentsafety.NewChecker(client, joinCSOpenID{}, nil)
+	svc := NewService(repo, fakeUOW{repo}, fakePermission{allowed: true}, nil, contentSafety).(*service)
+	svc.now = func() time.Time { return time.Date(2026, 6, 7, 0, 0, 0, 0, time.UTC) }
+	gender := "MALE"
+	msg := "违规申请留言"
+	_, businessErr := svc.Create(context.Background(), 9, 2, dto.CreateJoinRequest{
+		ApplicantGender: &gender, ApplicantMessage: &msg,
+	}, AuditInput{})
+	if businessErr == nil || businessErr.Code != apperrors.CodeContentSafetyRejected {
+		t.Fatalf("expected 49007, got %#v", businessErr)
+	}
+	if len(repo.requests) != before {
+		t.Fatal("join request must not be created")
+	}
+}
+
+func TestJoinRequestApproveContentSafetyRejected(t *testing.T) {
+	repo := newFakeRepo()
+	addPending(repo, 9)
+	beforeLinks := len(repo.links)
+	client := contentsafety.NewFakeClient(contentsafety.SuggestReview)
+	contentSafety := contentsafety.NewChecker(client, joinCSOpenID{}, nil)
+	svc := NewService(repo, fakeUOW{repo}, fakePermission{allowed: true}, nil, contentSafety).(*service)
+	svc.now = func() time.Time { return time.Date(2026, 6, 7, 0, 0, 0, 0, time.UTC) }
+	memberID := uint64(6)
+	comment := "违规审批意见"
+	_, businessErr := svc.Approve(context.Background(), 8, 2, 1, dto.ApproveJoinRequest{
+		ApproveMode: "BIND_EXISTING_MEMBER", MemberID: &memberID, HandleComment: &comment,
+	}, AuditInput{})
+	if businessErr == nil || businessErr.Code != apperrors.CodeContentSafetyRejected {
+		t.Fatalf("expected 49007, got %#v", businessErr)
+	}
+	if len(repo.links) != beforeLinks {
+		t.Fatal("approve must not create link")
+	}
 }

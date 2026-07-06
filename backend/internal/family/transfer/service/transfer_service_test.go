@@ -9,6 +9,8 @@ import (
 
 	adminmodel "tree/backend/internal/admin/model"
 	"tree/backend/internal/common/enums"
+	"tree/backend/internal/common/contentsafety"
+	apperrors "tree/backend/internal/common/errors"
 	familymodel "tree/backend/internal/family/core/model"
 	membermodel "tree/backend/internal/family/member/model"
 	rolemodel "tree/backend/internal/family/role/model"
@@ -172,7 +174,7 @@ func (u fakeUOW) WithinTransaction(ctx context.Context, fn func(transferrepo.Rep
 }
 
 func newTestService(repo *fakeRepo) *service {
-	svc := NewService(repo, fakeUOW{repo: repo}, nil).(*service)
+	svc := NewService(repo, fakeUOW{repo: repo}, nil, contentsafety.AlwaysPass()).(*service)
 	svc.now = func() time.Time { return time.Date(2026, 6, 8, 10, 0, 0, 0, time.UTC) }
 	return svc
 }
@@ -266,4 +268,30 @@ func TestTransferReviewRules(t *testing.T) {
 			t.Fatalf("unexpected %#v %#v", result, err)
 		}
 	})
+}
+
+type transferCSOpenID struct{}
+
+func (transferCSOpenID) ActiveWechatMiniOpenID(context.Context, uint64) (string, error) {
+	return "transfer-test-openid", nil
+}
+
+func TestTransferCreateContentSafetyRejected(t *testing.T) {
+	repo := newFakeRepo()
+	before := len(repo.requests)
+	beforeGV := repo.family.GraphVersion
+	client := contentsafety.NewFakeClient(contentsafety.SuggestRisky)
+	contentSafety := contentsafety.NewChecker(client, transferCSOpenID{}, nil)
+	svc := NewService(repo, fakeUOW{repo: repo}, nil, contentSafety).(*service)
+	svc.now = func() time.Time { return time.Date(2026, 6, 8, 10, 0, 0, 0, time.UTC) }
+	reason := "违规转让理由"
+	_, businessErr := svc.Create(context.Background(), 8, 2, transferdto.CreateTransferRequest{
+		ToMemberID: 4, RequestReason: &reason,
+	}, AuditInput{})
+	if businessErr == nil || businessErr.Code != apperrors.CodeContentSafetyRejected {
+		t.Fatalf("expected 49007, got %#v", businessErr)
+	}
+	if len(repo.requests) != before || repo.family.GraphVersion != beforeGV {
+		t.Fatal("transfer request must not be created")
+	}
 }

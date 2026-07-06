@@ -12,6 +12,7 @@ import (
 	accountmodel "tree/backend/internal/account/model"
 	authrepo "tree/backend/internal/auth/repository"
 	"tree/backend/internal/common/config"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	commonjwt "tree/backend/internal/common/jwt"
@@ -154,6 +155,10 @@ func (r *bindUserRepoFake) HasActiveWechatMiniIdentity(_ context.Context, _ uint
 	return false, nil
 }
 
+func (r *bindUserRepoFake) FindActiveWechatMiniOpenID(context.Context, uint64, string) (string, error) {
+	return "", gorm.ErrRecordNotFound
+}
+
 func (r *bindUserRepoFake) UpdateIdentity(context.Context, uint64, map[string]any) error { return nil }
 func (r *bindUserRepoFake) CancelActiveIdentities(context.Context, uint64) error         { return nil }
 func (r *bindUserRepoFake) MoveIdentities(context.Context, uint64, uint64) error         { return nil }
@@ -201,7 +206,7 @@ func newBindService(t *testing.T, users *bindUserRepoFake, codes *codeRepoFake, 
 
 func newBindServiceWithBlacklist(t *testing.T, users authrepo.UserRepository, codes *codeRepoFake, logs *authLogCapture, blacklist commonredis.TokenBlacklist) *PhoneAuthService {
 	t.Helper()
-	return NewPhoneAuthService(nil, users, codes, &wechatClientFake{}, authTestManager(t), blacklist, logs, &config.Config{
+	return NewPhoneAuthService(nil, users, codes, &wechatClientFake{}, authTestManager(t), blacklist, logs, contentsafety.AlwaysPass(), &config.Config{
 		App:        config.AppConfig{Env: "test"},
 		Wechat:     config.WechatConfig{MiniAppID: "test-app-id"},
 		VerifyCode: config.VerifyCodeConfig{ExpireSeconds: 300, CooldownSeconds: 60},
@@ -266,7 +271,7 @@ func TestWechatMiniLoginCreatesActiveUserWithoutPhone(t *testing.T) {
 		openID:  "mock_openid_abc",
 		unionID: "mock_unionid_xyz",
 	}
-	service := NewPhoneAuthService(nil, users, &codeRepoFake{}, wechatClient, authTestManager(t), nil, logs, &config.Config{
+	service := NewPhoneAuthService(nil, users, &codeRepoFake{}, wechatClient, authTestManager(t), nil, logs, contentsafety.AlwaysPass(), &config.Config{
 		App: config.AppConfig{Env: "test"}, VerifyCode: config.VerifyCodeConfig{ExpireSeconds: 300},
 	})
 

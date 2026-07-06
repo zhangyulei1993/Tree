@@ -8,6 +8,7 @@ import (
 
 	quotarepo "tree/backend/internal/accountquota/repository"
 	quotaservice "tree/backend/internal/accountquota/service"
+	"tree/backend/internal/common/contentsafety"
 	coredto "tree/backend/internal/family/core/dto"
 	familymodel "tree/backend/internal/family/core/model"
 	familyrepo "tree/backend/internal/family/core/repository"
@@ -25,11 +26,11 @@ func NewQuotaService(tx *gorm.DB) quotaservice.Service {
 }
 
 func NewFamilyService(tx *gorm.DB, quota quotaservice.Service) familyservice.FamilyService {
-	return familyservice.NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), AllowAllFamilyPerm{}, quota)
+	return familyservice.NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), AllowAllFamilyPerm{}, quota, contentsafety.AlwaysPass())
 }
 
 func NewMemberService(tx *gorm.DB, quota quotaservice.Service) memberservice.MemberService {
-	return memberservice.NewMemberService(tx, memberrepo.NewMemberRepository(tx), AllowAllMemberPerm{}, quota)
+	return memberservice.NewMemberService(tx, memberrepo.NewMemberRepository(tx), AllowAllMemberPerm{}, quota, contentsafety.AlwaysPass())
 }
 
 func CreateFamily(t *testing.T, familySvc familyservice.FamilyService, userID uint64, surname string) uint64 {

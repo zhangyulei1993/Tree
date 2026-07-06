@@ -127,16 +127,18 @@ func writeResult[T any](ctx *gin.Context, status int, result T, businessErr *app
 }
 
 func writeError(ctx *gin.Context, businessErr *apperrors.BusinessError) {
-	status := http.StatusBadRequest
-	switch businessErr.Code {
-	case relationshipservice.CodeRelationshipForbidden:
-		status = http.StatusForbidden
-	case relationshipservice.CodeRelationshipMember,
-		relationshipservice.CodeRelationshipNotFound,
-		apperrors.CodeResourceNotFound:
-		status = http.StatusNotFound
-	case apperrors.CodeSystemError:
-		status = http.StatusInternalServerError
+	status := apperrors.StatusOr(businessErr.Code, http.StatusBadRequest)
+	if status == http.StatusBadRequest {
+		switch businessErr.Code {
+		case relationshipservice.CodeRelationshipForbidden:
+			status = http.StatusForbidden
+		case relationshipservice.CodeRelationshipMember,
+			relationshipservice.CodeRelationshipNotFound,
+			apperrors.CodeResourceNotFound:
+			status = http.StatusNotFound
+		case apperrors.CodeSystemError:
+			status = http.StatusInternalServerError
+		}
 	}
 	response.Error(ctx, status, businessErr)
 }

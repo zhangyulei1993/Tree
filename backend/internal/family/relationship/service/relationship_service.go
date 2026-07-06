@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	quotaservice "tree/backend/internal/accountquota/service"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	membermodel "tree/backend/internal/family/member/model"
@@ -52,6 +53,15 @@ func (s *relationshipService) PlaceExisting(ctx context.Context, actorID uint64,
 	}
 	if req.BaseMemberID == req.MemberID {
 		return nil, relationshipError(CodeRelationshipSelf, "不能与自己建立关系")
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID:   actorID,
+		Scene:    contentsafety.SceneSocial,
+		Fields:   contentsafety.OptionalField("relation_note", req.Relationship.RelationNote),
+		FamilyID: &familyID,
+		IP:       audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
 	}
 
 	var member *membermodel.FamilyMember
@@ -112,14 +122,18 @@ type familyPermission interface {
 }
 
 type relationshipService struct {
-	repo        relationshiprepo.Repository
-	unitOfWork  relationshiprepo.UnitOfWork
-	permissions familyPermission
-	quota       quotaservice.Service
+	repo          relationshiprepo.Repository
+	unitOfWork    relationshiprepo.UnitOfWork
+	permissions   familyPermission
+	quota         quotaservice.Service
+	contentSafety contentsafety.Service
 }
 
-func NewRelationshipService(repo relationshiprepo.Repository, unitOfWork relationshiprepo.UnitOfWork, permissions familyPermission, quota quotaservice.Service) RelationshipService {
-	return &relationshipService{repo: repo, unitOfWork: unitOfWork, permissions: permissions, quota: quota}
+func NewRelationshipService(repo relationshiprepo.Repository, unitOfWork relationshiprepo.UnitOfWork, permissions familyPermission, quota quotaservice.Service, contentSafety contentsafety.Service) RelationshipService {
+	if contentSafety == nil {
+		contentSafety = contentsafety.FailClosed()
+	}
+	return &relationshipService{repo: repo, unitOfWork: unitOfWork, permissions: permissions, quota: quota, contentSafety: contentSafety}
 }
 
 func (s *relationshipService) Create(ctx context.Context, actorID uint64, familyID uint64, req dto.CreateRelationshipRequest, audit AuditInput) (*vo.MutationResult, *apperrors.BusinessError) {
@@ -136,6 +150,24 @@ func (s *relationshipService) Create(ctx context.Context, actorID uint64, family
 	}
 	input, businessErr := normalizeRelationshipInput(addType, req.Relationship)
 	if businessErr != nil {
+		return nil, businessErr
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID:   actorID,
+		Scene:    contentsafety.SceneProfile,
+		Fields:   contentsafety.StringField("member_name", member.DisplayName),
+		FamilyID: &familyID,
+		IP:       audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID:   actorID,
+		Scene:    contentsafety.SceneSocial,
+		Fields:   contentsafety.OptionalField("relation_note", input.relationNote),
+		FamilyID: &familyID,
+		IP:       audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
 		return nil, businessErr
 	}
 
@@ -210,6 +242,15 @@ func (s *relationshipService) Update(ctx context.Context, actorID uint64, family
 	if len(values) == 0 {
 		return nil, relationshipError(CodeRelationshipType, "没有可更新的关系字段")
 	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID:   actorID,
+		Scene:    contentsafety.SceneSocial,
+		Fields:   contentsafety.OptionalField("relation_note", req.RelationNote),
+		FamilyID: &familyID,
+		IP:       audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
 
 	var relationship *relationshipmodel.FamilyRelationship
 	var graphVersion int64
@@ -257,6 +298,13 @@ func (s *relationshipService) Update(ctx context.Context, actorID uint64, family
 func (s *relationshipService) Delete(ctx context.Context, actorID uint64, familyID uint64, relationshipID uint64, req dto.DeleteRelationshipRequest, audit AuditInput) (*vo.MutationResult, *apperrors.BusinessError) {
 	if allowed, err := s.permissions.CanManageRelationships(ctx, actorID, familyID); err != nil || !allowed {
 		return nil, relationshipError(CodeRelationshipForbidden, "无权修改家庭关系")
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("delete_reason", req.Reason),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
 	}
 	var relationship *relationshipmodel.FamilyRelationship
 	var graphVersion int64

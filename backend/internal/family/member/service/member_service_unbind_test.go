@@ -7,6 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"tree/backend/internal/common/contentsafety"
 	coremodel "tree/backend/internal/family/core/model"
 	"tree/backend/internal/family/member/dto"
 	membermodel "tree/backend/internal/family/member/model"
@@ -128,7 +129,7 @@ func (r *memberRepoFake) UnbindLink(_ context.Context, linkID, _ uint64, _ *stri
 }
 
 func testMemberService(repo *memberRepoFake, canManage bool) MemberService {
-	return NewMemberService(nil, repo, memberPermFake{canManage: canManage}, nil)
+	return NewMemberService(nil, repo, memberPermFake{canManage: canManage}, nil, contentsafety.AlwaysPass())
 }
 
 func TestUnbindUserRules(t *testing.T) {

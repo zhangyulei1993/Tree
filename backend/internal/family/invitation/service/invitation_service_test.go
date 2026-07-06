@@ -8,6 +8,8 @@ import (
 
 	"gorm.io/gorm"
 
+	"tree/backend/internal/common/contentsafety"
+	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/family/core/model"
 	"tree/backend/internal/family/invitation/dto"
 	invitationmodel "tree/backend/internal/family/invitation/model"
@@ -225,7 +227,7 @@ func (u fakeUOW) WithinTransaction(ctx context.Context, fn func(inviterepo.Repos
 }
 
 func testService(repo *fakeRepo, allowed bool, now time.Time) *service {
-	s := NewService(repo, fakeUOW{repo}, fakePermission{allowed: allowed, link: rolemodel.FamilyMemberUserLink{FamilyRole: "FOUNDER"}}, nil).(*service)
+	s := NewService(repo, fakeUOW{repo}, fakePermission{allowed: allowed, link: rolemodel.FamilyMemberUserLink{FamilyRole: "FOUNDER"}}, nil, contentsafety.AlwaysPass()).(*service)
 	s.now = func() time.Time { return now }
 	s.token = func() (string, error) { return "raw-secret-invite-token", nil }
 	return s
@@ -510,3 +512,30 @@ func contains(value, needle string) bool {
 	return false
 }
 func uint64Ptr(value uint64) *uint64 { return &value }
+
+type inviteCSOpenID struct{}
+
+func (inviteCSOpenID) ActiveWechatMiniOpenID(context.Context, uint64) (string, error) {
+	return "invite-test-openid", nil
+}
+
+func TestInvitationCreateContentSafetyRejected(t *testing.T) {
+	now := time.Date(2026, 6, 7, 0, 0, 0, 0, time.UTC)
+	repo := newFakeRepo()
+	beforeInvites := len(repo.invitations)
+	client := contentsafety.NewFakeClient(contentsafety.SuggestReview)
+	contentSafety := contentsafety.NewChecker(client, inviteCSOpenID{}, nil)
+	svc := NewService(repo, fakeUOW{repo}, fakePermission{allowed: true, link: rolemodel.FamilyMemberUserLink{FamilyRole: "FOUNDER"}}, nil, contentSafety).(*service)
+	svc.now = func() time.Time { return now }
+	svc.token = func() (string, error) { return "raw-secret-invite-token", nil }
+	msg := "违规邀请语"
+	_, businessErr := svc.Create(context.Background(), 8, 2, 6, dto.CreateInvitationRequest{
+		InviteChannel: "SHARE_LINK", InviteMessage: &msg,
+	}, AuditInput{})
+	if businessErr == nil || businessErr.Code != apperrors.CodeContentSafetyRejected {
+		t.Fatalf("expected 49007, got %#v", businessErr)
+	}
+	if len(repo.invitations) != beforeInvites {
+		t.Fatalf("invitation must not be created")
+	}
+}

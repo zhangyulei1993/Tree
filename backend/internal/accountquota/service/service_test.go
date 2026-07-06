@@ -17,6 +17,7 @@ import (
 	quotaservice "tree/backend/internal/accountquota/service"
 	quotavo "tree/backend/internal/accountquota/vo"
 	"tree/backend/internal/common/config"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/database"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
@@ -129,7 +130,7 @@ func TestOwnedFamilyQuotaBlocksSecondCreate(t *testing.T) {
 	tx := quotaTestDB(t)
 	user := createQuotaUser(t, tx, false, "创始人")
 	quotaSvc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
-	familySvc := familyservice.NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, quotaSvc)
+	familySvc := familyservice.NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, quotaSvc, contentsafety.AlwaysPass())
 	gender := string(enums.GenderMale)
 	if _, err := familySvc.Create(ctx, user.ID, coredto.CreateFamilyRequest{Surname: "张", FounderGender: &gender}, familyservice.AuditInput{}); err != nil {
 		t.Fatalf("first create: %v", err)
@@ -144,8 +145,8 @@ func TestMemberQuotaBoundaryWechatOnly(t *testing.T) {
 	tx := quotaTestDB(t)
 	user := createQuotaUser(t, tx, false, "成员上限")
 	quotaSvc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
-	familySvc := familyservice.NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, quotaSvc)
-	memberSvc := memberservice.NewMemberService(tx, memberrepo.NewMemberRepository(tx), allowAllMemberPerm{}, quotaSvc)
+	familySvc := familyservice.NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, quotaSvc, contentsafety.AlwaysPass())
+	memberSvc := memberservice.NewMemberService(tx, memberrepo.NewMemberRepository(tx), allowAllMemberPerm{}, quotaSvc, contentsafety.AlwaysPass())
 	gender := string(enums.GenderMale)
 	created, err := familySvc.Create(ctx, user.ID, coredto.CreateFamilyRequest{Surname: "王", FounderGender: &gender}, familyservice.AuditInput{})
 	if err != nil {
@@ -166,7 +167,7 @@ func TestProfileIncompleteBlocksCreateFamily(t *testing.T) {
 	tx := quotaTestDB(t)
 	user := createQuotaUser(t, tx, false, "")
 	quotaSvc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
-	familySvc := familyservice.NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, quotaSvc)
+	familySvc := familyservice.NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, quotaSvc, contentsafety.AlwaysPass())
 	gender := string(enums.GenderMale)
 	if _, err := familySvc.Create(ctx, user.ID, coredto.CreateFamilyRequest{Surname: "赵", FounderGender: &gender}, familyservice.AuditInput{}); err == nil || err.Code != 41501 {
 		t.Fatalf("expected profile incomplete, got %#v", err)
@@ -188,7 +189,7 @@ func TestConcurrentCreateFamilyDoesNotExceedQuota(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			dbMu.Lock()
-			familySvc := familyservice.NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, quotaSvc)
+			familySvc := familyservice.NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, quotaSvc, contentsafety.AlwaysPass())
 			_, err := familySvc.Create(ctx, user.ID, coredto.CreateFamilyRequest{Surname: "并发", FounderGender: &gender}, familyservice.AuditInput{})
 			dbMu.Unlock()
 			if err == nil {
@@ -235,7 +236,7 @@ func TestLoweringConfigDoesNotDeleteExistingFamilies(t *testing.T) {
 	tx := quotaTestDB(t)
 	user := createQuotaUser(t, tx, false, "保留数据")
 	quotaSvc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
-	familySvc := familyservice.NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), allowAllFamilyPerm{}, quotaSvc)
+	familySvc := familyservice.NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), allowAllFamilyPerm{}, quotaSvc, contentsafety.AlwaysPass())
 	gender := string(enums.GenderMale)
 	created, err := familySvc.Create(ctx, user.ID, coredto.CreateFamilyRequest{Surname: "陈", FounderGender: &gender}, familyservice.AuditInput{})
 	if err != nil {

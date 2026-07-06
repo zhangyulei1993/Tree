@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -84,7 +85,7 @@ func Load() (*Config, error) {
 		}
 	}
 
-	return &Config{
+	cfg := &Config{
 		App: AppConfig{
 			Env:  v.GetString("app.env"),
 			Name: v.GetString("app.name"),
@@ -126,7 +127,27 @@ func Load() (*Config, error) {
 			MiniAppSecret: v.GetString("wechat.mini_app_secret"),
 			MockEnabled:   v.GetBool("wechat.mock_enabled"),
 		},
-	}, nil
+	}
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func (c *Config) Validate() error {
+	if c == nil {
+		return fmt.Errorf("config is nil")
+	}
+	env := strings.ToLower(strings.TrimSpace(c.App.Env))
+	if !c.Wechat.MockEnabled {
+		return nil
+	}
+	switch env {
+	case "staging", "production", "prod":
+		return fmt.Errorf("wechat mock_enabled must not be enabled when app.env is %s", c.App.Env)
+	default:
+		return nil
+	}
 }
 
 func setDefaults(v *viper.Viper) {
@@ -153,6 +174,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("verify_code.cooldown_seconds", 60)
 	v.SetDefault("wechat.mini_app_id", "")
 	v.SetDefault("wechat.mini_app_secret", "")
-	v.SetDefault("wechat.mock_enabled", true)
+	v.SetDefault("wechat.mock_enabled", false)
 	v.SetDefault("log.level", "debug")
 }

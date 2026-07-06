@@ -17,6 +17,7 @@ import (
 	authhandler "tree/backend/internal/auth/handler"
 	authrepo "tree/backend/internal/auth/repository"
 	authservice "tree/backend/internal/auth/service"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/database"
 	commonjwt "tree/backend/internal/common/jwt"
 	"tree/backend/internal/common/middleware"
@@ -223,7 +224,8 @@ func (s *Server) buildUserAuth() (*authhandler.AuthHandler, gin.HandlerFunc) {
 	codeRepo := authrepo.NewGormVerificationCodeRepository(db)
 	operationLog := operationlog.NewGormService(db)
 	wechatClient := wechat.NewMiniProgramClient(s.cfg.Wechat)
-	service := authservice.NewPhoneAuthService(db, userRepo, codeRepo, wechatClient, jwtManager, blacklist, operationLog, s.cfg)
+	contentSafety := contentsafety.NewService(contentsafety.NewClient(s.cfg.Wechat), userRepo, operationLog, s.cfg.Wechat.MiniAppID)
+	service := authservice.NewPhoneAuthService(db, userRepo, codeRepo, wechatClient, jwtManager, blacklist, operationLog, contentSafety, s.cfg)
 	handler := authhandler.NewAuthHandler(service)
 
 	return handler, middleware.UserAuth(jwtManager, blacklist)
@@ -390,32 +392,35 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 	}
 
 	repo := familyrepo.NewFamilyRepository(db)
+	userRepo := authrepo.NewGormUserRepository(db)
+	operationLog := operationlog.NewGormService(db)
+	contentSafety := contentsafety.NewService(contentsafety.NewClient(s.cfg.Wechat), userRepo, operationLog, s.cfg.Wechat.MiniAppID)
 	permissionService := permission.NewFamilyPermissionService(db)
 	quotaRepo := accountquotarepo.NewRepository(db)
 	quotaService := accountquotaservice.NewService(db, quotaRepo)
-	service := familyservice.NewFamilyService(db, repo, permissionService, quotaService)
+	service := familyservice.NewFamilyService(db, repo, permissionService, quotaService, contentSafety)
 	memberRepository := memberrepo.NewMemberRepository(db)
-	memberService := memberservice.NewMemberService(db, memberRepository, permissionService, quotaService)
+	memberService := memberservice.NewMemberService(db, memberRepository, permissionService, quotaService, contentSafety)
 	relationshipRepository := relationshiprepo.NewRepository(db)
 	relationshipUnitOfWork := relationshiprepo.NewUnitOfWork(db, relationshipRepository)
-	relationshipService := relationshipservice.NewRelationshipService(relationshipRepository, relationshipUnitOfWork, permissionService, quotaService)
+	relationshipService := relationshipservice.NewRelationshipService(relationshipRepository, relationshipUnitOfWork, permissionService, quotaService, contentSafety)
 	treeRepository := treerepo.NewRepository(db)
 	treeService := treeservice.NewTreeService(treeRepository, treeCache, permissionService)
 	invitationRepository := invitationrepo.NewRepository(db)
 	invitationUnitOfWork := invitationrepo.NewUnitOfWork(db, invitationRepository)
-	invitationService := invitationservice.NewService(invitationRepository, invitationUnitOfWork, permissionService, quotaService)
+	invitationService := invitationservice.NewService(invitationRepository, invitationUnitOfWork, permissionService, quotaService, contentSafety)
 	joinRepository := joinrepo.NewRepository(db)
 	joinUnitOfWork := joinrepo.NewUnitOfWork(db, joinRepository)
-	joinRequestService := joinservice.NewService(joinRepository, joinUnitOfWork, permissionService, quotaService)
+	joinRequestService := joinservice.NewService(joinRepository, joinUnitOfWork, permissionService, quotaService, contentSafety)
 	publicRepository := publicrepo.NewRepository(db)
 	publicUnitOfWork := publicrepo.NewUnitOfWork(db, publicRepository)
-	publicApplicationService := publicservice.NewService(publicRepository, publicUnitOfWork, permissionService)
+	publicApplicationService := publicservice.NewService(publicRepository, publicUnitOfWork, permissionService, contentSafety)
 	roleRepository := rolerepo.NewRepository(db)
 	roleUnitOfWork := rolerepo.NewUnitOfWork(db, roleRepository)
 	roleService := roleservice.NewService(roleRepository, roleUnitOfWork)
 	transferRepository := transferrepo.NewRepository(db)
 	transferUnitOfWork := transferrepo.NewUnitOfWork(db, transferRepository)
-	transferService := transferservice.NewService(transferRepository, transferUnitOfWork, quotaService)
+	transferService := transferservice.NewService(transferRepository, transferUnitOfWork, quotaService, contentSafety)
 	dissolutionRepository := dissolutionrepo.NewRepository(db)
 	dissolutionUnitOfWork := dissolutionrepo.NewUnitOfWork(db, dissolutionRepository)
 	dissolutionService := dissolutionservice.NewService(dissolutionRepository, dissolutionUnitOfWork, quotaService)

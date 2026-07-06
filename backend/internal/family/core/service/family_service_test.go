@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"tree/backend/internal/common/config"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/database"
 	"tree/backend/internal/common/enums"
 	"tree/backend/internal/common/permission"
@@ -48,7 +49,7 @@ func TestCreateFamilyWithoutPhoneVerified(t *testing.T) {
 		t.Fatalf("create user fixture: %v", err)
 	}
 
-	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil)
+	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil, contentsafety.AlwaysPass())
 	founderGender := string(enums.GenderMale)
 	result, businessErr := service.Create(ctx, user.ID, dto.CreateFamilyRequest{
 		Surname: "测", FounderGender: &founderGender,
@@ -72,7 +73,7 @@ func TestCreateFamilyInitializesFounderAndGraphVersion(t *testing.T) {
 		t.Fatalf("create user fixture: %v", err)
 	}
 
-	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil)
+	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil, contentsafety.AlwaysPass())
 	founderGender := string(enums.GenderMale)
 	result, businessErr := service.Create(ctx, user.ID, dto.CreateFamilyRequest{
 		Surname: "测", FounderGender: &founderGender,
@@ -123,7 +124,7 @@ func (deniedFamilyPermission) CanManageFamily(context.Context, uint64, uint64) (
 }
 
 func TestNonFounderCannotCreateDissolutionRequest(t *testing.T) {
-	service := NewFamilyService(nil, nil, deniedFamilyPermission{}, nil)
+	service := NewFamilyService(nil, nil, deniedFamilyPermission{}, nil, contentsafety.AlwaysPass())
 	result, businessErr := service.CreateDissolutionRequest(
 		context.Background(), 99, 88, dto.CreateDissolutionRequest{}, AuditInput{},
 	)
@@ -144,7 +145,7 @@ func TestMemberCanLeaveWithoutDeletingTreeNodeOrChangingGraphVersion(t *testing.
 		t.Fatalf("create member user: %v", err)
 	}
 	repo := familyrepo.NewFamilyRepository(tx)
-	service := NewFamilyService(tx, repo, nil, nil)
+	service := NewFamilyService(tx, repo, nil, nil, contentsafety.AlwaysPass())
 	created, businessErr := service.Create(ctx, founder.ID, dto.CreateFamilyRequest{Surname: "退"}, AuditInput{})
 	if businessErr != nil {
 		t.Fatalf("create family: %v", businessErr)
@@ -196,7 +197,7 @@ func TestFounderMustTransferBeforeLeave(t *testing.T) {
 	if err := tx.WithContext(ctx).Create(user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil)
+	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil, contentsafety.AlwaysPass())
 	created, businessErr := service.Create(ctx, user.ID, dto.CreateFamilyRequest{Surname: "创"}, AuditInput{})
 	if businessErr != nil {
 		t.Fatalf("create family: %v", businessErr)

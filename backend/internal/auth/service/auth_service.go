@@ -13,6 +13,7 @@ import (
 	"tree/backend/internal/auth/repository"
 	"tree/backend/internal/auth/vo"
 	"tree/backend/internal/common/config"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	commonjwt "tree/backend/internal/common/jwt"
@@ -173,6 +174,7 @@ type PhoneAuthService struct {
 	jwtManager        *commonjwt.Manager
 	blacklist         redis.TokenBlacklist
 	operationLog      operationlog.Service
+	contentSafety     contentsafety.Service
 	appEnv            string
 	wechatAppID       string
 	expireSeconds     int
@@ -188,6 +190,7 @@ func NewPhoneAuthService(
 	jwtManager *commonjwt.Manager,
 	blacklist redis.TokenBlacklist,
 	operationLog operationlog.Service,
+	contentSafety contentsafety.Service,
 	cfg *config.Config,
 ) *PhoneAuthService {
 	expireSeconds := cfg.VerifyCode.ExpireSeconds
@@ -207,6 +210,7 @@ func NewPhoneAuthService(
 		jwtManager:        jwtManager,
 		blacklist:         blacklist,
 		operationLog:      operationLog,
+		contentSafety:     defaultContentSafety(contentSafety),
 		appEnv:            cfg.App.Env,
 		wechatAppID:       cfg.Wechat.MiniAppID,
 		expireSeconds:     expireSeconds,
@@ -1095,4 +1099,11 @@ func stringPtr(value string) *string {
 
 func IsRecordNotFound(err error) bool {
 	return errors.Is(err, gorm.ErrRecordNotFound)
+}
+
+func defaultContentSafety(service contentsafety.Service) contentsafety.Service {
+	if service == nil {
+		return contentsafety.FailClosed()
+	}
+	return service
 }

@@ -47,7 +47,7 @@ func (h *AuthHandler) UpdateProfile(ctx *gin.Context) {
 		UserAgent: ctx.Request.UserAgent(),
 	})
 	if businessErr != nil {
-		response.Error(ctx, http.StatusBadRequest, businessErr)
+		response.Error(ctx, apperrors.StatusOr(businessErr.Code, http.StatusBadRequest), businessErr)
 		return
 	}
 	response.OK(ctx, result)

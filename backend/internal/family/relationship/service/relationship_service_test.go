@@ -9,6 +9,8 @@ import (
 	"gorm.io/gorm"
 
 	"tree/backend/internal/common/enums"
+	"tree/backend/internal/common/contentsafety"
+	apperrors "tree/backend/internal/common/errors"
 	familymodel "tree/backend/internal/family/core/model"
 	membermodel "tree/backend/internal/family/member/model"
 	"tree/backend/internal/family/relationship/dto"
@@ -326,7 +328,7 @@ func (r *fakeRepository) WriteOperationLog(_ context.Context, input operationlog
 }
 
 func testService(repo *fakeRepository, allowed bool) RelationshipService {
-	return NewRelationshipService(repo, fakeUnitOfWork{repo: repo}, fakePermission{allowed: allowed}, nil)
+	return NewRelationshipService(repo, fakeUnitOfWork{repo: repo}, fakePermission{allowed: allowed}, nil, contentsafety.AlwaysPass())
 }
 
 func createRequest(addType string, name string) dto.CreateRelationshipRequest {
@@ -1131,5 +1133,30 @@ func TestPlaceExistingSpouseParentRejectsNonLineageExistingParent(t *testing.T) 
 	_, businessErr := testService(repo, true).PlaceExisting(context.Background(), 8, 2, placeExistingParentRequest("ADD_MOTHER", "SPOUSE"), AuditInput{})
 	if businessErr == nil || businessErr.Code != CodeRelationshipType {
 		t.Fatalf("expected lineage parent required, got %#v", businessErr)
+	}
+}
+
+type relationshipCSOpenID struct{}
+
+func (relationshipCSOpenID) ActiveWechatMiniOpenID(context.Context, uint64) (string, error) {
+	return "relationship-test-openid", nil
+}
+
+func TestRelationshipCreateContentSafetyRejected(t *testing.T) {
+	repo := newFakeRepository()
+	beforeGV := repo.graphVersion
+	beforeMembers := len(repo.members)
+	client := contentsafety.NewFakeClient(contentsafety.SuggestReview)
+	contentSafety := contentsafety.NewChecker(client, relationshipCSOpenID{}, nil)
+	svc := NewRelationshipService(repo, fakeUnitOfWork{repo: repo}, fakePermission{allowed: true}, nil, contentSafety)
+	_, businessErr := svc.Create(context.Background(), 8, 2, createRequest("ADD_CHILD", "违规子女名"), AuditInput{})
+	if businessErr == nil || businessErr.Code != apperrors.CodeContentSafetyRejected {
+		t.Fatalf("expected 49007, got %#v", businessErr)
+	}
+	if repo.graphVersion != beforeGV || len(repo.members) != beforeMembers {
+		t.Fatalf("graph/members must not change: gv=%d members=%d", repo.graphVersion, len(repo.members))
+	}
+	if client.CallCount() < 1 {
+		t.Fatal("expected content safety call")
 	}
 }

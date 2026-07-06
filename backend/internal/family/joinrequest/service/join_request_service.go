@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	quotaservice "tree/backend/internal/accountquota/service"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
@@ -47,21 +48,37 @@ type Service interface {
 }
 
 type service struct {
-	repo        joinrepo.Repository
-	uow         joinrepo.UnitOfWork
-	permissions permission.FamilyPermissionService
-	quota       quotaservice.Service
-	now         func() time.Time
+	repo          joinrepo.Repository
+	uow           joinrepo.UnitOfWork
+	permissions   permission.FamilyPermissionService
+	quota         quotaservice.Service
+	contentSafety contentsafety.Service
+	now           func() time.Time
 }
 
-func NewService(repo joinrepo.Repository, uow joinrepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service) Service {
-	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, now: time.Now}
+func NewService(repo joinrepo.Repository, uow joinrepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service) Service {
+	if contentSafety == nil {
+		contentSafety = contentsafety.FailClosed()
+	}
+	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, contentSafety: contentSafety, now: time.Now}
 }
 
 func (s *service) Create(ctx context.Context, actorID, familyID uint64, req dto.CreateJoinRequest, audit AuditInput) (*vo.JoinRequest, *apperrors.BusinessError) {
 	applicantGender, genderErr := normalizeApplicantGender(req.ApplicantGender)
 	if genderErr != nil {
 		return nil, joinError(CodeApproveModeInvalid, "申请人性别必须选择男或女")
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID,
+		Scene:  contentsafety.SceneSocial,
+		Fields: contentsafety.MergeFields(
+			contentsafety.OptionalField("applicant_real_name", req.ApplicantRealName),
+			contentsafety.OptionalField("applicant_message", req.ApplicantMessage),
+		),
+		FamilyID: &familyID,
+		IP:       audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
 	}
 	value := &joinmodel.FamilyJoinRequest{
 		FamilyID: familyID, ApplicantUserID: actorID,
@@ -143,6 +160,35 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 	}
 	if mode == joinenum.ApproveBindExisting && req.Location != nil {
 		return nil, joinError(CodeApproveModeInvalid, "绑定已有成员时不能重复定位")
+	}
+	if mode == joinenum.ApproveCreateNew && req.NewMember != nil {
+		if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+			UserID:   actorID,
+			Scene:    contentsafety.SceneProfile,
+			Fields:   contentsafety.StringField("member_name", req.NewMember.Name),
+			FamilyID: &familyID,
+			IP:       audit.IP, UserAgent: audit.UserAgent,
+		}); businessErr != nil {
+			return nil, businessErr
+		}
+	}
+	if req.Location != nil {
+		if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+			UserID:   actorID,
+			Scene:    contentsafety.SceneSocial,
+			Fields:   contentsafety.OptionalField("relation_note", req.Location.Relationship.RelationNote),
+			FamilyID: &familyID,
+			IP:       audit.IP, UserAgent: audit.UserAgent,
+		}); businessErr != nil {
+			return nil, businessErr
+		}
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("handle_comment", req.HandleComment),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
 	}
 	var graphVersion *int64
 	var memberID uint64
@@ -310,6 +356,13 @@ func (s *service) Reject(ctx context.Context, actorID, familyID, requestID uint6
 	if ok, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !ok {
 		return nil, joinError(CodeJoinRequestForbidden, "无权处理加入申请")
 	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("handle_comment", req.HandleComment),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
 	err := s.uow.WithinTransaction(ctx, func(repo joinrepo.Repository) error {
 		value, err := repo.FindByID(ctx, familyID, requestID, true)
 		if err != nil {
@@ -334,6 +387,13 @@ func (s *service) Reject(ctx context.Context, actorID, familyID, requestID uint6
 }
 
 func (s *service) Cancel(ctx context.Context, actorID, familyID, requestID uint64, req dto.CancelJoinRequest, audit AuditInput) (*vo.JoinRequest, *apperrors.BusinessError) {
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("cancel_reason", req.CancelReason),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
 	err := s.uow.WithinTransaction(ctx, func(repo joinrepo.Repository) error {
 		value, err := repo.FindByID(ctx, familyID, requestID, true)
 		if err != nil {

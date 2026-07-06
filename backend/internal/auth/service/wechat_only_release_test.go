@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	accountmodel "tree/backend/internal/account/model"
 	authrepo "tree/backend/internal/auth/repository"
 	"tree/backend/internal/common/config"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/security"
@@ -65,6 +67,19 @@ func (r *wechatIdentityUserRepoFake) HasActiveWechatMiniIdentity(_ context.Conte
 		}
 	}
 	return false, nil
+}
+
+func (r *wechatIdentityUserRepoFake) FindActiveWechatMiniOpenID(_ context.Context, userID uint64, appID string) (string, error) {
+	for _, identity := range r.identityRecords {
+		if identity.UserID == userID &&
+			identity.Provider == providerWechatMini &&
+			derefString(identity.ProviderAppID) == appID &&
+			identity.IdentityStatus == string(enums.StatusActive) &&
+			identity.OpenID != nil && strings.TrimSpace(*identity.OpenID) != "" {
+			return strings.TrimSpace(*identity.OpenID), nil
+		}
+	}
+	return "", gorm.ErrRecordNotFound
 }
 
 func (r *wechatIdentityUserRepoFake) WithTx(*gorm.DB) authrepo.UserRepository { return r }
@@ -135,7 +150,7 @@ func TestWechatMiniLoginUpgradesPendingBindUser(t *testing.T) {
 		AccountOrigin: accountOriginWechatMini, RegisterClient: ClientWechatMini,
 	})
 	users.seedActiveIdentity(1, 501, providerWechatMini, appID, openIDHash)
-	service := NewPhoneAuthService(nil, users, &codeRepoFake{}, &wechatClientFake{openID: openID}, authTestManager(t), nil, &authLogCapture{}, &config.Config{
+	service := NewPhoneAuthService(nil, users, &codeRepoFake{}, &wechatClientFake{openID: openID}, authTestManager(t), nil, &authLogCapture{}, contentsafety.AlwaysPass(), &config.Config{
 		App: config.AppConfig{Env: "test"}, Wechat: config.WechatConfig{MiniAppID: appID},
 	})
 
@@ -171,7 +186,7 @@ func TestWechatMiniLoginDoesNotRestoreDisabledOrCancelledUsers(t *testing.T) {
 				ID: 601, Status: test.status, PhoneVerified: false,
 			})
 			users.seedActiveIdentity(2, 601, providerWechatMini, appID, openIDHash)
-			service := NewPhoneAuthService(nil, users, &codeRepoFake{}, &wechatClientFake{openID: openID}, authTestManager(t), nil, &authLogCapture{}, &config.Config{
+			service := NewPhoneAuthService(nil, users, &codeRepoFake{}, &wechatClientFake{openID: openID}, authTestManager(t), nil, &authLogCapture{}, contentsafety.AlwaysPass(), &config.Config{
 				App: config.AppConfig{Env: "test"}, Wechat: config.WechatConfig{MiniAppID: appID},
 			})
 			result, businessErr := service.WechatMiniLogin(context.Background(), WechatMiniLoginInput{
@@ -194,7 +209,7 @@ func TestCancelAccountByWechatReauthSuccess(t *testing.T) {
 	})
 	users.seedActiveIdentity(3, 701, providerWechatMini, appID, openIDHash)
 	logs := &authLogCapture{}
-	service := NewPhoneAuthService(nil, users, &codeRepoFake{}, &wechatClientFake{openID: openID}, authTestManager(t), nil, logs, &config.Config{
+	service := NewPhoneAuthService(nil, users, &codeRepoFake{}, &wechatClientFake{openID: openID}, authTestManager(t), nil, logs, contentsafety.AlwaysPass(), &config.Config{
 		App: config.AppConfig{Env: "test"}, Wechat: config.WechatConfig{MiniAppID: appID},
 	})
 
@@ -223,7 +238,7 @@ func TestCancelAccountByWechatReauthIdentityMismatch(t *testing.T) {
 	appID := "test-app-id"
 	users := newWechatIdentityUserRepoFake(&usermodel.User{ID: 801, Status: string(enums.StatusActive)})
 	users.seedActiveIdentity(4, 802, providerWechatMini, appID, openIDHash)
-	service := NewPhoneAuthService(nil, users, &codeRepoFake{}, &wechatClientFake{openID: otherOpenID}, authTestManager(t), nil, &authLogCapture{}, &config.Config{
+	service := NewPhoneAuthService(nil, users, &codeRepoFake{}, &wechatClientFake{openID: otherOpenID}, authTestManager(t), nil, &authLogCapture{}, contentsafety.AlwaysPass(), &config.Config{
 		App: config.AppConfig{Env: "test"}, Wechat: config.WechatConfig{MiniAppID: appID},
 	})
 
@@ -238,7 +253,7 @@ func TestCancelAccountByWechatReauthIdentityMismatch(t *testing.T) {
 
 func TestCancelAccountByWechatReauthInvalidCode(t *testing.T) {
 	users := newWechatIdentityUserRepoFake(&usermodel.User{ID: 901, Status: string(enums.StatusActive)})
-	service := NewPhoneAuthService(nil, users, &codeRepoFake{}, &wechatClientFake{err: errors.New("wechat code2session failed")}, authTestManager(t), nil, &authLogCapture{}, &config.Config{
+	service := NewPhoneAuthService(nil, users, &codeRepoFake{}, &wechatClientFake{err: errors.New("wechat code2session failed")}, authTestManager(t), nil, &authLogCapture{}, contentsafety.AlwaysPass(), &config.Config{
 		App: config.AppConfig{Env: "test"},
 	})
 
@@ -257,7 +272,7 @@ func TestWechatAccountFullLifecycleLoginCancelReregister(t *testing.T) {
 	appID := "test-app-id"
 	users := newWechatIdentityUserRepoFake()
 	logs := &authLogCapture{}
-	service := NewPhoneAuthService(nil, users, &codeRepoFake{}, &wechatClientFake{openID: openID}, authTestManager(t), nil, logs, &config.Config{
+	service := NewPhoneAuthService(nil, users, &codeRepoFake{}, &wechatClientFake{openID: openID}, authTestManager(t), nil, logs, contentsafety.AlwaysPass(), &config.Config{
 		App: config.AppConfig{Env: "test"}, Wechat: config.WechatConfig{MiniAppID: appID},
 	})
 	ctx := context.Background()

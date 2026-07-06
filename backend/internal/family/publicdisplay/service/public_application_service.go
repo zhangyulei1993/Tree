@@ -9,6 +9,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
@@ -80,19 +81,30 @@ func (s *service) TakeDownUser(ctx context.Context, actorID uint64, familyID uin
 }
 
 type service struct {
-	repo        publicrepo.Repository
-	uow         publicrepo.UnitOfWork
-	permissions permission.FamilyPermissionService
-	now         func() time.Time
+	repo          publicrepo.Repository
+	uow           publicrepo.UnitOfWork
+	permissions   permission.FamilyPermissionService
+	contentSafety contentsafety.Service
+	now           func() time.Time
 }
 
-func NewService(repo publicrepo.Repository, uow publicrepo.UnitOfWork, permissions permission.FamilyPermissionService) Service {
-	return &service{repo: repo, uow: uow, permissions: permissions, now: time.Now}
+func NewService(repo publicrepo.Repository, uow publicrepo.UnitOfWork, permissions permission.FamilyPermissionService, contentSafety contentsafety.Service) Service {
+	if contentSafety == nil {
+		contentSafety = contentsafety.FailClosed()
+	}
+	return &service{repo: repo, uow: uow, permissions: permissions, contentSafety: contentSafety, now: time.Now}
 }
 
 func (s *service) Submit(ctx context.Context, actorID, familyID uint64, req dto.CreatePublicApplicationRequest, audit AuditInput) (*vo.PublicApplication, *apperrors.BusinessError) {
 	if ok, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !ok {
 		return nil, publicError(CodePublicApplicationForbidden, "无权提交公开申请")
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("application_reason", req.ApplicationReason),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
 	}
 	var applicationID uint64
 	err := s.uow.WithinTransaction(ctx, func(repo publicrepo.Repository) error {
@@ -149,6 +161,13 @@ func (s *service) ListFamily(ctx context.Context, actorID, familyID uint64, req 
 }
 
 func (s *service) Cancel(ctx context.Context, actorID, familyID, applicationID uint64, req dto.CancelPublicApplicationRequest, audit AuditInput) (*vo.PublicApplication, *apperrors.BusinessError) {
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("cancel_reason", req.CancelReason),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
 	err := s.uow.WithinTransaction(ctx, func(repo publicrepo.Repository) error {
 		app, err := repo.FindByID(ctx, applicationID, true)
 		if err != nil || app.FamilyID != familyID {

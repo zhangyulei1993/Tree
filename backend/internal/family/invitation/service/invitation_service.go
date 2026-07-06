@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 
 	quotaservice "tree/backend/internal/accountquota/service"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
@@ -58,16 +59,20 @@ type Service interface {
 }
 
 type service struct {
-	repo        inviterepo.Repository
-	uow         inviterepo.UnitOfWork
-	permissions permission.FamilyPermissionService
-	quota       quotaservice.Service
-	now         func() time.Time
-	token       func() (string, error)
+	repo          inviterepo.Repository
+	uow           inviterepo.UnitOfWork
+	permissions   permission.FamilyPermissionService
+	quota         quotaservice.Service
+	contentSafety contentsafety.Service
+	now           func() time.Time
+	token         func() (string, error)
 }
 
-func NewService(repo inviterepo.Repository, uow inviterepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service) Service {
-	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, now: time.Now, token: randomToken}
+func NewService(repo inviterepo.Repository, uow inviterepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service) Service {
+	if contentSafety == nil {
+		contentSafety = contentsafety.FailClosed()
+	}
+	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, contentSafety: contentSafety, now: time.Now, token: randomToken}
 }
 
 func (s *service) Create(ctx context.Context, actorID, familyID, memberID uint64, req dto.CreateInvitationRequest, audit AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError) {
@@ -84,6 +89,15 @@ func (s *service) Create(ctx context.Context, actorID, familyID, memberID uint64
 	}
 	if channel == inviteenum.ChannelShareLink && req.TargetUserID != nil {
 		return nil, inviteError(CodeMemberNotInvitable, "分享邀请不能指定站内用户")
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID:   actorID,
+		Scene:    contentsafety.SceneSocial,
+		Fields:   contentsafety.OptionalField("invite_message", req.InviteMessage),
+		FamilyID: &familyID,
+		IP:       audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
 	}
 	if req.FamilyRoleAfterAccept != nil &&
 		strings.ToUpper(strings.TrimSpace(*req.FamilyRoleAfterAccept)) != string(enums.FamilyRoleMember) {
@@ -287,6 +301,13 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 }
 
 func (s *service) Reject(ctx context.Context, actorID, invitationID uint64, req dto.RejectInvitationRequest, audit AuditInput) (*vo.Invitation, *apperrors.BusinessError) {
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("reject_reason", req.Reason),
+		IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
 	err := s.uow.WithinTransaction(ctx, func(repo inviterepo.Repository) error {
 		value, err := repo.FindByID(ctx, invitationID, true)
 		if err != nil {
@@ -317,6 +338,13 @@ func (s *service) Reject(ctx context.Context, actorID, invitationID uint64, req 
 }
 
 func (s *service) Cancel(ctx context.Context, actorID, invitationID uint64, req dto.CancelInvitationRequest, audit AuditInput) (*vo.Invitation, *apperrors.BusinessError) {
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("cancel_reason", req.Reason),
+		IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
 	err := s.uow.WithinTransaction(ctx, func(repo inviterepo.Repository) error {
 		value, err := repo.FindByID(ctx, invitationID, true)
 		if err != nil {

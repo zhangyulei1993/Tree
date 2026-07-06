@@ -8,6 +8,7 @@ import (
 	authrepo "tree/backend/internal/auth/repository"
 	authservice "tree/backend/internal/auth/service"
 	"tree/backend/internal/common/config"
+	"tree/backend/internal/common/contentsafety"
 	commonjwt "tree/backend/internal/common/jwt"
 	"tree/backend/internal/testsupport/freshquota"
 )
@@ -43,6 +44,7 @@ func NewAuthService(t *testing.T, tx *gorm.DB, wechatClient *freshquota.FakeWech
 		testJWTManager(t),
 		nil,
 		nil,
+		contentsafety.AlwaysPass(),
 		testConfig(),
 	)
 }
@@ -59,6 +61,7 @@ func NewAuthServiceWithJWT(t *testing.T, tx *gorm.DB, wechatClient *freshquota.F
 		manager,
 		nil,
 		nil,
+		contentsafety.AlwaysPass(),
 		testConfig(),
 	), manager
 }

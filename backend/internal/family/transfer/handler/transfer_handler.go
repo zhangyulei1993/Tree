@@ -144,14 +144,16 @@ func write(ctx *gin.Context, status int, result any, err *apperrors.BusinessErro
 		response.Success(ctx, status, result)
 		return
 	}
-	httpStatus := http.StatusBadRequest
-	switch err.Code {
-	case transferservice.CodeTransferForbidden, transferservice.CodeTransferAdminDenied:
-		httpStatus = http.StatusForbidden
-	case transferservice.CodeTransferNotFound:
-		httpStatus = http.StatusNotFound
-	case apperrors.CodeSystemError:
-		httpStatus = http.StatusInternalServerError
+	httpStatus := apperrors.StatusOr(err.Code, http.StatusBadRequest)
+	if httpStatus == http.StatusBadRequest {
+		switch err.Code {
+		case transferservice.CodeTransferForbidden, transferservice.CodeTransferAdminDenied:
+			httpStatus = http.StatusForbidden
+		case transferservice.CodeTransferNotFound:
+			httpStatus = http.StatusNotFound
+		case apperrors.CodeSystemError:
+			httpStatus = http.StatusInternalServerError
+		}
 	}
 	response.Error(ctx, httpStatus, err)
 }

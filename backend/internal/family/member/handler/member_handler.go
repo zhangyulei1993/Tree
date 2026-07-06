@@ -164,20 +164,22 @@ func writeResult[T any](ctx *gin.Context, status int, result T, businessErr *app
 }
 
 func writeError(ctx *gin.Context, businessErr *apperrors.BusinessError) {
-	status := http.StatusBadRequest
-	switch businessErr.Code {
-	case memberservice.CodeMemberCreateForbidden,
-		memberservice.CodeMemberEditForbidden,
-		memberservice.CodeMemberViewForbidden,
-		memberservice.CodeMemberDeleteForbidden,
-		memberservice.CodeMemberUnbindProtected:
-		status = http.StatusForbidden
-	case memberservice.CodeMemberNotFound,
-		memberservice.CodeMemberUserUnavailable,
-		apperrors.CodeResourceNotFound:
-		status = http.StatusNotFound
-	case apperrors.CodeSystemError:
-		status = http.StatusInternalServerError
+	status := apperrors.StatusOr(businessErr.Code, http.StatusBadRequest)
+	if status == http.StatusBadRequest {
+		switch businessErr.Code {
+		case memberservice.CodeMemberCreateForbidden,
+			memberservice.CodeMemberEditForbidden,
+			memberservice.CodeMemberViewForbidden,
+			memberservice.CodeMemberDeleteForbidden,
+			memberservice.CodeMemberUnbindProtected:
+			status = http.StatusForbidden
+		case memberservice.CodeMemberNotFound,
+			memberservice.CodeMemberUserUnavailable,
+			apperrors.CodeResourceNotFound:
+			status = http.StatusNotFound
+		case apperrors.CodeSystemError:
+			status = http.StatusInternalServerError
+		}
 	}
 	response.Error(ctx, status, businessErr)
 }

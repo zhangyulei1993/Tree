@@ -9,6 +9,7 @@ import (
 
 	authservice "tree/backend/internal/auth/service"
 	apperrors "tree/backend/internal/common/errors"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/family/invitation/dto"
 	invitationmodel "tree/backend/internal/family/invitation/model"
 	inviterepo "tree/backend/internal/family/invitation/repository"
@@ -20,7 +21,7 @@ import (
 func newFreshInvitationService(tx *gorm.DB) Service {
 	quotaSvc := freshquota.NewQuotaService(tx)
 	repo := inviterepo.NewRepository(tx)
-	return NewService(repo, inviterepo.NewUnitOfWork(tx, repo), freshquota.AllowAllFamilyPerm{}, quotaSvc)
+	return NewService(repo, inviterepo.NewUnitOfWork(tx, repo), freshquota.AllowAllFamilyPerm{}, quotaSvc, contentsafety.AlwaysPass())
 }
 
 func TestInvitationAcceptRespectsJoinedQuotaFreshAccount(t *testing.T) {

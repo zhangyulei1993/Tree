@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	quotaservice "tree/backend/internal/accountquota/service"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
@@ -67,14 +68,18 @@ type MemberService interface {
 }
 
 type memberService struct {
-	db          *gorm.DB
-	repo        memberrepo.MemberRepository
-	permissions permission.FamilyPermissionService
-	quota       quotaservice.Service
+	db            *gorm.DB
+	repo          memberrepo.MemberRepository
+	permissions   permission.FamilyPermissionService
+	quota         quotaservice.Service
+	contentSafety contentsafety.Service
 }
 
-func NewMemberService(db *gorm.DB, repo memberrepo.MemberRepository, permissions permission.FamilyPermissionService, quota quotaservice.Service) MemberService {
-	return &memberService{db: db, repo: repo, permissions: permissions, quota: quota}
+func NewMemberService(db *gorm.DB, repo memberrepo.MemberRepository, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service) MemberService {
+	if contentSafety == nil {
+		contentSafety = contentsafety.FailClosed()
+	}
+	return &memberService{db: db, repo: repo, permissions: permissions, quota: quota, contentSafety: contentSafety}
 }
 
 func (s *memberService) Create(ctx context.Context, actorID uint64, familyID uint64, req dto.CreateMemberRequest, audit AuditInput) (*vo.Member, *apperrors.BusinessError) {
@@ -87,6 +92,18 @@ func (s *memberService) Create(ctx context.Context, actorID uint64, familyID uin
 	}
 	values, businessErr := memberValues(req.Gender, req.BirthDate, req.BirthYear, req.DeathDate, req.DeathYear, req.IsAlive, req.AvatarURL, req.Description, req.UserBindingPolicy)
 	if businessErr != nil {
+		return nil, businessErr
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID,
+		Scene:  contentsafety.SceneProfile,
+		Fields: contentsafety.MergeFields(
+			contentsafety.StringField("member_name", name),
+			contentsafety.OptionalField("member_description", req.Description),
+		),
+		FamilyID: &familyID,
+		IP:       audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
 		return nil, businessErr
 	}
 	member := &membermodel.FamilyMember{
@@ -187,6 +204,18 @@ func (s *memberService) Update(ctx context.Context, actorID uint64, familyID uin
 	if businessErr != nil {
 		return nil, businessErr
 	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID,
+		Scene:  contentsafety.SceneProfile,
+		Fields: contentsafety.MergeFields(
+			contentsafety.OptionalField("member_name", req.Name),
+			contentsafety.OptionalField("member_description", req.Description),
+		),
+		FamilyID: &familyID,
+		IP:       audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
 	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
 		family, err := txRepo.LockFamily(ctx, familyID)
@@ -269,6 +298,13 @@ func (s *memberService) Update(ctx context.Context, actorID uint64, familyID uin
 func (s *memberService) Delete(ctx context.Context, actorID uint64, familyID uint64, memberID uint64, req dto.DeleteMemberRequest, audit AuditInput) *apperrors.BusinessError {
 	if allowed, err := s.permissions.CanDeleteMember(ctx, actorID, familyID, memberID); err != nil || !allowed {
 		return memberError(CodeMemberDeleteForbidden, "无权删除成员")
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("delete_reason", req.Reason),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return businessErr
 	}
 	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
@@ -396,6 +432,13 @@ func (s *memberService) BindUser(ctx context.Context, actorID uint64, familyID u
 func (s *memberService) UnbindUser(ctx context.Context, actorID uint64, familyID uint64, memberID uint64, req dto.UnbindUserRequest, audit AuditInput) (*vo.Member, *apperrors.BusinessError) {
 	if allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !allowed {
 		return nil, memberError(CodeMemberEditForbidden, "无权解绑成员用户")
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("unbind_reason", req.Reason),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
 	}
 	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)

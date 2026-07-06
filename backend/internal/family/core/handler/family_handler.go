@@ -207,15 +207,17 @@ func audit(ctx *gin.Context) familyservice.AuditInput {
 
 func writeResult[T any](ctx *gin.Context, result T, businessErr *apperrors.BusinessError) {
 	if businessErr != nil {
-		status := http.StatusBadRequest
-		if businessErr.Code == familyservice.CodeFamilyDetailForbidden ||
-			businessErr.Code == familyservice.CodeFamilyUpdateForbidden ||
-			businessErr.Code == familyservice.CodeFamilyLeaveForbidden ||
-			businessErr.Code == familyservice.CodeFamilyDissolutionForbidden {
-			status = http.StatusForbidden
-		}
-		if businessErr.Code == familyservice.CodeFamilyNotFound || businessErr.Code == apperrors.CodeResourceNotFound {
-			status = http.StatusNotFound
+		status := apperrors.StatusOr(businessErr.Code, http.StatusBadRequest)
+		if status == http.StatusBadRequest {
+			if businessErr.Code == familyservice.CodeFamilyDetailForbidden ||
+				businessErr.Code == familyservice.CodeFamilyUpdateForbidden ||
+				businessErr.Code == familyservice.CodeFamilyLeaveForbidden ||
+				businessErr.Code == familyservice.CodeFamilyDissolutionForbidden {
+				status = http.StatusForbidden
+			}
+			if businessErr.Code == familyservice.CodeFamilyNotFound || businessErr.Code == apperrors.CodeResourceNotFound {
+				status = http.StatusNotFound
+			}
 		}
 		response.Error(ctx, status, businessErr)
 		return

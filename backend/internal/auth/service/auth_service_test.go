@@ -11,6 +11,7 @@ import (
 
 	authrepo "tree/backend/internal/auth/repository"
 	"tree/backend/internal/common/config"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	commonjwt "tree/backend/internal/common/jwt"
@@ -100,7 +101,7 @@ func authTestManager(t *testing.T) *commonjwt.Manager {
 
 func newPhoneService(t *testing.T, users *userRepoFake, codes *codeRepoFake, logs *authLogCapture) *PhoneAuthService {
 	t.Helper()
-	return NewPhoneAuthService(nil, users, codes, nil, authTestManager(t), nil, logs, &config.Config{
+	return NewPhoneAuthService(nil, users, codes, nil, authTestManager(t), nil, logs, contentsafety.AlwaysPass(), &config.Config{
 		App:        config.AppConfig{Env: "test"},
 		VerifyCode: config.VerifyCodeConfig{ExpireSeconds: 300, CooldownSeconds: 60},
 	})

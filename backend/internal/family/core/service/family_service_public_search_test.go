@@ -10,6 +10,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/family/core/dto"
 	familymodel "tree/backend/internal/family/core/model"
 	familyrepo "tree/backend/internal/family/core/repository"
@@ -62,7 +63,7 @@ func insertPublicSearchFamily(t *testing.T, tx *gorm.DB, family familymodel.Fami
 }
 
 func publicSearchService(tx *gorm.DB) FamilyService {
-	return NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil)
+	return NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil, contentsafety.AlwaysPass())
 }
 
 func TestListPublicFamiliesVisibilityRules(t *testing.T) {

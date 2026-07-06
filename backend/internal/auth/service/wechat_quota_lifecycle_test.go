@@ -10,6 +10,7 @@ import (
 	quotaenum "tree/backend/internal/accountquota/enum"
 	authrepo "tree/backend/internal/auth/repository"
 	"tree/backend/internal/common/config"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	commonjwt "tree/backend/internal/common/jwt"
@@ -37,6 +38,7 @@ func newFreshQuotaAuthService(t *testing.T, tx *gorm.DB, wechatClient *freshquot
 		manager,
 		nil,
 		nil,
+		contentsafety.AlwaysPass(),
 		&config.Config{
 			App:        config.AppConfig{Env: "test"},
 			Wechat:     config.WechatConfig{MiniAppID: "fresh-quota-test-app"},

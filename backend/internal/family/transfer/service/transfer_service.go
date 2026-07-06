@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	quotaservice "tree/backend/internal/accountquota/service"
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	transferdto "tree/backend/internal/family/transfer/dto"
@@ -43,17 +44,28 @@ type Service interface {
 }
 
 type service struct {
-	repo  transferrepo.Repository
-	uow   transferrepo.UnitOfWork
-	quota quotaservice.Service
-	now   func() time.Time
+	repo          transferrepo.Repository
+	uow           transferrepo.UnitOfWork
+	quota         quotaservice.Service
+	contentSafety contentsafety.Service
+	now           func() time.Time
 }
 
-func NewService(repo transferrepo.Repository, uow transferrepo.UnitOfWork, quota quotaservice.Service) Service {
-	return &service{repo: repo, uow: uow, quota: quota, now: time.Now}
+func NewService(repo transferrepo.Repository, uow transferrepo.UnitOfWork, quota quotaservice.Service, contentSafety contentsafety.Service) Service {
+	if contentSafety == nil {
+		contentSafety = contentsafety.FailClosed()
+	}
+	return &service{repo: repo, uow: uow, quota: quota, contentSafety: contentSafety, now: time.Now}
 }
 
 func (s *service) Create(ctx context.Context, actorID uint64, familyID uint64, req transferdto.CreateTransferRequest, audit AuditInput) (*vo.TransferRequest, *apperrors.BusinessError) {
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("request_reason", req.RequestReason),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
 	var requestID uint64
 	err := s.uow.WithinTransaction(ctx, func(repo transferrepo.Repository) error {
 		family, err := repo.FindFamily(ctx, familyID, true)
@@ -128,6 +140,13 @@ func (s *service) Current(ctx context.Context, actorID uint64, familyID uint64) 
 }
 
 func (s *service) Cancel(ctx context.Context, actorID uint64, familyID uint64, requestID uint64, req transferdto.CancelTransferRequest, audit AuditInput) (*vo.TransferRequest, *apperrors.BusinessError) {
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID: actorID, Scene: contentsafety.SceneSocial,
+		Fields: contentsafety.OptionalField("cancel_reason", req.CancelReason),
+		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
 	err := s.uow.WithinTransaction(ctx, func(repo transferrepo.Repository) error {
 		request, err := repo.FindByID(ctx, requestID, true)
 		if err != nil || request.FamilyID != familyID {

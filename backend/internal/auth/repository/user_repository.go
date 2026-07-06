@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ type UserRepository interface {
 	CreateIdentity(ctx context.Context, identity *model.UserAuthIdentity) error
 	FindIdentityByOpenIDHash(ctx context.Context, provider string, appID string, openIDHash string) (*model.UserAuthIdentity, error)
 	HasActiveWechatMiniIdentity(ctx context.Context, userID uint64, appID string) (bool, error)
+	FindActiveWechatMiniOpenID(ctx context.Context, userID uint64, appID string) (string, error)
 	UpdateIdentity(ctx context.Context, identityID uint64, values map[string]any) error
 	CancelActiveIdentities(ctx context.Context, userID uint64) error
 	MoveIdentities(ctx context.Context, sourceUserID uint64, targetUserID uint64) error
@@ -105,17 +107,34 @@ func (r *GormUserRepository) CreateIdentity(ctx context.Context, identity *model
 const wechatMiniProvider = "WECHAT_MINI"
 
 func (r *GormUserRepository) HasActiveWechatMiniIdentity(ctx context.Context, userID uint64, appID string) (bool, error) {
-	if strings.TrimSpace(appID) == "" {
-		return false, nil
+	openid, err := r.FindActiveWechatMiniOpenID(ctx, userID, appID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
 	}
-	var count int64
-	err := r.db.WithContext(ctx).Model(&model.UserAuthIdentity{}).
+	return openid != "", nil
+}
+
+func (r *GormUserRepository) FindActiveWechatMiniOpenID(ctx context.Context, userID uint64, appID string) (string, error) {
+	var identity model.UserAuthIdentity
+	query := r.db.WithContext(ctx).
 		Where(
-			"user_id = ? AND provider = ? AND provider_app_id = ? AND identity_status = ? AND deleted_at IS NULL",
-			userID, wechatMiniProvider, appID, string(enums.StatusActive),
-		).
-		Count(&count).Error
-	return count > 0, err
+			"user_id = ? AND provider = ? AND identity_status = ? AND deleted_at IS NULL",
+			userID, wechatMiniProvider, string(enums.StatusActive),
+		)
+	if strings.TrimSpace(appID) != "" {
+		query = query.Where("provider_app_id = ?", appID)
+	}
+	err := query.Order("id DESC").First(&identity).Error
+	if err != nil {
+		return "", err
+	}
+	if identity.OpenID == nil || strings.TrimSpace(*identity.OpenID) == "" {
+		return "", gorm.ErrRecordNotFound
+	}
+	return strings.TrimSpace(*identity.OpenID), nil
 }
 
 func (r *GormUserRepository) FindIdentityByOpenIDHash(ctx context.Context, provider string, appID string, openIDHash string) (*model.UserAuthIdentity, error) {
