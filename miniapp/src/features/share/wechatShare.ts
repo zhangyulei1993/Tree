@@ -14,6 +14,12 @@ export interface WechatSharePayload {
   imageUrl: string
 }
 
+export interface WechatTimelineSharePayload {
+  title: string
+  query: string
+  imageUrl: string
+}
+
 export function buildContentDetailSharePath(articleId: string | number): string {
   const normalized = String(articleId).trim()
   return `/pages/content/detail?id=${encodeURIComponent(normalized)}`
@@ -65,6 +71,18 @@ export function buildPublicFamilySharePayload(input: {
   return {
     title: `${familyName}｜公开家庭主页`,
     path: buildPublicFamilySharePath(input.id),
+    imageUrl: DEFAULT_MINI_PROGRAM_SHARE_IMAGE
+  }
+}
+
+export function buildPublicFamilyTimelinePayload(input: {
+  id: string | number
+  familyName: string
+}): WechatTimelineSharePayload {
+  const familyName = input.familyName.trim() || '公开家庭'
+  return {
+    title: `${familyName}｜公开家庭主页`,
+    query: `familyId=${encodeURIComponent(String(input.id).trim())}`,
     imageUrl: DEFAULT_MINI_PROGRAM_SHARE_IMAGE
   }
 }

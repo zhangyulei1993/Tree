@@ -62,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
+import { onLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -73,7 +73,10 @@ import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
-import { buildPublicFamilySharePayload } from '@/features/share/wechatShare'
+import {
+  buildPublicFamilySharePayload,
+  buildPublicFamilyTimelinePayload
+} from '@/features/share/wechatShare'
 import type { PublicFamily } from '@/types/api'
 
 const familyId = ref('')
@@ -165,6 +168,11 @@ onLoad((options) => {
 })
 
 onShareAppMessage(() => buildPublicFamilySharePayload({
+  id: family.value?.id || familyId.value,
+  familyName: family.value?.familyName || '公开家庭'
+}))
+
+onShareTimeline(() => buildPublicFamilyTimelinePayload({
   id: family.value?.id || familyId.value,
   familyName: family.value?.familyName || '公开家庭'
 }))
