@@ -30,23 +30,36 @@ function toggle() {
 
 <style scoped>
 .auth-legal-consent {
-  margin-top: 20rpx;
+  border-radius: 18rpx;
+  background: rgba(47, 107, 87, 0.045);
+  padding: 18rpx 16rpx;
 }
 
 .consent-row {
   display: flex;
-  align-items: flex-start;
-  gap: 12rpx;
+  align-items: center;
+  gap: 10rpx;
+  min-height: 52rpx;
+}
+
+.consent-row:active {
+  opacity: 0.78;
+}
+
+checkbox {
+  flex-shrink: 0;
+  transform: scale(0.86);
 }
 
 .consent-text {
   flex: 1;
   color: var(--tree-text-secondary);
   font-size: 24rpx;
-  line-height: 1.7;
+  line-height: 1.65;
 }
 
 .consent-link {
   color: var(--tree-green);
+  font-weight: 600;
 }
 </style>

@@ -124,17 +124,28 @@
     <view class="home-privacy">
       <text>家庭资料仅在授权范围内可见，公开展示需经过审核。</text>
     </view>
+
+    <!-- #ifdef MP-WEIXIN -->
+    <view class="share-mini-card">
+      <view class="share-mini-copy">
+        <text class="share-mini-title">分享小程序</text>
+        <text class="share-mini-desc">邀请亲友一起记录家族、连接亲人</text>
+      </view>
+      <button class="wechat-share-button wechat-share-button--compact" open-type="share">分享给微信好友</button>
+    </view>
+    <!-- #endif -->
   </view>
 </template>
 
 <script setup lang="ts">
-import { onLoad, onShow } from '@dcloudio/uni-app'
+import { onLoad, onShareAppMessage, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { listContentArticles, listContentCategories } from '@/api/content'
 import { listPublicFamilyShowcase } from '@/api/families'
 import { promptPrivacyConsentIfNeeded } from '@/features/legal/privacyConsent'
 import { openWechatOfficialArticle } from '@/features/content/wechatOfficialArticle'
+import { buildHomeSharePayload } from '@/features/share/wechatShare'
 import { useSessionStore } from '@/stores/session'
 import FamilyMiniCard from '@/components/family/FamilyMiniCard.vue'
 import type { ContentArticleSummary, ContentCategory, PublicFamilyShowcaseItem } from '@/types/api'
@@ -226,6 +237,8 @@ onLoad(() => {
   loadReading()
   loadShowcasePreview()
 })
+
+onShareAppMessage(() => buildHomeSharePayload())
 
 onShow(() => {
   promptPrivacyConsentIfNeeded()
@@ -961,5 +974,37 @@ onShow(() => {
   color: var(--tree-text-weak);
   font-size: 20rpx;
   line-height: 1.7;
+}
+
+.share-mini-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin: 0 0 24rpx;
+  padding: 24rpx;
+  border-radius: 30rpx;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 250, 247, 0.96) 100%);
+  box-shadow: 0 14rpx 34rpx rgba(31, 58, 95, 0.08);
+}
+
+.share-mini-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.share-mini-title {
+  display: block;
+  color: var(--tree-text-primary);
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.share-mini-desc {
+  display: block;
+  margin-top: 6rpx;
+  color: var(--tree-text-secondary);
+  font-size: 22rpx;
+  line-height: 1.5;
 }
 </style>

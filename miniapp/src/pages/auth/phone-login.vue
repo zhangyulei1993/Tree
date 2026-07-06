@@ -5,7 +5,7 @@
       <text class="tree-auth-brand-desc">使用已绑定的手机号与密码登录，作为微信登录的备用方式</text>
     </view>
 
-    <MiniCard variant="soft" class="tree-auth-card">
+    <view class="tree-auth-card">
       <text class="tree-field-label">手机号</text>
       <input
         v-model.trim="phone"
@@ -24,12 +24,12 @@
         placeholder="请输入登录密码"
       />
 
-      <AuthLegalConsent v-model="legalAccepted" />
+      <AuthLegalConsent v-model="legalAccepted" class="phone-legal-consent" />
 
       <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
 
       <view class="btn-stack">
-        <MiniButton :disabled="submitting || !legalAccepted" :loading="submitting" @click="submitLogin">
+        <MiniButton :disabled="submitting" :loading="submitting" @click="submitLogin">
           登录
         </MiniButton>
       </view>
@@ -38,7 +38,7 @@
         <text class="tree-muted">推荐使用微信快捷登录。</text>
         <text class="auth-switch-link" @click="goWechatLogin">返回微信登录</text>
       </view>
-    </MiniCard>
+    </view>
   </view>
 </template>
 
@@ -47,7 +47,6 @@ import { ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import AuthLegalConsent from '@/components/legal/AuthLegalConsent.vue'
 import { ensurePrivacyConsentForLogin } from '@/features/legal/privacyConsent'
 import { useSessionStore } from '@/stores/session'
@@ -105,18 +104,21 @@ function goWechatLogin() {
   margin-top: 22rpx;
 }
 
+.phone-legal-consent {
+  margin-top: 22rpx;
+}
+
 .auth-page {
-  background:
-    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.16), transparent 260rpx),
-    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.10), transparent 300rpx);
+  background: #f3f6f3;
 }
 
 .tree-auth-card {
-  border-color: rgba(255, 255, 255, 0.72);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.10), transparent 180rpx),
-    rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18rpx 44rpx rgba(24, 54, 83, 0.08);
+  margin-bottom: 24rpx;
+  border: 1rpx solid rgba(216, 229, 220, 0.86);
+  border-radius: var(--tree-radius-lg);
+  background: rgba(250, 252, 251, 0.96);
+  overflow: hidden;
+  box-shadow: none;
 }
 
 .auth-switch {
@@ -127,6 +129,9 @@ function goWechatLogin() {
 }
 
 .auth-switch-link {
+  display: inline-flex;
+  min-height: 60rpx;
+  align-items: center;
   color: var(--tree-green);
   font-size: 26rpx;
   font-weight: 600;

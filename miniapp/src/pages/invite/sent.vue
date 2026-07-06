@@ -129,6 +129,7 @@ import {
   listFamilyInvitations,
   regenerateInvitation
 } from '@/api/invitations'
+import { buildHomeSharePayload, buildInviteSharePayload } from '@/features/share/wechatShare'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
@@ -303,15 +304,14 @@ function clearShareResult() {
 
 onShareAppMessage(() => {
   const invitation = shareResult.value?.invitation
-  return {
-    title: invitation
-      ? `${invitation.familyName} 邀请你确认「${invitation.targetMemberName}」身份并加入家谱`
-      : 'Tree 家脉亲缘',
-    path: shareResult.value
-      ? `/pages/invite/detail?inviteToken=${encodeURIComponent(shareResult.value.inviteToken)}`
-      : '/pages/home/index',
-    imageUrl: '/static/share/family-invitation.jpg'
+  if (shareResult.value && invitation) {
+    return buildInviteSharePayload({
+      inviteToken: shareResult.value.inviteToken,
+      familyName: invitation.familyName,
+      targetMemberName: invitation.targetMemberName
+    })
   }
+  return buildHomeSharePayload()
 })
 
 onLoad((options) => {

@@ -39,17 +39,26 @@ page {
 
 .auth-page {
   overflow-x: hidden;
-  background: linear-gradient(180deg, #f6efe5 0%, #f1f6f3 48%, #edf4f4 100%) !important;
+  padding-top: 36rpx;
+  background: #f3f6f3 !important;
 }
 
 .auth-page::before,
 .auth-page::after {
   display: none !important;
   content: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
 }
 
 .auth-page .mini-back-home {
   display: none !important;
+}
+
+.auth-page .mini-card.soft {
+  background: rgba(250, 252, 251, 0.98) !important;
+  box-shadow: none !important;
 }
 
 .card,

@@ -5,12 +5,12 @@
       <text class="tree-auth-brand-desc">使用微信授权，快速进入家脉亲缘</text>
     </view>
 
-    <MiniCard variant="soft" class="tree-auth-card">
+    <view class="tree-auth-card">
       <AuthLegalConsent v-model="legalAccepted" />
       <template v-if="isRealApiMode && isMpWeixin">
         <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
         <view class="btn-stack">
-          <MiniButton :disabled="submitting || !legalAccepted" :loading="submitting" @click="loginWithWechat">
+          <MiniButton :disabled="submitting" :loading="submitting" @click="loginWithWechat">
             微信登录
           </MiniButton>
         </view>
@@ -28,7 +28,7 @@
       <view v-if="isRealApiMode" class="tree-auth-foot auth-switch">
         <text class="auth-switch-link" @click="goPhoneLogin">使用手机号密码登录</text>
       </view>
-    </MiniCard>
+    </view>
   </view>
 </template>
 
@@ -37,7 +37,6 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage, isRealApiMode } from '@/api/client'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import AuthLegalConsent from '@/components/legal/AuthLegalConsent.vue'
 import { ensurePrivacyConsentForLogin } from '@/features/legal/privacyConsent'
 import { isMpWeixinPlatform, resolveWechatLoginUnsupportedMessage } from '@/features/session/wechatLogin'
@@ -89,17 +88,16 @@ function goPhoneLogin() {
 }
 
 .auth-page {
-  background:
-    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.16), transparent 260rpx),
-    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.10), transparent 300rpx);
+  background: #f3f6f3;
 }
 
 .tree-auth-card {
-  border-color: rgba(255, 255, 255, 0.72);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.10), transparent 180rpx),
-    rgba(255, 255, 255, 0.94);
-  box-shadow: 0 18rpx 44rpx rgba(24, 54, 83, 0.08);
+  margin-bottom: 24rpx;
+  border: 1rpx solid rgba(216, 229, 220, 0.86);
+  border-radius: var(--tree-radius-lg);
+  background: rgba(250, 252, 251, 0.96);
+  overflow: hidden;
+  box-shadow: none;
 }
 
 .auth-switch {
@@ -108,6 +106,9 @@ function goPhoneLogin() {
 }
 
 .auth-switch-link {
+  display: inline-flex;
+  min-height: 60rpx;
+  align-items: center;
   color: var(--tree-green);
   font-size: 26rpx;
   font-weight: 600;

@@ -31,12 +31,19 @@
           {{ paragraph }}
         </text>
       </view>
+
+      <!-- #ifdef MP-WEIXIN -->
+      <view v-if="article" class="article-share-card">
+        <text class="article-share-label">觉得有帮助？</text>
+        <button class="wechat-share-button" open-type="share">分享给微信好友</button>
+      </view>
+      <!-- #endif -->
     </template>
   </view>
 </template>
 
 <script setup lang="ts">
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShareAppMessage } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -46,6 +53,7 @@ import MiniButton from '@/components/base/MiniButton.vue'
 import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import { openWechatOfficialArticle } from '@/features/content/wechatOfficialArticle'
+import { buildArticleSharePayload } from '@/features/share/wechatShare'
 import type { ContentArticleDetail } from '@/types/api'
 
 const articleId = ref('')
@@ -73,6 +81,17 @@ function goBack() {
 onLoad((options) => {
   articleId.value = String(options?.id || '').trim()
   void loadArticle()
+})
+
+onShareAppMessage(() => {
+  if (!article.value) {
+    return buildArticleSharePayload({ id: articleId.value || '0', title: '阅读精选' })
+  }
+  return buildArticleSharePayload({
+    id: article.value.id,
+    title: article.value.title,
+    coverUrl: article.value.coverUrl
+  })
 })
 
 async function loadArticle() {
@@ -175,5 +194,20 @@ async function openOfficialArticle() {
 
 .article-paragraph:last-child {
   margin-bottom: 0;
+}
+
+.article-share-card {
+  margin-top: 20rpx;
+  border-radius: var(--tree-radius-lg);
+  background: #fff;
+  padding: 24rpx;
+  box-shadow: 0 2rpx 14rpx rgba(15, 23, 42, 0.04);
+}
+
+.article-share-label {
+  display: block;
+  margin-bottom: 16rpx;
+  color: var(--tree-text-secondary);
+  font-size: 24rpx;
 }
 </style>
