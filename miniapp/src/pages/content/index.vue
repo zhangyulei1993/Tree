@@ -1,15 +1,12 @@
 <template>
-  <view class="tree-page content-page">
-    <view class="reading-hero">
-      <view class="hero-text">
-        <text class="hero-kicker">Tree Reading</text>
-        <text class="hero-title">阅读</text>
-        <text class="hero-desc">故事、典故、教程与宗亲文章，帮助你更好地整理家庭记忆。</text>
+  <view class="archive-page content-page">
+    <view class="reading-head archive-page-head">
+      <view>
+        <text class="archive-kicker">Tree Reading</text>
+        <text class="archive-title">阅读</text>
+        <text class="archive-subtitle">故事、典故、教程与宗亲文章，帮助你整理家庭记忆。</text>
       </view>
-      <view class="hero-book" aria-hidden="true">
-        <view class="book-page book-page-left" />
-        <view class="book-page book-page-right" />
-      </view>
+      <view class="archive-seal">读</view>
     </view>
 
     <scroll-view class="category-scroll" scroll-x>
@@ -28,15 +25,12 @@
 
     <view
       v-if="spotlightArticle"
-      class="spotlight-card"
+      class="spotlight-card archive-panel"
       @click="goArticle(spotlightArticle)"
     >
-      <view class="spotlight-art">
-        <view class="art-line art-line-a" />
-        <view class="art-line art-line-b" />
-        <view class="art-dot art-dot-a" />
-        <view class="art-dot art-dot-b" />
-        <view class="art-dot art-dot-c" />
+      <view class="spotlight-spine">
+        <text>卷</text>
+        <text>首</text>
       </view>
       <view class="spotlight-copy">
         <view class="spotlight-meta">
@@ -52,24 +46,28 @@
         <text class="spotlight-title">{{ spotlightArticle.title }}</text>
         <text class="spotlight-summary">{{ spotlightArticle.summary }}</text>
       </view>
+      <text class="archive-arrow spotlight-arrow">›</text>
     </view>
 
     <view class="article-section">
       <view class="section-head">
-        <text class="section-title">{{ listTitle }}</text>
+        <view>
+          <text class="archive-kicker">Catalog</text>
+          <text class="section-title">{{ listTitle }}</text>
+        </view>
         <text class="section-count">{{ articles.length }} 篇</text>
       </view>
 
-      <view v-if="loading" class="content-state">
+      <view v-if="loading" class="content-state archive-form-panel">
         <MiniEmptyState title="正在加载内容" description="正在读取阅读列表，请稍候。" />
       </view>
 
-      <view v-else-if="error" class="content-state">
+      <view v-else-if="error" class="content-state archive-form-panel">
         <MiniNotice tone="warm" title="阅读列表加载失败">{{ error }}</MiniNotice>
         <MiniButton variant="secondary" class="retry-button" @click="loadArticles">重新加载</MiniButton>
       </view>
 
-      <view v-else-if="articles.length === 0" class="content-state">
+      <view v-else-if="articles.length === 0" class="content-state archive-form-panel">
         <MiniEmptyState title="暂无内容" description="当前分类暂时没有已发布文章。" />
       </view>
 
@@ -77,25 +75,30 @@
         <view v-if="displayArticles.length === 0" class="content-note">
           <text>当前分类暂无更多文章，可先阅读上方精选内容。</text>
         </view>
-        <view
-          v-for="article in displayArticles"
-          :key="article.id"
-          class="article-card"
-          @click="goArticle(article)"
-        >
-          <view class="article-leading" :class="`article-leading-${article.categoryKey}`">
-            <text>{{ categoryShort(article.categoryKey) }}</text>
-          </view>
-          <view class="article-copy">
-            <view class="article-meta">
-              <view class="article-tags">
-                <text class="article-tag">{{ article.categoryName }}</text>
-                <text v-if="article.contentType === 'WECHAT_OFFICIAL'" class="article-tag article-tag-wechat">公众号</text>
-              </view>
-              <text class="article-read">{{ readMinutes(article) }} 分钟</text>
+        <view class="article-list archive-list">
+          <view
+            v-for="article in displayArticles"
+            :key="article.id"
+            class="article-row archive-row"
+            @click="goArticle(article)"
+          >
+            <view class="article-mark" :class="`article-mark-${article.categoryKey}`">
+              <text>{{ categoryShort(article.categoryKey) }}</text>
             </view>
-            <text class="article-title">{{ article.title }}</text>
-            <text class="article-summary">{{ article.summary }}</text>
+            <view class="archive-row-main article-copy">
+              <view class="article-meta">
+                <view class="article-tags">
+                  <text class="article-tag">{{ article.categoryName }}</text>
+                  <text v-if="article.contentType === 'WECHAT_OFFICIAL'" class="article-tag article-tag-wechat">
+                    公众号
+                  </text>
+                </view>
+                <text class="article-read">{{ readMinutes(article) }} 分钟</text>
+              </view>
+              <text class="archive-row-title article-title">{{ article.title }}</text>
+              <text class="archive-row-desc article-summary">{{ article.summary }}</text>
+            </view>
+            <text class="archive-arrow">›</text>
           </view>
         </view>
       </template>
@@ -204,140 +207,61 @@ async function goArticle(article: ContentArticleSummary) {
 
 <style scoped>
 .content-page {
-  background:
-    radial-gradient(circle at 92% 5%, rgba(47, 107, 87, 0.08), transparent 240rpx),
-    radial-gradient(circle at 8% 30%, rgba(31, 58, 95, 0.06), transparent 260rpx);
+  padding-top: 28rpx;
 }
 
-.reading-hero {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  margin-bottom: 22rpx;
-  border: 1rpx solid rgba(148, 163, 184, 0.14);
-  border-radius: 32rpx;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(243, 250, 247, 0.96) 56%, rgba(238, 246, 252, 0.94) 100%);
-  padding: 32rpx 28rpx;
-  overflow: hidden;
-  box-shadow: 0 16rpx 44rpx rgba(31, 58, 95, 0.07);
-}
-
-.hero-text {
-  position: relative;
-  z-index: 1;
-  flex: 1;
-  min-width: 0;
-}
-
-.hero-kicker {
-  display: block;
-  color: var(--tree-green);
-  font-size: 20rpx;
-  font-weight: 800;
-  letter-spacing: 3rpx;
-}
-
-.hero-title {
-  display: block;
-  margin-top: 10rpx;
-  color: var(--tree-text-primary);
-  font-size: 46rpx;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.hero-desc {
-  display: block;
-  margin-top: 12rpx;
-  color: var(--tree-text-secondary);
-  font-size: 24rpx;
-  line-height: 1.58;
-}
-
-.hero-book {
-  position: relative;
-  width: 132rpx;
-  height: 130rpx;
-  flex-shrink: 0;
-}
-
-.book-page {
-  position: absolute;
-  top: 22rpx;
-  width: 54rpx;
-  height: 82rpx;
-  border: 2rpx solid rgba(31, 58, 95, 0.18);
-  background: rgba(255, 255, 255, 0.76);
-  box-shadow: 0 8rpx 22rpx rgba(31, 58, 95, 0.06);
-}
-
-.book-page-left {
-  left: 16rpx;
-  border-radius: 16rpx 8rpx 8rpx 16rpx;
-  transform: rotate(-8deg);
-}
-
-.book-page-right {
-  right: 16rpx;
-  border-radius: 8rpx 16rpx 16rpx 8rpx;
-  transform: rotate(8deg);
+.reading-head {
+  margin-bottom: 18rpx;
 }
 
 .category-scroll {
   width: 100%;
-  margin-bottom: 20rpx;
+  margin-bottom: 22rpx;
   white-space: nowrap;
 }
 
 .category-row {
   display: inline-flex;
-  gap: 12rpx;
-  padding: 2rpx 2rpx 4rpx;
+  gap: 22rpx;
+  padding: 0 2rpx 8rpx;
 }
 
 .category-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 126rpx;
-  border: 1rpx solid rgba(148, 163, 184, 0.16);
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.82);
-  padding: 14rpx 22rpx;
-  box-shadow: 0 6rpx 18rpx rgba(31, 58, 95, 0.035);
+  min-width: 104rpx;
+  border-bottom: 1rpx solid var(--archive-line);
+  padding: 12rpx 4rpx 16rpx;
 }
 
 .category-chip.active {
-  border-color: rgba(47, 107, 87, 0.18);
-  background: linear-gradient(135deg, rgba(31, 58, 95, 0.95) 0%, rgba(47, 107, 87, 0.92) 100%);
+  border-bottom-color: var(--archive-cinnabar);
 }
 
 .category-chip text {
-  color: var(--tree-text-secondary);
+  color: var(--archive-ink-soft);
   font-size: 23rpx;
-  font-weight: 700;
+  font-weight: 650;
   white-space: nowrap;
 }
 
 .category-chip.active text {
-  color: #fff;
+  color: var(--archive-cinnabar);
 }
 
 .spotlight-card {
   position: relative;
+  display: flex;
+  gap: 24rpx;
   margin-bottom: 22rpx;
-  border-radius: 32rpx;
-  background:
-    linear-gradient(142deg, rgba(31, 58, 95, 0.96) 0%, rgba(47, 107, 87, 0.92) 100%);
-  padding: 28rpx;
+  padding: 24rpx 34rpx 24rpx 0;
   overflow: hidden;
-  box-shadow: 0 18rpx 46rpx rgba(31, 58, 95, 0.12);
 }
 
 .spotlight-card:active,
-.article-card:active {
+.article-row:active {
   transform: scale(0.992);
   opacity: 0.96;
 }
@@ -346,68 +270,25 @@ async function goArticle(article: ContentArticleSummary) {
   opacity: 0.92;
 }
 
-.spotlight-art {
-  position: absolute;
-  right: -8rpx;
-  top: 14rpx;
-  width: 180rpx;
-  height: 160rpx;
-  opacity: 0.48;
-}
-
-.art-line {
-  position: absolute;
-  height: 3rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.34);
-}
-
-.art-line-a {
-  top: 64rpx;
-  left: 42rpx;
-  width: 84rpx;
-  transform: rotate(24deg);
-}
-
-.art-line-b {
-  top: 92rpx;
-  left: 42rpx;
-  width: 84rpx;
-  transform: rotate(-24deg);
-}
-
-.art-dot {
-  position: absolute;
-  border-radius: 50%;
-  border: 3rpx solid rgba(255, 255, 255, 0.78);
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.art-dot-a {
-  left: 24rpx;
-  top: 64rpx;
-  width: 22rpx;
-  height: 22rpx;
-}
-
-.art-dot-b {
-  right: 40rpx;
-  top: 34rpx;
-  width: 28rpx;
-  height: 28rpx;
-}
-
-.art-dot-c {
-  right: 34rpx;
-  bottom: 28rpx;
-  width: 20rpx;
-  height: 20rpx;
+.spotlight-spine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6rpx;
+  align-self: stretch;
+  width: 58rpx;
+  background: var(--archive-blue);
+  color: rgba(255, 255, 255, 0.88);
+  padding-top: 24rpx;
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 24rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
 }
 
 .spotlight-copy {
-  position: relative;
-  z-index: 1;
-  max-width: 500rpx;
+  flex: 1;
+  min-width: 0;
 }
 
 .spotlight-meta {
@@ -419,12 +300,12 @@ async function goArticle(article: ContentArticleSummary) {
 
 .spotlight-badge {
   display: inline-flex;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.13);
-  color: rgba(255, 255, 255, 0.82);
-  padding: 6rpx 14rpx;
+  border: 1rpx solid var(--archive-cinnabar);
+  color: var(--archive-cinnabar);
+  padding: 5rpx 12rpx;
   font-size: 20rpx;
-  font-weight: 800;
+  font-weight: 650;
+  letter-spacing: 1rpx;
 }
 
 .spotlight-badges,
@@ -435,38 +316,46 @@ async function goArticle(article: ContentArticleSummary) {
 }
 
 .spotlight-badge-wechat {
-  background: rgba(82, 196, 26, 0.18);
-  color: rgba(236, 255, 229, 0.92);
+  border-color: var(--archive-blue);
+  color: var(--archive-blue);
 }
 
 .spotlight-read {
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--archive-ink-soft);
   font-size: 21rpx;
 }
 
 .spotlight-category {
   display: block;
   margin-top: 18rpx;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--archive-ink-soft);
   font-size: 22rpx;
-  font-weight: 700;
+  font-weight: 650;
 }
 
 .spotlight-title {
   display: block;
   margin-top: 10rpx;
-  color: #fff;
-  font-size: 35rpx;
-  font-weight: 800;
+  color: var(--archive-ink);
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 34rpx;
+  font-weight: 700;
   line-height: 1.34;
 }
 
 .spotlight-summary {
   display: block;
   margin-top: 12rpx;
-  color: rgba(255, 255, 255, 0.76);
+  color: var(--archive-ink-soft);
   font-size: 24rpx;
   line-height: 1.62;
+}
+
+.spotlight-arrow {
+  position: absolute;
+  right: 12rpx;
+  top: 50%;
+  margin-top: -18rpx;
 }
 
 .article-section {
@@ -477,28 +366,27 @@ async function goArticle(article: ContentArticleSummary) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14rpx;
-  padding: 0 4rpx;
+  margin-bottom: 16rpx;
+  border-bottom: 1rpx solid var(--archive-line);
+  padding: 0 0 16rpx;
 }
 
 .section-title {
-  color: var(--tree-text-primary);
-  font-size: 31rpx;
-  font-weight: 800;
+  display: block;
+  margin-top: 4rpx;
+  color: var(--archive-ink);
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 32rpx;
+  font-weight: 700;
 }
 
 .section-count {
-  color: var(--tree-text-weak);
+  color: var(--archive-ink-soft);
   font-size: 21rpx;
 }
 
 .content-state {
   margin-top: 14rpx;
-  border: 1rpx solid rgba(148, 163, 184, 0.14);
-  border-radius: 28rpx;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 16rpx;
-  box-shadow: 0 10rpx 28rpx rgba(31, 58, 95, 0.04);
 }
 
 .retry-button {
@@ -506,62 +394,41 @@ async function goArticle(article: ContentArticleSummary) {
 }
 
 .content-note {
-  border: 1rpx solid rgba(216, 229, 220, 0.9);
-  border-radius: 24rpx;
-  background: rgba(244, 248, 245, 0.9);
+  border-top: 1rpx solid var(--archive-line);
+  border-bottom: 1rpx solid var(--archive-line);
   padding: 22rpx;
 }
 
 .content-note text {
-  color: var(--tree-text-secondary);
+  color: var(--archive-ink-soft);
   font-size: 24rpx;
   line-height: 1.7;
 }
 
-.article-card {
-  display: flex;
-  gap: 18rpx;
-  margin-bottom: 14rpx;
-  border: 1rpx solid rgba(148, 163, 184, 0.14);
-  border-radius: 28rpx;
-  background: rgba(255, 255, 255, 0.94);
-  padding: 22rpx;
-  box-shadow: 0 10rpx 28rpx rgba(31, 58, 95, 0.045);
+.article-row {
+  align-items: flex-start;
+  padding-top: 22rpx;
+  padding-bottom: 22rpx;
 }
 
-.article-leading {
+.article-mark {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 58rpx;
   height: 58rpx;
-  border-radius: 18rpx;
+  border: 2rpx solid var(--archive-cinnabar);
+  background: rgba(251, 246, 234, 0.62);
+  color: var(--archive-cinnabar);
   flex-shrink: 0;
+  transform: rotate(-2deg);
 }
 
-.article-leading text {
+.article-mark text {
+  color: inherit;
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
   font-size: 24rpx;
-  font-weight: 800;
-}
-
-.article-leading-tutorial {
-  background: #eef4fb;
-  color: var(--tree-primary);
-}
-
-.article-leading-story {
-  background: #fff2f7;
-  color: #9f5872;
-}
-
-.article-leading-surname {
-  background: #fff8e8;
-  color: #936f2f;
-}
-
-.article-leading-article {
-  background: #edf8f2;
-  color: var(--tree-green);
+  font-weight: 700;
 }
 
 .article-copy {
@@ -574,39 +441,37 @@ async function goArticle(article: ContentArticleSummary) {
   align-items: center;
   justify-content: space-between;
   gap: 12rpx;
-  margin-bottom: 7rpx;
+  margin-bottom: 8rpx;
 }
 
 .article-tag {
-  color: var(--tree-text-secondary);
+  color: var(--archive-ink-soft);
   font-size: 21rpx;
-  font-weight: 700;
+  font-weight: 650;
 }
 
 .article-tag-wechat {
-  border-radius: 999rpx;
-  background: rgba(47, 107, 87, 0.1);
-  color: var(--tree-green);
-  padding: 3rpx 10rpx;
+  color: var(--archive-blue);
 }
 
 .article-read {
-  color: var(--tree-text-weak);
+  color: var(--archive-ink-soft);
   font-size: 20rpx;
+  white-space: nowrap;
 }
 
 .article-title {
   display: block;
-  color: var(--tree-text-primary);
+  color: var(--archive-ink);
   font-size: 28rpx;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.4;
 }
 
 .article-summary {
   display: block;
   margin-top: 7rpx;
-  color: var(--tree-text-secondary);
+  color: var(--archive-ink-soft);
   font-size: 23rpx;
   line-height: 1.55;
 }

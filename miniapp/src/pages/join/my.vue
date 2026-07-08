@@ -1,83 +1,108 @@
 <template>
-  <view class="tree-page join-page">
+  <view class="archive-page join-my-page">
     <MiniBackHome />
+
+    <view class="join-head archive-page-head">
+      <view>
+        <text class="archive-kicker">Join Requests</text>
+        <text class="archive-title">我提交的加入申请</text>
+        <text class="archive-subtitle">查看申请进度与审核结果，待审核时可主动取消</text>
+      </view>
+      <view class="archive-seal">申</view>
+    </view>
+
     <template v-if="authChecked">
-      <MiniCard variant="hero" class="join-hero">
-        <MiniNotice tone="security">
-          申请信息仅家庭管理员可见，用于核实身份。审核结果会在此页面更新。
-        </MiniNotice>
+      <view class="join-summary">
+        <text class="archive-chip">审核中 {{ pendingCount }}</text>
         <MiniButton variant="secondary" size="sm" :disabled="loading" :loading="loading" @click="loadRequests">
           刷新列表
         </MiniButton>
-        <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
-      </MiniCard>
+      </view>
 
-      <MiniCard v-if="loading && requests.length === 0">
-        <view class="state-block">
-          <text class="tree-muted">正在加载加入申请...</text>
-        </view>
-      </MiniCard>
+      <MiniNotice tone="security" title="申请说明">
+        申请信息仅家庭管理员可见，用于核实身份。审核结果会在此页面更新。
+      </MiniNotice>
 
-      <MiniCard v-else-if="loadError && requests.length === 0">
-        <MiniEmptyState
-          symbol="!"
-          title="加载失败"
-          :description="loadError"
-          action-text="重新加载"
-          @action="loadRequests"
-        />
-      </MiniCard>
+      <view v-if="loading && requests.length === 0" class="join-state archive-form-panel">
+        <MiniEmptyState symbol="…" title="正在加载" description="正在同步加入申请..." />
+      </view>
 
-      <MiniCard v-else-if="requests.length === 0">
+      <view v-else-if="loadError && requests.length === 0" class="join-state archive-form-panel">
+        <MiniNotice tone="warm" title="加载失败">{{ loadError }}</MiniNotice>
+        <MiniButton variant="secondary" size="sm" class="join-action" @click="loadRequests">重新加载</MiniButton>
+      </view>
+
+      <view v-else-if="requests.length === 0" class="join-state archive-form-panel">
         <MiniEmptyState
           symbol="申"
           title="暂无加入申请"
           description="你提交的家庭加入申请会显示在这里。请家人发送家庭邀请。"
         />
-      </MiniCard>
+      </view>
 
       <template v-else>
-        <view v-for="group in requestGroups" :key="group.key" class="request-group">
-          <MiniSectionHeader :title="group.title" :subtitle="group.subtitle" />
-          <MiniCard v-for="item in group.items" :key="item.requestId" variant="soft" class="request-card">
-            <view class="item-head">
-              <view>
-                <text class="item-kicker">加入申请</text>
-                <text class="item-name">{{ item.familyName || '未知家庭' }}</text>
+        <view v-for="group in requestGroups" :key="group.key" class="join-group archive-form-panel">
+          <view class="archive-section-head">
+            <text class="archive-section-title">{{ group.title }}</text>
+            <text class="archive-section-subtitle">{{ group.subtitle }}</text>
+          </view>
+          <view class="join-list archive-list">
+            <view v-for="item in group.items" :key="item.requestId" class="join-item">
+              <view class="join-item-head">
+                <view class="archive-row-main">
+                  <text class="archive-row-title">{{ item.familyName || '未知家庭' }}</text>
+                  <text class="archive-row-desc">
+                    申请人：{{ item.applicantRealName || '未填写姓名' }}
+                  </text>
+                </view>
+                <text class="archive-status-tag" :class="joinStatusClass(item.requestStatus)">
+                  {{ joinRequestStatusText(item.requestStatus) }}
+                </text>
               </view>
-              <MiniStatusTag :status="item.requestStatus" :label="joinRequestStatusText(item.requestStatus)" />
+
+              <view class="join-meta">
+                <text>提交时间：{{ formatDate(item.createdAt) }}</text>
+                <text>处理结果：{{ handleResultText(item) }}</text>
+              </view>
+
+              <view v-if="expandedRequestId === item.requestId" class="join-detail">
+                <text>申请理由：{{ item.applicantMessage || '未填写' }}</text>
+                <text v-if="item.handleComment">审核意见：{{ item.handleComment }}</text>
+                <text v-if="item.cancelledAt" class="join-meta-weak">取消时间：{{ formatDate(item.cancelledAt) }}</text>
+                <text v-else-if="item.requestStatus !== 'PENDING'" class="join-meta-weak">
+                  更新时间：{{ formatDate(item.updatedAt) }}
+                </text>
+              </view>
+
+              <view class="join-actions">
+                <MiniButton
+                  v-if="item.requestStatus === 'PENDING'"
+                  size="sm"
+                  variant="secondary"
+                  :disabled="cancellingId === item.requestId"
+                  :loading="cancellingId === item.requestId"
+                  @click="confirmCancel(item)"
+                >
+                  取消申请
+                </MiniButton>
+                <MiniButton
+                  v-else-if="item.requestStatus === 'APPROVED'"
+                  size="sm"
+                  variant="secondary"
+                  @click="openMyFamilies"
+                >
+                  进入我的家庭
+                </MiniButton>
+                <MiniButton size="sm" variant="secondary" @click="toggleRequestDetail(item)">
+                  {{ expandedRequestId === item.requestId ? '收起详情' : '查看详情' }}
+                </MiniButton>
+              </view>
             </view>
-            <view class="request-detail-grid">
-              <text v-if="item.applicantRealName" class="item-meta">申请人：{{ item.applicantRealName }}</text>
-              <text class="item-meta full">申请理由：{{ item.applicantMessage || '未填写' }}</text>
-              <text v-if="item.handleComment" class="item-meta full">审核意见：{{ item.handleComment }}</text>
-              <text class="item-meta weak">提交时间：{{ formatDate(item.createdAt) }}</text>
-              <text v-if="item.cancelledAt" class="item-meta weak">取消时间：{{ formatDate(item.cancelledAt) }}</text>
-              <text v-else-if="item.requestStatus !== 'PENDING'" class="item-meta weak">
-                更新时间：{{ formatDate(item.updatedAt) }}
-              </text>
-            </view>
-            <view class="item-actions">
-              <MiniButton
-                v-if="item.requestStatus === 'PENDING'"
-                variant="danger"
-                :disabled="cancellingId === item.requestId"
-                :loading="cancellingId === item.requestId"
-                @click="confirmCancel(item)"
-              >
-                取消申请
-              </MiniButton>
-              <MiniButton
-                v-else-if="item.requestStatus === 'APPROVED'"
-                variant="secondary"
-                @click="openMyFamilies"
-              >
-                进入我的家庭
-              </MiniButton>
-            </view>
-          </MiniCard>
+          </view>
         </view>
       </template>
+
+      <text v-if="actionError" class="tree-field-error join-error">{{ actionError }}</text>
     </template>
   </view>
 </template>
@@ -90,12 +115,9 @@ import { apiErrorMessage } from '@/api/client'
 import { cancelJoinRequest, listMyJoinRequests } from '@/api/joinRequests'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import { joinRequestStatusText } from '@/components/base/formatStatus'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
-import MiniStatusTag from '@/components/base/MiniStatusTag.vue'
 import { useSessionStore } from '@/stores/session'
 import type { JoinRequest } from '@/types/api'
 
@@ -106,6 +128,12 @@ const loadError = ref('')
 const actionError = ref('')
 const cancellingId = ref<number | string | null>(null)
 const authChecked = ref(false)
+const expandedRequestId = ref<number | string | null>(null)
+
+const pendingCount = computed(() =>
+  requests.value.filter((item) => item.requestStatus === 'PENDING').length
+)
+
 const requestGroups = computed(() => {
   const pending = requests.value.filter((item) => item.requestStatus === 'PENDING')
   const history = requests.value.filter((item) => item.requestStatus !== 'PENDING')
@@ -115,9 +143,24 @@ const requestGroups = computed(() => {
   ].filter((group) => group.items.length > 0)
 })
 
+function joinStatusClass(status: string) {
+  if (status === 'PENDING') return 'is-cinnabar'
+  if (status === 'APPROVED') return 'is-ink'
+  return 'is-muted'
+}
+
+function handleResultText(item: JoinRequest) {
+  if (item.requestStatus === 'PENDING') return '等待家庭管理员审核'
+  if (item.requestStatus === 'APPROVED') return item.handleComment || '申请已通过'
+  if (item.requestStatus === 'REJECTED') return item.handleComment || '申请已被驳回'
+  if (item.requestStatus === 'CANCELLED') return '已主动取消'
+  return '—'
+}
+
 function resetTransientUI() {
   actionError.value = ''
   cancellingId.value = null
+  expandedRequestId.value = null
 }
 
 function resetPageData() {
@@ -133,8 +176,13 @@ function formatDate(value: string) {
   return Number.isNaN(time.getTime()) ? value : time.toLocaleString('zh-CN')
 }
 
+function toggleRequestDetail(item: JoinRequest) {
+  expandedRequestId.value =
+    expandedRequestId.value === item.requestId ? null : item.requestId
+}
+
 function openMyFamilies() {
-  uni.navigateTo({ url: '/pages/family/my' })
+  uni.switchTab({ url: '/pages/family/my' })
 }
 
 async function loadRequests() {
@@ -187,98 +235,114 @@ onUnload(resetPageData)
 </script>
 
 <style scoped>
-.join-page {
-  background:
-    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
-    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
+.join-my-page {
+  padding-top: 28rpx;
 }
 
-.join-hero {
-  margin-bottom: 26rpx;
+.join-my-page :deep(.mini-back-home) {
+  margin-bottom: 22rpx;
 }
 
-.join-hero :deep(.mini-notice) {
-  margin-bottom: 18rpx;
+.join-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10rpx;
+  margin-bottom: 22rpx;
 }
 
-.state-block {
-  padding: 32rpx 0;
-  text-align: center;
+.join-my-page :deep(.mini-notice) {
+  margin-bottom: 20rpx;
 }
 
-.request-group {
-  margin-bottom: 26rpx;
+.join-group {
+  margin-bottom: 24rpx;
 }
 
-.item-head {
+.join-list {
+  margin-top: 8rpx;
+}
+
+.join-item {
+  border-bottom: 1rpx solid var(--archive-line);
+  padding: 18rpx 0;
+}
+
+.join-item:last-child {
+  border-bottom: 0;
+}
+
+.join-item-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16rpx;
-  margin-bottom: 18rpx;
 }
 
-.item-kicker {
-  display: block;
-  margin-bottom: 6rpx;
-  color: var(--tree-green);
-  font-size: 21rpx;
-  font-weight: 800;
-  letter-spacing: 2rpx;
+.archive-status-tag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 42rpx;
+  border: 1rpx solid var(--archive-line);
+  padding: 0 12rpx;
+  font-size: 20rpx;
+  font-weight: 650;
+  line-height: 1.2;
 }
 
-.item-name {
-  flex: 1;
-  color: var(--tree-text-primary);
-  font-size: 34rpx;
-  font-weight: 800;
+.archive-status-tag.is-cinnabar {
+  border-color: rgba(168, 59, 45, 0.28);
+  background: rgba(168, 59, 45, 0.08);
+  color: var(--archive-cinnabar);
 }
 
-.item-meta {
-  display: block;
-  color: var(--tree-text-secondary);
-  font-size: 23rpx;
+.archive-status-tag.is-ink {
+  border-color: rgba(22, 51, 83, 0.22);
+  background: rgba(22, 51, 83, 0.08);
+  color: var(--archive-blue);
+}
+
+.archive-status-tag.is-muted {
+  background: rgba(255, 248, 234, 0.58);
+  color: var(--archive-ink-soft);
+}
+
+.join-meta,
+.join-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  margin-top: 12rpx;
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
   line-height: 1.55;
 }
 
-.item-meta.weak {
-  color: var(--tree-text-weak);
+.join-detail {
+  margin-top: 10rpx;
+  padding-top: 10rpx;
+  border-top: 1rpx dashed rgba(44, 36, 22, 0.12);
 }
 
-.item-meta.full {
-  grid-column: 1 / -1;
+.join-meta-weak {
+  opacity: 0.88;
 }
 
-.request-detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10rpx 16rpx;
-  border-radius: 22rpx;
-  background: rgba(248, 250, 252, 0.82);
-  padding: 18rpx;
+.join-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 16rpx;
 }
 
-.item-actions {
-  margin-top: 20rpx;
+.join-action {
+  margin-top: 16rpx;
+  align-self: flex-start;
 }
 
-.request-card {
-  position: relative;
-  border-color: rgba(255, 255, 255, 0.72);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.12), transparent 160rpx),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 250, 247, 0.94) 100%);
-  box-shadow: 0 16rpx 40rpx rgba(24, 54, 83, 0.07);
-}
-
-.request-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 26rpx;
-  bottom: 26rpx;
-  width: 7rpx;
-  border-radius: 0 999rpx 999rpx 0;
-  background: linear-gradient(180deg, var(--tree-green) 0%, var(--tree-primary) 100%);
+.join-error {
+  display: block;
+  margin-top: 16rpx;
 }
 </style>

@@ -57,5 +57,5 @@ export const myFamilies = [
 ]
 
 export const joinRequests = [
-  { id: 'join_001', familyName: '李氏宗亲', status: 'PENDING', reason: '希望加入同宗家庭核对族谱。' }
+  { id: 'join_001', familyId: 'family_001', familyName: '张氏家族', status: 'PENDING', reason: '希望加入同宗家庭核对族谱。' }
 ]

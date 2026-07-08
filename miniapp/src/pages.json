@@ -2,7 +2,7 @@
   "pages": [
     {"path": "pages/home/index", "style": {"navigationBarTitleText": "Tree"}},
     {"path": "pages/auth/wechat-login", "style": {"navigationBarTitleText": "微信快捷登录"}},
-    {"path": "pages/auth/phone-login", "style": {"navigationBarTitleText": "手机号登录"}},
+    {"path": "pages/auth/phone-login", "style": {"navigationBarTitleText": "手机号备用登录"}},
     {"path": "pages/content/index", "style": {"navigationBarTitleText": "阅读"}},
     {"path": "pages/family/showcase", "style": {"navigationBarTitleText": "展示家庭"}},
     {"path": "pages/content/detail", "style": {"navigationBarTitleText": "内容详情"}},
@@ -13,7 +13,7 @@
     {"path": "pages/family/detail", "style": {"navigationBarTitleText": "家庭详情"}},
     {"path": "pages/family/profile", "style": {"navigationBarTitleText": "家庭档案"}},
     {"path": "pages/family/manage-center", "style": {"navigationBarTitleText": "家庭管理"}},
-    {"path": "pages/family/members", "style": {"navigationBarTitleText": "成员与账号绑定"}},
+    {"path": "pages/family/members", "style": {"navigationBarTitleText": "成员名册"}},
     {"path": "pages/family/member-edit", "style": {"navigationBarTitleText": "编辑成员资料"}},
     {"path": "pages/family/manage", "style": {"navigationBarTitleText": "家谱管理"}},
     {"path": "pages/family/settings", "style": {"navigationBarTitleText": "公开展示与权限"}},
@@ -37,26 +37,26 @@
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "Tree",
-    "navigationBarBackgroundColor": "#F7FAF9",
-    "backgroundColor": "#F7FAF9"
+    "navigationBarBackgroundColor": "#F5EDDC",
+    "backgroundColor": "#F5EDDC"
   },
   "tabBar": {
-    "color": "#6B7280",
-    "selectedColor": "#1F3A5F",
-    "backgroundColor": "#FFFFFF",
+    "color": "#657080",
+    "selectedColor": "#A83B2D",
+    "backgroundColor": "#F5EDDC",
     "borderStyle": "black",
     "list": [
       {
         "pagePath": "pages/home/index",
-        "text": "首页",
+        "text": "Tree",
         "iconPath": "static/tabbar/home.png",
         "selectedIconPath": "static/tabbar/home-active.png"
       },
       {
-        "pagePath": "pages/family/showcase",
-        "text": "展示家庭",
-        "iconPath": "static/tabbar/search.png",
-        "selectedIconPath": "static/tabbar/search-active.png"
+        "pagePath": "pages/family/my",
+        "text": "我的家庭",
+        "iconPath": "static/tabbar/family.png",
+        "selectedIconPath": "static/tabbar/family-active.png"
       },
       {
         "pagePath": "pages/content/index",

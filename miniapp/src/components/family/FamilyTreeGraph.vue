@@ -81,6 +81,7 @@
       <view class="tree-footnote">
         <text class="footnote">
           共 {{ layout.memberCount }} 位成员，树中展示 {{ layout.renderedCount }} 位
+          <text v-if="viewerMemberId"> · 深蓝纸签为当前中心视角</text>
           <text v-if="graphVersion"> · 家谱版本 {{ graphVersion }}</text>
         </text>
       </view>
@@ -203,7 +204,7 @@ watch(
   padding: 0 8rpx 10rpx;
 }
 .hint-text {
-  color: var(--tree-text-weak);
+  color: var(--archive-ink-soft, #657080);
   font-size: 22rpx;
 }
 .tree-scroll {
@@ -211,6 +212,9 @@ watch(
 }
 .tree-canvas {
   position: relative;
+  background-color: rgba(255, 249, 236, 0.28);
+  background-image: linear-gradient(rgba(92, 74, 48, 0.024) 1rpx, transparent 1rpx);
+  background-size: 100% 34rpx;
 }
 .links-layer {
   position: absolute;
@@ -220,13 +224,13 @@ watch(
 }
 .link-segment {
   position: absolute;
-  background: #285c4a;
-  opacity: 0.62;
+  background: rgba(92, 74, 48, 0.58);
+  opacity: 0.82;
   border-radius: 1rpx;
 }
 .link-segment.highlighted {
   opacity: 0.96;
-  background: var(--tree-green-dark, #1f4f40);
+  background: var(--archive-blue, #163353);
 }
 .couple-node {
   position: absolute;
@@ -252,35 +256,36 @@ watch(
 .spouse-line {
   width: 14rpx;
   height: 2rpx;
-  background: #285c4a;
-  opacity: 0.72;
+  border-top: 2rpx dashed var(--archive-line-strong, rgba(92, 74, 48, 0.28));
+  background: transparent;
+  opacity: 1;
 }
 .tree-footnote {
   padding: 8rpx 8rpx 4rpx;
 }
 .footnote {
-  color: var(--tree-text-weak);
+  color: var(--archive-ink-soft, #657080);
   font-size: 22rpx;
   line-height: 1.5;
 }
 .unlocated-section {
   margin-top: 20rpx;
   padding: 18rpx 12rpx 8rpx;
-  border-top: 1rpx dashed rgba(47, 107, 87, 0.22);
+  border-top: 1rpx dashed var(--archive-line-strong, rgba(92, 74, 48, 0.28));
 }
 .unlocated-head {
   margin-bottom: 12rpx;
 }
 .unlocated-title {
   display: block;
-  color: var(--tree-text-primary, #1e293b);
+  color: var(--archive-ink, #243244);
   font-size: 26rpx;
   font-weight: 700;
 }
 .unlocated-desc {
   display: block;
   margin-top: 6rpx;
-  color: var(--tree-text-secondary, #64748b);
+  color: var(--archive-ink-soft, #657080);
   font-size: 22rpx;
   line-height: 1.45;
 }

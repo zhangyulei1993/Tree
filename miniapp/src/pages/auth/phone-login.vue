@@ -1,11 +1,31 @@
 <template>
-  <view class="tree-page auth-page">
-    <view class="tree-auth-brand">
-      <text class="tree-auth-brand-title">手机号登录</text>
-      <text class="tree-auth-brand-desc">使用已绑定的手机号与密码登录，作为微信登录的备用方式</text>
+  <view class="archive-page auth-page">
+    <view class="auth-head archive-page-head">
+      <view>
+        <text class="archive-kicker">Backup Login</text>
+        <text class="archive-title">手机号备用登录</text>
+        <text class="archive-subtitle">使用已绑定的手机号与密码登录，作为微信登录的备用方式</text>
+      </view>
+      <view class="archive-seal">备</view>
     </view>
 
-    <view class="tree-auth-card">
+    <view class="auth-folio">
+      <view class="auth-mark">
+        <text class="auth-brand">Tree</text>
+        <text class="auth-product">{{ productName }}</text>
+      </view>
+      <view class="auth-folio-copy">
+        <text class="auth-tagline">备用入册</text>
+        <text class="auth-intro">仅在无法使用微信时使用。需先在资料页设置手机号与登录密码。</text>
+      </view>
+    </view>
+
+    <view class="archive-form-panel auth-panel">
+      <view class="archive-section-head">
+        <text class="archive-section-title">备用登录</text>
+        <text class="archive-section-subtitle">输入已绑定的手机号与登录密码</text>
+      </view>
+
       <text class="tree-field-label">手机号</text>
       <input
         v-model.trim="phone"
@@ -24,20 +44,25 @@
         placeholder="请输入登录密码"
       />
 
-      <AuthLegalConsent v-model="legalAccepted" class="phone-legal-consent" />
+      <view class="consent-wrap">
+        <AuthLegalConsent v-model="legalAccepted" />
+      </view>
 
       <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
 
-      <view class="btn-stack">
-        <MiniButton :disabled="submitting" :loading="submitting" @click="submitLogin">
-          登录
-        </MiniButton>
-      </view>
+      <MiniButton
+        class="login-action"
+        :disabled="submitting"
+        :loading="submitting"
+        @click="submitLogin"
+      >
+        登录
+      </MiniButton>
+    </view>
 
-      <view class="tree-auth-foot auth-switch">
-        <text class="tree-muted">推荐使用微信快捷登录。</text>
-        <text class="auth-switch-link" @click="goWechatLogin">返回微信登录</text>
-      </view>
+    <view class="auth-foot">
+      <text class="auth-foot-hint">推荐使用微信快捷登录。</text>
+      <text class="auth-switch-link" @click="goWechatLogin">返回微信登录</text>
     </view>
   </view>
 </template>
@@ -49,9 +74,11 @@ import { apiErrorMessage } from '@/api/client'
 import MiniButton from '@/components/base/MiniButton.vue'
 import AuthLegalConsent from '@/components/legal/AuthLegalConsent.vue'
 import { ensurePrivacyConsentForLogin } from '@/features/legal/privacyConsent'
+import { LEGAL_PRODUCT_NAME } from '@/features/legal/legalMeta'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
+const productName = LEGAL_PRODUCT_NAME
 const phone = ref('')
 const password = ref('')
 const submitting = ref(false)
@@ -97,43 +124,130 @@ function goWechatLogin() {
 </script>
 
 <style scoped>
-.btn-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-  margin-top: 22rpx;
-}
-
-.phone-legal-consent {
-  margin-top: 22rpx;
-}
-
 .auth-page {
-  background: #f3f6f3;
+  padding-top: 48rpx;
 }
 
-.tree-auth-card {
+.auth-folio {
+  display: flex;
+  align-items: stretch;
+  gap: 24rpx;
   margin-bottom: 24rpx;
-  border: 1rpx solid rgba(216, 229, 220, 0.86);
-  border-radius: var(--tree-radius-lg);
-  background: rgba(250, 252, 251, 0.96);
-  overflow: hidden;
-  box-shadow: none;
+  border-top: 1rpx solid var(--archive-line-strong);
+  border-bottom: 1rpx solid var(--archive-line);
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.42), transparent 38%),
+    rgba(255, 252, 245, 0.52);
+  padding: 24rpx 0;
 }
 
-.auth-switch {
+.auth-mark {
   display: flex;
   flex-direction: column;
-  gap: 10rpx;
   align-items: center;
+  justify-content: center;
+  width: 128rpx;
+  flex-shrink: 0;
+  border: 1rpx solid var(--archive-line-strong);
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.9), transparent 34rpx),
+    #eadfc8;
+  padding: 18rpx 8rpx;
+}
+
+.auth-brand {
+  color: var(--archive-blue);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 34rpx;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.auth-product {
+  margin-top: 8rpx;
+  color: var(--archive-ink-soft);
+  font-size: 18rpx;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.auth-folio-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.auth-tagline {
+  display: block;
+  color: var(--archive-ink);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 34rpx;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.auth-intro {
+  display: block;
+  margin-top: 12rpx;
+  color: var(--archive-ink-soft);
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+
+.auth-panel {
+  margin-bottom: 20rpx;
+}
+
+.consent-wrap {
+  margin-top: 22rpx;
+}
+
+.consent-wrap :deep(.auth-legal-consent) {
+  border-top: 1rpx solid rgba(168, 59, 45, 0.24);
+  border-bottom: 1rpx solid rgba(168, 59, 45, 0.16);
+  border-radius: 0;
+  background: rgba(168, 59, 45, 0.05);
+  padding: 18rpx 0;
+}
+
+.consent-wrap :deep(.consent-text) {
+  color: var(--archive-ink);
+  font-size: 25rpx;
+  line-height: 1.65;
+}
+
+.consent-wrap :deep(.consent-link) {
+  color: var(--archive-cinnabar);
+  font-weight: 650;
+}
+
+.login-action {
+  margin-top: 22rpx;
+  align-self: stretch;
+}
+
+.auth-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  align-items: center;
+  padding: 8rpx 0 24rpx;
+}
+
+.auth-foot-hint {
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
+  line-height: 1.5;
 }
 
 .auth-switch-link {
   display: inline-flex;
-  min-height: 60rpx;
+  min-height: 56rpx;
   align-items: center;
-  color: var(--tree-green);
-  font-size: 26rpx;
-  font-weight: 600;
+  color: var(--archive-blue);
+  font-size: 24rpx;
+  font-weight: 650;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: 4rpx;
 }
 </style>

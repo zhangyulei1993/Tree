@@ -1,36 +1,67 @@
 <template>
-  <view class="tree-page manage-page">
+  <view class="archive-page manage-page">
     <MiniBackHome />
-    <FamilyContextHeader
-      v-if="family"
-      :family-name="family.familyName"
-      section="家谱管理"
-      subtitle="添加亲属、定位成员并维护关系"
-      :role-label="family.role === 'FOUNDER' ? '创建者' : '管理员'"
-      back-label="返回家谱"
-      @back="openPrivateTree"
-    />
 
-    <MiniCard v-if="loading">
+    <view v-if="loading" class="manage-state archive-form-panel">
       <MiniEmptyState symbol="…" title="正在加载" description="正在读取家庭成员与关系..." />
-    </MiniCard>
-    <MiniCard v-else-if="loadError">
+    </view>
+    <view v-else-if="loadError" class="manage-state archive-form-panel">
       <MiniNotice tone="warm" title="加载失败">{{ loadError }}</MiniNotice>
       <MiniButton variant="secondary" @click="loadData">重新加载</MiniButton>
-    </MiniCard>
-    <MiniCard v-else-if="!canManage">
-      <MiniNotice tone="warm" title="无管理权限">只有家庭创建者或家庭管理员可以维护成员和关系。</MiniNotice>
-    </MiniCard>
+    </view>
 
     <template v-else>
-      <view class="manage-tabs">
-        <button :class="{ active: manageSection === 'create' }" @click="manageSection = 'create'">添加亲属</button>
-        <button :class="{ active: manageSection === 'locate' }" @click="manageSection = 'locate'">定位成员</button>
-        <button :class="{ active: manageSection === 'relations' }" @click="manageSection = 'relations'">关系维护</button>
+      <view v-if="family" class="manage-head archive-page-head">
+        <view>
+          <text class="archive-kicker">Genealogy Admin</text>
+          <text class="archive-title">家谱管理</text>
+          <text class="archive-subtitle">
+            {{ family.familyName }} · 添加亲属、定位成员并维护关系
+          </text>
+        </view>
+        <view class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
       </view>
 
-      <MiniCard v-if="manageSection === 'create'">
-        <MiniSectionHeader title="创建新亲属" subtitle="以现有成员为起点，创建一个新成员并放入家谱" />
+      <view v-if="family" class="manage-context">
+        <text class="archive-chip">{{ roleText(family.role) }}</text>
+        <text class="context-back" @click="openPrivateTree">返回家谱</text>
+      </view>
+
+      <view v-if="!canManage" class="manage-state archive-form-panel">
+        <MiniNotice tone="warm" title="无管理权限">只有家庭创建者或家庭管理员可以维护成员和关系。</MiniNotice>
+        <MiniButton variant="secondary" @click="openPrivateTree">返回家谱</MiniButton>
+      </view>
+
+      <template v-else>
+      <view class="archive-segment-tabs">
+        <view
+          class="archive-segment-tab"
+          :class="{ active: manageSection === 'create' }"
+          @click="manageSection = 'create'"
+        >
+          <text>添加亲属</text>
+        </view>
+        <view
+          class="archive-segment-tab"
+          :class="{ active: manageSection === 'locate' }"
+          @click="manageSection = 'locate'"
+        >
+          <text>定位成员</text>
+        </view>
+        <view
+          class="archive-segment-tab"
+          :class="{ active: manageSection === 'relations' }"
+          @click="manageSection = 'relations'"
+        >
+          <text>关系维护</text>
+        </view>
+      </view>
+
+      <view v-if="manageSection === 'create'" class="archive-form-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">创建新亲属</text>
+          <text class="archive-section-subtitle">以现有成员为起点，创建一个新成员并放入家谱</text>
+        </view>
         <picker :range="memberLabels" :value="baseMemberIndex" @change="onBaseMemberChange">
           <view class="field-picker">{{ selectedBaseMember?.name || '选择基准成员' }}</view>
         </picker>
@@ -60,18 +91,22 @@
           此操作会同时创建新成员和关系，不用于连接两个已有成员。重复父亲、母亲或配偶由系统校验并给出提示。
         </MiniNotice>
         <text v-if="operationError" class="tree-field-error">{{ operationError }}</text>
-        <MiniButton :loading="submitting" :disabled="submitting" @click="submitRelative">
+        <MiniButton class="manage-action" :loading="submitting" :disabled="submitting" @click="submitRelative">
           创建并放入家谱
         </MiniButton>
-      </MiniCard>
+      </view>
 
-      <MiniCard v-if="manageSection === 'locate'">
-        <MiniSectionHeader title="暂存未定位成员" subtitle="只创建成员档案，稍后再确定其家谱位置" />
+      <view v-if="manageSection === 'locate'" class="archive-form-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">暂存未定位成员</text>
+          <text class="archive-section-subtitle">只创建成员档案，稍后再确定其家谱位置</text>
+        </view>
         <input v-model.trim="unlocatedName" class="tree-input" maxlength="80" placeholder="成员姓名" />
         <picker :range="genderLabels" :value="unlocatedGenderIndex" @change="onUnlocatedGenderChange">
           <view class="field-picker">性别：{{ genderLabels[unlocatedGenderIndex] }}</view>
         </picker>
         <MiniButton
+          class="manage-action"
           variant="secondary"
           :loading="creatingUnlocated"
           :disabled="creatingUnlocated"
@@ -79,10 +114,13 @@
         >
           暂存成员
         </MiniButton>
-      </MiniCard>
+      </view>
 
-      <MiniCard v-if="manageSection === 'locate'">
-        <MiniSectionHeader title="定位已有成员" subtitle="将暂存成员连接到一个现有成员，正式放入家谱" />
+      <view v-if="manageSection === 'locate'" class="archive-form-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">定位已有成员</text>
+          <text class="archive-section-subtitle">将暂存成员连接到一个现有成员，正式放入家谱</text>
+        </view>
         <MiniEmptyState
           v-if="unlocatedMembers.length === 0"
           symbol="位"
@@ -115,26 +153,29 @@
           <MiniNotice tone="security" title="定位说明">
             关系以“基准成员”为起点，例如选择“子女”表示待定位成员是基准成员的子女。
           </MiniNotice>
-          <MiniButton :loading="placingMember" :disabled="placingMember" @click="submitPlacement">
+          <MiniButton class="manage-action" :loading="placingMember" :disabled="placingMember" @click="submitPlacement">
             放入家谱
           </MiniButton>
         </template>
-      </MiniCard>
+      </view>
 
-      <MiniCard v-if="manageSection === 'relations'">
-        <MiniSectionHeader title="已有关系" subtitle="删除错误关系后可重新创建正确关系" />
+      <view v-if="manageSection === 'relations'" class="archive-form-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">已有关系</text>
+          <text class="archive-section-subtitle">删除错误关系后可重新创建正确关系</text>
+        </view>
         <MiniEmptyState
           v-if="tree.edges.length === 0"
           symbol="系"
           title="暂无关系"
           description="创建亲属关系后会显示在这里。"
         />
-        <view v-for="edge in tree.edges" :key="edge.relationshipId" class="relation-row">
-          <view class="relation-copy">
-            <text class="relation-title">{{ relationSentence(edge) }}</text>
+        <view v-for="edge in tree.edges" :key="edge.relationshipId" class="archive-relation-row">
+          <view class="archive-relation-copy">
+            <text class="archive-relation-title">{{ relationSentence(edge) }}</text>
             <text class="tree-muted">{{ relationshipKind(edge) }}</text>
           </view>
-          <view class="relation-actions">
+          <view class="archive-relation-actions">
             <MiniButton
               v-if="edge.relationshipType === 'PARENT_CHILD'"
               size="sm"
@@ -148,7 +189,8 @@
             </MiniButton>
           </view>
         </view>
-      </MiniCard>
+      </view>
+      </template>
     </template>
   </view>
 </template>
@@ -172,11 +214,8 @@ import {
 import { getPrivateTree } from '@/api/tree'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
-import FamilyContextHeader from '@/components/family/FamilyContextHeader.vue'
 import { filterUnlocatedLineageMemberIds } from '@/features/family-tree/graph'
 import { useSessionStore } from '@/stores/session'
 import type {
@@ -188,6 +227,7 @@ import type {
   RelationshipAddType,
   TreeEdge
 } from '@/types/api'
+import { normalizeText, optionalText, validateTextFields } from '@/utils/inputValidation'
 
 const session = useSessionStore()
 const familyId = ref('')
@@ -345,6 +385,11 @@ function yearValue(value: string) {
 }
 
 async function loadData() {
+  if (!familyId.value) {
+    loadError.value = '缺少家庭信息。'
+    loading.value = false
+    return
+  }
   const route = `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}`
   if (!session.requireLogin(route)) return
   loading.value = true
@@ -385,6 +430,14 @@ async function submitRelative() {
     operationError.value = base ? '请填写新亲属姓名。' : '请先选择基准成员。'
     return
   }
+  const validationMessage = validateTextFields([
+    { value: relativeName.value, label: '新亲属姓名', kind: 'name', required: true, maxLength: 80 },
+    { value: relationNote.value, label: '关系说明', kind: 'multiLine', maxLength: 200 }
+  ])
+  if (validationMessage) {
+    operationError.value = validationMessage
+    return
+  }
   submitting.value = true
   operationError.value = ''
   try {
@@ -397,7 +450,7 @@ async function submitRelative() {
       userBindingPolicy: 'OPTIONAL'
       memberType?: MemberType
     } = {
-      name: relativeName.value,
+      name: normalizeText(relativeName.value),
       gender: genderValues[relativeGenderIndex.value],
       birthYear: yearValue(relativeBirthYear.value),
       isAlive: true,
@@ -412,7 +465,7 @@ async function submitRelative() {
       newMember,
       relationship: {
         parentLinkType: relationValues[relationIndex.value] === 'ADD_SPOUSE' ? undefined : 'PRIMARY',
-        relationNote: relationNote.value || undefined
+        relationNote: optionalText(relationNote.value)
       }
     })
     relativeName.value = ''
@@ -432,11 +485,18 @@ async function submitUnlocated() {
     operationError.value = '请填写成员姓名。'
     return
   }
+  const validationMessage = validateTextFields([
+    { value: unlocatedName.value, label: '成员姓名', kind: 'name', required: true, maxLength: 80 }
+  ])
+  if (validationMessage) {
+    operationError.value = validationMessage
+    return
+  }
   creatingUnlocated.value = true
   operationError.value = ''
   try {
     await createFamilyMember(familyId.value, {
-      name: unlocatedName.value,
+      name: normalizeText(unlocatedName.value),
       gender: genderValues[unlocatedGenderIndex.value],
       isAlive: true,
       userBindingPolicy: 'OPTIONAL'
@@ -554,6 +614,10 @@ async function removeRelationship(relationshipId: number) {
   }
 }
 
+function roleText(role: string) {
+  return ({ FOUNDER: '创建者', FAMILY_ADMIN: '家庭管理员', MEMBER: '普通成员' } as Record<string, string>)[role] || '成员'
+}
+
 function openPrivateTree() {
   if (getCurrentPages().length > 1) {
     uni.navigateBack()
@@ -583,102 +647,52 @@ onLoad((options) => {
 
 <style scoped>
 .manage-page {
-  background:
-    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
-    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
+  padding-top: 28rpx;
 }
 
-.manage-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12rpx;
+.manage-page :deep(.mini-back-home) {
   margin-bottom: 22rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.74);
-  border-radius: 28rpx;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.78) 0%, rgba(244, 250, 247, 0.76) 100%);
-  padding: 10rpx;
-  box-shadow: 0 12rpx 32rpx rgba(24, 54, 83, 0.06);
 }
 
-.manage-tabs button {
-  min-height: 72rpx;
-  margin: 0;
-  border: 0;
-  border-radius: 20rpx;
-  background: transparent;
-  color: var(--tree-text-secondary);
-  padding: 10rpx 8rpx;
-  font-size: 24rpx;
-  line-height: 1.3;
+.manage-state :deep(.mini-notice) {
+  margin-bottom: 18rpx;
 }
 
-.manage-tabs button::after {
-  border: 0;
+.manage-page :deep(.mini-notice) {
+  margin-top: 16rpx;
+  margin-bottom: 16rpx;
 }
 
-.manage-tabs button.active {
-  background: linear-gradient(135deg, var(--tree-primary) 0%, var(--tree-green) 100%);
-  color: #fff;
-  font-weight: 800;
-  box-shadow: 0 12rpx 26rpx rgba(24, 54, 83, 0.16);
-}
-
-.field-picker,
-.tree-input,
-.tree-textarea {
-  margin-top: 18rpx;
-}
-
-.field-picker {
-  min-height: 88rpx;
-  padding: 0 24rpx;
-  border: 1px solid var(--tree-border);
-  border-radius: 20rpx;
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--tree-text);
-  box-shadow: 0 6rpx 18rpx rgba(24, 54, 83, 0.035);
-  line-height: 88rpx;
-}
-
-.relation-row {
+.manage-context {
   display: flex;
   align-items: center;
-  gap: 16rpx;
-}
-
-.relation-row {
   justify-content: space-between;
-  margin-top: 14rpx;
-  border: 1rpx solid rgba(226, 232, 240, 0.82);
-  border-radius: 22rpx;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.88) 100%);
-  padding: 20rpx;
-  box-shadow: 0 8rpx 22rpx rgba(24, 54, 83, 0.04);
+  gap: 16rpx;
+  margin-bottom: 24rpx;
 }
 
-.relation-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10rpx;
+.context-back {
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
+  line-height: 1.4;
 }
 
-.relation-row:last-child {
-  border-bottom: 1rpx solid rgba(226, 232, 240, 0.82);
+.context-back:active {
+  color: var(--archive-cinnabar);
 }
 
-.relation-copy {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 6rpx;
+.manage-page .archive-form-panel + .archive-form-panel {
+  margin-top: -8rpx;
 }
 
-.relation-title {
-  color: var(--tree-text);
-  font-size: 28rpx;
-  font-weight: 800;
+.manage-action {
+  margin-top: 20rpx;
+  align-self: flex-start;
+}
+
+.manage-page .archive-relation-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 </style>

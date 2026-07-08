@@ -1,123 +1,91 @@
 <template>
-  <view class="tree-page home-page">
-    <view class="hero-card">
-      <view class="hero-copy">
-        <text class="hero-brand">Tree</text>
-        <view class="hero-title">
-          <text>把家人关系</text>
-          <text>整理清楚</text>
+  <view class="archive-page home-page">
+    <view class="home-book">
+      <view class="home-book-main">
+        <view class="home-title-row">
+          <view class="home-title-copy">
+            <text class="archive-kicker">Tree</text>
+            <text class="archive-title">我的家庭</text>
+            <text class="archive-subtitle">家之有谱，世代相传</text>
+          </view>
+          <view class="home-title-seal archive-seal">谱</view>
         </view>
-        <text class="hero-subtitle">成员、关系、故事与邀请，放在一个清晰的家庭空间。</text>
-        <view class="hero-badges">
-          <text class="hero-badge">私密协作</text>
-          <text class="hero-badge">审核公开</text>
+
+        <view class="home-stats">
+          <view v-for="item in archiveStats" :key="item.label" class="home-stat">
+            <text class="home-stat-value">{{ item.value }}</text>
+            <text class="home-stat-label">{{ item.label }}</text>
+          </view>
+        </view>
+
+        <view class="bamboo-ink" aria-hidden="true">
+          <view class="bamboo-stem bamboo-stem-a" />
+          <view class="bamboo-stem bamboo-stem-b" />
+          <view class="bamboo-stem bamboo-stem-c" />
+          <view class="bamboo-leaf bamboo-leaf-a" />
+          <view class="bamboo-leaf bamboo-leaf-b" />
+          <view class="bamboo-leaf bamboo-leaf-c" />
+          <view class="bamboo-leaf bamboo-leaf-d" />
+          <view class="bamboo-leaf bamboo-leaf-e" />
+          <view class="bamboo-leaf bamboo-leaf-f" />
+          <view class="bamboo-mist bamboo-mist-a" />
+          <view class="bamboo-mist bamboo-mist-b" />
+        </view>
+
+        <view class="home-primary-entry" @click="goMyFamilyTab">
+          <view>
+            <text class="entry-title">{{ primaryEntryTitle }}</text>
+            <text class="entry-desc">{{ primaryEntryDesc }}</text>
+          </view>
+          <text class="archive-arrow">›</text>
         </view>
       </view>
-      <view class="hero-visual" aria-hidden="true">
-        <view class="visual-ring visual-ring-a" />
-        <view class="visual-ring visual-ring-b" />
-        <view class="visual-line visual-line-a" />
-        <view class="visual-line visual-line-b" />
-        <view class="visual-line visual-line-c" />
-        <view class="visual-node visual-node-core" />
-        <view class="visual-node visual-node-top" />
-        <view class="visual-node visual-node-left" />
-        <view class="visual-node visual-node-right" />
-        <view class="visual-node visual-node-bottom" />
+
+      <view class="home-directory-tag archive-paper-tag" @click="goMyFamilyTab">
+        <text>{{ directoryTagText[0] }}</text>
+        <text>{{ directoryTagText[1] }}</text>
+      </view>
+
+      <view class="home-spine archive-book-spine">
+        <view class="spine-title">
+          <text>家</text>
+          <text>谱</text>
+          <text>册</text>
+        </view>
+        <view class="spine-stitches">
+          <view v-for="item in 6" :key="item" class="spine-stitch" />
+        </view>
       </view>
     </view>
 
-    <view class="primary-grid">
+    <view v-if="featuredRead" class="home-reading archive-panel">
+      <view class="home-section-head">
+        <text class="archive-kicker">Reading</text>
+        <text class="home-section-title">阅读精选</text>
+      </view>
+      <view class="home-note" @click="openReadingArticle(featuredRead)">
+        <text class="home-note-label">{{ categoryTitle(featuredRead.categoryKey) }}</text>
+        <text class="home-note-title">{{ featuredRead.title }}</text>
+      </view>
+    </view>
+
+    <view v-if="!hasOwnFamilies && showcaseFamilies.length > 0" class="home-showcase archive-list">
       <view
-        class="primary-card primary-card-main"
-        @click="goPhoneProtected('/pages/family/my')"
+        v-for="family in showcaseFamilies"
+        :key="family.id"
+        class="archive-row"
+        @click="openShowcaseFamily(family.id)"
       >
-        <view class="primary-card-glow" />
-        <view class="primary-card-content">
-          <view class="primary-icon primary-icon-home" />
-          <text class="primary-title">我的家庭</text>
-          <text class="primary-desc">查看成员、关系和家谱</text>
+        <text class="archive-surname-stamp">{{ family.familySurname.slice(0, 1) }}</text>
+        <view class="archive-row-main">
+          <text class="archive-row-title">{{ family.familyName }}</text>
+          <text class="archive-row-desc">{{ family.regionText || family.nativePlace || '已公开展示' }}</text>
         </view>
-        <text class="primary-arrow">›</text>
+        <text class="archive-arrow">›</text>
       </view>
-    </view>
-
-    <view class="kinship-card" @click="go('/pages/tools/kinship')">
-      <view class="kinship-orb">
-        <view class="kinship-dot kinship-dot-a" />
-        <view class="kinship-dot kinship-dot-b" />
-        <view class="kinship-dot kinship-dot-c" />
-      </view>
-      <view class="kinship-copy">
-        <text class="kinship-title">亲属称谓工具</text>
-        <text class="kinship-desc">按关系路径推测常见称呼</text>
-      </view>
-      <text class="kinship-arrow">›</text>
-    </view>
-
-    <view class="read-card">
-      <view
-        class="section-row read-head"
-        @click="goTab('/pages/content/index')"
-      >
-        <view>
-          <text class="section-kicker">阅读精选</text>
-          <text class="section-title">故事、典故与使用指南</text>
-        </view>
-        <text class="read-more">›</text>
-      </view>
-
-      <view
-        v-if="featuredRead"
-        class="featured-read"
-        @click="openReadingArticle(featuredRead)"
-      >
-        <text class="featured-label">
-          {{ categoryTitle(featuredRead.categoryKey) }}
-          <template v-if="featuredRead.contentType === 'WECHAT_OFFICIAL'"> · 公众号</template>
-        </text>
-        <text class="featured-title">{{ featuredRead.title }}</text>
-        <text class="featured-summary">{{ featuredRead.summary }}</text>
-      </view>
-
-      <view class="read-mini-grid">
-        <view
-          v-for="item in secondaryReadHighlights"
-          :key="item.category.key"
-          class="read-mini"
-          :class="`read-mini-${item.category.key}`"
-          @click="item.article ? openReadingArticle(item.article) : goTab('/pages/content/index')"
-        >
-          <text class="read-mini-label">{{ item.category.title }}</text>
-          <text class="read-mini-title">{{ item.article?.title || item.category.desc }}</text>
-        </view>
-      </view>
-    </view>
-
-    <view class="showcase-card section-entry-card">
-      <view class="section-row showcase-head" @click="goTab('/pages/family/showcase')">
-        <view>
-          <text class="section-kicker">展示家庭</text>
-          <text class="section-title">看看别人如何展示家庭主页</text>
-        </view>
-        <text class="section-entry-arrow">›</text>
-      </view>
-
-      <view v-if="showcaseFamilies.length > 0" class="showcase-preview-list">
-        <FamilyMiniCard
-          v-for="family in showcaseFamilies"
-          :key="family.id"
-          :name="family.familyName"
-          :surname="family.familySurname"
-          :region="family.regionText || family.nativePlace || undefined"
-          :desc="family.description || '该家庭暂未填写公开简介。'"
-          @click="openShowcaseFamily(family.id)"
-        />
-      </view>
-
-      <view class="showcase-more-row" @click="goTab('/pages/family/showcase')">
-        <text class="showcase-more-text">查看更多展示家庭</text>
-        <text class="showcase-more-arrow">›</text>
+      <view class="home-showcase-more" @click="goMyFamilyTab">
+        <text>在「我的家庭」查看更多展示家庭</text>
+        <text class="archive-arrow">›</text>
       </view>
     </view>
 
@@ -126,12 +94,9 @@
     </view>
 
     <!-- #ifdef MP-WEIXIN -->
-    <view class="share-mini-card">
-      <view class="share-mini-copy">
-        <text class="share-mini-title">分享小程序</text>
-        <text class="share-mini-desc">邀请亲友一起记录家族、连接亲人</text>
-      </view>
-      <button class="wechat-share-button wechat-share-button--compact" open-type="share">分享给微信好友</button>
+    <view class="home-share">
+      <text class="home-share-label">分享小程序</text>
+      <button class="wechat-share-button" open-type="share">分享给微信好友</button>
     </view>
     <!-- #endif -->
   </view>
@@ -142,33 +107,41 @@ import { onLoad, onShareAppMessage, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { listContentArticles, listContentCategories } from '@/api/content'
-import { listPublicFamilyShowcase } from '@/api/families'
+import { getFamilyDetail, listMyFamilies, listPublicFamilyShowcase } from '@/api/families'
+import { listFamilyMembers } from '@/api/members'
 import { promptPrivacyConsentIfNeeded } from '@/features/legal/privacyConsent'
 import { openWechatOfficialArticle } from '@/features/content/wechatOfficialArticle'
 import { buildHomeSharePayload } from '@/features/share/wechatShare'
 import { useSessionStore } from '@/stores/session'
-import FamilyMiniCard from '@/components/family/FamilyMiniCard.vue'
 import type { ContentArticleSummary, ContentCategory, PublicFamilyShowcaseItem } from '@/types/api'
+
+interface ArchiveStat {
+  label: string
+  value: string
+}
 
 const session = useSessionStore()
 const categories = ref<ContentCategory[]>([])
 const articles = ref<ContentArticleSummary[]>([])
 const showcaseFamilies = ref<PublicFamilyShowcaseItem[]>([])
+const showcaseTotal = ref(0)
+const archiveStats = ref<ArchiveStat[]>([
+  { label: '展示家庭', value: '—' },
+  { label: '传世故事', value: '—' },
+  { label: '阅读篇目', value: '—' }
+])
+const hasOwnFamilies = ref(false)
+
 const featuredRead = computed(() => articles.value.find((item) => item.isFeatured) || articles.value[0] || null)
-const secondaryReadHighlights = computed(() => {
-  const selected: Array<{ category: { key: string; title: string; desc: string }; article: ContentArticleSummary | null }> = []
-  for (const category of categories.value) {
-    const article = articles.value.find((item) => item.id !== featuredRead.value?.id && item.categoryKey === category.key) || null
-    if (article || selected.length < 3) {
-      selected.push({
-        category: { key: category.key, title: category.name, desc: category.description || '浏览更多内容' },
-        article
-      })
-    }
-    if (selected.length === 3) break
-  }
-  return selected
-})
+const primaryEntryTitle = computed(() =>
+  hasOwnFamilies.value ? '翻开我的家谱' : '浏览展示家庭'
+)
+const primaryEntryDesc = computed(() =>
+  hasOwnFamilies.value ? '查看成员、关系和家谱册页' : '无需登录，先看公开展示册页'
+)
+const directoryTagText = computed(() =>
+  hasOwnFamilies.value ? ['家', '谱'] : ['展', '示']
+)
 
 function categoryTitle(key: string) {
   return categories.value.find((item) => item.key === key)?.name || '内容'
@@ -176,6 +149,19 @@ function categoryTitle(key: string) {
 
 function articleUrl(id: number | string) {
   return `/pages/content/detail?id=${encodeURIComponent(id)}`
+}
+
+function familyRoleText(role?: string) {
+  switch (role) {
+    case 'FOUNDER':
+      return '创建者'
+    case 'FAMILY_ADMIN':
+      return '管理员'
+    case 'MEMBER':
+      return '成员'
+    default:
+      return '成员'
+  }
 }
 
 async function openReadingArticle(article: ContentArticleSummary) {
@@ -208,9 +194,42 @@ async function loadShowcasePreview() {
   try {
     const result = await listPublicFamilyShowcase({ page: 1, pageSize: 2 })
     showcaseFamilies.value = result.items
+    showcaseTotal.value = result.total
   } catch {
     showcaseFamilies.value = []
+    showcaseTotal.value = 0
   }
+}
+
+async function loadArchiveStats() {
+  session.restoreSession()
+  if (session.isLoggedIn && session.isProfileComplete) {
+    try {
+      const myFamilies = await listMyFamilies()
+      if (myFamilies.length > 0) {
+        hasOwnFamilies.value = true
+        const primary = myFamilies[0]
+        const [members, detail] = await Promise.all([
+          listFamilyMembers(primary.id),
+          getFamilyDetail(primary.id)
+        ])
+        archiveStats.value = [
+          { label: '成员人数', value: String(members.length) },
+          { label: '家庭角色', value: familyRoleText(detail.role) },
+          { label: '谱系版本', value: `v${detail.graphVersion}` }
+        ]
+        return
+      }
+    } catch {
+      // Fall through to browse stats.
+    }
+  }
+  hasOwnFamilies.value = false
+  archiveStats.value = [
+    { label: '展示家庭', value: showcaseTotal.value > 0 ? String(showcaseTotal.value) : '—' },
+    { label: '传世故事', value: articles.value.length > 0 ? String(articles.value.length) : '—' },
+    { label: '阅读篇目', value: categories.value.length > 0 ? String(categories.value.length) : '—' }
+  ]
 }
 
 function openShowcaseFamily(familyId: number | string) {
@@ -223,788 +242,382 @@ function go(url: string) {
   uni.navigateTo({ url })
 }
 
-function goPhoneProtected(url: string) {
-  if (session.requireProfileComplete(url)) {
-    go(url)
-  }
+function goMyFamilyTab() {
+  uni.switchTab({ url: '/pages/family/my' })
 }
 
-function goTab(url: string) {
-  uni.switchTab({ url })
+async function refreshHome() {
+  await loadReading()
+  await loadShowcasePreview()
+  await loadArchiveStats()
 }
 
-onLoad(() => {
-  loadReading()
-  loadShowcasePreview()
-})
+onLoad(refreshHome)
 
 onShareAppMessage(() => buildHomeSharePayload())
 
 onShow(() => {
   promptPrivacyConsentIfNeeded()
+  refreshHome()
 })
 </script>
 
 <style scoped>
 .home-page {
-  min-height: auto;
-  padding-bottom: calc(180rpx + env(safe-area-inset-bottom));
-  background:
-    radial-gradient(circle at 96% 2%, rgba(216, 175, 104, 0.18), transparent 280rpx),
-    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.11), transparent 320rpx),
-    linear-gradient(180deg, #f8f1e7 0%, #f4f7f3 42%, #eef4f6 100%);
+  padding-right: 0;
 }
 
-.hero-card {
+.home-book {
   position: relative;
   display: flex;
-  align-items: center;
-  min-height: 280rpx;
-  margin: 4rpx 0 28rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.18);
-  border-radius: 40rpx;
-  background:
-    radial-gradient(circle at 82% 10%, rgba(216, 175, 104, 0.28), transparent 250rpx),
-    radial-gradient(circle at 12% 100%, rgba(87, 139, 119, 0.24), transparent 260rpx),
-    linear-gradient(135deg, #172f4a 0%, #244f54 58%, #2f6b57 100%);
-  padding: 42rpx 34rpx;
-  overflow: hidden;
-  box-shadow: 0 30rpx 72rpx rgba(24, 54, 83, 0.22);
+  min-height: 720rpx;
+  margin: 4rpx 0 34rpx;
 }
 
-.hero-card::after {
-  content: '';
-  position: absolute;
-  right: -40rpx;
-  bottom: -80rpx;
-  width: 260rpx;
-  height: 260rpx;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.13), transparent 68%);
-}
-
-.hero-copy {
+.home-book-main {
   position: relative;
-  z-index: 1;
   flex: 1;
   min-width: 0;
-}
-
-.hero-brand {
-  display: block;
-  color: rgba(248, 231, 194, 0.9);
-  font-size: 22rpx;
-  font-weight: 800;
-  letter-spacing: 5rpx;
-}
-
-.hero-title {
-  display: flex;
-  flex-direction: column;
-  margin-top: 14rpx;
-  max-width: 410rpx;
-  color: #fff;
-  font-size: 50rpx;
-  font-weight: 800;
-  line-height: 1.22;
-}
-
-.hero-title text {
-  display: block;
-}
-
-.hero-subtitle {
-  display: block;
-  margin-top: 14rpx;
-  max-width: 400rpx;
-  color: rgba(255, 255, 255, 0.74);
-  font-size: 25rpx;
-  line-height: 1.55;
-}
-
-.hero-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10rpx;
-  margin-top: 22rpx;
-}
-
-.hero-badge {
-  border: 1rpx solid rgba(255, 255, 255, 0.18);
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.11);
-  color: rgba(255, 255, 255, 0.88);
-  padding: 7rpx 15rpx;
-  font-size: 20rpx;
-  font-weight: 600;
-}
-
-.hero-visual {
-  position: relative;
-  z-index: 1;
-  width: 160rpx;
-  height: 170rpx;
-  flex-shrink: 0;
-}
-
-.visual-ring {
-  position: absolute;
-  border-radius: 50%;
-}
-
-.visual-ring-a {
-  inset: 8rpx 0 2rpx 0;
-  border: 2rpx dashed rgba(255, 255, 255, 0.22);
-}
-
-.visual-ring-b {
-  top: 50rpx;
-  left: 46rpx;
-  width: 66rpx;
-  height: 66rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.10);
-}
-
-.visual-line {
-  position: absolute;
-  height: 3rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.28);
-  transform-origin: center;
-}
-
-.visual-line-a {
-  top: 48rpx;
-  left: 78rpx;
-  width: 42rpx;
-  transform: rotate(88deg);
-}
-
-.visual-line-b {
-  top: 92rpx;
-  left: 38rpx;
-  width: 56rpx;
-  transform: rotate(-28deg);
-}
-
-.visual-line-c {
-  top: 96rpx;
-  right: 26rpx;
-  width: 54rpx;
-  transform: rotate(28deg);
-}
-
-.visual-node {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
-  box-sizing: border-box;
-}
-
-.visual-node-core {
-  top: 66rpx;
-  left: 64rpx;
-  width: 42rpx;
-  height: 42rpx;
-  border: 4rpx solid rgba(255, 255, 255, 0.96);
-  box-shadow: 0 0 0 10rpx rgba(255, 255, 255, 0.12);
-}
-
-.visual-node-top {
-  top: 22rpx;
-  left: 76rpx;
-  width: 18rpx;
-  height: 18rpx;
-  border: 3rpx solid rgba(248, 231, 194, 0.95);
-}
-
-.visual-node-left,
-.visual-node-right,
-.visual-node-bottom {
-  width: 20rpx;
-  height: 20rpx;
-}
-
-.visual-node-left {
-  left: 24rpx;
-  top: 116rpx;
-  border: 3rpx solid rgba(160, 197, 231, 0.95);
-}
-
-.visual-node-right {
-  right: 16rpx;
-  top: 106rpx;
-  border: 3rpx solid rgba(167, 216, 198, 0.95);
-}
-
-.visual-node-bottom {
-  left: 76rpx;
-  bottom: 8rpx;
-  border: 3rpx solid rgba(216, 175, 104, 0.95);
-}
-
-.primary-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16rpx;
-  margin-bottom: 20rpx;
-}
-
-.primary-card {
-  position: relative;
-  min-height: 158rpx;
-  border-radius: 30rpx;
-  padding: 24rpx;
+  border-top: 1rpx solid var(--archive-line-strong);
+  border-bottom: 1rpx solid var(--archive-line);
+  padding: 48rpx 148rpx 36rpx 4rpx;
   overflow: hidden;
-  box-sizing: border-box;
-  box-shadow: 0 14rpx 34rpx rgba(31, 58, 95, 0.08);
 }
 
-.primary-card:active,
-.kinship-card:active,
-.featured-read:active,
-.read-mini:active,
-.public-card:active {
-  transform: scale(0.992);
-  opacity: 0.96;
-}
-
-.navigator-hover {
-  opacity: 0.92;
-}
-
-.navigator-hover-soft {
-  opacity: 0.86;
-}
-
-.primary-card-main {
-  background: linear-gradient(135deg, #1f3a5f 0%, #28605b 100%);
-  color: #fff;
-}
-
-.primary-card-light {
-  border: 1rpx solid rgba(47, 107, 87, 0.15);
-  background: linear-gradient(145deg, #fff 0%, #f2faf7 100%);
-}
-
-.primary-card-glow {
-  position: absolute;
-  right: -46rpx;
-  top: -40rpx;
-  width: 170rpx;
-  height: 170rpx;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(214, 175, 104, 0.32), transparent 66%);
-}
-
-.primary-card-content {
-  position: relative;
-  z-index: 1;
-}
-
-.primary-icon {
-  position: relative;
-  width: 52rpx;
-  height: 52rpx;
-  margin-bottom: 20rpx;
-  border-radius: 16rpx;
-}
-
-.primary-icon-home {
-  background: rgba(255, 255, 255, 0.16);
-}
-
-.primary-icon-home::before,
-.primary-icon-search::before,
-.primary-icon-search::after {
-  content: '';
-  position: absolute;
-  box-sizing: border-box;
-}
-
-.primary-icon-home::before {
-  left: 14rpx;
-  top: 15rpx;
-  width: 24rpx;
-  height: 18rpx;
-  border: 3rpx solid rgba(255, 255, 255, 0.74);
-  border-top-left-radius: 4rpx;
-  border-top-right-radius: 4rpx;
-}
-
-.primary-icon-search {
-  background: rgba(47, 107, 87, 0.1);
-}
-
-.primary-icon-search::before {
-  top: 14rpx;
-  left: 14rpx;
-  width: 22rpx;
-  height: 22rpx;
-  border: 3rpx solid var(--tree-green);
-  border-radius: 50%;
-}
-
-.primary-icon-search::after {
-  top: 33rpx;
-  left: 33rpx;
-  width: 12rpx;
-  height: 3rpx;
-  border-radius: 999rpx;
-  background: var(--tree-green);
-  transform: rotate(45deg);
-}
-
-.primary-title {
-  display: block;
-  color: inherit;
-  font-size: 31rpx;
-  font-weight: 800;
-  line-height: 1.32;
-}
-
-.primary-card-light .primary-title {
-  color: var(--tree-text-primary);
-}
-
-.primary-desc {
-  display: block;
-  margin-top: 7rpx;
-  color: rgba(255, 255, 255, 0.76);
-  font-size: 22rpx;
-  line-height: 1.45;
-}
-
-.primary-card-light .primary-desc {
-  color: var(--tree-text-secondary);
-}
-
-.primary-arrow {
-  position: absolute;
-  right: 24rpx;
-  top: 26rpx;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 34rpx;
-  font-weight: 300;
-}
-
-.primary-card-light .primary-arrow {
-  color: var(--tree-text-weak);
-}
-
-.read-card,
-.showcase-card,
-.public-card,
-.kinship-card {
-  margin-bottom: 20rpx;
-  border: 1rpx solid rgba(148, 163, 184, 0.14);
-  border-radius: 30rpx;
-  background: rgba(255, 255, 255, 0.92);
-  padding: 26rpx;
-  box-shadow: 0 10rpx 34rpx rgba(31, 58, 95, 0.055);
-}
-
-.read-card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.92) 100%);
-}
-
-.section-row {
+.home-title-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18rpx;
+  gap: 20rpx;
 }
 
-.section-entry-card {
-  position: relative;
-  overflow: hidden;
+.home-title-copy {
+  flex: 1;
+  min-width: 0;
 }
 
-.section-entry-arrow {
-  position: absolute;
-  right: 24rpx;
-  top: 24rpx;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40rpx;
-  height: 40rpx;
-  border-radius: 999rpx;
-  background: var(--tree-accent-blue-light, #eef4fb);
-  color: var(--tree-accent-blue, #3b6ea8);
-  font-size: 28rpx;
-  font-weight: 700;
+.home-title-copy .archive-title {
+  margin-top: 14rpx;
+  font-size: 56rpx;
 }
 
-.section-kicker {
+.home-title-seal {
+  flex-shrink: 0;
+  margin-top: 8rpx;
+}
+
+.home-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 22rpx;
+  width: 200rpx;
+  margin-top: 64rpx;
+}
+
+.home-stat {
+  border-left: 3rpx solid var(--archive-cinnabar);
+  padding-left: 18rpx;
+}
+
+.home-stat-value,
+.home-stat-label {
   display: block;
-  color: var(--tree-green);
-  font-size: 21rpx;
+}
+
+.home-stat-value {
+  color: var(--archive-ink);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 36rpx;
   font-weight: 800;
   letter-spacing: 2rpx;
+  line-height: 1.15;
 }
 
-.section-title {
-  display: block;
+.home-stat-label {
   margin-top: 7rpx;
-  color: var(--tree-text-primary);
-  font-size: 31rpx;
-  font-weight: 800;
-  line-height: 1.35;
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.2;
 }
 
-.read-more {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 40rpx;
-  height: 40rpx;
-  margin-top: 4rpx;
-  border-radius: 999rpx;
-  background: var(--tree-accent-blue-light, #eef4fb);
-  color: var(--tree-accent-blue, #3b6ea8);
-  font-size: 28rpx;
-  font-weight: 700;
-}
-
-.kinship-card {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  background:
-    linear-gradient(135deg, rgba(245, 247, 255, 0.98) 0%, rgba(255, 255, 255, 0.94) 55%, rgba(243, 250, 247, 0.96) 100%);
-}
-
-.kinship-orb {
-  position: relative;
-  width: 70rpx;
-  height: 70rpx;
-  border-radius: 22rpx;
-  background: rgba(31, 58, 95, 0.08);
-  flex-shrink: 0;
-}
-
-.kinship-dot {
+.bamboo-ink {
   position: absolute;
+  right: 138rpx;
+  top: 130rpx;
+  width: 220rpx;
+  height: 380rpx;
+  opacity: 0.82;
+}
+
+.bamboo-stem {
+  position: absolute;
+  bottom: 0;
+  width: 4rpx;
+  border-radius: 999rpx;
+  background: var(--archive-bamboo);
+  transform-origin: bottom;
+}
+
+.bamboo-stem-a {
+  left: 58rpx;
+  height: 340rpx;
+  transform: rotate(8deg);
+}
+
+.bamboo-stem-b {
+  left: 98rpx;
+  height: 300rpx;
+  transform: rotate(-5deg);
+}
+
+.bamboo-stem-c {
+  left: 138rpx;
+  height: 260rpx;
+  transform: rotate(4deg);
+}
+
+.bamboo-leaf {
+  position: absolute;
+  width: 88rpx;
+  height: 22rpx;
+  border-radius: 100% 0 100% 0;
+  background: var(--archive-bamboo);
+  transform-origin: left center;
+}
+
+.bamboo-leaf-a {
+  top: 36rpx;
+  left: 68rpx;
+  transform: rotate(-32deg);
+}
+
+.bamboo-leaf-b {
+  top: 88rpx;
+  left: 22rpx;
+  transform: rotate(208deg);
+}
+
+.bamboo-leaf-c {
+  top: 128rpx;
+  left: 88rpx;
+  transform: rotate(-16deg);
+}
+
+.bamboo-leaf-d {
+  top: 196rpx;
+  left: 28rpx;
+  transform: rotate(192deg);
+}
+
+.bamboo-leaf-e {
+  top: 248rpx;
+  left: 112rpx;
+  transform: rotate(-24deg);
+}
+
+.bamboo-leaf-f {
+  top: 302rpx;
+  left: 52rpx;
+  transform: rotate(186deg);
+}
+
+.bamboo-mist {
+  position: absolute;
+  width: 120rpx;
+  height: 120rpx;
   border-radius: 50%;
-  background: #fff;
-  box-sizing: border-box;
+  background: rgba(37, 76, 59, 0.06);
 }
 
-.kinship-dot-a {
-  top: 16rpx;
-  left: 26rpx;
-  width: 18rpx;
-  height: 18rpx;
-  border: 3rpx solid var(--tree-primary);
+.bamboo-mist-a {
+  top: 60rpx;
+  left: 10rpx;
 }
 
-.kinship-dot-b,
-.kinship-dot-c {
-  bottom: 16rpx;
-  width: 14rpx;
-  height: 14rpx;
-  border: 3rpx solid var(--tree-green);
+.bamboo-mist-b {
+  top: 210rpx;
+  left: 70rpx;
 }
 
-.kinship-dot-b {
-  left: 15rpx;
-}
-
-.kinship-dot-c {
-  right: 15rpx;
-}
-
-.kinship-copy {
-  flex: 1;
-  min-width: 0;
-}
-
-.kinship-title {
-  display: block;
-  color: var(--tree-text-primary);
-  font-size: 28rpx;
-  font-weight: 800;
-}
-
-.kinship-desc {
-  display: block;
-  margin-top: 6rpx;
-  color: var(--tree-text-secondary);
-  font-size: 22rpx;
-}
-
-.kinship-arrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40rpx;
-  height: 40rpx;
-  border-radius: 999rpx;
-  background: rgba(59, 110, 168, 0.10);
-  color: var(--tree-accent-blue, #3b6ea8);
-  font-size: 28rpx;
-  font-weight: 700;
-}
-
-.read-head {
-  margin-bottom: 20rpx;
-}
-
-.featured-read {
-  position: relative;
-  margin-bottom: 14rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.08);
-  border-radius: 26rpx;
-  background:
-    linear-gradient(140deg, rgba(31, 58, 95, 0.94) 0%, rgba(47, 107, 87, 0.92) 100%);
-  padding: 24rpx;
-  overflow: hidden;
-}
-
-.featured-read::after {
-  content: '';
+.home-primary-entry {
   position: absolute;
-  right: -32rpx;
-  bottom: -48rpx;
-  width: 170rpx;
-  height: 170rpx;
-  border-radius: 50%;
-  border: 1rpx solid rgba(255, 255, 255, 0.16);
-}
-
-.featured-read::before {
-  content: '›';
-  position: absolute;
-  right: 20rpx;
-  top: 20rpx;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 38rpx;
-  height: 38rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.88);
-  font-size: 26rpx;
-  font-weight: 700;
-  z-index: 1;
-}
-
-.featured-label {
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.13);
-  color: rgba(255, 255, 255, 0.8);
-  padding: 5rpx 13rpx;
-  font-size: 20rpx;
-  font-weight: 700;
-}
-
-.featured-title {
-  position: relative;
-  z-index: 1;
-  display: block;
-  margin-top: 16rpx;
-  color: #fff;
-  font-size: 30rpx;
-  font-weight: 800;
-  line-height: 1.38;
-}
-
-.featured-summary {
-  position: relative;
-  z-index: 1;
-  display: block;
-  margin-top: 8rpx;
-  color: rgba(255, 255, 255, 0.76);
-  font-size: 22rpx;
-  line-height: 1.55;
-}
-
-.read-mini-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14rpx;
-}
-
-.read-mini {
-  min-height: 128rpx;
-  position: relative;
-  border: 1rpx solid rgba(31, 58, 95, 0.05);
-  border-radius: 24rpx;
-  padding: 18rpx;
-  box-sizing: border-box;
-  box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.04);
-}
-
-.read-mini::after {
-  content: '›';
-  position: absolute;
-  right: 16rpx;
-  bottom: 14rpx;
-  color: rgba(59, 110, 168, 0.52);
-  font-size: 24rpx;
-  font-weight: 700;
-}
-
-.read-mini-story {
-  background: #fff2f7;
-}
-
-.read-mini-surname {
-  background: #fff8e8;
-}
-
-.read-mini-article {
-  background: #edf8f2;
-}
-
-.read-mini-tutorial {
-  background: #eef4fb;
-}
-
-.read-mini-label {
-  display: block;
-  color: var(--tree-text-secondary);
-  font-size: 20rpx;
-  font-weight: 800;
-}
-
-.read-mini-title {
-  display: block;
-  margin-top: 9rpx;
-  color: var(--tree-text-primary);
-  font-size: 24rpx;
-  font-weight: 700;
-  line-height: 1.45;
-}
-
-.showcase-card {
-  margin-bottom: 20rpx;
-  padding: 24rpx;
-  border-radius: 30rpx;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.92) 100%);
-  box-shadow: 0 14rpx 34rpx rgba(31, 58, 95, 0.08);
-}
-
-.showcase-head {
-  margin-bottom: 18rpx;
-}
-
-.showcase-preview-list {
-  margin-bottom: 12rpx;
-}
-
-.showcase-more-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 8rpx;
-}
-
-.showcase-more-text {
-  color: var(--tree-green);
-  font-size: 24rpx;
-  font-weight: 600;
-}
-
-.showcase-more-arrow {
-  color: var(--tree-green);
-  font-size: 28rpx;
-  font-weight: 700;
-}
-
-.public-card {
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  padding-right: 82rpx;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.96) 0%, rgba(248, 250, 252, 0.92) 100%);
-}
-
-.public-copy {
-  flex: 1;
-  min-width: 0;
-}
-
-.public-title {
-  display: block;
-  margin-top: 7rpx;
-  color: var(--tree-text-primary);
-  font-size: 28rpx;
-  font-weight: 800;
-  line-height: 1.4;
-}
-
-.public-desc {
-  display: block;
-  margin-top: 6rpx;
-  color: var(--tree-text-secondary);
-  font-size: 22rpx;
-  line-height: 1.5;
-}
-
-.public-avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 80rpx;
-  height: 80rpx;
-  border-radius: 26rpx;
-  background: linear-gradient(145deg, #eff6ff 0%, #e6f6ee 100%);
-  color: var(--tree-primary);
-  font-size: 32rpx;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.home-privacy {
-  padding: 4rpx 18rpx 34rpx;
-  text-align: center;
-}
-
-.home-privacy text {
-  color: var(--tree-text-weak);
-  font-size: 20rpx;
-  line-height: 1.7;
-}
-
-.share-mini-card {
+  right: 128rpx;
+  bottom: 32rpx;
+  left: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20rpx;
-  margin: 0 0 24rpx;
-  padding: 24rpx;
-  border-radius: 30rpx;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 250, 247, 0.96) 100%);
-  box-shadow: 0 14rpx 34rpx rgba(31, 58, 95, 0.08);
+  border-top: 1rpx solid var(--archive-line);
+  padding: 24rpx 8rpx 0 0;
 }
 
-.share-mini-copy {
+.entry-title,
+.entry-desc {
+  display: block;
+}
+
+.entry-title {
+  color: var(--archive-blue);
+  font-size: 30rpx;
+  font-weight: 750;
+  line-height: 1.3;
+}
+
+.entry-desc {
+  margin-top: 5rpx;
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+
+.home-directory-tag {
+  position: absolute;
+  right: 96rpx;
+  top: 248rpx;
+  z-index: 4;
+  width: 58rpx;
+  min-height: 178rpx;
+  flex-direction: column;
+  gap: 14rpx;
+  box-shadow: 6rpx 10rpx 18rpx rgba(77, 59, 35, 0.12);
+  transform: rotate(2deg);
+}
+
+.home-spine {
+  width: 96rpx;
+  min-height: 720rpx;
+  flex-shrink: 0;
+}
+
+.spine-title {
+  position: absolute;
+  top: 88rpx;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 30rpx;
+  font-weight: 700;
+  line-height: 1.2;
+  transform: translateX(-50%);
+}
+
+.spine-stitches {
+  position: absolute;
+  right: 36rpx;
+  bottom: 88rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+}
+
+.spine-stitch {
+  width: 18rpx;
+  height: 18rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.78);
+  border-radius: 50%;
+}
+
+.home-reading {
+  margin: 30rpx 30rpx 0 0;
+  padding: 26rpx 0 24rpx;
+}
+
+.home-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+}
+
+.home-section-title {
+  color: var(--archive-ink);
+  font-size: 28rpx;
+  font-weight: 750;
+}
+
+.home-note {
+  border-top: 1rpx solid var(--archive-line);
+  padding-top: 18rpx;
+}
+
+.home-note-label,
+.home-note-title {
+  display: block;
+}
+
+.home-note-label {
+  color: var(--archive-cinnabar);
+  font-size: 21rpx;
+  line-height: 1.4;
+}
+
+.home-note-title {
+  margin-top: 6rpx;
+  color: var(--archive-ink);
+  font-size: 27rpx;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.home-showcase {
+  margin: 24rpx 30rpx 0 0;
+}
+
+.home-showcase-more {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1rpx solid var(--archive-line);
+  color: var(--archive-blue);
+  padding: 18rpx 0;
+  font-size: 24rpx;
+  font-weight: 650;
+}
+
+.home-privacy {
+  margin: 26rpx 30rpx 0 0;
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.7;
+}
+
+.home-share {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin: 24rpx 30rpx 0 0;
+  border-top: 1rpx solid var(--archive-line);
+  padding-top: 18rpx;
+}
+
+.home-share-label {
+  flex-shrink: 0;
+  color: var(--archive-ink);
+  font-size: 25rpx;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.wechat-share-button {
   flex: 1;
   min-width: 0;
+  margin: 0;
+  border: 1rpx solid var(--archive-cinnabar);
+  border-radius: 0;
+  background: transparent;
+  color: var(--archive-cinnabar);
+  font-size: 23rpx;
+  line-height: 2.1;
 }
 
-.share-mini-title {
-  display: block;
-  color: var(--tree-text-primary);
-  font-size: 28rpx;
-  font-weight: 700;
-}
-
-.share-mini-desc {
-  display: block;
-  margin-top: 6rpx;
-  color: var(--tree-text-secondary);
-  font-size: 22rpx;
-  line-height: 1.5;
+.wechat-share-button::after {
+  border: 0;
 }
 </style>

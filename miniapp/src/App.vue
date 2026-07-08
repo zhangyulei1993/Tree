@@ -20,6 +20,7 @@ onShow(() => {
 <style>
 @import './styles/theme.css';
 @import './styles/components.css';
+@import './styles/archive-book.css';
 
 page {
   background: linear-gradient(180deg, var(--tree-bg-top) 0%, var(--tree-bg-mid) 45%, var(--tree-bg-bottom) 100%);

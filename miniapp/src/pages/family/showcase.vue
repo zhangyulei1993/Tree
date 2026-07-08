@@ -1,54 +1,72 @@
 <template>
-  <view class="tree-page showcase-page">
-    <MiniCard class="showcase-panel-card">
-      <view class="showcase-head">
-        <text class="showcase-kicker">展示家庭</text>
-        <text class="showcase-title">已审核公开的家庭主页</text>
-        <text class="showcase-desc">浏览经平台审核的家庭简介与公开家谱，加入家庭请通过成员邀请。</text>
+  <view class="archive-page showcase-page">
+    <view class="showcase-head archive-page-head">
+      <view>
+        <text class="archive-kicker">Public Archive</text>
+        <text class="archive-title">展示家庭</text>
+        <text class="archive-subtitle">浏览经平台审核的家庭简介与公开家谱</text>
       </view>
-    </MiniCard>
+      <view class="archive-seal">展</view>
+    </view>
 
-    <MiniCard v-if="loading && items.length === 0">
+    <view class="showcase-notice archive-panel">
+      <text class="showcase-notice-label">公开册页</text>
+      <text class="showcase-notice-text">加入家庭请通过成员邀请。你可以通过家人分享的链接访问家庭主页。</text>
+    </view>
+
+    <view v-if="loading && items.length === 0" class="showcase-state archive-form-panel">
       <MiniEmptyState symbol="展" title="正在加载" description="正在读取展示家庭列表，请稍候。" />
-    </MiniCard>
+    </view>
 
-    <MiniCard v-else-if="errorMessage">
+    <view v-else-if="errorMessage" class="showcase-state archive-form-panel">
       <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
-      <MiniButton variant="secondary" @click="reload">重新加载</MiniButton>
-    </MiniCard>
+      <MiniButton variant="secondary" class="retry-button" @click="reload">重新加载</MiniButton>
+    </view>
 
     <template v-else>
-      <view v-if="items.length > 0" class="result-panel">
-        <text class="result-count">共 {{ total }} 个展示家庭</text>
-        <FamilyMiniCard
+      <view v-if="items.length > 0" class="showcase-list archive-list">
+        <view class="showcase-section-head">
+          <view>
+            <text class="archive-kicker">Catalog</text>
+            <text class="showcase-section-title">公开展示</text>
+          </view>
+          <text class="showcase-count">共 {{ total }} 个</text>
+        </view>
+
+        <view
           v-for="family in items"
           :key="family.id"
-          :name="family.familyName"
-          :surname="family.familySurname"
-          :region="familyRegionLabel(family)"
-          :desc="familyCardDesc(family)"
+          class="archive-row showcase-row"
           @click="openFamily(family.id)"
-        />
+        >
+          <text class="archive-surname-stamp">{{ family.familySurname.slice(0, 1) }}</text>
+          <view class="archive-row-main">
+            <text class="archive-row-title">{{ family.familyName }}</text>
+            <text class="archive-row-desc">{{ familyCardDesc(family) }}</text>
+            <text v-if="familyRegionLabel(family)" class="showcase-region">{{ familyRegionLabel(family) }}</text>
+          </view>
+          <text class="archive-row-meta">公开</text>
+          <text class="archive-arrow">›</text>
+        </view>
       </view>
 
-      <MiniCard v-else>
+      <view v-else class="showcase-state archive-form-panel">
         <MiniEmptyState
           symbol="展"
           title="暂无展示家庭"
           description="当前没有可浏览的展示家庭。你可以通过家人分享的链接访问家庭主页。"
         />
-      </MiniCard>
+      </view>
 
-      <MiniButton
-        v-if="hasMore"
-        variant="secondary"
-        class="load-more-btn"
-        :loading="loadingMore"
-        :disabled="loadingMore"
-        @click="loadMore"
-      >
-        加载更多
-      </MiniButton>
+      <view v-if="hasMore" class="showcase-load-more">
+        <text
+          class="archive-thin-button"
+          :class="{ disabled: loadingMore }"
+          @click="loadMore"
+        >
+          {{ loadingMore ? '加载中…' : '加载更多' }}
+        </text>
+      </view>
     </template>
   </view>
 </template>
@@ -59,10 +77,8 @@ import { computed, ref } from 'vue'
 import { apiErrorMessage } from '@/api/client'
 import { listPublicFamilyShowcase } from '@/api/families'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import FamilyMiniCard from '@/components/family/FamilyMiniCard.vue'
 import type { PublicFamilyShowcaseItem } from '@/types/api'
 
 const items = ref<PublicFamilyShowcaseItem[]>([])
@@ -116,7 +132,7 @@ function openFamily(familyId: number | string) {
 }
 
 function familyRegionLabel(family: PublicFamilyShowcaseItem) {
-  return family.regionText || family.nativePlace || undefined
+  return family.regionText || family.nativePlace || ''
 }
 
 function familyCardDesc(family: PublicFamilyShowcaseItem) {
@@ -128,57 +144,97 @@ reload()
 
 <style scoped>
 .showcase-page {
-  min-height: auto;
+  padding-top: 28rpx;
   padding-bottom: calc(180rpx + env(safe-area-inset-bottom));
 }
 
-.showcase-panel-card {
-  margin-bottom: 20rpx;
-}
-
 .showcase-head {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-}
-
-.showcase-kicker,
-.showcase-title,
-.showcase-desc {
-  display: block;
-}
-
-.showcase-kicker {
-  color: var(--tree-green);
-  font-size: 22rpx;
-  font-weight: 700;
-  letter-spacing: 2rpx;
-}
-
-.showcase-title {
-  color: var(--tree-text-primary);
-  font-size: 34rpx;
-  font-weight: 800;
-}
-
-.showcase-desc {
-  color: var(--tree-text-secondary);
-  font-size: 24rpx;
-  line-height: 1.7;
-}
-
-.result-panel {
   margin-bottom: 18rpx;
 }
 
-.result-count {
-  display: block;
-  margin: 0 8rpx 16rpx;
-  color: var(--tree-text-secondary);
-  font-size: 24rpx;
+.showcase-notice {
+  margin-bottom: 22rpx;
+  padding: 22rpx 0;
 }
 
-.load-more-btn {
-  margin-top: 8rpx;
+.showcase-notice-label {
+  display: block;
+  margin-bottom: 8rpx;
+  color: var(--archive-cinnabar);
+  font-size: 20rpx;
+  font-weight: 650;
+  letter-spacing: 4rpx;
+}
+
+.showcase-notice-text {
+  display: block;
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
+  line-height: 1.65;
+}
+
+.showcase-state :deep(.mini-notice) {
+  margin-bottom: 18rpx;
+}
+
+.retry-button {
+  margin-top: 16rpx;
+}
+
+.showcase-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 8rpx;
+  border-bottom: 1rpx solid var(--archive-line);
+  padding: 0 0 16rpx;
+}
+
+.showcase-section-title {
+  display: block;
+  margin-top: 4rpx;
+  color: var(--archive-ink);
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.showcase-count {
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
+}
+
+.showcase-row {
+  align-items: flex-start;
+  padding-top: 22rpx;
+  padding-bottom: 22rpx;
+}
+
+.showcase-row:active {
+  opacity: 0.96;
+}
+
+.showcase-region {
+  display: block;
+  margin-top: 6rpx;
+  color: var(--archive-blue);
+  font-size: 21rpx;
+  line-height: 1.4;
+}
+
+.showcase-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 24rpx;
+}
+
+.showcase-load-more .disabled {
+  opacity: 0.55;
+}
+
+.showcase-page :deep(.mini-button) {
+  border-radius: 0;
+  box-shadow: none;
 }
 </style>

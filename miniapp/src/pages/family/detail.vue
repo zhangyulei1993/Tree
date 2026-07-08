@@ -1,76 +1,80 @@
 <template>
-  <view class="tree-page detail-page">
+  <view class="archive-page detail-page">
     <MiniBackHome />
     <MiniFamilyPageSkeleton v-if="loading && !family" variant="detail" />
 
-    <MiniCard v-else-if="errorMessage && !family">
+    <view v-else-if="errorMessage && !family" class="detail-error archive-panel">
       <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
       <MiniButton variant="secondary" @click="loadFamily">重新加载</MiniButton>
-    </MiniCard>
+    </view>
 
     <template v-else-if="family">
-      <MiniCard variant="hero" class="dossier-hero tree-pedigree-watermark">
-        <view class="tree-dossier-head">
-          <view class="tree-dossier-seal">{{ family.familySurname.slice(0, 1) }}</view>
-          <view class="tree-dossier-copy">
-            <text class="dossier-eyebrow">家庭空间</text>
-            <text class="tree-page-title">{{ family.familyName }}</text>
-            <view class="tag-row">
-              <MiniStatusTag :label="familyStatusText(family.status)" :tone="statusTagTone(family.status)" />
-              <MiniStatusTag
-                :label="publicStatusText(family.publicDisplayStatus)"
-                :tone="statusTagTone(family.publicDisplayStatus)"
-              />
-            </view>
+      <view class="detail-head">
+        <view>
+          <text class="archive-kicker">Family Archive</text>
+          <text class="archive-title">家庭详情</text>
+        </view>
+        <view class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
+      </view>
+
+      <view class="family-cover">
+        <view class="family-cover-copy">
+          <text class="cover-name">{{ family.familyName }}</text>
+          <text class="cover-desc">{{ family.description || '暂未填写家庭简介。' }}</text>
+        </view>
+        <view class="cover-book archive-book-spine">
+          <text>家</text>
+          <text>谱</text>
+        </view>
+      </view>
+
+      <view class="dossier-grid">
+        <view v-for="item in dossierItems" :key="item.label" class="dossier-cell">
+          <text class="dossier-label">{{ item.label }}</text>
+          <text class="dossier-value">{{ item.value }}</text>
+        </view>
+      </view>
+
+      <view class="status-line">
+        <text class="archive-chip">{{ roleText(family.role) }}</text>
+        <text class="archive-chip">{{ familyStatusText(family.status) }}</text>
+        <text class="archive-chip">{{ publicStatusText(family.publicDisplayStatus) }}</text>
+      </view>
+
+      <view class="detail-directory archive-list">
+        <view class="archive-row" @click="openProfile">
+          <view class="archive-row-main">
+            <text class="archive-row-title">家族简介 / 家庭档案</text>
+            <text class="archive-row-desc">姓氏、地区、简介与公开状态</text>
           </view>
+          <text class="archive-row-meta">档案</text>
+          <text class="archive-arrow">›</text>
         </view>
-        <text class="tree-muted dossier-desc">{{ family.description || '暂未填写家庭简介。' }}</text>
-        <view class="tree-archive-ribbon">
-          <text v-if="family.familySurname" class="tree-archive-chip gold">{{ family.familySurname }}氏</text>
-          <text v-if="family.regionText || family.nativePlace" class="tree-archive-chip">
-            {{ family.regionText || family.nativePlace }}
-          </text>
+        <view class="archive-row" @click="openMembers">
+          <view class="archive-row-main">
+            <text class="archive-row-title">成员名册</text>
+            <text class="archive-row-desc">查看成员资料、账号绑定和邀请状态</text>
+          </view>
+          <text class="archive-row-meta">名册</text>
+          <text class="archive-arrow">›</text>
         </view>
-      </MiniCard>
-
-      <MiniCard variant="soft" class="identity-card">
-        <view class="identity-row">
-          <text class="identity-label">我的角色</text>
-          <text class="identity-value">{{ roleText(family.role) }}</text>
+        <view class="archive-row" @click="openTree">
+          <view class="archive-row-main">
+            <text class="archive-row-title">家谱</text>
+            <text class="archive-row-desc">查看父母子女与配偶关系</text>
+          </view>
+          <text class="archive-row-meta">v{{ family.graphVersion }}</text>
+          <text class="archive-arrow">›</text>
         </view>
-        <view class="identity-row">
-          <text class="identity-label">家庭状态</text>
-          <text class="identity-value">{{ familyStatusText(family.status) }}</text>
+        <view v-if="canManageFamily" class="archive-row" @click="openManageCenter">
+          <view class="archive-row-main">
+            <text class="archive-row-title">家庭管理</text>
+            <text class="archive-row-desc">加入申请、邀请与公开展示权限</text>
+          </view>
+          <text class="archive-row-meta">管理</text>
+          <text class="archive-arrow">›</text>
         </view>
-      </MiniCard>
-
-      <MiniCard class="directory-card directory-card--list">
-        <MiniDirectoryTile
-          title="家庭档案"
-          desc="姓氏、地区、简介与公开状态"
-          icon-class="tree-symbol-doc"
-          @click="openProfile"
-        />
-        <MiniDirectoryTile
-          title="成员名册"
-          desc="查看成员基本信息与绑定状态"
-          icon-class="tree-symbol-users"
-          @click="openMembers"
-        />
-        <MiniDirectoryTile
-          title="家谱"
-          desc="查看父母子女与配偶关系"
-          icon-class="tree-symbol-folder"
-          @click="openTree"
-        />
-        <MiniDirectoryTile
-          v-if="canManageFamily"
-          title="家庭管理"
-          desc="加入申请、邀请与公开展示权限"
-          icon-class="tree-symbol-tool"
-          @click="openManageCenter"
-        />
-      </MiniCard>
+      </view>
     </template>
   </view>
 </template>
@@ -83,12 +87,8 @@ import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
-import MiniDirectoryTile from '@/components/base/MiniDirectoryTile.vue'
 import MiniFamilyPageSkeleton from '@/components/base/MiniFamilyPageSkeleton.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import MiniStatusTag from '@/components/base/MiniStatusTag.vue'
-import { statusTagTone } from '@/components/base/formatStatus'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyDetail } from '@/types/api'
 
@@ -102,6 +102,17 @@ const navigating = ref(false)
 const canManageFamily = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
 )
+
+const dossierItems = computed(() => {
+  const currentFamily = family.value
+  if (!currentFamily) return []
+  return [
+    { label: '姓氏', value: `${currentFamily.familySurname || '未录'}氏` },
+    { label: '始祖', value: currentFamily.currentFounderMemberId ? `成员 ${currentFamily.currentFounderMemberId}` : '待补录' },
+    { label: '地区', value: currentFamily.regionText || currentFamily.nativePlace || '未填写' },
+    { label: '传世', value: `谱版 ${currentFamily.graphVersion}` }
+  ]
+})
 
 async function loadFamily() {
   session.restoreSession()
@@ -224,82 +235,124 @@ onUnload(resetPageData)
 
 <style scoped>
 .detail-page {
-  min-height: auto;
-  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
-  background:
-    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
-    radial-gradient(circle at 0% 20%, rgba(24, 54, 83, 0.08), transparent 300rpx);
+  padding-top: 28rpx;
 }
 
-.dossier-hero {
+.detail-page :deep(.mini-back-home) {
+  margin-bottom: 24rpx;
+}
+
+.detail-error {
+  padding: 28rpx 0;
+}
+
+.detail-error :deep(.mini-notice) {
   margin-bottom: 18rpx;
-  padding-top: 34rpx;
-  padding-bottom: 34rpx;
 }
 
-.dossier-hero :deep(.tree-page-title),
-.dossier-hero .tree-page-title {
-  color: #fff;
+.detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin-bottom: 28rpx;
 }
 
-.dossier-eyebrow {
+.family-cover {
+  display: flex;
+  min-height: 210rpx;
+  margin-bottom: 30rpx;
+  border-top: 1rpx solid var(--archive-line-strong);
+  border-bottom: 1rpx solid var(--archive-line);
+}
+
+.family-cover-copy {
+  flex: 1;
+  min-width: 0;
+  padding: 28rpx 28rpx 28rpx 0;
+}
+
+.cover-name,
+.cover-desc {
   display: block;
-  margin-bottom: 8rpx;
-  color: rgba(248, 231, 194, 0.92);
-  font-size: 22rpx;
-  font-weight: 600;
+}
+
+.cover-name {
+  color: var(--archive-blue);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 42rpx;
+  font-weight: 800;
   letter-spacing: 2rpx;
+  line-height: 1.28;
 }
 
-.dossier-desc {
-  display: block;
-  margin-top: 16rpx;
-  color: rgba(255, 255, 255, 0.76);
+.cover-desc {
+  margin-top: 14rpx;
+  color: var(--archive-ink-soft);
+  font-size: 24rpx;
   line-height: 1.7;
 }
 
-.tag-row {
+.cover-book {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  width: 118rpx;
+  flex-shrink: 0;
+}
+
+.cover-book text {
+  color: rgba(255, 255, 255, 0.94);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 30rpx;
+  font-weight: 800;
+}
+
+.dossier-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1rpx solid var(--archive-line);
+  border-left: 1rpx solid var(--archive-line);
+  margin-bottom: 20rpx;
+}
+
+.dossier-cell {
+  min-height: 112rpx;
+  border-right: 1rpx solid var(--archive-line);
+  border-bottom: 1rpx solid var(--archive-line);
+  padding: 20rpx;
+  box-sizing: border-box;
+}
+
+.dossier-label,
+.dossier-value {
+  display: block;
+}
+
+.dossier-label {
+  color: var(--archive-cinnabar);
+  font-size: 21rpx;
+  line-height: 1.2;
+}
+
+.dossier-value {
+  margin-top: 12rpx;
+  color: var(--archive-ink);
+  font-size: 28rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.status-line {
   display: flex;
   flex-wrap: wrap;
-  gap: 8rpx;
-  margin-top: 12rpx;
+  gap: 10rpx;
+  margin-bottom: 28rpx;
 }
 
-.identity-card {
-  margin-bottom: 16rpx;
-}
-
-.identity-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-  padding: 12rpx 0;
-  border-bottom: 1rpx solid rgba(148, 163, 184, 0.12);
-}
-
-.identity-row:last-child {
-  border-bottom: 0;
-  padding-bottom: 0;
-}
-
-.identity-label {
-  color: var(--tree-text-secondary);
-  font-size: 24rpx;
-}
-
-.identity-value {
-  color: var(--tree-text-primary);
-  font-size: 26rpx;
-  font-weight: 700;
-}
-
-.directory-card {
-  margin-bottom: 12rpx;
-}
-
-.directory-card--list {
-  padding-top: 8rpx;
-  padding-bottom: 8rpx;
+.detail-directory {
+  margin-top: 8rpx;
 }
 </style>

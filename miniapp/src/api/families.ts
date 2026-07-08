@@ -71,7 +71,7 @@ export async function getFamilyDetail(familyId: number | string): Promise<Family
 export async function createFamily(input: CreateFamilyInput): Promise<FamilyDetail> {
   if (!isRealApiMode) {
     const now = Date.now()
-    return {
+    const created: FamilyDetail = {
       id: `mock_family_${now}`,
       familyName: input.familyName || `${input.surname}氏家族`,
       familySurname: input.surname,
@@ -86,6 +86,8 @@ export async function createFamily(input: CreateFamilyInput): Promise<FamilyDeta
       currentFounderMemberId: now,
       graphVersion: 1
     }
+    mockFamilyOverrides.set(String(created.id), created)
+    return created
   }
   return request<FamilyDetail, CreateFamilyInput>('/families', {
     method: 'POST',

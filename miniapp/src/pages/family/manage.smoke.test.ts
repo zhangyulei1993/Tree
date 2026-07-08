@@ -31,3 +31,12 @@ test('manage.vue wires parent memberType for create and place flows', () => {
 test('manage.vue uses session for auth gate', () => {
   assert.match(manageSource, /session\.requireLogin/)
 })
+
+test('manage.vue guards missing familyId before loading APIs', () => {
+  const guardIndex = manageSource.indexOf('if (!familyId.value)')
+  const routeIndex = manageSource.indexOf('const route = `/pages/family/manage')
+  const firstApiIndex = manageSource.indexOf('getFamilyDetail(familyId.value)')
+  assert.notEqual(guardIndex, -1)
+  assert.ok(guardIndex < routeIndex)
+  assert.ok(guardIndex < firstApiIndex)
+})

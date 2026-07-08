@@ -1,41 +1,43 @@
 <template>
-  <view class="tree-page me-page">
+  <view class="archive-page me-page">
     <template v-if="session.isLoggedIn && session.user">
-      <MiniCard variant="hero" class="profile-hero paper-surface">
-        <ProfileHeader
-          :name="session.user.nickname || '未设置昵称'"
-          :subtitle="profileSubtitle"
-          :avatar-text="avatarText"
-          :avatar-url="avatarUrl"
-          :tags="profileTags"
-        />
-      </MiniCard>
+      <view class="profile-archive">
+        <view class="avatar-wrap">
+          <image v-if="avatarUrl" class="avatar-image" :src="avatarUrl" mode="aspectFill" />
+          <text v-else class="avatar-text">{{ avatarText }}</text>
+        </view>
+        <view class="profile-copy">
+          <text class="archive-kicker">Personal File</text>
+          <text class="profile-name">{{ session.user.nickname || '未设置昵称' }}</text>
+          <view class="profile-meta">
+            <text>世代待补</text>
+            <text>平台账号</text>
+            <text>ID {{ session.user.id }}</text>
+          </view>
+          <text class="profile-status">{{ accountStatusLabel }}</text>
+        </view>
+      </view>
 
-      <MiniCard v-if="showProfileIncompleteNotice" variant="soft" class="bind-notice-card">
+      <view v-if="showProfileIncompleteNotice" class="profile-notice archive-panel">
         <MiniNotice tone="info">设置昵称后即可使用家庭、邀请与加入等功能；头像可选。</MiniNotice>
         <MiniButton class="btn-top" @click="go('/pages/me/profile?onboarding=1')">去完善资料</MiniButton>
-      </MiniCard>
+      </view>
 
-      <MiniCard class="directory-card directory-card--list">
-        <MiniDirectoryTile
-          title="我的家庭事务"
-          desc="家庭、邀请与加入申请"
-          icon-class="tree-symbol-home"
-          @click="go('/pages/me/family-affairs')"
-        />
-        <MiniDirectoryTile
-          title="账号与安全"
-          desc="个人资料与账号管理"
-          icon-class="tree-symbol-profile"
-          @click="go('/pages/me/account-security')"
-        />
-        <MiniDirectoryTile
-          title="关于 Tree"
-          desc="协议、隐私与版本信息"
-          icon-class="tree-symbol-doc"
-          @click="go('/pages/me/about')"
-        />
-      </MiniCard>
+      <view class="me-directory archive-list">
+        <view
+          v-for="item in directoryItems"
+          :key="item.title"
+          class="archive-row"
+          @click="go(item.url)"
+        >
+          <view class="archive-row-main">
+            <text class="archive-row-title">{{ item.title }}</text>
+            <text class="archive-row-desc">{{ item.desc }}</text>
+          </view>
+          <text v-if="item.count" class="archive-row-meta">{{ item.count }}</text>
+          <text class="archive-arrow">›</text>
+        </view>
+      </view>
 
       <view class="logout-wrap">
         <MiniButton
@@ -51,25 +53,30 @@
     </template>
 
     <template v-else>
-      <MiniCard variant="hero" class="profile-hero paper-surface">
-        <ProfileHeader
-          name="欢迎使用 Tree"
-          subtitle="登录后可查看家庭、成员与邀请信息"
-          avatar-text="访"
-        />
-        <view class="guest-actions">
-          <MiniButton @click="go('/pages/auth/wechat-login')">微信登录</MiniButton>
+      <view class="profile-archive guest">
+        <view class="avatar-wrap">
+          <text class="avatar-text">访</text>
         </view>
-      </MiniCard>
+        <view class="profile-copy">
+          <text class="archive-kicker">Tree / Me</text>
+          <text class="profile-name">欢迎使用 Tree</text>
+          <text class="profile-status">登录后可查看家庭、成员与邀请信息</text>
+        </view>
+      </view>
 
-      <MiniCard class="directory-card directory-card--list">
-        <MiniDirectoryTile
-          title="关于 Tree"
-          desc="协议、隐私与版本信息"
-          icon-class="tree-symbol-doc"
-          @click="go('/pages/me/about')"
-        />
-      </MiniCard>
+      <view class="guest-actions">
+        <MiniButton @click="go('/pages/auth/wechat-login')">去登录</MiniButton>
+      </view>
+
+      <view class="me-directory archive-list">
+        <view class="archive-row" @click="go('/pages/me/about')">
+          <view class="archive-row-main">
+            <text class="archive-row-title">关于我们</text>
+            <text class="archive-row-desc">协议、隐私与版本信息</text>
+          </view>
+          <text class="archive-arrow">›</text>
+        </view>
+      </view>
     </template>
   </view>
 </template>
@@ -80,21 +87,14 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage, resolveAssetUrl } from '@/api/client'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
-import MiniDirectoryTile from '@/components/base/MiniDirectoryTile.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import { accountStatusText, statusTagTone } from '@/components/base/formatStatus'
-import ProfileHeader from '@/components/profile/ProfileHeader.vue'
+import { accountStatusText } from '@/components/base/formatStatus'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
 const loggingOut = ref(false)
 const errorMessage = ref('')
 const navigating = ref(false)
-
-const profileSubtitle = computed(() =>
-  session.user?.nickname?.trim() ? '微信账号已登录' : '请完善昵称以使用完整功能'
-)
 
 const avatarText = computed(() => {
   const name = session.user?.nickname?.trim()
@@ -108,16 +108,19 @@ const showProfileIncompleteNotice = computed(() =>
   session.isLoggedIn && !session.isProfileComplete
 )
 
-const profileTags = computed(() => {
-  if (!session.user) return []
-  return [
-    { label: accountStatusText(session.user.status), tone: statusTagTone(session.user.status) },
-    {
-      label: session.isProfileComplete ? '资料已完善' : '待完善昵称',
-      tone: session.isProfileComplete ? 'active' : 'pending'
-    }
-  ] as Array<{ label: string; tone: 'active' | 'pending' | 'danger' | 'muted' }>
-})
+const accountStatusLabel = computed(() =>
+  session.user ? accountStatusText(session.user.status) : ''
+)
+
+const directoryItems = [
+  { title: '个人资料', desc: '昵称、头像与基础资料', count: '', url: '/pages/me/profile' },
+  { title: '关联成员', desc: '查看家庭事务与成员身份', count: '1', url: '/pages/me/family-affairs' },
+  { title: '我的贡献', desc: '整理家谱、邀请亲友的记录', count: '', url: '/pages/me/family-affairs' },
+  { title: '修谱记录', desc: '家庭邀请、加入申请与事务', count: '', url: '/pages/me/family-affairs' },
+  { title: '设置', desc: '账号与安全、手机号登录', count: '', url: '/pages/me/account-security' },
+  { title: '帮助与反馈', desc: '使用说明与联系方式', count: '', url: '/pages/me/about' },
+  { title: '关于我们', desc: '协议、隐私与版本信息', count: '', url: '/pages/me/about' }
+]
 
 function go(url: string) {
   if (navigating.value) return
@@ -131,14 +134,15 @@ function go(url: string) {
 }
 
 async function logout() {
+  if (loggingOut.value) return
   loggingOut.value = true
   errorMessage.value = ''
   try {
     await session.logout()
-    uni.showToast({ title: '已退出', icon: 'none' })
+    uni.showToast({ title: '已退出登录', icon: 'success' })
     setTimeout(() => uni.reLaunch({ url: '/pages/home/index' }), 200)
   } catch (error) {
-    errorMessage.value = apiErrorMessage(error, '退出请求失败，本地登录状态已清理。')
+    errorMessage.value = apiErrorMessage(error, '退出登录失败。')
   } finally {
     loggingOut.value = false
   }
@@ -146,76 +150,115 @@ async function logout() {
 
 onShow(() => {
   session.restoreSession()
-  if (session.isLoggedIn) {
-    session.refreshMe().catch(() => undefined)
-  }
 })
 </script>
 
 <style scoped>
 .me-page {
-  background:
-    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.16), transparent 260rpx),
-    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
+  padding-top: 38rpx;
 }
 
-.profile-hero {
-  margin-bottom: 20rpx;
-  padding-top: 34rpx;
-  padding-bottom: 34rpx;
+.profile-archive {
+  display: flex;
+  align-items: center;
+  gap: 26rpx;
+  margin-bottom: 34rpx;
+  border-bottom: 1rpx solid var(--archive-line-strong);
+  padding-bottom: 30rpx;
 }
 
-.profile-hero :deep(.profile-header) {
+.profile-archive.guest {
   align-items: flex-start;
 }
 
-.profile-hero :deep(.avatar) {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-  box-shadow:
-    0 0 0 1rpx rgba(255, 255, 255, 0.22) inset,
-    0 14rpx 34rpx rgba(0, 0, 0, 0.14);
+.avatar-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 136rpx;
+  height: 136rpx;
+  flex-shrink: 0;
+  border: 1rpx solid var(--archive-line-strong);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.9), transparent 34rpx),
+    #eadfc8;
+  overflow: hidden;
 }
 
-.profile-hero :deep(.name) {
-  color: #fff;
-  font-size: 38rpx;
+.avatar-image {
+  width: 100%;
+  height: 100%;
+}
+
+.avatar-text {
+  color: var(--archive-blue);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 56rpx;
   font-weight: 800;
 }
 
-.profile-hero :deep(.subtitle) {
-  color: rgba(255, 255, 255, 0.72);
+.profile-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-name {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--archive-ink);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 42rpx;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx 14rpx;
+  margin-top: 12rpx;
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.4;
+}
+
+.profile-status {
+  display: block;
+  margin-top: 10rpx;
+  color: var(--archive-cinnabar);
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+
+.profile-notice {
+  margin-bottom: 24rpx;
+  padding: 22rpx 0;
+}
+
+.profile-notice :deep(.mini-notice) {
+  margin-bottom: 14rpx;
 }
 
 .btn-top {
-  margin-top: 20rpx;
-}
-
-.bind-notice-card {
-  margin-bottom: 16rpx;
-}
-
-.bind-notice-card :deep(.mini-notice) {
-  margin-bottom: 0;
-}
-
-.directory-card {
-  margin-bottom: 12rpx;
-}
-
-.directory-card--list {
-  padding-top: 8rpx;
-  padding-bottom: 8rpx;
+  margin-top: 6rpx;
 }
 
 .guest-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-  margin-top: 28rpx;
+  margin: 26rpx 0;
+}
+
+.guest-actions :deep(.mini-button),
+.logout-wrap :deep(.mini-button) {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.me-directory {
+  margin-top: 10rpx;
 }
 
 .logout-wrap {
-  padding: 8rpx 0 calc(24rpx + env(safe-area-inset-bottom));
+  padding: 26rpx 0 calc(24rpx + env(safe-area-inset-bottom));
 }
 </style>

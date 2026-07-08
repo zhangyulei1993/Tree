@@ -1,46 +1,70 @@
 <template>
-  <view class="tree-page detail-page">
+  <view class="archive-page content-detail-page">
     <MiniBackHome />
-    <MiniCard v-if="loading">
-      <MiniEmptyState title="正在加载" description="正在读取内容，请稍候。" />
-    </MiniCard>
 
-    <MiniCard v-else-if="!article">
+    <view v-if="loading" class="detail-state archive-form-panel">
+      <MiniEmptyState title="正在加载" description="正在读取内容，请稍候。" />
+    </view>
+
+    <view v-else-if="!article" class="detail-state archive-form-panel">
       <MiniEmptyState title="内容不存在" :description="error || '请返回阅读页重新选择。'" />
-      <MiniButton variant="secondary" @click="goBack">返回阅读</MiniButton>
-    </MiniCard>
+      <MiniButton variant="secondary" class="retry-button" @click="goBack">返回阅读</MiniButton>
+    </view>
 
     <template v-else>
-      <view class="article-hero">
-        <text class="article-category">{{ categoryTitle }}</text>
-        <text class="article-title">{{ article.title }}</text>
-        <text class="article-summary">{{ article.summary }}</text>
+      <view class="scroll-head archive-page-head">
+        <view class="scroll-head-copy">
+          <text class="archive-kicker">Tree Reading</text>
+          <text class="scroll-title">{{ article.title }}</text>
+          <text v-if="article.summary" class="scroll-lead">{{ article.summary }}</text>
+        </view>
+        <view class="scroll-seal archive-seal">{{ categoryShort(article.categoryKey) }}</view>
       </view>
 
-      <view v-if="article.contentType === 'WECHAT_OFFICIAL'" class="article-body external-article-card">
-        <text class="external-article-note">本文发布于微信公众号，将通过微信官方页面打开。</text>
+      <view class="scroll-meta archive-panel">
+        <view class="scroll-meta-row">
+          <view class="scroll-badges">
+            <text class="scroll-badge">{{ categoryTitle }}</text>
+            <text v-if="article.contentType === 'WECHAT_OFFICIAL'" class="scroll-badge scroll-badge-wechat">
+              公众号
+            </text>
+          </view>
+          <text class="scroll-read">{{ readMinutes(article) }} 分钟</text>
+        </view>
+      </view>
+
+      <view v-if="article.contentType === 'WECHAT_OFFICIAL'" class="scroll-external archive-form-panel">
+        <text class="external-note">本文发布于微信公众号，将通过微信官方页面打开。</text>
         <MiniButton @click="openOfficialArticle">阅读公众号文章</MiniButton>
       </view>
 
-      <view v-else class="article-body">
-        <image
-          v-if="article.coverUrl"
-          class="article-cover"
-          :src="article.coverUrl"
-          mode="widthFix"
-        />
-        <text
-          v-for="(paragraph, index) in bodyParagraphs"
-          :key="index"
-          class="article-paragraph"
-        >
-          {{ paragraph }}
-        </text>
+      <view v-else class="scroll-body">
+        <view class="scroll-body-frame">
+          <view class="scroll-spine">
+            <text>卷</text>
+            <text>文</text>
+          </view>
+          <view class="scroll-content">
+            <image
+              v-if="article.coverUrl"
+              class="scroll-cover"
+              :src="article.coverUrl"
+              mode="widthFix"
+            />
+            <text
+              v-for="(paragraph, index) in bodyParagraphs"
+              :key="index"
+              class="scroll-paragraph"
+            >
+              {{ paragraph }}
+            </text>
+          </view>
+        </view>
       </view>
 
       <!-- #ifdef MP-WEIXIN -->
-      <view v-if="article" class="article-share-card">
-        <text class="article-share-label">觉得有帮助？</text>
+      <view class="scroll-share">
+        <text class="scroll-share-label">觉得有帮助？</text>
         <button class="wechat-share-button" open-type="share">分享给微信好友</button>
       </view>
       <!-- #endif -->
@@ -56,7 +80,6 @@ import { apiErrorMessage } from '@/api/client'
 import { getContentArticle } from '@/api/content'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import { openWechatOfficialArticle } from '@/features/content/wechatOfficialArticle'
 import { buildArticleSharePayload } from '@/features/share/wechatShare'
@@ -79,6 +102,21 @@ const bodyParagraphs = computed(() => {
     .map((line) => line.trim())
     .filter(Boolean)
 })
+
+function categoryShort(key: string) {
+  const map: Record<string, string> = {
+    tutorial: '教',
+    story: '故',
+    surname: '姓',
+    article: '文'
+  }
+  return map[key] || '文'
+}
+
+function readMinutes(item: Pick<ContentArticleDetail, 'title' | 'summary' | 'body'>) {
+  const chars = `${item.title}${item.summary || ''}${item.body || ''}`.replace(/\s/g, '').length
+  return Math.max(1, Math.round(chars / 400))
+}
 
 function goBack() {
   uni.switchTab({ url: '/pages/content/index' })
@@ -132,95 +170,192 @@ async function openOfficialArticle() {
 </script>
 
 <style scoped>
-.detail-page {
-  background: linear-gradient(180deg, #f7faf9 0%, #f5f8fc 100%);
+.content-detail-page {
+  padding-top: 28rpx;
 }
 
-.article-hero {
-  margin-bottom: 20rpx;
-  border-radius: var(--tree-radius-lg);
-  background: #fff;
-  padding: 28rpx 24rpx;
-  box-shadow: 0 2rpx 14rpx rgba(15, 23, 42, 0.04);
+.content-detail-page :deep(.mini-back-home) {
+  margin-bottom: 22rpx;
 }
 
-.article-category {
-  display: inline-flex;
-  border-radius: 8rpx;
-  background: #f1f5f9;
-  color: var(--tree-text-secondary);
-  padding: 6rpx 12rpx;
-  font-size: 22rpx;
-  font-weight: 500;
+.detail-state :deep(.mini-notice) {
+  margin-bottom: 18rpx;
 }
 
-.article-title {
-  display: block;
+.retry-button {
   margin-top: 16rpx;
-  color: var(--tree-text);
-  font-size: 36rpx;
-  font-weight: 600;
-  line-height: 1.4;
 }
 
-.article-summary {
+.scroll-head {
+  margin-bottom: 18rpx;
+}
+
+.scroll-head-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.scroll-title {
   display: block;
   margin-top: 12rpx;
-  color: var(--tree-text-secondary);
-  font-size: 26rpx;
-  line-height: 1.6;
+  color: var(--archive-ink);
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 44rpx;
+  font-weight: 700;
+  letter-spacing: 1rpx;
+  line-height: 1.32;
 }
 
-.article-body {
-  border-radius: var(--tree-radius-lg);
-  background: #fff;
-  padding: 28rpx 24rpx;
-  box-shadow: 0 2rpx 14rpx rgba(15, 23, 42, 0.04);
+.scroll-lead {
+  display: block;
+  margin-top: 14rpx;
+  color: var(--archive-ink-soft);
+  font-size: 25rpx;
+  line-height: 1.68;
 }
 
-.article-cover {
+.scroll-seal {
+  flex-shrink: 0;
+  margin-top: 8rpx;
+}
+
+.scroll-meta {
+  margin-bottom: 24rpx;
+  padding: 20rpx 0;
+}
+
+.scroll-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.scroll-badges {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.scroll-badge {
+  display: inline-flex;
+  border: 1rpx solid var(--archive-cinnabar);
+  color: var(--archive-cinnabar);
+  padding: 5rpx 12rpx;
+  font-size: 20rpx;
+  font-weight: 650;
+  letter-spacing: 1rpx;
+}
+
+.scroll-badge-wechat {
+  border-color: var(--archive-blue);
+  color: var(--archive-blue);
+}
+
+.scroll-read {
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+}
+
+.scroll-external {
+  margin-bottom: 24rpx;
+}
+
+.external-note {
+  display: block;
+  margin-bottom: 18rpx;
+  color: var(--archive-ink-soft);
+  font-size: 25rpx;
+  line-height: 1.68;
+}
+
+.scroll-body {
+  margin-bottom: 24rpx;
+}
+
+.scroll-body-frame {
+  display: flex;
+  gap: 0;
+  border-top: 1rpx solid var(--archive-line-strong);
+  border-bottom: 1rpx solid var(--archive-line);
+}
+
+.scroll-spine {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8rpx;
+  width: 58rpx;
+  flex-shrink: 0;
+  background: var(--archive-blue);
+  color: rgba(255, 255, 255, 0.88);
+  padding-top: 28rpx;
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 24rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.scroll-content {
+  flex: 1;
+  min-width: 0;
+  padding: 28rpx 0 32rpx 24rpx;
+}
+
+.scroll-cover {
   display: block;
   width: 100%;
   margin-bottom: 28rpx;
-  border-radius: 16rpx;
+  border: 1rpx solid var(--archive-line);
 }
 
-.external-article-card {
-  display: flex;
-  flex-direction: column;
-  gap: 24rpx;
-}
-
-.external-article-note {
-  color: var(--tree-text-secondary);
-  font-size: 26rpx;
-  line-height: 1.65;
-}
-
-.article-paragraph {
+.scroll-paragraph {
   display: block;
-  margin-bottom: 20rpx;
-  color: var(--tree-text);
-  font-size: 28rpx;
-  line-height: 1.75;
+  margin-bottom: 28rpx;
+  color: var(--archive-ink);
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 29rpx;
+  font-weight: 450;
+  line-height: 1.88;
+  letter-spacing: 0.5rpx;
+  text-align: justify;
 }
 
-.article-paragraph:last-child {
+.scroll-paragraph:last-child {
   margin-bottom: 0;
 }
 
-.article-share-card {
-  margin-top: 20rpx;
-  border-radius: var(--tree-radius-lg);
-  background: #fff;
-  padding: 24rpx;
-  box-shadow: 0 2rpx 14rpx rgba(15, 23, 42, 0.04);
+.scroll-share {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-top: 8rpx;
+  border-top: 1rpx solid var(--archive-line);
+  padding-top: 20rpx;
 }
 
-.article-share-label {
-  display: block;
-  margin-bottom: 16rpx;
-  color: var(--tree-text-secondary);
+.scroll-share-label {
+  color: var(--archive-ink-soft);
   font-size: 24rpx;
+}
+
+.wechat-share-button {
+  margin: 0;
+  border: 1rpx solid var(--archive-cinnabar);
+  border-radius: 0;
+  background: transparent;
+  color: var(--archive-cinnabar);
+  font-size: 23rpx;
+  line-height: 2.1;
+}
+
+.wechat-share-button::after {
+  border: 0;
+}
+
+.content-detail-page :deep(.mini-button) {
+  border-radius: 0;
+  box-shadow: none;
 }
 </style>

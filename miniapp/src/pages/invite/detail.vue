@@ -1,14 +1,12 @@
 <template>
-  <view class="tree-page invite-detail-page">
+  <view class="archive-page invite-detail-page">
     <MiniBackHome />
 
-    <MiniCard v-if="loading">
-      <view class="state-block">
-        <text class="tree-muted">正在加载邀请详情...</text>
-      </view>
-    </MiniCard>
+    <view v-if="loading" class="detail-state archive-form-panel">
+      <MiniEmptyState symbol="…" title="正在加载" description="正在读取邀请详情..." />
+    </view>
 
-    <MiniCard v-else-if="loadError && !invitation">
+    <view v-else-if="loadError && !invitation" class="detail-state archive-form-panel">
       <MiniEmptyState
         symbol="!"
         title="邀请加载失败"
@@ -16,120 +14,160 @@
         action-text="重新加载"
         @action="loadInvitation"
       />
-    </MiniCard>
+    </view>
 
     <template v-else-if="invitation">
-      <MiniCard variant="hero" class="invitation-hero">
-        <view class="trust-card-head">
-          <view>
-            <text class="invitation-kicker">来自家庭</text>
-            <text class="trust-family-name">{{ invitation.familyName }}</text>
+      <view class="detail-head archive-page-head">
+        <view>
+          <text class="archive-kicker">Invitation Letter</text>
+          <text class="archive-title">邀请确认</text>
+          <text class="archive-subtitle">请核对家庭与成员身份，再决定是否入谱绑定</text>
+        </view>
+        <view class="archive-seal detail-seal">谱</view>
+      </view>
+
+      <view class="invite-letter" :class="{ pending: invitation.status === 'PENDING' }">
+        <view class="invite-letter-head">
+          <view class="invite-letter-copy">
+            <text class="invite-letter-kicker">入谱邀请帖</text>
+            <text class="invite-family-name">{{ invitation.familyName }}</text>
+            <view class="invite-target-line">
+              <text class="invite-target-label">邀请确认成员</text>
+              <text class="invite-target-tag archive-paper-tag">{{ invitation.targetMemberName }}</text>
+            </view>
+            <text class="invite-target-hint">接受后，你的账号将与该家谱成员节点绑定。</text>
           </view>
-          <MiniStatusTag
-            :status="invitation.status"
-            :label="invitationStatusText(invitation.status)"
-          />
-        </view>
-        <view class="identity-confirmation">
-          <text class="identity-label">邀请你确认的成员身份</text>
-          <text class="identity-name">{{ invitation.targetMemberName }}</text>
-          <text class="tree-muted identity-hint">接受后，你的账号将与该家谱成员节点绑定。</text>
+          <view class="invite-letter-spine archive-book-spine">
+            <text>入</text>
+            <text>谱</text>
+            <text>帖</text>
+          </view>
         </view>
 
-        <view class="tree-info-row">
-          <text class="tree-info-label">邀请发起人</text>
-          <text class="tree-info-value">
-            {{ invitation.inviterDisplayName || '家庭管理员' }}（{{ inviterRoleText(invitation.inviterRole) }}）
-          </text>
+        <view v-if="invitation.status === 'PENDING'" class="invite-pending-mark">
+          <text class="invite-pending-seal">待确认</text>
+          <text class="invite-pending-note">请在有效期内完成确认</text>
         </view>
-        <view class="tree-info-row">
-          <text class="tree-info-label">邀请方式</text>
-          <text class="tree-info-value">{{ inviteChannelText(invitation.inviteChannel) }}</text>
-        </view>
-        <view class="tree-info-row">
-          <text class="tree-info-label">加入后角色</text>
-          <text class="tree-info-value">{{ roleText(invitation.familyRoleAfterAccept) }}</text>
-        </view>
-        <view class="tree-info-row">
-          <text class="tree-info-label">有效期至</text>
-          <text class="tree-info-value">{{ formatDate(invitation.expiredAt) }}</text>
-        </view>
-      </MiniCard>
 
-      <MiniCard>
-        <text class="detail-block-title">接受后你可以</text>
-        <view class="benefit-list">
-          <view class="benefit-item"><text class="benefit-dot" /><text>在「{{ invitation.familyName }}」中确认自己的成员身份</text></view>
-          <view class="benefit-item"><text class="benefit-dot" /><text>查看家庭成员和家谱关系</text></view>
-          <view class="benefit-item"><text class="benefit-dot" /><text>在个人中心查看已加入的家庭</text></view>
+        <view class="invite-fields archive-list">
+          <view class="archive-row invite-field-row">
+            <text class="invite-field-label">邀请发起人</text>
+            <text class="invite-field-value">
+              {{ invitation.inviterDisplayName || '家庭管理员' }}（{{ inviterRoleText(invitation.inviterRole) }}）
+            </text>
+          </view>
+          <view class="archive-row invite-field-row">
+            <text class="invite-field-label">邀请方式</text>
+            <text class="invite-field-value">{{ inviteChannelText(invitation.inviteChannel) }}</text>
+          </view>
+          <view class="archive-row invite-field-row">
+            <text class="invite-field-label">加入后角色</text>
+            <text class="invite-field-value">{{ roleText(invitation.familyRoleAfterAccept) }}</text>
+          </view>
+          <view class="archive-row invite-field-row">
+            <text class="invite-field-label">有效期至</text>
+            <text class="invite-field-value">{{ formatDate(invitation.expiredAt) }}</text>
+          </view>
         </view>
-      </MiniCard>
+      </view>
 
-      <MiniCard>
-        <text class="detail-block-title">邀请人留言</text>
-        <text class="tree-muted invitation-message">
-          {{ invitation.inviteMessage || '邀请人未填写额外说明。' }}
-        </text>
-      </MiniCard>
+      <view class="archive-form-panel invite-message-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">邀请人留言</text>
+          <text class="archive-section-subtitle">发起人附带的说明文字</text>
+        </view>
+        <text class="invite-message">{{ invitation.inviteMessage || '邀请人未填写额外说明。' }}</text>
+      </view>
+
+      <view class="archive-form-panel invite-benefits-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">接受后你可以</text>
+        </view>
+        <view class="invite-benefits archive-list">
+          <view class="archive-row invite-benefit-row">
+            <text class="invite-benefit-text">在「{{ invitation.familyName }}」中确认自己的成员身份</text>
+          </view>
+          <view class="archive-row invite-benefit-row">
+            <text class="invite-benefit-text">查看家庭成员和家谱关系</text>
+          </view>
+          <view class="archive-row invite-benefit-row">
+            <text class="invite-benefit-text">在个人中心查看已加入的家庭</text>
+          </view>
+        </view>
+      </view>
 
       <MiniNotice tone="security" title="接受前请确认">
         请确认上方姓名就是你在家谱中的身份。如果信息不符，请先拒绝邀请并联系家庭管理员。平台不会向你索要密码或验证码。
       </MiniNotice>
 
-      <MiniCard v-if="invitation.status === 'PENDING'">
+      <view v-if="invitation.status === 'PENDING'" class="archive-form-panel invite-action-panel">
         <template v-if="session.isLoggedIn && session.isProfileComplete">
-          <text class="detail-block-title">处理邀请</text>
+          <view class="archive-section-head">
+            <text class="archive-section-title">处理邀请</text>
+            <text class="archive-section-subtitle">确认无误后可接受；如有疑问可先拒绝</text>
+          </view>
           <textarea
             v-model.trim="rejectReason"
-            class="tree-textarea"
+            class="tree-textarea invite-reject-input"
             maxlength="300"
             placeholder="拒绝原因（可选）"
           />
-          <MiniButton
-            :disabled="Boolean(acting)"
-            :loading="acting === 'accept'"
-            @click="confirmAccept"
-          >
-            接受邀请
-          </MiniButton>
-          <MiniButton
-            variant="secondary"
-            :disabled="Boolean(acting)"
-            :loading="acting === 'reject'"
-            @click="confirmReject"
-          >
-            拒绝邀请
-          </MiniButton>
+          <view class="invite-actions">
+            <MiniButton
+              size="sm"
+              :disabled="Boolean(acting)"
+              :loading="acting === 'accept'"
+              @click="confirmAccept"
+            >
+              接受邀请
+            </MiniButton>
+            <MiniButton
+              size="sm"
+              variant="secondary"
+              :disabled="Boolean(acting)"
+              :loading="acting === 'reject'"
+              @click="confirmReject"
+            >
+              拒绝邀请
+            </MiniButton>
+          </view>
         </template>
         <template v-else-if="session.isLoggedIn && !session.isProfileComplete">
           <MiniNotice tone="warm" title="需要完善资料">
             请先设置昵称，再处理邀请。
           </MiniNotice>
-          <MiniButton @click="requireProfileComplete">去完善资料</MiniButton>
+          <MiniButton size="sm" class="invite-action-single" @click="requireProfileComplete">去完善资料</MiniButton>
         </template>
         <template v-else>
           <MiniNotice tone="warm" title="需要登录">
             请先登录，再处理邀请。
           </MiniNotice>
-          <MiniButton @click="requireLogin">微信登录</MiniButton>
+          <MiniButton size="sm" class="invite-action-single" @click="requireLogin">去登录</MiniButton>
         </template>
-      </MiniCard>
+      </view>
 
-      <MiniCard v-else>
-        <MiniNotice tone="info">
-          该邀请当前状态为「{{ invitationStatusText(invitation.status) }}」，不能继续处理。
-        </MiniNotice>
+      <view v-else class="archive-form-panel invite-resolved-panel">
+        <view class="invite-resolved-line">
+          <text class="archive-status-tag" :class="resolvedStatusClass(invitation.status)">
+            {{ invitationStatusText(invitation.status) }}
+          </text>
+          <text class="invite-resolved-text">
+            该邀请当前状态为「{{ invitationStatusText(invitation.status) }}」，不能继续处理。
+          </text>
+        </view>
         <MiniButton
           v-if="invitation.status === 'ACCEPTED'"
-          class="btn-top"
+          size="sm"
+          variant="secondary"
+          class="invite-action-single"
           @click="openMyFamilies"
         >
           进入我的家庭
         </MiniButton>
-      </MiniCard>
+      </view>
 
-      <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
-      <text v-if="result" class="tree-field-success">{{ result }}</text>
+      <text v-if="actionError" class="tree-field-error invite-error">{{ actionError }}</text>
+      <text v-if="result" class="tree-field-success invite-result">{{ result }}</text>
     </template>
   </view>
 </template>
@@ -142,13 +180,12 @@ import { acceptInvitation, getInvitationDetail, rejectInvitation } from '@/api/i
 import { apiErrorMessage } from '@/api/client'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import { invitationStatusText, roleText } from '@/components/base/formatStatus'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import MiniStatusTag from '@/components/base/MiniStatusTag.vue'
 import { useSessionStore } from '@/stores/session'
 import type { Invitation } from '@/types/api'
+import { optionalText, validateTextFields } from '@/utils/inputValidation'
 
 const session = useSessionStore()
 const inviteToken = ref('')
@@ -162,6 +199,11 @@ const result = ref('')
 
 function currentRoute() {
   return `/pages/invite/detail?inviteToken=${encodeURIComponent(inviteToken.value)}`
+}
+
+function resolvedStatusClass(status: string) {
+  if (status === 'ACCEPTED') return 'is-ink'
+  return 'is-muted'
 }
 
 function formatDate(value: string) {
@@ -193,7 +235,7 @@ function requireProfileComplete() {
 }
 
 function openMyFamilies() {
-  uni.navigateTo({ url: '/pages/family/my' })
+  uni.switchTab({ url: '/pages/family/my' })
 }
 
 async function loadInvitation() {
@@ -228,6 +270,11 @@ function confirmAccept() {
 
 function confirmReject() {
   if (!invitation.value) return
+  const validationMessage = validateRejectReason()
+  if (validationMessage) {
+    actionError.value = validationMessage
+    return
+  }
   uni.showModal({
     title: '拒绝邀请',
     content: `确定拒绝加入「${invitation.value.familyName}」的邀请吗？`,
@@ -235,6 +282,12 @@ function confirmReject() {
       if (modalResult.confirm) reject()
     }
   })
+}
+
+function validateRejectReason() {
+  return validateTextFields([
+    { value: rejectReason.value, label: '拒绝原因', kind: 'multiLine', maxLength: 200 }
+  ])
 }
 
 async function accept() {
@@ -256,12 +309,17 @@ async function accept() {
 async function reject() {
   if (!invitation.value) return
   if (!session.requireProfileComplete(currentRoute())) return
+  const validationMessage = validateRejectReason()
+  if (validationMessage) {
+    actionError.value = validationMessage
+    return
+  }
   acting.value = 'reject'
   actionError.value = ''
   result.value = ''
   try {
     invitation.value = await rejectInvitation(invitation.value.invitationId, {
-      reason: rejectReason.value || undefined
+      reason: optionalText(rejectReason.value)
     })
     result.value = '邀请已拒绝。'
   } catch (error) {
@@ -280,119 +338,243 @@ onLoad((options) => {
 
 <style scoped>
 .invite-detail-page {
+  padding-top: 28rpx;
+}
+
+.invite-detail-page :deep(.mini-back-home) {
+  margin-bottom: 22rpx;
+}
+
+.detail-seal {
+  flex-shrink: 0;
+}
+
+.invite-letter {
+  margin-bottom: 24rpx;
+  border-top: 1rpx solid var(--archive-line-strong);
+  border-bottom: 1rpx solid var(--archive-line);
   background:
-    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
-    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.42), transparent 38%),
+    rgba(255, 252, 245, 0.52);
 }
 
-.state-block {
-  padding: 32rpx 0;
-  text-align: center;
+.invite-letter.pending {
+  box-shadow: inset 0 0 0 1rpx rgba(168, 59, 45, 0.08);
 }
 
-.trust-card-head {
+.invite-letter-head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16rpx;
-  margin-bottom: 12rpx;
+  align-items: stretch;
+  gap: 18rpx;
+  padding: 24rpx 0 18rpx;
 }
 
-.trust-family-name {
+.invite-letter-copy {
   flex: 1;
-  color: #fff;
-  font-size: 38rpx;
-  font-weight: 800;
-  line-height: 1.4;
+  min-width: 0;
+  padding-left: 2rpx;
 }
 
-.invitation-hero {
-  margin-bottom: 26rpx;
-}
-
-.invitation-kicker {
+.invite-letter-kicker {
   display: block;
-  margin-bottom: 6rpx;
-  color: rgba(248, 231, 194, 0.92);
-  font-size: 22rpx;
-  font-weight: 800;
-  letter-spacing: 2rpx;
+  color: var(--archive-cinnabar);
+  font-size: 20rpx;
+  font-weight: 650;
+  letter-spacing: 4rpx;
 }
 
-.identity-confirmation {
-  margin: 18rpx 0 8rpx;
-  padding: 22rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.16);
-  border-radius: 24rpx;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.identity-label,
-.identity-name,
-.identity-hint {
+.invite-family-name {
   display: block;
-}
-
-.identity-label {
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 22rpx;
-}
-
-.identity-name {
-  margin: 8rpx 0;
-  color: #fff;
+  margin-top: 10rpx;
+  color: var(--archive-ink);
+  font-family: 'Songti SC', 'STSong', serif;
   font-size: 42rpx;
-  font-weight: 800;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
-.identity-hint {
-  color: rgba(255, 255, 255, 0.70);
+.invite-target-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 18rpx;
 }
 
-.benefit-list {
+.invite-target-label {
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
+}
+
+.invite-target-tag {
+  min-height: 52rpx;
+  padding: 0 18rpx;
+  font-size: 28rpx;
+}
+
+.invite-target-hint {
+  display: block;
+  margin-top: 12rpx;
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
+  line-height: 1.55;
+}
+
+.invite-letter-spine {
   display: flex;
   flex-direction: column;
-  gap: 14rpx;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+  width: 72rpx;
+  color: rgba(255, 255, 255, 0.92);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 24rpx;
+  font-weight: 700;
+  letter-spacing: 4rpx;
 }
 
-.benefit-item {
+.invite-pending-mark {
   display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin: 0 0 8rpx;
+  padding: 0 0 18rpx;
+  border-bottom: 1rpx dashed rgba(168, 59, 45, 0.22);
+}
+
+.invite-pending-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96rpx;
+  min-height: 96rpx;
+  border: 3rpx solid var(--archive-cinnabar);
+  color: var(--archive-cinnabar);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 28rpx;
+  font-weight: 800;
+  line-height: 1.1;
+  text-align: center;
+  transform: rotate(-8deg);
+}
+
+.invite-pending-note {
+  flex: 1;
+  color: var(--archive-cinnabar);
+  font-size: 22rpx;
+  line-height: 1.55;
+}
+
+.invite-fields {
+  padding-bottom: 8rpx;
+}
+
+.invite-field-row {
   align-items: flex-start;
+}
+
+.invite-field-label {
+  flex-shrink: 0;
+  width: 168rpx;
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+
+.invite-field-value {
+  flex: 1;
+  min-width: 0;
+  color: var(--archive-ink);
+  font-size: 24rpx;
+  line-height: 1.55;
+  text-align: right;
+}
+
+.invite-message-panel,
+.invite-benefits-panel,
+.invite-action-panel,
+.invite-resolved-panel {
+  margin-bottom: 24rpx;
+}
+
+.invite-message {
+  display: block;
+  color: var(--archive-ink-soft);
+  font-size: 24rpx;
+  line-height: 1.75;
+}
+
+.invite-benefit-row {
+  min-height: 72rpx;
+}
+
+.invite-benefit-text {
+  flex: 1;
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
+  line-height: 1.55;
+}
+
+.invite-detail-page :deep(.mini-notice) {
+  margin-bottom: 20rpx;
+}
+
+.invite-reject-input {
+  margin-bottom: 16rpx;
+}
+
+.invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+}
+
+.invite-action-single {
+  margin-top: 16rpx;
+  align-self: flex-start;
+}
+
+.invite-resolved-line {
+  display: flex;
+  flex-direction: column;
   gap: 12rpx;
-  border: 1rpx solid rgba(226, 232, 240, 0.82);
-  border-radius: 20rpx;
-  background: rgba(248, 250, 252, 0.86);
-  color: var(--tree-text-secondary);
-  padding: 16rpx 18rpx;
-  font-size: 26rpx;
+  padding-bottom: 4rpx;
+  border-bottom: 1rpx solid var(--archive-line);
+}
+
+.archive-status-tag {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 42rpx;
+  border: 1rpx solid var(--archive-line);
+  padding: 0 12rpx;
+  font-size: 20rpx;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.archive-status-tag.is-ink {
+  border-color: rgba(22, 51, 83, 0.22);
+  background: rgba(22, 51, 83, 0.08);
+  color: var(--archive-blue);
+}
+
+.archive-status-tag.is-muted {
+  background: rgba(255, 248, 234, 0.58);
+  color: var(--archive-ink-soft);
+}
+
+.invite-resolved-text {
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
   line-height: 1.6;
 }
 
-.benefit-dot {
-  flex: 0 0 auto;
-  width: 10rpx;
-  height: 10rpx;
-  margin-top: 15rpx;
-  border-radius: 50%;
-  background: var(--tree-green, #2f6b57);
-}
-
-.invitation-message {
+.invite-error,
+.invite-result {
   display: block;
-  line-height: 1.7;
-}
-
-.trust-hint {
-  display: block;
-  margin-bottom: 8rpx;
-  line-height: 1.7;
-}
-
-.detail-block-title {
-  display: block;
-  margin-bottom: 16rpx;
-  color: var(--tree-text);
-  font-size: 31rpx;
-  font-weight: 800;
+  margin-top: 8rpx;
 }
 </style>

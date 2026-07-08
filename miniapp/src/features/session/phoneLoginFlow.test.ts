@@ -57,6 +57,19 @@ test('wechat-login exposes secondary link to phone backup login', () => {
   assert.match(source, /使用手机号密码登录/)
 })
 
+test('external login entry points use neutral login wording', () => {
+  const entryPages = [
+    join(miniappSrc, 'pages', 'me', 'index.vue'),
+    join(miniappSrc, 'pages', 'join', 'apply.vue'),
+    join(miniappSrc, 'pages', 'invite', 'detail.vue')
+  ]
+  for (const page of entryPages) {
+    const source = readFileSync(page, 'utf8')
+    assert.match(source, />去登录</)
+    assert.doesNotMatch(source, />微信登录</)
+  }
+})
+
 test('profile page supports optional phone backup setup and password change', () => {
   const source = readFileSync(join(miniappSrc, 'pages', 'me', 'profile.vue'), 'utf8')
   assert.match(source, /bindPhoneCredential/)

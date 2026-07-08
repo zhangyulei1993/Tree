@@ -1,32 +1,37 @@
 <template>
-  <view class="tree-page family-join-review-page">
+  <view class="archive-page family-join-review-page">
     <MiniBackHome />
-    <FamilyContextHeader
-      v-if="familyName"
-      :family-name="familyName"
-      section="收到的加入申请"
-      subtitle="审核外部用户提交给该家庭的加入申请"
-      :role-label="familyRoleLabel"
-      @back="openFamilyOverview"
-    />
 
-    <MiniCard variant="hero" class="review-hero">
-      <MiniNotice tone="security">
-        仅家庭创建者和管理员可查看与处理。通过前请确认申请人在家谱中的位置。
-      </MiniNotice>
+    <view v-if="familyName" class="review-head archive-page-head">
+      <view>
+        <text class="archive-kicker">Join Review</text>
+        <text class="archive-title">收到的加入申请</text>
+        <text class="archive-subtitle">{{ familyName }} · 审核外部用户提交给该家庭的加入申请</text>
+      </view>
+      <view class="archive-seal">{{ familySealLetter }}</view>
+    </view>
+
+    <view v-if="familyName" class="review-context">
+      <text class="archive-chip">{{ familyRoleLabel }}</text>
+      <text class="context-back" @click="openFamilyOverview">返回详情</text>
+    </view>
+
+    <view class="review-summary">
+      <text v-if="requests.length" class="archive-chip">待处理 {{ pendingCount }}</text>
       <MiniButton variant="secondary" size="sm" :disabled="loading" :loading="loading" @click="loadRequests">
         刷新列表
       </MiniButton>
-      <text v-if="operationError" class="tree-field-error">{{ operationError }}</text>
-    </MiniCard>
+    </view>
 
-    <MiniCard v-if="loading && requests.length === 0">
-      <view class="state-block">
-        <text class="tree-muted">正在加载加入申请...</text>
-      </view>
-    </MiniCard>
+    <MiniNotice tone="security" title="审核说明">
+      仅家庭创建者和管理员可查看与处理。通过前请确认申请人在家谱中的位置。
+    </MiniNotice>
 
-    <MiniCard v-else-if="loadError && requests.length === 0">
+    <view v-if="loading && requests.length === 0" class="review-state archive-form-panel">
+      <MiniEmptyState symbol="…" title="正在加载" description="正在加载加入申请..." />
+    </view>
+
+    <view v-else-if="loadError && requests.length === 0" class="review-state archive-form-panel">
       <MiniEmptyState
         symbol="!"
         title="加载失败"
@@ -34,170 +39,189 @@
         action-text="重新加载"
         @action="loadRequests"
       />
-    </MiniCard>
+    </view>
 
-    <MiniCard v-else-if="requests.length === 0">
+    <view v-else-if="requests.length === 0" class="review-state archive-form-panel">
       <MiniEmptyState
         symbol="申"
         title="暂无加入申请"
         description="有用户提交加入申请后，会在这里显示。"
       />
-    </MiniCard>
+    </view>
 
     <template v-else>
-      <view v-for="group in requestGroups" :key="group.key" class="request-group">
-        <MiniSectionHeader :title="group.title" :subtitle="group.subtitle" />
-        <MiniCard v-for="item in group.items" :key="item.requestId" variant="soft" class="review-card">
-        <view class="item-head">
-          <view class="item-title-block">
-            <text class="item-name">{{ item.applicantRealName || '未填写姓名' }}</text>
-            <text class="tree-weak">申请加入 {{ item.familyName || '当前家庭' }}</text>
+      <view v-for="group in requestGroups" :key="group.key" class="review-group archive-form-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">{{ group.title }}</text>
+          <text class="archive-section-subtitle">{{ group.subtitle }}</text>
+        </view>
+        <view class="review-list archive-list">
+          <view v-for="item in group.items" :key="item.requestId" class="review-item">
+            <view class="review-item-head">
+              <view class="archive-row-main">
+                <text class="archive-row-title">{{ item.applicantRealName || '未填写姓名' }}</text>
+                <text class="archive-row-desc">申请加入 {{ item.familyName || familyName || '当前家庭' }}</text>
+              </view>
+              <text class="archive-status-tag" :class="joinStatusClass(item.requestStatus)">
+                {{ joinRequestStatusText(item.requestStatus) }}
+              </text>
+            </view>
+
+            <view class="review-meta">
+              <text>申请理由：{{ item.applicantMessage || '未填写' }}</text>
+              <text>申请性别：{{ genderText(item.applicantGender) }}</text>
+              <text class="review-meta-weak">提交时间：{{ formatDate(item.createdAt) }}</text>
+              <text v-if="item.handleComment">处理结果：{{ item.handleComment }}</text>
+              <text v-else-if="item.requestStatus !== 'PENDING'" class="review-meta-weak">
+                更新时间：{{ formatDate(item.updatedAt) }}
+              </text>
+            </view>
+
+            <view v-if="item.requestStatus === 'PENDING'" class="review-actions">
+              <MiniButton
+                size="sm"
+                variant="secondary"
+                :disabled="isActing(item)"
+                @click="openResolvePanel(item, 'bind')"
+              >
+                绑定已有成员
+              </MiniButton>
+              <MiniButton size="sm" :disabled="isActing(item)" @click="openResolvePanel(item, 'locate')">
+                创建并定位
+              </MiniButton>
+              <MiniButton
+                size="sm"
+                variant="secondary"
+                :disabled="isActing(item)"
+                @click="openResolvePanel(item, 'standalone')"
+              >
+                暂存未定位
+              </MiniButton>
+              <MiniButton
+                size="sm"
+                variant="secondary"
+                :disabled="isActing(item)"
+                :loading="actingId === item.requestId && actingType === 'reject'"
+                @click="confirmReject(item)"
+              >
+                驳回
+              </MiniButton>
+            </view>
+
+            <view
+              v-if="activeRequestId === item.requestId && item.requestStatus === 'PENDING'"
+              class="resolve-panel archive-form-panel"
+            >
+              <template v-if="resolveMode === 'bind'">
+                <view class="archive-section-head">
+                  <text class="archive-section-title">绑定到已有成员</text>
+                  <text class="archive-section-subtitle">适合家谱里已经有这个人，只是还没有绑定账号</text>
+                </view>
+                <picker
+                  v-if="bindableMembers.length > 0"
+                  mode="selector"
+                  :range="bindableMemberLabels"
+                  :value="selectedMemberIndex"
+                  @change="onSelectExistingMember"
+                >
+                  <view class="field-picker">{{ selectedExistingMemberLabel }}</view>
+                </picker>
+                <MiniNotice v-else tone="warm">
+                  当前没有可绑定成员。可先创建并定位，或暂存为未定位成员。
+                </MiniNotice>
+                <MiniButton
+                  size="sm"
+                  :disabled="bindableMembers.length === 0 || isActing(item)"
+                  :loading="actingId === item.requestId && actingType === 'approve'"
+                  @click="confirmBindExisting(item)"
+                >
+                  确认绑定并通过
+                </MiniButton>
+              </template>
+
+              <template v-else-if="resolveMode === 'locate'">
+                <view class="archive-section-head">
+                  <text class="archive-section-title">创建新成员并放入家谱</text>
+                  <text class="archive-section-subtitle">适合知道申请人与某位已有成员的关系</text>
+                </view>
+                <text class="tree-field-label">新成员姓名</text>
+                <input v-model.trim="resolveForm.name" class="tree-input" maxlength="100" placeholder="请输入成员姓名" />
+                <text class="tree-field-label">新成员性别</text>
+                <picker mode="selector" :range="genderLabels" :value="genderIndex" @change="onSelectGender">
+                  <view class="field-picker">{{ genderLabels[genderIndex] }}</view>
+                </picker>
+                <text class="tree-field-label">基准成员</text>
+                <picker
+                  v-if="members.length > 0"
+                  mode="selector"
+                  :range="memberLabels"
+                  :value="baseMemberIndex"
+                  @change="onSelectBaseMember"
+                >
+                  <view class="field-picker">{{ selectedBaseMemberLabel }}</view>
+                </picker>
+                <MiniNotice v-else tone="warm">
+                  当前家庭还没有可作为基准的成员，无法定位到家谱。
+                </MiniNotice>
+                <text class="tree-field-label">与基准成员的关系</text>
+                <picker mode="selector" :range="relationOptionLabels" :value="addTypeIndex" @change="onSelectAddType">
+                  <view class="field-picker">{{ selectedAddTypeLabel }}</view>
+                </picker>
+                <text v-if="showParentRolePicker" class="tree-field-label">父母身份</text>
+                <picker
+                  v-if="showParentRolePicker"
+                  mode="selector"
+                  :range="parentRoleLabels"
+                  :value="parentRoleIndex"
+                  @change="onSelectParentRole"
+                >
+                  <view class="field-picker">{{ parentRoleLabels[parentRoleIndex] }}</view>
+                </picker>
+                <MiniNotice v-if="showParentRolePicker && selectedParentMemberType === 'SPOUSE'" tone="warm">
+                  选择「本家成员的配偶」时，基准成员必须已有相反性别的本家成员父母。
+                </MiniNotice>
+                <MiniNotice :tone="placementTone">
+                  {{ selectedPlacement.message }}
+                </MiniNotice>
+                <MiniButton
+                  size="sm"
+                  :disabled="orderedMembers.length === 0 || isActing(item)"
+                  :loading="actingId === item.requestId && actingType === 'approve'"
+                  @click="confirmCreateLocated(item)"
+                >
+                  创建并通过
+                </MiniButton>
+              </template>
+
+              <template v-else>
+                <view class="archive-section-head">
+                  <text class="archive-section-title">暂存为未定位成员</text>
+                  <text class="archive-section-subtitle">
+                    只创建成员档案并绑定账号，后续需要在成员管理中补充亲属关系
+                  </text>
+                </view>
+                <text class="tree-field-label">新成员姓名</text>
+                <input v-model.trim="resolveForm.name" class="tree-input" maxlength="100" placeholder="请输入成员姓名" />
+                <text class="tree-field-label">新成员性别</text>
+                <picker mode="selector" :range="genderLabels" :value="genderIndex" @change="onSelectGender">
+                  <view class="field-picker">{{ genderLabels[genderIndex] }}</view>
+                </picker>
+                <MiniButton
+                  size="sm"
+                  :disabled="isActing(item)"
+                  :loading="actingId === item.requestId && actingType === 'approve'"
+                  @click="confirmCreateStandalone(item)"
+                >
+                  暂存并通过
+                </MiniButton>
+              </template>
+            </view>
           </view>
-          <MiniStatusTag :status="item.requestStatus" :label="joinRequestStatusText(item.requestStatus)" />
         </view>
-
-        <text class="tree-muted item-meta">申请性别：{{ genderText(item.applicantGender) }}</text>
-        <text class="tree-muted item-meta">申请说明：{{ item.applicantMessage || '未填写' }}</text>
-        <text v-if="item.handleComment" class="tree-muted item-meta">处理意见：{{ item.handleComment }}</text>
-        <text class="tree-weak item-meta">提交时间：{{ formatDate(item.createdAt) }}</text>
-        <text v-if="item.requestStatus !== 'PENDING'" class="tree-weak item-meta">
-          更新时间：{{ formatDate(item.updatedAt) }}
-        </text>
-
-        <view v-if="item.requestStatus === 'PENDING'" class="item-actions">
-          <MiniButton
-            variant="secondary"
-            :disabled="isActing(item)"
-            @click="openResolvePanel(item, 'bind')"
-          >
-            绑定已有成员
-          </MiniButton>
-          <MiniButton
-            :disabled="isActing(item)"
-            @click="openResolvePanel(item, 'locate')"
-          >
-            创建并定位
-          </MiniButton>
-          <MiniButton
-            variant="secondary"
-            :disabled="isActing(item)"
-            @click="openResolvePanel(item, 'standalone')"
-          >
-            暂存未定位
-          </MiniButton>
-          <MiniButton
-            variant="secondary"
-            :disabled="isActing(item)"
-            :loading="actingId === item.requestId && actingType === 'reject'"
-            @click="confirmReject(item)"
-          >
-            驳回申请
-          </MiniButton>
-        </view>
-
-        <view v-if="activeRequestId === item.requestId && item.requestStatus === 'PENDING'" class="resolve-panel">
-          <template v-if="resolveMode === 'bind'">
-            <text class="panel-title">绑定到已有成员</text>
-            <text class="tree-muted panel-desc">
-              适合家谱里已经有这个人，只是还没有绑定账号。
-            </text>
-            <picker
-              v-if="bindableMembers.length > 0"
-              mode="selector"
-              :range="bindableMemberLabels"
-              :value="selectedMemberIndex"
-              @change="onSelectExistingMember"
-            >
-              <view class="picker-field">{{ selectedExistingMemberLabel }}</view>
-            </picker>
-            <MiniNotice v-else tone="warm">
-              当前没有可绑定成员。可先创建并定位，或暂存为未定位成员。
-            </MiniNotice>
-            <MiniButton
-              :disabled="bindableMembers.length === 0 || isActing(item)"
-              :loading="actingId === item.requestId && actingType === 'approve'"
-              @click="confirmBindExisting(item)"
-            >
-              确认绑定并通过
-            </MiniButton>
-          </template>
-
-          <template v-else-if="resolveMode === 'locate'">
-            <text class="panel-title">创建新成员并放入家谱</text>
-            <text class="tree-muted panel-desc">
-              适合知道申请人与某位已有成员的关系。
-            </text>
-            <text class="tree-field-label">新成员姓名</text>
-            <input v-model.trim="resolveForm.name" class="input" maxlength="100" placeholder="请输入成员姓名" />
-            <text class="tree-field-label">新成员性别</text>
-            <picker mode="selector" :range="genderLabels" :value="genderIndex" @change="onSelectGender">
-              <view class="picker-field">{{ genderLabels[genderIndex] }}</view>
-            </picker>
-            <text class="tree-field-label">基准成员</text>
-            <picker
-              v-if="members.length > 0"
-              mode="selector"
-              :range="memberLabels"
-              :value="baseMemberIndex"
-              @change="onSelectBaseMember"
-            >
-              <view class="picker-field">{{ selectedBaseMemberLabel }}</view>
-            </picker>
-            <MiniNotice v-else tone="warm">
-              当前家庭还没有可作为基准的成员，无法定位到家谱。
-            </MiniNotice>
-            <text class="tree-field-label">与基准成员的关系</text>
-            <picker mode="selector" :range="relationOptionLabels" :value="addTypeIndex" @change="onSelectAddType">
-              <view class="picker-field">{{ selectedAddTypeLabel }}</view>
-            </picker>
-            <text v-if="showParentRolePicker" class="tree-field-label">父母身份</text>
-            <picker
-              v-if="showParentRolePicker"
-              mode="selector"
-              :range="parentRoleLabels"
-              :value="parentRoleIndex"
-              @change="onSelectParentRole"
-            >
-              <view class="picker-field">{{ parentRoleLabels[parentRoleIndex] }}</view>
-            </picker>
-            <MiniNotice v-if="showParentRolePicker && selectedParentMemberType === 'SPOUSE'" tone="warm">
-              选择「本家成员的配偶」时，基准成员必须已有相反性别的本家成员父母。
-            </MiniNotice>
-            <MiniNotice :tone="placementTone">
-              {{ selectedPlacement.message }}
-            </MiniNotice>
-            <MiniButton
-              :disabled="orderedMembers.length === 0 || isActing(item)"
-              :loading="actingId === item.requestId && actingType === 'approve'"
-              @click="confirmCreateLocated(item)"
-            >
-              创建并通过
-            </MiniButton>
-          </template>
-
-          <template v-else>
-            <text class="panel-title">暂存为未定位成员</text>
-            <text class="tree-muted panel-desc">
-              只创建成员档案并绑定账号，后续需要在成员管理中补充亲属关系。
-            </text>
-            <text class="tree-field-label">新成员姓名</text>
-            <input v-model.trim="resolveForm.name" class="input" maxlength="100" placeholder="请输入成员姓名" />
-            <text class="tree-field-label">新成员性别</text>
-            <picker mode="selector" :range="genderLabels" :value="genderIndex" @change="onSelectGender">
-              <view class="picker-field">{{ genderLabels[genderIndex] }}</view>
-            </picker>
-            <MiniButton
-              :disabled="isActing(item)"
-              :loading="actingId === item.requestId && actingType === 'approve'"
-              @click="confirmCreateStandalone(item)"
-            >
-              暂存并通过
-            </MiniButton>
-          </template>
-        </view>
-        </MiniCard>
       </view>
     </template>
+
+    <text v-if="operationError" class="tree-field-error review-error">{{ operationError }}</text>
   </view>
 </template>
 
@@ -216,13 +240,9 @@ import { listFamilyMembers } from '@/api/members'
 import { getPrivateTree } from '@/api/tree'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import { joinRequestStatusText } from '@/components/base/formatStatus'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
-import MiniStatusTag from '@/components/base/MiniStatusTag.vue'
-import FamilyContextHeader from '@/components/family/FamilyContextHeader.vue'
 import {
   buildApproveJoinLocation,
   parentRoleLabels,
@@ -230,6 +250,7 @@ import {
 } from '@/features/join/approveJoinLocation'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyMember, Gender, JoinRequest, RelationshipAddType, TreeEdge, TreeNode } from '@/types/api'
+import { normalizeText, validateTextFields } from '@/utils/inputValidation'
 
 interface PlacementState {
   blocked: boolean
@@ -304,6 +325,10 @@ const showParentRolePicker = computed(() => {
 })
 const selectedParentMemberType = computed(() => parentRoleValues[parentRoleIndex.value] || 'LINEAGE_MEMBER')
 const familyRoleLabel = computed(() => familyRole.value === 'FOUNDER' ? '创建者' : '管理员')
+const familySealLetter = computed(() => familySurname.value.slice(0, 1) || familyName.value.slice(0, 1) || '审')
+const pendingCount = computed(() =>
+  requests.value.filter((item) => item.requestStatus === 'PENDING').length
+)
 const treeNodeMap = computed(() => new Map(treeNodes.value.map((node) => [Number(node.memberId), node])))
 const selectedPlacement = computed(() => placementState(selectedBaseMember.value, selectedAddType.value))
 const placementTone = computed(() => selectedPlacement.value.blocked || selectedPlacement.value.relationNoteType ? 'warm' : 'security')
@@ -315,6 +340,12 @@ const requestGroups = computed(() => {
     { key: 'history', title: '历史申请', subtitle: '已通过或驳回的处理记录', items: history }
   ].filter((group) => group.items.length > 0)
 })
+
+function joinStatusClass(status: string) {
+  if (status === 'PENDING') return 'is-cinnabar'
+  if (status === 'APPROVED') return 'is-ink'
+  return 'is-muted'
+}
 
 function resetTransientUI() {
   operationError.value = ''
@@ -568,7 +599,14 @@ function ensureResolveName() {
     operationError.value = '请先填写新成员姓名。'
     return ''
   }
-  return value
+  const validationMessage = validateTextFields([
+    { value, label: '新成员姓名', kind: 'name', required: true, maxLength: 100 }
+  ])
+  if (validationMessage) {
+    operationError.value = validationMessage
+    return ''
+  }
+  return normalizeText(value)
 }
 
 function confirmBindExisting(item: JoinRequest) {
@@ -745,113 +783,129 @@ onUnload(resetPageData)
 
 <style scoped>
 .family-join-review-page {
-  background:
-    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
-    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
+  padding-top: 28rpx;
 }
 
-.review-hero {
-  margin-bottom: 26rpx;
+.family-join-review-page :deep(.mini-back-home) {
+  margin-bottom: 22rpx;
 }
 
-.review-hero :deep(.mini-notice) {
-  margin-bottom: 18rpx;
+.review-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 22rpx;
 }
 
-.state-block {
-  padding: 32rpx 0;
-  text-align: center;
+.context-back {
+  color: var(--archive-cinnabar);
+  font-size: 22rpx;
+  line-height: 1.4;
 }
 
-.item-head {
+.review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10rpx;
+  margin-bottom: 22rpx;
+}
+
+.family-join-review-page :deep(.mini-notice) {
+  margin-bottom: 20rpx;
+}
+
+.review-group {
+  margin-bottom: 24rpx;
+}
+
+.review-list {
+  margin-top: 8rpx;
+}
+
+.review-item {
+  border-bottom: 1rpx solid var(--archive-line);
+  padding: 18rpx 0;
+}
+
+.review-item:last-child {
+  border-bottom: 0;
+}
+
+.review-item-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16rpx;
-  margin-bottom: 18rpx;
 }
 
-.item-title-block {
-  flex: 1;
-  min-width: 0;
+.archive-status-tag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 42rpx;
+  border: 1rpx solid var(--archive-line);
+  padding: 0 12rpx;
+  font-size: 20rpx;
+  font-weight: 650;
+  line-height: 1.2;
 }
 
-.item-name {
-  display: block;
-  color: var(--tree-text-primary);
-  font-size: 34rpx;
-  font-weight: 800;
+.archive-status-tag.is-cinnabar {
+  border-color: rgba(168, 59, 45, 0.28);
+  background: rgba(168, 59, 45, 0.08);
+  color: var(--archive-cinnabar);
 }
 
-.item-meta {
-  display: block;
-  margin-top: 8rpx;
-  color: var(--tree-text-secondary);
-  font-size: 24rpx;
+.archive-status-tag.is-ink {
+  border-color: rgba(22, 51, 83, 0.22);
+  background: rgba(22, 51, 83, 0.08);
+  color: var(--archive-blue);
+}
+
+.archive-status-tag.is-muted {
+  background: rgba(255, 248, 234, 0.58);
+  color: var(--archive-ink-soft);
+}
+
+.review-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  margin-top: 12rpx;
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
   line-height: 1.55;
 }
 
-.item-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12rpx;
-  margin-top: 20rpx;
+.review-meta-weak {
+  opacity: 0.88;
 }
 
-.review-card {
-  position: relative;
-  border-color: rgba(255, 255, 255, 0.72);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.12), transparent 160rpx),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(244, 250, 247, 0.94) 100%);
-  box-shadow: 0 16rpx 40rpx rgba(24, 54, 83, 0.07);
-}
-
-.review-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 26rpx;
-  bottom: 26rpx;
-  width: 7rpx;
-  border-radius: 0 999rpx 999rpx 0;
-  background: linear-gradient(180deg, var(--tree-green) 0%, var(--tree-primary) 100%);
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 16rpx;
 }
 
 .resolve-panel {
-  margin-top: 20rpx;
-  padding: 22rpx;
-  border: 1rpx solid rgba(47, 107, 87, 0.16);
-  border-radius: 24rpx;
-  background:
-    linear-gradient(135deg, rgba(243, 250, 247, 0.98) 0%, rgba(255, 255, 255, 0.96) 100%);
-  box-shadow: 0 12rpx 30rpx rgba(24, 54, 83, 0.06);
+  margin-top: 18rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx dashed var(--archive-line);
 }
 
-.panel-title {
+.resolve-panel :deep(.mini-notice) {
+  margin: 12rpx 0;
+}
+
+.resolve-panel .archive-section-head {
+  margin-bottom: 16rpx;
+}
+
+.review-error {
   display: block;
-  color: var(--tree-text, #1f2937);
-  font-size: 28rpx;
-  font-weight: 700;
-}
-
-.panel-desc {
-  display: block;
-  margin: 8rpx 0 16rpx;
-  line-height: 1.6;
-}
-
-.picker-field {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 84rpx;
-  margin-bottom: 18rpx;
-  padding: 22rpx 24rpx;
-  border: 1rpx solid rgba(226, 232, 240, 0.88);
-  border-radius: 20rpx;
-  background: rgba(255, 255, 255, 0.94);
-  color: var(--tree-text, #1f2937);
-  font-size: 26rpx;
-  box-shadow: 0 6rpx 18rpx rgba(24, 54, 83, 0.035);
+  margin-top: 16rpx;
 }
 </style>

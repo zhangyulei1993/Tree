@@ -1,108 +1,104 @@
 <template>
-  <view class="tree-page">
+  <view class="archive-page members-page">
     <MiniBackHome />
-    <FamilyContextHeader
-      v-if="family"
-      :family-name="family.familyName"
-      section="成员名册与账号绑定"
-      subtitle="查看成员档案、账号绑定和邀请状态"
-      :role-label="roleText(family.role)"
-      @back="openFamilyOverview"
-    />
-    <view v-else class="tree-tool-banner members-banner">
-      <view class="banner-copy">
-        <text class="tree-tool-banner-title">成员名册与账号绑定</text>
-        <text class="tree-tool-banner-desc">查看成员基本信息与账号绑定</text>
+
+    <view class="members-head">
+      <view>
+        <text class="archive-kicker">Family Roster</text>
+        <text class="archive-title">成员名册</text>
+        <text class="archive-subtitle">
+          {{ family?.familyName || '查看成员档案、账号绑定和邀请状态' }}
+        </text>
       </view>
-      <view class="tree-pedigree-mark" aria-hidden="true">
-        <view class="node node-root" />
-        <view class="line-v" />
-        <view class="line-l" />
-        <view class="line-r" />
-        <view class="node node-branch node-left" />
-        <view class="node node-branch node-right" />
-        <view class="trunk" />
+      <view v-if="family" class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
+    </view>
+
+    <view class="members-tools">
+      <view class="members-search">
+        <text class="search-mark">⌕</text>
+        <input
+          v-model.trim="searchKeyword"
+          class="members-search-input"
+          confirm-type="search"
+          placeholder="搜索成员姓名"
+          placeholder-class="members-search-placeholder"
+        />
+      </view>
+      <view class="members-filter archive-paper-tag">
+        <text>筛选</text>
       </view>
     </view>
 
-    <MiniCard v-if="errorMessage && members.length === 0">
+    <view v-if="family" class="members-context">
+      <text class="archive-chip">{{ roleText(family.role) || '成员' }}</text>
+      <text class="archive-chip">共 {{ filteredMembers.length }} 位</text>
+    </view>
+
+    <view v-if="errorMessage && members.length === 0" class="members-error archive-panel">
       <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
       <MiniButton variant="secondary" @click="loadMembers">重新加载</MiniButton>
-    </MiniCard>
+    </view>
 
     <template v-else>
-      <MiniCard v-if="loading && members.length === 0">
+      <view v-if="loading && members.length === 0" class="members-empty archive-panel">
         <MiniEmptyState symbol="…" title="正在加载" description="正在加载成员..." />
-      </MiniCard>
+      </view>
 
-      <MiniCard v-else-if="members.length === 0">
+      <view v-else-if="filteredMembers.length === 0" class="members-empty archive-panel">
         <MiniEmptyState
           symbol="员"
           title="暂无成员"
-          description="当前家庭还没有可展示的成员。"
+          description="当前条件下没有可展示的成员。"
         />
-      </MiniCard>
+      </view>
 
-      <view v-else class="tree-space">
-        <view class="tree-space-head">
-          <text class="tree-space-title">成员名册</text>
-          <text class="tree-space-subtitle">共 {{ members.length }} 位成员</text>
-        </view>
-        <view class="tree-space-body section-pad">
-          <view v-for="member in members" :key="member.memberId" class="member-entry">
-            <view
-              class="member-node"
-              :class="{
-                actionable: hasNodeAction(member),
-                selected: isActionMember(member)
-              }"
-              @tap="goEditMember(member)"
-            >
-              <MemberMiniCard
-                :name="member.name"
-                :age-text="formatMemberAge(member)"
-                :gender-text="formatMemberGender(member.gender)"
-                :living-text="formatMemberLiving(member.isAlive)"
-                :binding-text="formatMemberBindingNeed(member)"
-                :show-binding="true"
-                :status-label="member.status !== 'ACTIVE' ? memberStatusText(member.status) : undefined"
-                :status-tone="memberStatusTone(member.status)"
-                :role-label="roleText(member.boundFamilyRole)"
-              />
-              <view v-if="canEditMember(member)" class="member-edit-cue" @tap.stop="goEditMember(member)">
-                <text>编辑</text>
-                <text class="cue-arrow">›</text>
-              </view>
-              <view
-                v-if="hasNodeAction(member)"
-                class="inline-action-bar"
-                :class="{ single: !hasMoreAction(member) }"
-              >
-                <view v-if="hasMoreAction(member)" class="inline-action more" @tap.stop="toggleActionMember(member)">
-                  <text class="inline-action-main">
-                    {{ inlineActionMain(member) }}
-                  </text>
-                  <text class="inline-action-sub">
-                    {{ inlineActionSub(member) }}
-                  </text>
-                  <text class="inline-action-arrow">›</text>
+      <view v-else class="members-roster">
+        <view v-for="group in memberGroups" :key="group.key" class="member-generation">
+          <view class="generation-divider">
+            <text>{{ group.title }}</text>
+            <view class="generation-line" />
+          </view>
+
+          <view
+            v-for="member in group.items"
+            :key="member.memberId"
+            class="member-entry"
+            :class="{ selected: isActionMember(member), actionable: hasNodeAction(member) }"
+            @tap="handleMemberRowTap(member)"
+          >
+            <view class="member-row">
+              <text class="archive-surname-stamp">{{ surnameLetter(member) }}</text>
+              <view class="member-main">
+                <view class="member-title-line">
+                  <text class="member-name">{{ member.name }}</text>
+                  <text v-if="member.status !== 'ACTIVE'" class="member-state">{{ memberStatusText(member.status) }}</text>
+                </view>
+                <view class="member-meta-line">
+                  <text>{{ memberYearText(member) }}</text>
+                  <text>{{ memberGenerationLabel(member) }}</text>
+                  <text>{{ formatMemberGender(member.gender) }}</text>
                 </view>
               </view>
+              <view class="member-side">
+                <text class="member-role">{{ roleText(member.boundFamilyRole) || formatMemberBindingNeed(member) }}</text>
+                <text v-if="memberInvitation(member)" class="member-invite">{{ invitationSummary(memberInvitation(member)!) }}</text>
+              </view>
+              <text class="member-more" @tap.stop="handleMemberMoreTap(member)">
+                {{ isActionMember(member) ? '收' : '⋯' }}
+              </text>
             </view>
-            <view
-              v-if="isActionMember(member) && hasNodeAction(member)"
-              class="member-actions"
-            >
+
+            <view v-if="isActionMember(member) && hasNodeAction(member)" class="member-actions">
               <view class="member-actions-head">
-                <text class="member-actions-title">本节点操作</text>
-                <text class="member-actions-target">{{ member.name }} · 成员资料与账号绑定</text>
+                <text class="member-actions-title">{{ inlineActionMain(member) }}</text>
+                <text class="member-actions-target">{{ inlineActionSub(member) }}</text>
               </view>
               <MiniNotice v-if="actionError" tone="warm" title="操作失败">
                 {{ actionError }}
               </MiniNotice>
               <view v-if="canManageFamily" class="node-action-grid">
                 <MiniButton variant="secondary" size="sm" @click="goEditMember(member)">
-                  编辑 {{ member.name }} 资料
+                  编辑资料
                 </MiniButton>
                 <MiniButton
                   v-if="canDeleteForMember(member)"
@@ -112,7 +108,7 @@
                   :disabled="deletingMemberId === String(member.memberId)"
                   @click="confirmDeleteMember(member)"
                 >
-                  删除成员节点
+                  删除节点
                 </MiniButton>
               </view>
               <MiniNotice
@@ -132,7 +128,7 @@
                 size="sm"
                 @click="openInvitePanel(member)"
               >
-                邀请 {{ member.name }} 本人绑定此节点
+                邀请本人绑定此节点
               </MiniButton>
               <MiniButton
                 v-else-if="memberInvitation(member)"
@@ -140,7 +136,7 @@
                 size="sm"
                 @click="openSentInvitations"
               >
-                查看 {{ member.name }} 的邀请记录
+                查看邀请记录
               </MiniButton>
               <MiniButton
                 v-if="canUnbindForMember(member)"
@@ -153,11 +149,11 @@
                 解除账号绑定
               </MiniButton>
             </view>
-            <MiniCard
+
+            <view
               v-if="isInvitePanelMember(member)"
               :id="`invite-panel-${member.memberId}`"
-              variant="soft"
-              class="invite-panel"
+              class="invite-panel archive-form-panel"
             >
               <view class="invite-head">
                 <view>
@@ -202,7 +198,7 @@
                 </MiniButton>
                 <text v-if="inviteError" class="tree-field-error">{{ inviteError }}</text>
               </template>
-            </MiniCard>
+            </view>
           </view>
         </view>
       </view>
@@ -224,12 +220,8 @@ import {
 import { deleteFamilyMember, listFamilyMembers, unbindFamilyMemberUser } from '@/api/members'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import { statusTagTone } from '@/components/base/formatStatus'
-import FamilyContextHeader from '@/components/family/FamilyContextHeader.vue'
-import MemberMiniCard from '@/components/family/MemberMiniCard.vue'
 import { useSessionStore } from '@/stores/session'
 import type {
   CreatedInvitation,
@@ -237,6 +229,7 @@ import type {
   FamilyMember,
   Invitation
 } from '@/types/api'
+import { optionalText, validateTextFields } from '@/utils/inputValidation'
 import {
   canDeleteMember,
   canEditMember as canEditMemberAction,
@@ -248,11 +241,15 @@ import {
   memberActionSummary
 } from '@/features/family/memberListActions'
 import {
-  formatMemberAge,
   formatMemberBindingNeed,
-  formatMemberGender,
-  formatMemberLiving
+  formatMemberGender
 } from '@/utils/memberFormat'
+
+type MemberGroup = {
+  key: string
+  title: string
+  items: FamilyMember[]
+}
 
 const session = useSessionStore()
 session.restoreSession()
@@ -272,10 +269,30 @@ const inviteCancelling = ref(false)
 const actionError = ref('')
 const deletingMemberId = ref('')
 const unbindingMemberId = ref('')
+const searchKeyword = ref('')
 
 const canManageFamily = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
 )
+
+const filteredMembers = computed(() => {
+  const keyword = searchKeyword.value.trim()
+  if (!keyword) return members.value
+  return members.value.filter((member) => member.name.includes(keyword))
+})
+
+const memberGroups = computed<MemberGroup[]>(() => {
+  const groups = new Map<string, MemberGroup>()
+  for (const member of filteredMembers.value) {
+    const title = memberGroupTitle(member)
+    const key = title
+    if (!groups.has(key)) {
+      groups.set(key, { key, title, items: [] })
+    }
+    groups.get(key)!.items.push(member)
+  }
+  return Array.from(groups.values())
+})
 
 function resetTransientUI() {
   closeInvitePanel()
@@ -375,7 +392,7 @@ function inlineActionSub(member: FamilyMember) {
   const ctx = memberActionContext(member)
   const summary = memberActionSummary(member, ctx)
   if (summary) return summary
-  return `${member.name} 暂无可用管理操作`
+  return hasMoreAction(member) ? `${member.name} 可继续维护资料与账号绑定` : `${member.name} 暂无可用管理操作`
 }
 
 function isExpiredInvitation(item: Invitation) {
@@ -396,6 +413,22 @@ function sortMembersForBinding(list: FamilyMember[]) {
 
 function isActionMember(member: FamilyMember) {
   return String(selectedActionMemberId.value) === String(member.memberId)
+}
+
+function handleMemberRowTap(member: FamilyMember) {
+  if (hasNodeAction(member)) {
+    toggleActionMember(member)
+    return
+  }
+  goEditMember(member)
+}
+
+function handleMemberMoreTap(member: FamilyMember) {
+  if (hasNodeAction(member)) {
+    toggleActionMember(member)
+    return
+  }
+  goEditMember(member)
 }
 
 function toggleActionMember(member: FamilyMember) {
@@ -516,12 +549,19 @@ async function removeMember(member: FamilyMember) {
 async function createShareInvitation() {
   const member = selectedInviteMember.value
   if (!member || inviteSubmitting.value) return
+  const validationMessage = validateTextFields([
+    { value: inviteMessage.value, label: '邀请说明', kind: 'multiLine', maxLength: 300 }
+  ])
+  if (validationMessage) {
+    inviteError.value = validationMessage
+    return
+  }
   inviteSubmitting.value = true
   inviteError.value = ''
   try {
     const result = await createInvitation(familyId.value, member.memberId, {
       inviteChannel: 'SHARE_LINK',
-      inviteMessage: inviteMessage.value || undefined,
+      inviteMessage: optionalText(inviteMessage.value),
       familyRoleAfterAccept: 'MEMBER'
     })
     createdInvitation.value = result
@@ -599,10 +639,6 @@ function memberStatusText(status: string) {
   }
 }
 
-function memberStatusTone(status: string) {
-  return statusTagTone(status)
-}
-
 function roleText(role?: string | null) {
   switch (role) {
     case 'FOUNDER':
@@ -614,6 +650,31 @@ function roleText(role?: string | null) {
     default:
       return role ? '未知角色' : ''
   }
+}
+
+function surnameLetter(member: FamilyMember) {
+  return member.name.trim().slice(0, 1) || '氏'
+}
+
+function memberYearText(member: FamilyMember) {
+  if (member.birthYear && member.deathYear) return `${member.birthYear}-${member.deathYear}`
+  if (member.birthYear) return `${member.birthYear} 年生`
+  if (member.deathYear) return `${member.deathYear} 年殁`
+  return '年份未录'
+}
+
+function memberGroupTitle(member: FamilyMember) {
+  if (!member.birthYear) return '世系待补'
+  const decade = Math.floor(member.birthYear / 10) * 10
+  return `${decade} 年代`
+}
+
+function memberGenerationLabel(member: FamilyMember) {
+  if (member.birthYear) {
+    const decade = Math.floor(member.birthYear / 10) * 10
+    return `${decade}代`
+  }
+  return '世代待补'
 }
 
 onLoad((options) => {
@@ -636,189 +697,221 @@ onUnload(resetPageData)
 </script>
 
 <style scoped>
-.members-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-  margin-bottom: 24rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.18);
-  border-radius: 36rpx;
-  background:
-    radial-gradient(circle at 90% 12%, rgba(216, 175, 104, 0.22), transparent 220rpx),
-    linear-gradient(135deg, #17304c 0%, #245653 100%);
-  padding: 32rpx;
-  color: #fff;
-  box-shadow: 0 24rpx 60rpx rgba(24, 54, 83, 0.18);
+.members-page {
+  padding-top: 28rpx;
 }
 
-.banner-copy {
+.members-page :deep(.mini-back-home) {
+  margin-bottom: 22rpx;
+}
+
+.members-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin-bottom: 26rpx;
+}
+
+.members-tools {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-bottom: 18rpx;
+}
+
+.members-search {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  height: 72rpx;
+  border: 1rpx solid var(--archive-line-strong);
+  background: rgba(255, 249, 236, 0.42);
+  padding: 0 20rpx;
+  box-sizing: border-box;
+}
+
+.search-mark {
+  flex-shrink: 0;
+  color: var(--archive-cinnabar);
+  font-size: 26rpx;
+  margin-right: 12rpx;
+}
+
+.members-search-input {
+  flex: 1;
+  min-width: 0;
+  color: var(--archive-ink);
+  font-size: 25rpx;
+}
+
+.members-search-placeholder {
+  color: rgba(101, 112, 128, 0.58);
+}
+
+.members-filter {
+  width: 76rpx;
+  height: 72rpx;
+  flex-shrink: 0;
+}
+
+.members-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-bottom: 20rpx;
+}
+
+.members-error,
+.members-empty {
+  padding: 28rpx 0;
+}
+
+.members-error :deep(.mini-notice) {
+  margin-bottom: 18rpx;
+}
+
+.member-generation {
+  margin-bottom: 24rpx;
+}
+
+.generation-divider {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  margin-bottom: 10rpx;
+  color: var(--archive-cinnabar);
+  font-size: 22rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.generation-line {
+  flex: 1;
+  height: 1rpx;
+  background: var(--archive-line-strong);
+}
+
+.member-entry {
+  border-bottom: 1rpx solid var(--archive-line);
+}
+
+.member-entry.selected {
+  background: rgba(255, 248, 234, 0.48);
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  min-height: 112rpx;
+  padding: 18rpx 0;
+}
+
+.member-main {
   flex: 1;
   min-width: 0;
 }
 
-.section-pad {
-  padding: 8rpx 24rpx 16rpx;
-}
-
-.tree-page :deep(.mini-card.soft) {
-  margin-bottom: 16rpx;
-}
-
-.member-entry {
-  margin-bottom: 18rpx;
-}
-
-.member-node {
-  position: relative;
-  border-radius: 26rpx;
-  transition: all 0.2s ease;
-}
-
-.member-node.actionable {
-  position: relative;
-  border: 2rpx solid rgba(184, 149, 90, 0.34);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(216, 175, 104, 0.16), transparent 150rpx),
-    linear-gradient(180deg, rgba(255, 250, 240, 0.92) 0%, rgba(255, 255, 255, 0.98) 100%);
-  box-shadow: 0 14rpx 34rpx rgba(184, 149, 90, 0.10);
-}
-
-.member-node.selected {
-  border-color: rgba(47, 107, 87, 0.42);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(47, 107, 87, 0.14), transparent 160rpx),
-    linear-gradient(180deg, rgba(243, 250, 247, 0.98) 0%, #ffffff 100%);
-  box-shadow: 0 16rpx 42rpx rgba(47, 107, 87, 0.12);
-}
-
-.member-node :deep(.member-mini-card) {
-  margin-bottom: 0;
-}
-
-.member-node.actionable :deep(.member-mini-card) {
-  border-color: transparent;
-  background: transparent;
-  box-shadow: none;
-  padding-right: 92rpx;
-}
-
-.member-edit-cue {
-  position: absolute;
-  top: 18rpx;
-  right: 18rpx;
-  z-index: 2;
-  display: inline-flex;
+.member-title-line {
+  display: flex;
   align-items: center;
-  gap: 4rpx;
-  min-height: 44rpx;
-  border: 1rpx solid rgba(47, 107, 87, 0.18);
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--tree-green, #2f6b57);
-  padding: 0 14rpx;
+  gap: 10rpx;
+  min-width: 0;
+}
+
+.member-name {
+  overflow: hidden;
+  color: var(--archive-ink);
+  font-size: 30rpx;
+  font-weight: 750;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-state {
+  flex-shrink: 0;
+  color: var(--archive-cinnabar);
+  font-size: 20rpx;
+}
+
+.member-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx 16rpx;
+  margin-top: 8rpx;
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.35;
+}
+
+.member-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 150rpx;
+  flex-shrink: 0;
+}
+
+.member-role {
+  color: var(--archive-blue);
   font-size: 22rpx;
   font-weight: 700;
-  box-shadow: 0 8rpx 20rpx rgba(24, 54, 83, 0.07);
+  line-height: 1.35;
+  text-align: right;
 }
 
-.member-edit-cue:active {
-  transform: translateY(1rpx);
-  background: var(--tree-green-light, #e8f3ee);
+.member-invite {
+  margin-top: 5rpx;
+  color: var(--archive-cinnabar);
+  font-size: 19rpx;
+  line-height: 1.3;
+  text-align: right;
 }
 
-.cue-arrow {
-  font-size: 24rpx;
+.member-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48rpx;
+  height: 48rpx;
+  border: 1rpx solid var(--archive-line);
+  color: var(--archive-cinnabar);
+  font-size: 25rpx;
   line-height: 1;
 }
 
-.inline-action-bar {
-  display: block;
-  padding: 0 18rpx 12rpx;
-}
-
-.inline-action-bar.single {
-  grid-template-columns: 1fr;
-}
-
-.inline-action {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 2rpx;
-  box-sizing: border-box;
-  min-height: 62rpx;
-  border: 1rpx solid rgba(184, 149, 90, 0.18);
-  border-radius: 18rpx;
-  background: rgba(255, 255, 255, 0.66);
-  padding: 11rpx 54rpx 11rpx 16rpx;
-}
-
-.inline-action.more {
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.78) 0%, rgba(250, 246, 238, 0.7) 100%);
-}
-
-.inline-action-main {
-  color: var(--tree-text-primary, #1e293b);
-  font-size: 24rpx;
-  font-weight: 800;
-  line-height: 1.25;
-}
-
-.inline-action-sub {
-  color: var(--tree-text-secondary, #64748b);
-  font-size: 19rpx;
-  line-height: 1.25;
-}
-
-.inline-action-arrow {
-  position: absolute;
-  right: 18rpx;
-  top: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34rpx;
-  height: 34rpx;
-  border-radius: 999rpx;
-  background: rgba(184, 149, 90, 0.11);
-  color: var(--tree-gold-text, #8a6d2f);
-  font-size: 26rpx;
-  font-weight: 800;
-  transform: translateY(-50%);
-}
-
 .member-actions {
-  margin: 12rpx 0 14rpx;
-  padding: 20rpx 22rpx 22rpx;
-  border: 1rpx solid rgba(47, 107, 87, 0.16);
-  border-radius: 24rpx;
-  background:
-    linear-gradient(135deg, rgba(243, 250, 247, 0.98) 0%, rgba(255, 255, 255, 0.96) 100%);
-  box-shadow: 0 12rpx 30rpx rgba(24, 54, 83, 0.06);
+  margin: 0 0 18rpx 72rpx;
+  border-left: 3rpx solid var(--archive-cinnabar);
+  background: rgba(255, 249, 236, 0.44);
+  padding: 18rpx 0 18rpx 20rpx;
 }
 
 .member-actions-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12rpx;
-  margin-bottom: 14rpx;
+  margin-bottom: 16rpx;
+}
+
+.member-actions-title,
+.member-actions-target,
+.invite-title,
+.invite-desc {
+  display: block;
 }
 
 .member-actions-title {
-  color: var(--tree-text-primary, #1e293b);
-  font-size: 24rpx;
-  font-weight: 700;
-  line-height: 1.4;
+  color: var(--archive-ink);
+  font-size: 25rpx;
+  font-weight: 750;
 }
 
 .member-actions-target {
-  color: var(--tree-text-secondary, #64748b);
-  font-size: 22rpx;
-  line-height: 1.4;
-  text-align: right;
+  margin-top: 6rpx;
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.45;
 }
 
 .member-actions :deep(.mini-notice) {
@@ -827,13 +920,21 @@ onUnload(resetPageData)
 
 .node-action-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12rpx;
-  margin-bottom: 16rpx;
+  margin-bottom: 14rpx;
+}
+
+.member-actions :deep(.mini-button),
+.invite-panel :deep(.mini-button) {
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .invite-panel {
-  margin-bottom: 20rpx;
+  margin: 0 0 20rpx 72rpx;
+  border-radius: var(--archive-radius);
+  box-shadow: none;
 }
 
 .invite-head {
@@ -844,13 +945,8 @@ onUnload(resetPageData)
   margin-bottom: 18rpx;
 }
 
-.invite-title,
-.invite-desc {
-  display: block;
-}
-
 .invite-title {
-  color: var(--tree-text);
+  color: var(--archive-ink);
   font-size: 28rpx;
   font-weight: 700;
 }
@@ -861,18 +957,18 @@ onUnload(resetPageData)
 
 .invite-close {
   padding: 0 8rpx;
-  color: var(--tree-text-secondary);
+  color: var(--archive-ink-soft);
   font-size: 40rpx;
   line-height: 1;
 }
 
 .wechat-share-button {
   margin: 16rpx 0 12rpx;
-  border: 0;
-  border-radius: 16rpx;
-  background: var(--tree-green, #2f6b57);
-  color: #fff;
-  font-size: 28rpx;
+  border: 1rpx solid var(--archive-cinnabar);
+  border-radius: 0;
+  background: transparent;
+  color: var(--archive-cinnabar);
+  font-size: 26rpx;
   font-weight: 600;
 }
 

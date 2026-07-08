@@ -1,90 +1,112 @@
 <template>
-  <view class="tree-page invite-page">
+  <view class="archive-page invite-my-page">
     <MiniBackHome />
+
+    <view class="invite-head archive-page-head">
+      <view>
+        <text class="archive-kicker">Family Invitations</text>
+        <text class="archive-title">收到的家庭邀请</text>
+        <text class="archive-subtitle">核对家庭名称与成员身份后，再决定是否接受邀请</text>
+      </view>
+      <view class="archive-seal">邀</view>
+    </view>
+
+    <view class="invite-summary">
+      <text class="archive-chip">待处理 {{ pendingCount }}</text>
+      <MiniButton variant="secondary" size="sm" :disabled="loading" :loading="loading" @click="loadInvitations">
+        刷新列表
+      </MiniButton>
+    </view>
+
     <template v-if="authChecked">
-      <MiniCard variant="hero" class="invite-hero">
-        <MiniNotice tone="security">
-          邀请由家庭管理员发起，请核对家庭名称与成员身份后再接受。
-        </MiniNotice>
-        <MiniButton variant="secondary" size="sm" :disabled="loading" :loading="loading" @click="loadInvitations">
-          刷新列表
-        </MiniButton>
-        <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
-      </MiniCard>
+      <MiniNotice tone="security" title="核对成员身份">
+        邀请由家庭管理员发起，请核对家庭名称、成员姓名和邀请发起人后再接受。
+      </MiniNotice>
 
-      <MiniCard v-if="loading && invitations.length === 0">
-        <view class="state-block">
-          <text class="tree-muted">正在加载邀请...</text>
-        </view>
-      </MiniCard>
+      <view v-if="loading && invitations.length === 0" class="invite-state archive-form-panel">
+        <MiniEmptyState symbol="…" title="正在加载" description="正在同步收到的邀请..." />
+      </view>
 
-      <MiniCard v-else-if="loadError && invitations.length === 0">
-        <MiniEmptyState
-          symbol="!"
-          title="加载失败"
-          :description="loadError"
-          action-text="重新加载"
-          @action="loadInvitations"
-        />
-      </MiniCard>
+      <view v-else-if="loadError && invitations.length === 0" class="invite-state archive-form-panel">
+        <MiniNotice tone="warm" title="加载失败">{{ loadError }}</MiniNotice>
+        <MiniButton variant="secondary" size="sm" class="invite-action" @click="loadInvitations">重新加载</MiniButton>
+      </view>
 
-      <MiniCard v-else-if="invitations.length === 0">
+      <view v-else-if="invitations.length === 0" class="invite-state archive-form-panel">
         <MiniEmptyState
           symbol="邀"
           title="暂无邀请"
           description="请家人发送家庭邀请或公开家庭分享链接。"
         />
-      </MiniCard>
+      </view>
 
       <template v-else>
-        <view v-for="group in invitationGroups" :key="group.key" class="invitation-group">
-          <MiniSectionHeader :title="group.title" :subtitle="group.subtitle" />
-          <MiniCard v-for="item in group.items" :key="item.invitationId" variant="soft" class="invitation-card">
-            <view class="item-head">
-              <view>
-                <text class="item-kicker">家庭邀请</text>
-                <text class="item-name">{{ item.familyName }}</text>
+        <view v-for="group in invitationGroups" :key="group.key" class="invite-group archive-form-panel">
+          <view class="archive-section-head">
+            <text class="archive-section-title">{{ group.title }}</text>
+            <text class="archive-section-subtitle">{{ group.subtitle }}</text>
+          </view>
+          <view class="invite-list archive-list">
+            <view v-for="item in group.items" :key="item.invitationId" class="invite-item">
+              <view class="invite-item-head">
+                <view class="archive-row-main">
+                  <text class="archive-row-title">{{ item.familyName }}</text>
+                  <text class="archive-row-desc">邀请成员：{{ item.targetMemberName }}</text>
+                </view>
+                <text class="archive-status-tag" :class="invitationStatusClass(displayStatus(item))">
+                  {{ invitationStatusText(displayStatus(item)) }}
+                </text>
               </view>
-              <MiniStatusTag :status="displayStatus(item)" :label="invitationStatusText(displayStatus(item))" />
+
+              <view class="invite-meta">
+                <text>邀请人：{{ item.inviterDisplayName || '家庭管理员' }}（{{ inviterRoleText(item.inviterRole) }}）</text>
+                <text class="invite-meta-weak">有效期至：{{ formatDate(item.expiredAt) }}</text>
+              </view>
+
+              <view v-if="expandedInvitationId === item.invitationId" class="invite-detail">
+                <text>邀请方式：{{ inviteChannelText(item.inviteChannel) }}</text>
+                <text>加入后角色：{{ roleText(item.familyRoleAfterAccept) }}</text>
+                <text v-if="item.inviteMessage">邀请说明：{{ item.inviteMessage }}</text>
+              </view>
+
+              <view class="invite-actions">
+                <template v-if="displayStatus(item) === 'PENDING'">
+                  <MiniButton
+                    size="sm"
+                    :disabled="actingId === item.invitationId"
+                    :loading="actingId === item.invitationId && actingType === 'accept'"
+                    @click="confirmAccept(item)"
+                  >
+                    接受
+                  </MiniButton>
+                  <MiniButton
+                    size="sm"
+                    variant="secondary"
+                    :disabled="actingId === item.invitationId"
+                    :loading="actingId === item.invitationId && actingType === 'reject'"
+                    @click="confirmReject(item)"
+                  >
+                    拒绝
+                  </MiniButton>
+                </template>
+                <MiniButton
+                  v-else-if="item.status === 'ACCEPTED'"
+                  size="sm"
+                  variant="secondary"
+                  @click="openMyFamilies"
+                >
+                  进入我的家庭
+                </MiniButton>
+                <MiniButton size="sm" variant="secondary" @click="openInvitationDetail(item)">
+                  {{ expandedInvitationId === item.invitationId ? '收起详情' : '查看详情' }}
+                </MiniButton>
+              </view>
             </view>
-            <view class="invite-detail-grid">
-              <text class="item-meta">邀请成员：{{ item.targetMemberName }}</text>
-              <text class="item-meta">
-                发起人：{{ item.inviterDisplayName || '家庭管理员' }}（{{ inviterRoleText(item.inviterRole) }}）
-              </text>
-              <text class="item-meta">邀请方式：{{ inviteChannelText(item.inviteChannel) }}</text>
-              <text class="item-meta">加入后角色：{{ roleText(item.familyRoleAfterAccept) }}</text>
-              <text v-if="item.inviteMessage" class="item-meta full">邀请说明：{{ item.inviteMessage }}</text>
-              <text class="item-meta full weak">有效期至：{{ formatDate(item.expiredAt) }}</text>
-            </view>
-            <view v-if="displayStatus(item) === 'PENDING'" class="item-actions">
-              <MiniButton
-                :disabled="actingId === item.invitationId"
-                :loading="actingId === item.invitationId && actingType === 'accept'"
-                @click="confirmAccept(item)"
-              >
-                接受邀请
-              </MiniButton>
-              <MiniButton
-                variant="secondary"
-                :disabled="actingId === item.invitationId"
-                :loading="actingId === item.invitationId && actingType === 'reject'"
-                @click="confirmReject(item)"
-              >
-                拒绝邀请
-              </MiniButton>
-            </view>
-            <MiniButton
-              v-else-if="item.status === 'ACCEPTED'"
-              variant="secondary"
-              size="sm"
-              @click="openMyFamilies"
-            >
-              进入我的家庭
-            </MiniButton>
-          </MiniCard>
+          </view>
         </view>
       </template>
+
+      <text v-if="actionError" class="tree-field-error invite-error">{{ actionError }}</text>
     </template>
   </view>
 </template>
@@ -97,12 +119,9 @@ import { acceptInvitation, listMyInvitations, rejectInvitation } from '@/api/inv
 import { apiErrorMessage } from '@/api/client'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import { invitationStatusText, roleText } from '@/components/base/formatStatus'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
-import MiniStatusTag from '@/components/base/MiniStatusTag.vue'
 import { useSessionStore } from '@/stores/session'
 import type { Invitation } from '@/types/api'
 
@@ -114,6 +133,12 @@ const actionError = ref('')
 const actingId = ref<number | string | null>(null)
 const actingType = ref<'' | 'accept' | 'reject'>('')
 const authChecked = ref(false)
+const expandedInvitationId = ref<number | string | null>(null)
+
+const pendingCount = computed(() =>
+  invitations.value.filter((item) => displayStatus(item) === 'PENDING').length
+)
+
 const invitationGroups = computed(() => {
   const pending = invitations.value.filter((item) => displayStatus(item) === 'PENDING')
   const history = invitations.value.filter((item) => displayStatus(item) !== 'PENDING')
@@ -123,10 +148,17 @@ const invitationGroups = computed(() => {
   ].filter((group) => group.items.length > 0)
 })
 
+function invitationStatusClass(status: string) {
+  if (status === 'PENDING') return 'is-cinnabar'
+  if (status === 'ACCEPTED') return 'is-ink'
+  return 'is-muted'
+}
+
 function resetTransientUI() {
   actionError.value = ''
   actingId.value = null
   actingType.value = ''
+  expandedInvitationId.value = null
 }
 
 function resetPageData() {
@@ -163,7 +195,17 @@ function inviterRoleText(role?: string) {
 }
 
 function openMyFamilies() {
-  uni.navigateTo({ url: '/pages/family/my' })
+  uni.switchTab({ url: '/pages/family/my' })
+}
+
+function openInvitationDetail(item: Invitation) {
+  const inviteToken = (item as Invitation & { inviteToken?: string }).inviteToken
+  if (inviteToken) {
+    uni.navigateTo({ url: `/pages/invite/detail?inviteToken=${encodeURIComponent(inviteToken)}` })
+    return
+  }
+  expandedInvitationId.value =
+    expandedInvitationId.value === item.invitationId ? null : item.invitationId
 }
 
 async function loadInvitations() {
@@ -243,101 +285,114 @@ onUnload(resetPageData)
 </script>
 
 <style scoped>
-.invite-page {
-  background:
-    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
-    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
+.invite-my-page {
+  padding-top: 28rpx;
 }
 
-.invite-hero {
-  margin-bottom: 26rpx;
+.invite-my-page :deep(.mini-back-home) {
+  margin-bottom: 22rpx;
 }
 
-.invite-hero :deep(.mini-notice) {
-  margin-bottom: 18rpx;
+.invite-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10rpx;
+  margin-bottom: 22rpx;
 }
 
-.state-block {
-  padding: 32rpx 0;
-  text-align: center;
+.invite-my-page :deep(.mini-notice) {
+  margin-bottom: 20rpx;
 }
 
-.invitation-group {
-  margin-bottom: 26rpx;
+.invite-group {
+  margin-bottom: 24rpx;
 }
 
-.item-head {
+.invite-list {
+  margin-top: 8rpx;
+}
+
+.invite-item {
+  border-bottom: 1rpx solid var(--archive-line);
+  padding: 18rpx 0;
+}
+
+.invite-item:last-child {
+  border-bottom: 0;
+}
+
+.invite-item-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16rpx;
-  margin-bottom: 18rpx;
 }
 
-.item-kicker {
-  display: block;
-  margin-bottom: 6rpx;
-  color: var(--tree-green);
-  font-size: 21rpx;
-  font-weight: 800;
-  letter-spacing: 2rpx;
+.archive-status-tag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 42rpx;
+  border: 1rpx solid var(--archive-line);
+  padding: 0 12rpx;
+  font-size: 20rpx;
+  font-weight: 650;
+  line-height: 1.2;
 }
 
-.item-name {
-  flex: 1;
-  color: var(--tree-text-primary);
-  font-size: 34rpx;
-  font-weight: 800;
+.archive-status-tag.is-cinnabar {
+  border-color: rgba(168, 59, 45, 0.28);
+  background: rgba(168, 59, 45, 0.08);
+  color: var(--archive-cinnabar);
 }
 
-.item-meta {
-  display: block;
-  color: var(--tree-text-secondary);
-  font-size: 23rpx;
+.archive-status-tag.is-ink {
+  border-color: rgba(22, 51, 83, 0.22);
+  background: rgba(22, 51, 83, 0.08);
+  color: var(--archive-blue);
+}
+
+.archive-status-tag.is-muted {
+  background: rgba(255, 248, 234, 0.58);
+  color: var(--archive-ink-soft);
+}
+
+.invite-meta,
+.invite-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  margin-top: 12rpx;
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
   line-height: 1.55;
 }
 
-.item-meta.weak {
-  color: var(--tree-text-weak);
+.invite-detail {
+  margin-top: 10rpx;
+  padding-top: 10rpx;
+  border-top: 1rpx dashed rgba(44, 36, 22, 0.12);
 }
 
-.invite-detail-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10rpx 16rpx;
-  border-radius: 22rpx;
-  background: rgba(248, 250, 252, 0.82);
-  padding: 18rpx;
+.invite-meta-weak {
+  opacity: 0.88;
 }
 
-.item-meta.full {
-  grid-column: 1 / -1;
+.invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 16rpx;
 }
 
-.item-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14rpx;
-  margin-top: 20rpx;
+.invite-action {
+  margin-top: 16rpx;
+  align-self: flex-start;
 }
 
-.invitation-card {
-  position: relative;
-  border-color: rgba(255, 255, 255, 0.72);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(216, 175, 104, 0.12), transparent 160rpx),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 246, 238, 0.94) 100%);
-  box-shadow: 0 16rpx 40rpx rgba(24, 54, 83, 0.07);
-}
-
-.invitation-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 26rpx;
-  bottom: 26rpx;
-  width: 7rpx;
-  border-radius: 0 999rpx 999rpx 0;
-  background: linear-gradient(180deg, var(--tree-gold) 0%, var(--tree-green) 100%);
+.invite-error {
+  display: block;
+  margin-top: 16rpx;
 }
 </style>

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
@@ -18,6 +18,17 @@ function read(path: string): string {
   return readFileSync(path, 'utf8')
 }
 
+function walkRuntimeFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name)
+    const stat = statSync(path)
+    if (stat.isDirectory()) return walkRuntimeFiles(path)
+    if (!/\.(vue|ts|js)$/.test(name)) return []
+    if (/\.(test|contract|smoke)\./.test(name)) return []
+    return [path]
+  })
+}
+
 test('pages.json includes showcase, public profile, public tree and content pages', () => {
   const pagesJson = JSON.parse(read(join(miniappSrc, 'pages.json'))) as {
     pages: Array<{ path: string }>
@@ -31,19 +42,85 @@ test('pages.json includes showcase, public profile, public tree and content page
   assert.ok(paths.includes('pages/content/detail'))
 })
 
-test('tab bar is home, showcase, reading and profile', () => {
+test('tab bar is Tree, my family, reading and profile', () => {
   const pagesJson = JSON.parse(read(join(miniappSrc, 'pages.json'))) as {
     tabBar: { list: Array<{ pagePath: string; text: string }> }
   }
   const tabs = pagesJson.tabBar.list.map((item) => item.text)
-  assert.deepEqual(tabs, ['首页', '展示家庭', '阅读', '我的'])
+  assert.deepEqual(tabs, ['Tree', '我的家庭', '阅读', '我的'])
   const tabPaths = pagesJson.tabBar.list.map((item) => item.pagePath)
   assert.deepEqual(tabPaths, [
     'pages/home/index',
-    'pages/family/showcase',
+    'pages/family/my',
     'pages/content/index',
     'pages/me/index'
   ])
+})
+
+test('runtime code does not navigateTo or redirectTo tabBar pages', () => {
+  const pagesJson = JSON.parse(read(join(miniappSrc, 'pages.json'))) as {
+    tabBar: { list: Array<{ pagePath: string }> }
+  }
+  const tabPaths = pagesJson.tabBar.list.map((item) => `/${item.pagePath}`)
+  const runtimeFiles = walkRuntimeFiles(miniappSrc)
+  const violations: string[] = []
+
+  for (const file of runtimeFiles) {
+    const source = read(file)
+    for (const tabPath of tabPaths) {
+      const escapedPath = tabPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const invalidNavigation = new RegExp(
+        `uni\\.(?:navigateTo|redirectTo)\\s*\\(\\s*\\{\\s*url\\s*:\\s*['"\`]${escapedPath}(?:[?#][^'"\`]*)?['"\`]`
+      )
+      if (invalidNavigation.test(source)) {
+        violations.push(`${file.replace(`${repoRoot}/`, '')} -> ${tabPath}`)
+      }
+    }
+  }
+
+  assert.deepEqual(violations, [])
+})
+
+test('MiniButton stops native tap bubbling instead of component click modifiers', () => {
+  const buttonSource = read(join(miniappSrc, 'components', 'base', 'MiniButton.vue'))
+  assert.match(buttonSource, /@tap\.stop="handleTap"/)
+
+  const runtimeFiles = walkRuntimeFiles(miniappSrc)
+  const violations: string[] = []
+
+  for (const file of runtimeFiles) {
+    const source = read(file)
+    if (/<MiniButton[\s\S]*?@click\.stop=/.test(source)) {
+      violations.push(file.replace(`${repoRoot}/`, ''))
+    }
+  }
+
+  assert.deepEqual(violations, [])
+})
+
+test('family management pages guard missing familyId before API loading', () => {
+  const requiredGuards = [
+    {
+      file: join(miniappSrc, 'pages', 'family', 'manage.vue'),
+      routeSnippet: 'const route = `/pages/family/manage',
+      apiSnippet: 'getFamilyDetail(familyId.value)'
+    },
+    {
+      file: join(miniappSrc, 'pages', 'family', 'settings.vue'),
+      routeSnippet: 'const route = `/pages/family/settings',
+      apiSnippet: 'getFamilyDetail(familyId.value)'
+    }
+  ]
+
+  for (const item of requiredGuards) {
+    const source = read(item.file)
+    const guardIndex = source.indexOf('if (!familyId.value)')
+    const routeIndex = source.indexOf(item.routeSnippet)
+    const apiIndex = source.indexOf(item.apiSnippet)
+    assert.notEqual(guardIndex, -1)
+    assert.ok(guardIndex < routeIndex)
+    assert.ok(guardIndex < apiIndex)
+  }
 })
 
 test('showcase page has no search box, filters or search button', () => {

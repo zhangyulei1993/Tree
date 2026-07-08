@@ -1,48 +1,63 @@
 <template>
-  <view class="tree-page manage-center-page">
+  <view class="archive-page manage-center-page">
     <MiniBackHome />
-    <FamilyContextHeader
-      v-if="family"
-      :family-name="family.familyName"
-      section="家庭管理"
-      subtitle="申请、邀请与公开展示权限"
-      :role-label="roleText(family.role)"
-      back-label="返回详情"
-      @back="openFamilyDetail"
-    />
 
     <MiniFamilyPageSkeleton v-if="loading && !family" variant="manage" />
 
-    <MiniCard v-else-if="errorMessage && !family">
+    <view v-else-if="errorMessage && !family" class="manage-state archive-form-panel">
       <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
       <MiniButton variant="secondary" @click="loadFamily">重新加载</MiniButton>
-    </MiniCard>
+    </view>
 
-    <MiniCard v-else-if="family && !canManageFamily">
-      <MiniNotice tone="warm" title="无管理权限">只有家庭创建者或家庭管理员可以进入家庭管理。</MiniNotice>
-      <MiniButton variant="secondary" @click="openFamilyDetail">返回家庭详情</MiniButton>
-    </MiniCard>
+    <template v-else-if="family">
+      <view class="manage-head archive-page-head">
+        <view>
+          <text class="archive-kicker">Family Admin</text>
+          <text class="archive-title">家庭管理</text>
+          <text class="archive-subtitle">
+            {{ family.familyName }} · 申请、邀请与公开展示权限
+          </text>
+        </view>
+        <view class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
+      </view>
 
-    <MiniCard v-else-if="family" class="directory-card--list">
-      <MiniDirectoryTile
-        title="收到的加入申请"
-        desc="查看并处理申请加入该家庭的记录"
-        icon-class="tree-symbol-users"
-        @click="openJoinRequests"
-      />
-      <MiniDirectoryTile
-        title="发出的成员邀请"
-        desc="查看、取消或重新生成成员邀请"
-        icon-class="tree-symbol-mail"
-        @click="openSentInvitations"
-      />
-      <MiniDirectoryTile
-        title="公开展示与权限"
-        desc="公开信息、管理员与高风险操作"
-        icon-class="tree-symbol-folder"
-        @click="openSettings"
-      />
-    </MiniCard>
+      <view class="manage-context">
+        <text class="archive-chip">{{ roleText(family.role) }}</text>
+        <text class="context-back" @click="openFamilyDetail">返回详情</text>
+      </view>
+
+      <view v-if="!canManageFamily" class="manage-state archive-form-panel">
+        <MiniNotice tone="warm" title="无管理权限">只有家庭创建者或家庭管理员可以进入家庭管理。</MiniNotice>
+        <MiniButton variant="secondary" @click="openFamilyDetail">返回家庭详情</MiniButton>
+      </view>
+
+      <view v-else class="manage-directory archive-list">
+        <view class="archive-row" @click="openJoinRequests">
+          <view class="archive-row-main">
+            <text class="archive-row-title">收到的加入申请</text>
+            <text class="archive-row-desc">查看并处理申请加入该家庭的记录</text>
+          </view>
+          <text class="archive-row-meta">申请</text>
+          <text class="archive-arrow">›</text>
+        </view>
+        <view class="archive-row" @click="openSentInvitations">
+          <view class="archive-row-main">
+            <text class="archive-row-title">发出的成员邀请</text>
+            <text class="archive-row-desc">查看、取消或重新生成成员邀请</text>
+          </view>
+          <text class="archive-row-meta">邀请</text>
+          <text class="archive-arrow">›</text>
+        </view>
+        <view class="archive-row" @click="openSettings">
+          <view class="archive-row-main">
+            <text class="archive-row-title">公开展示与权限</text>
+            <text class="archive-row-desc">公开信息、管理员与高风险操作</text>
+          </view>
+          <text class="archive-row-meta">权限</text>
+          <text class="archive-arrow">›</text>
+        </view>
+      </view>
+    </template>
   </view>
 </template>
 
@@ -54,11 +69,8 @@ import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
-import MiniDirectoryTile from '@/components/base/MiniDirectoryTile.vue'
 import MiniFamilyPageSkeleton from '@/components/base/MiniFamilyPageSkeleton.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import FamilyContextHeader from '@/components/family/FamilyContextHeader.vue'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyDetail } from '@/types/api'
 
@@ -135,13 +147,36 @@ onUnload(resetPageData)
 
 <style scoped>
 .manage-center-page {
-  background:
-    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
-    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
+  padding-top: 28rpx;
 }
 
-.directory-card--list {
-  padding-top: 8rpx;
-  padding-bottom: 8rpx;
+.manage-center-page :deep(.mini-back-home) {
+  margin-bottom: 22rpx;
+}
+
+.manage-state :deep(.mini-notice) {
+  margin-bottom: 18rpx;
+}
+
+.manage-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 24rpx;
+}
+
+.context-back {
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
+  line-height: 1.4;
+}
+
+.context-back:active {
+  color: var(--archive-cinnabar);
+}
+
+.manage-directory {
+  margin-top: 4rpx;
 }
 </style>

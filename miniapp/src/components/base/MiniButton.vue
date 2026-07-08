@@ -2,7 +2,7 @@
   <view
     class="mini-button"
     :class="[variant, size, { block, disabled }]"
-    @tap="handleTap"
+    @tap.stop="handleTap"
   >
     <text v-if="loading">处理中...</text>
     <slot v-else />

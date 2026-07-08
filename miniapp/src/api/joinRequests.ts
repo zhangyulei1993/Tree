@@ -10,7 +10,7 @@ import type {
 
 const mockRequests: JoinRequest[] = joinRequests.map((item, index) => ({
   requestId: item.id,
-  familyId: `family_00${index + 1}`,
+  familyId: item.familyId || `family_00${index + 1}`,
   familyName: item.familyName,
   applicantUserId: 'mock_user',
   applicantMessage: item.reason,

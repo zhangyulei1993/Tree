@@ -1,39 +1,37 @@
 <template>
-  <view class="tree-page private-tree-page">
+  <view class="archive-page private-tree-page">
     <MiniBackHome />
-    <MiniCard v-if="errorMessage && !tree">
+
+    <view v-if="errorMessage && !tree" class="tree-error archive-panel">
       <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
       <MiniButton variant="secondary" @click="loadTree">重新加载</MiniButton>
-    </MiniCard>
+    </view>
 
-    <MiniCard v-else-if="loading && !tree">
+    <view v-else-if="loading && !tree" class="tree-loading archive-panel">
       <MiniEmptyState symbol="…" title="正在加载" description="正在组装家庭树..." />
-    </MiniCard>
+    </view>
 
     <template v-else-if="tree">
-      <FamilyContextHeader
-        v-if="family"
-        :family-name="family.familyName"
-        section="家谱"
-        :subtitle="canManageFamily ? '查看家谱结构，维护亲属关系' : '查看家谱结构与亲属关系描述'"
-        :role-label="family.role === 'FOUNDER' ? '创建者' : family.role === 'FAMILY_ADMIN' ? '管理员' : '成员'"
-        @back="openFamilyOverview"
-      />
-      <view class="tree-tool-banner tree-banner">
-        <view class="banner-copy">
-          <text class="tree-tool-banner-title">家谱概览</text>
-          <text class="tree-tool-banner-desc">
-            {{ treeViewLabel(tree.treeMode) }} · {{ tree.nodes.length }} 位成员 · {{ edgeCount }} 条关系
+      <view class="tree-head">
+        <view>
+          <text class="archive-kicker">Genealogy</text>
+          <text class="archive-title">家谱</text>
+          <text class="archive-subtitle">
+            {{ family?.familyName || '家谱结构' }} · {{ treeViewLabel(tree.treeMode) }} · {{ tree.nodes.length }} 位成员
           </text>
         </view>
-        <view class="tree-pedigree-mark" aria-hidden="true">
-          <view class="node node-root" />
-          <view class="line-v" />
-          <view class="line-l" />
-          <view class="line-r" />
-          <view class="node node-branch node-left" />
-          <view class="node node-branch node-right" />
-          <view class="trunk" />
+        <view v-if="family" class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
+      </view>
+
+      <view class="generation-tabs">
+        <view
+          v-for="item in generationTabs"
+          :key="item"
+          class="generation-tab"
+          :class="{ active: activeGeneration === item }"
+          @click="activeGeneration = item"
+        >
+          <text>{{ item }}</text>
         </view>
       </view>
 
@@ -46,43 +44,79 @@
         </view>
       </view>
 
-      <view class="tree-space">
-        <view class="tree-space-head">
-          <text class="tree-space-title">家谱结构</text>
-          <text class="tree-space-subtitle">夫妻单元向下展开，可滑动查看</text>
+      <view class="tree-mode-line">
+        <view
+          class="tree-mode-item"
+          :class="{ active: viewMode === 'structure' }"
+          @click="viewMode = 'structure'"
+        >
+          <text>树结构</text>
         </view>
-        <view class="tree-space-body section-pad">
-          <TreeViewModeSwitch v-model="viewMode" />
-          <MiniNotice v-if="canManageFamily && viewMode === 'structure'" tone="security" title="可直接管理家谱节点">
-            带“管理”标记的族内成员节点可点击，添加父母、子女、配偶和兄弟姐妹；配偶节点仅可编辑资料。
-          </MiniNotice>
+        <view
+          class="tree-mode-item"
+          :class="{ active: viewMode === 'detail' }"
+          @click="viewMode = 'detail'"
+        >
+          <text>关系明细</text>
+        </view>
+      </view>
 
-          <template v-if="viewMode === 'structure'">
-            <MiniEmptyState
-              v-if="tree.nodes.length === 0"
-              symbol="谱"
-              title="暂无成员"
-              description="请先在家庭成员中添加成员后再查看家谱。"
-            />
-            <FamilyTreeStructureView
-              v-else
-              :tree="tree"
-              :viewer-member-id="viewerMemberId"
-              show-binding
-              :interactive="canManageFamily"
-              @select="openNodeActions"
-            />
-          </template>
+      <view class="tree-scroll-note">
+        <text>纸签家谱可左右滑动查看；配偶为浅纸签，不作为主干展开入口。</text>
+      </view>
 
-          <template v-else>
-            <MiniEmptyState
-              v-if="edgeCount === 0"
-              symbol="亲"
-              title="暂无关系"
-              description="暂无父母子女或配偶关系。"
-            />
-            <RelationSentenceList v-else :items="relationSentences" />
-          </template>
+      <template v-if="viewMode === 'structure'">
+        <MiniEmptyState
+          v-if="tree.nodes.length === 0"
+          symbol="谱"
+          title="暂无成员"
+          description="请先在家庭成员中添加成员后再查看家谱。"
+        />
+        <FamilyTreeStructureView
+          v-else
+          class="archive-tree-structure"
+          :tree="tree"
+          :viewer-member-id="viewerMemberId"
+          show-binding
+          :interactive="canManageFamily"
+          @select="openNodeActions"
+        />
+      </template>
+
+      <template v-else>
+        <MiniEmptyState
+          v-if="edgeCount === 0"
+          symbol="亲"
+          title="暂无关系"
+          description="暂无父母子女或配偶关系。"
+        />
+        <RelationSentenceList v-else class="relation-list" :items="relationSentences" />
+      </template>
+
+      <view class="tree-legend">
+        <view class="legend-item">
+          <text class="legend-name male">名</text>
+          <text>男 · 墨蓝姓名</text>
+        </view>
+        <view class="legend-item">
+          <text class="legend-name female">名</text>
+          <text>女 · 朱砂姓名</text>
+        </view>
+        <view class="legend-item">
+          <text class="legend-name unknown">名</text>
+          <text>未知 · 灰墨姓名</text>
+        </view>
+        <view class="legend-item">
+          <text class="legend-tag lineage" />
+          <text>族内成员</text>
+        </view>
+        <view class="legend-item">
+          <text class="legend-tag current" />
+          <text>当前中心</text>
+        </view>
+        <view class="legend-item">
+          <text class="legend-tag spouse" />
+          <text>配偶</text>
         </view>
       </view>
     </template>
@@ -99,13 +133,10 @@ import { listFamilyMembers } from '@/api/members'
 import { getPrivateTree } from '@/api/tree'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import FamilyContextHeader from '@/components/family/FamilyContextHeader.vue'
 import FamilyTreeStructureView from '@/components/family/FamilyTreeStructureView.vue'
 import RelationSentenceList from '@/components/family/RelationSentenceList.vue'
-import TreeViewModeSwitch from '@/components/family/TreeViewModeSwitch.vue'
 import { resolveCurrentMemberId } from '@/features/family-tree/resolveCurrentMember'
 import {
   buildRelationSentences,
@@ -113,7 +144,7 @@ import {
   treeViewLabel
 } from '@/features/family-tree/relationSentences'
 import type { FamilyTreeViewMode } from '@/features/family-tree/types'
-import { isLineageMember, isSpouseMember, isExternalMember } from '@/features/family-tree/graph'
+import { isSpouseMember, isExternalMember } from '@/features/family-tree/graph'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyDetail, FamilyTreeResult, RelationshipAddType, TreeNode } from '@/types/api'
 
@@ -125,6 +156,8 @@ const loading = ref(false)
 const errorMessage = ref('')
 const viewMode = ref<FamilyTreeViewMode>('structure')
 const viewerMemberId = ref<number | null>(null)
+const generationTabs = ['一世', '二世', '三世', '四世', '五世']
+const activeGeneration = ref('一世')
 
 const edgeCount = computed(() => (tree.value ? countVisibleEdges(tree.value) : 0))
 const relationSentences = computed(() => (tree.value ? buildRelationSentences(tree.value) : []))
@@ -178,6 +211,9 @@ async function loadTree() {
         // Tree nodes lack userId; members list is the supported way to locate "me".
       }
     }
+    if (!viewerMemberId.value) {
+      viewerMemberId.value = treeResult.nodes[0]?.memberId ?? null
+    }
   } catch (error) {
     errorMessage.value = apiErrorMessage(error, '家庭树加载失败。')
   } finally {
@@ -229,79 +265,93 @@ onUnload(resetPageData)
 </script>
 
 <style scoped>
-.tree-banner {
+.private-tree-page {
+  padding-top: 28rpx;
+}
+
+.private-tree-page :deep(.mini-back-home) {
+  margin-bottom: 22rpx;
+}
+
+.tree-error,
+.tree-loading {
+  padding: 28rpx 0;
+}
+
+.tree-error :deep(.mini-notice) {
+  margin-bottom: 18rpx;
+}
+
+.tree-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin-bottom: 24rpx;
+}
+
+.generation-tabs {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
+  gap: 26rpx;
   margin-bottom: 24rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.18);
-  border-radius: 36rpx;
-  background:
-    radial-gradient(circle at 90% 12%, rgba(216, 175, 104, 0.22), transparent 220rpx),
-    linear-gradient(135deg, #17304c 0%, #245653 100%);
-  padding: 32rpx;
-  color: #fff;
-  box-shadow: 0 24rpx 60rpx rgba(24, 54, 83, 0.18);
+  border-bottom: 1rpx solid var(--archive-line);
 }
 
-.banner-copy {
-  flex: 1;
-  min-width: 0;
+.generation-tab {
+  position: relative;
+  padding: 0 0 16rpx;
+  color: var(--archive-ink-soft);
+  font-size: 25rpx;
+  line-height: 1.4;
 }
 
-.tree-banner .tree-tool-banner-title {
-  color: #fff;
+.generation-tab.active {
+  color: var(--archive-cinnabar);
+  font-weight: 750;
 }
 
-.tree-banner .tree-tool-banner-desc {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.section-pad {
-  padding: 12rpx 20rpx 20rpx;
-}
-
-.private-tree-page {
-  background:
-    radial-gradient(circle at 92% 0%, rgba(216, 175, 104, 0.14), transparent 260rpx),
-    radial-gradient(circle at 0% 18%, rgba(24, 54, 83, 0.08), transparent 300rpx);
+.generation-tab.active::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: -1rpx;
+  left: 0;
+  height: 3rpx;
+  background: var(--archive-cinnabar);
 }
 
 .genealogy-tools {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12rpx 16rpx;
-  margin-bottom: 20rpx;
-  border: 1rpx solid rgba(47, 107, 87, 0.12);
-  border-radius: 20rpx;
-  background: rgba(255, 255, 255, 0.72);
-  padding: 16rpx 20rpx;
+  margin-bottom: 22rpx;
+  border-top: 1rpx solid var(--archive-line);
+  border-bottom: 1rpx solid var(--archive-line);
+  padding: 18rpx 0;
 }
 
 .genealogy-tools-label {
-  color: var(--tree-text-secondary, #64748b);
-  font-size: 22rpx;
-  font-weight: 600;
+  display: block;
+  margin-bottom: 12rpx;
+  color: var(--archive-cinnabar);
+  font-size: 21rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
 }
 
 .genealogy-tools-links {
   display: grid;
-  flex: 1;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8rpx;
+  gap: 10rpx;
 }
 
 .genealogy-tool-link {
-  min-height: 64rpx;
+  min-height: 62rpx;
   margin: 0;
-  border: 1rpx solid rgba(47, 107, 87, 0.12);
-  border-radius: 14rpx;
-  background: rgba(240, 248, 244, 0.9);
-  color: var(--tree-green, #2f6b57);
+  border: 1rpx solid var(--archive-line-strong);
+  border-radius: 0;
+  background: rgba(255, 248, 234, 0.5);
+  color: var(--archive-blue);
   padding: 8rpx 10rpx;
-  font-size: 24rpx;
+  font-size: 23rpx;
   font-weight: 700;
   line-height: 1.35;
 }
@@ -310,8 +360,96 @@ onUnload(resetPageData)
   border: 0;
 }
 
-.genealogy-tool-link:active {
-  opacity: 0.72;
+.tree-mode-line {
+  display: flex;
+  gap: 22rpx;
+  margin-bottom: 18rpx;
 }
 
+.tree-mode-item {
+  color: var(--archive-ink-soft);
+  font-size: 24rpx;
+  padding-bottom: 8rpx;
+}
+
+.tree-mode-item.active {
+  color: var(--archive-blue);
+  font-weight: 750;
+  border-bottom: 2rpx solid var(--archive-blue);
+}
+
+.tree-scroll-note {
+  margin-bottom: 16rpx;
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.55;
+}
+
+.archive-tree-structure {
+  margin-left: -8rpx;
+  margin-right: -8rpx;
+}
+
+.relation-list {
+  display: block;
+  border-top: 1rpx solid var(--archive-line);
+}
+
+.tree-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx 22rpx;
+  margin-top: 22rpx;
+  border-top: 1rpx solid var(--archive-line);
+  padding-top: 16rpx;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+}
+
+.legend-name {
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 24rpx;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.legend-name.male {
+  color: var(--archive-blue);
+}
+
+.legend-name.female {
+  color: var(--archive-cinnabar);
+}
+
+.legend-name.unknown {
+  color: var(--archive-ink-soft);
+}
+
+.legend-tag {
+  width: 22rpx;
+  height: 34rpx;
+  border: 1rpx solid var(--archive-line-strong);
+  background: #fff7e8;
+}
+
+.legend-tag.lineage {
+  border-style: solid;
+  background: #fff7e8;
+}
+
+.legend-tag.spouse {
+  border-style: dashed;
+  background: #fbf0dc;
+}
+
+.legend-tag.current {
+  border-color: var(--archive-blue);
+  background: var(--archive-blue);
+}
 </style>

@@ -1,31 +1,43 @@
 <template>
-  <view class="tree-page">
+  <view class="archive-page member-edit-page">
     <MiniBackHome />
 
-    <MiniCard v-if="!authChecked">
+    <view v-if="!authChecked" class="edit-state archive-form-panel">
       <MiniEmptyState symbol="…" title="正在确认登录状态" description="请稍候..." />
-    </MiniCard>
+    </view>
 
-    <MiniCard v-else-if="loading">
+    <view v-else-if="loading" class="edit-state archive-form-panel">
       <MiniEmptyState symbol="…" title="正在加载成员" description="正在读取成员资料..." />
-    </MiniCard>
+    </view>
 
-    <MiniCard v-else-if="loadError">
+    <view v-else-if="loadError" class="edit-state archive-form-panel">
       <MiniNotice tone="warm" title="加载失败">{{ loadError }}</MiniNotice>
-      <MiniButton variant="secondary" @click="loadMember">重新加载</MiniButton>
-    </MiniCard>
+      <MiniButton variant="secondary" class="edit-action" @click="loadMember">重新加载</MiniButton>
+    </view>
 
     <template v-else>
-      <view class="edit-hero">
-        <view class="edit-avatar">{{ form.name.slice(0, 1) || '员' }}</view>
-        <view class="edit-hero-copy">
-          <text class="edit-kicker">成员资料</text>
-          <text class="edit-title">{{ form.name || '未命名成员' }}</text>
-          <text class="edit-desc">修改姓名、性别、出生年份、简介和健在状态。</text>
+      <view class="edit-head archive-page-head">
+        <view>
+          <text class="archive-kicker">Member Record</text>
+          <text class="archive-title">编辑成员资料</text>
+          <text class="archive-subtitle">
+            {{ form.name || '成员档案' }} · 修改姓名、性别、出生年份、简介和健在状态
+          </text>
         </view>
+        <view class="archive-surname-stamp">{{ surnameLetter }}</view>
       </view>
 
-      <MiniCard variant="soft" class="edit-card">
+      <view v-if="currentMember" class="edit-context">
+        <text class="archive-chip">{{ memberStatusText(currentMember.status) }}</text>
+        <text class="archive-chip">{{ bindingPolicyText(currentMember.userBindingPolicy) }}</text>
+        <text v-if="currentMember.boundUserId" class="archive-chip">已绑定账号</text>
+      </view>
+
+      <view class="archive-form-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">成员档案</text>
+          <text class="archive-section-subtitle">字段变更会同步到成员名册与家谱节点</text>
+        </view>
         <text class="tree-field-label">成员姓名</text>
         <input v-model.trim="form.name" class="tree-input" maxlength="80" placeholder="请输入成员姓名" />
 
@@ -39,22 +51,25 @@
 
         <label class="switch-row">
           <text>目前健在</text>
-          <switch :checked="form.isAlive" color="#2F6B57" @change="onAliveChange" />
+          <switch :checked="form.isAlive" color="#163353" @change="onAliveChange" />
         </label>
 
         <text class="tree-field-label">成员简介</text>
         <textarea v-model.trim="form.description" class="tree-textarea" maxlength="500" placeholder="可选" />
 
         <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
-        <MiniButton :loading="saving" :disabled="saving" @click="saveMember">保存成员资料</MiniButton>
-      </MiniCard>
+        <MiniButton class="edit-action" :loading="saving" :disabled="saving" @click="saveMember">
+          保存成员资料
+        </MiniButton>
+      </view>
 
-      <MiniCard v-if="canDeleteCurrentMember" variant="soft" class="danger-card">
-        <view class="danger-copy">
-          <text class="danger-title">删除成员节点</text>
-          <text class="danger-desc">只删除家谱节点。存在亲属关系、创建者或管理员身份时，系统会拒绝删除。</text>
-        </view>
+      <view v-if="canDeleteCurrentMember" class="archive-danger-panel">
+        <text class="archive-danger-title">删除成员节点</text>
+        <text class="archive-danger-desc">
+          只删除家谱节点，不删除平台账号。有后代、父母或配偶关系时不能直接删除；创建者和管理员身份亦不可删除。
+        </text>
         <MiniButton
+          class="edit-action"
           variant="danger"
           :loading="deleting"
           :disabled="deleting"
@@ -62,7 +77,7 @@
         >
           删除该成员
         </MiniButton>
-      </MiniCard>
+      </view>
     </template>
   </view>
 </template>
@@ -76,12 +91,12 @@ import { getFamilyDetail } from '@/api/families'
 import { deleteFamilyMember, getFamilyMember, updateFamilyMember } from '@/api/members'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import { canDeleteMember } from '@/features/family/memberListActions'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyDetail, FamilyMember, Gender } from '@/types/api'
+import { normalizeText, optionalText, validateTextFields } from '@/utils/inputValidation'
 
 const session = useSessionStore()
 const familyId = ref('')
@@ -113,6 +128,20 @@ const canManageFamily = computed(() =>
 const canDeleteCurrentMember = computed(() =>
   currentMember.value ? canDeleteMember(currentMember.value, canManageFamily.value) : false
 )
+
+const surnameLetter = computed(() => {
+  const fromName = form.name.trim().slice(0, 1)
+  if (fromName) return fromName
+  return family.value?.familySurname.slice(0, 1) || '员'
+})
+
+function memberStatusText(status?: string) {
+  return ({ ACTIVE: '活跃', DISABLED: '已停用', DELETED: '已删除' } as Record<string, string>)[status || ''] || '未知状态'
+}
+
+function bindingPolicyText(policy?: string) {
+  return ({ OPTIONAL: '可选绑定', REQUIRED: '需绑定', NOT_REQUIRED: '无需绑定' } as Record<string, string>)[policy || ''] || '未知策略'
+}
 
 function routePath() {
   return `/pages/family/member-edit?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(memberId.value)}`
@@ -162,19 +191,23 @@ async function loadMember() {
 }
 
 async function saveMember() {
-  if (!form.name.trim()) {
-    actionError.value = '请填写成员姓名。'
+  const validationMessage = validateTextFields([
+    { value: form.name, label: '成员姓名', kind: 'name', required: true, maxLength: 80 },
+    { value: form.description, label: '成员说明', kind: 'multiLine', maxLength: 500 }
+  ])
+  if (validationMessage) {
+    actionError.value = validationMessage
     return
   }
   saving.value = true
   actionError.value = ''
   try {
     await updateFamilyMember(familyId.value, memberId.value, {
-      name: form.name,
+      name: normalizeText(form.name),
       gender: form.gender,
       birthYear: yearValue(birthYearInput.value),
       isAlive: form.isAlive,
-      description: form.description || undefined
+      description: optionalText(form.description)
     })
     uni.showToast({ title: '成员资料已保存', icon: 'success' })
     setTimeout(() => {
@@ -225,116 +258,27 @@ onShow(() => {
 </script>
 
 <style scoped>
-.edit-hero {
+.member-edit-page {
+  padding-top: 28rpx;
+}
+
+.member-edit-page :deep(.mini-back-home) {
+  margin-bottom: 22rpx;
+}
+
+.edit-state :deep(.mini-notice) {
+  margin-bottom: 18rpx;
+}
+
+.edit-context {
   display: flex;
-  align-items: center;
-  gap: 18rpx;
+  flex-wrap: wrap;
+  gap: 10rpx;
   margin-bottom: 24rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.20);
-  border-radius: 34rpx;
-  background:
-    radial-gradient(circle at 92% 10%, rgba(216, 175, 104, 0.20), transparent 220rpx),
-    linear-gradient(135deg, #17304c 0%, #245653 100%);
-  padding: 30rpx;
-  color: #fff;
-  box-shadow: 0 24rpx 60rpx rgba(24, 54, 83, 0.18);
 }
 
-.edit-avatar {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 78rpx;
-  height: 78rpx;
-  border-radius: 26rpx;
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-  font-size: 32rpx;
-  font-weight: 900;
-}
-
-.edit-hero-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6rpx;
-  min-width: 0;
-}
-
-.edit-kicker {
-  color: rgba(248, 231, 194, 0.9);
-  font-size: 22rpx;
-  font-weight: 800;
-}
-
-.edit-title {
-  color: #fff;
-  font-size: 34rpx;
-  font-weight: 900;
-  line-height: 1.2;
-}
-
-.edit-desc {
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 24rpx;
-  line-height: 1.45;
-}
-
-.edit-card,
-.danger-card {
-  margin-bottom: 20rpx;
-}
-
-.field-picker {
-  box-sizing: border-box;
-  min-height: 84rpx;
-  margin-bottom: 18rpx;
-  border: 1rpx solid rgba(31, 58, 95, 0.10);
-  border-radius: 18rpx;
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--tree-text-primary, #1e293b);
-  padding: 22rpx 24rpx;
-  font-size: 27rpx;
-  line-height: 1.4;
-}
-
-.switch-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 84rpx;
-  margin-bottom: 18rpx;
-  border: 1rpx solid rgba(31, 58, 95, 0.08);
-  border-radius: 18rpx;
-  background: rgba(255, 255, 255, 0.78);
-  color: var(--tree-text-primary, #1e293b);
-  padding: 0 24rpx;
-  font-size: 27rpx;
-}
-
-.danger-card {
-  border-color: rgba(180, 83, 58, 0.18);
-  background:
-    radial-gradient(circle at 100% 0%, rgba(180, 83, 58, 0.08), transparent 160rpx),
-    rgba(255, 255, 255, 0.92);
-}
-
-.danger-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-  margin-bottom: 18rpx;
-}
-
-.danger-title {
-  color: #9a3412;
-  font-size: 28rpx;
-  font-weight: 900;
-}
-
-.danger-desc {
-  color: var(--tree-text-secondary, #64748b);
-  font-size: 24rpx;
-  line-height: 1.55;
+.edit-action {
+  margin-top: 20rpx;
+  align-self: flex-start;
 }
 </style>

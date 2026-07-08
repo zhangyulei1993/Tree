@@ -1,20 +1,14 @@
 <template>
-  <view class="tree-page kinship-page">
+  <view class="archive-page kinship-page">
     <MiniBackHome />
-    <view class="tree-tool-banner kinship-banner">
-      <view class="banner-copy">
-        <text class="tree-tool-banner-title">亲属关系工具</text>
-        <text class="tree-tool-banner-desc">{{ maxDepthHint }}</text>
+
+    <view class="kinship-head archive-page-head">
+      <view>
+        <text class="archive-kicker">Kinship Tool</text>
+        <text class="archive-title">亲属关系工具</text>
+        <text class="archive-subtitle">{{ maxDepthHint }}</text>
       </view>
-      <view class="tree-pedigree-mark" aria-hidden="true">
-        <view class="node node-root" />
-        <view class="line-v" />
-        <view class="line-l" />
-        <view class="line-r" />
-        <view class="node node-branch node-left" />
-        <view class="node node-branch node-right" />
-        <view class="trunk" />
-      </view>
+      <view class="archive-seal">亲</view>
     </view>
 
     <MiniNotice tone="info" class="beta-notice">规则持续完善中</MiniNotice>
@@ -22,94 +16,100 @@
       本工具仅在当前设备本地推测称谓，不上传你的性别、年龄或关系路径信息至服务器。
     </MiniNotice>
 
-    <MiniCard>
-      <MiniSectionHeader title="本人信息" subtitle="出生日期优先用于判断长幼，年龄仅作为补充。" />
-      <view class="picker-row">
-        <text class="tree-field-label">本人性别</text>
-        <view class="tag-group">
-          <text
-            v-for="item in selfGenderOptions"
-            :key="item.value"
-            class="tag selectable"
-            :class="{ active: self.gender === item.value }"
-            @click="self.gender = item.value"
-          >
-            {{ item.label }}
-          </text>
-        </view>
+    <view class="archive-form-panel kinship-panel">
+      <view class="archive-section-head">
+        <text class="archive-section-title">本人信息</text>
+        <text class="archive-section-subtitle">出生日期优先用于判断长幼，年龄仅作为补充</text>
+      </view>
+      <text class="tree-field-label">本人性别</text>
+      <view class="choice-row">
+        <text
+          v-for="item in selfGenderOptions"
+          :key="item.value"
+          class="choice-chip"
+          :class="{ active: self.gender === item.value }"
+          @click="self.gender = item.value"
+        >
+          {{ item.label }}
+        </text>
       </view>
       <text v-if="self.gender === 'unknown'" class="disabled-hint">请先选择本人性别，再开始选择关系。</text>
-      <input v-model.trim="self.birthday" class="tree-input" placeholder="本人出生日期（可选，如 1990-01-01）" />
-      <input v-model.trim="selfAgeInput" class="tree-input" type="number" placeholder="本人年龄（可选）" />
-    </MiniCard>
+      <text class="tree-field-label">出生日期（可选）</text>
+      <input v-model.trim="self.birthday" class="tree-input" placeholder="如 1990-01-01" />
+      <text class="tree-field-label">年龄（可选）</text>
+      <input v-model.trim="selfAgeInput" class="tree-input" type="number" placeholder="请输入年龄" />
+    </view>
 
-    <MiniCard variant="soft" class="path-card">
-      <MiniSectionHeader title="关系路径" subtitle="从「我」出发，沿谱系节点推导" />
-      <view class="tree-lineage-chain">
-        <view class="tree-lineage-node">
-          <view class="tree-lineage-node-dot self">我</view>
-          <text class="tree-lineage-node-label">本人</text>
-        </view>
+    <view class="archive-form-panel kinship-panel">
+      <view class="archive-section-head">
+        <text class="archive-section-title">关系路径</text>
+        <text class="archive-section-subtitle">从「我」出发，沿谱系节点推导</text>
+      </view>
+      <view class="path-tag-chain">
+        <text class="path-tag path-tag-self">我</text>
         <template v-for="(step, index) in steps" :key="index">
-          <view class="tree-lineage-connector" />
-          <view class="tree-lineage-node">
-            <view class="tree-lineage-node-dot">{{ index + 1 }}</view>
-            <text class="tree-lineage-node-label">{{ formatStepLabel(step) }}</text>
-          </view>
+          <text class="path-tag-link">—</text>
+          <text class="path-tag">{{ formatStepLabel(step) }}</text>
         </template>
       </view>
       <text class="path-meta">当前代数：{{ generationDepth }} / {{ maxDepth }}</text>
-    </MiniCard>
+    </view>
 
-    <MiniCard>
-      <MiniSectionHeader title="选择下一层关系" />
+    <view class="archive-form-panel kinship-panel">
+      <view class="archive-section-head">
+        <text class="archive-section-title">选择下一层关系</text>
+        <text class="archive-section-subtitle">点击纸签添加下一层亲属节点</text>
+      </view>
       <view class="relation-grid">
-        <view
+        <text
           v-for="option in relationOptions"
           :key="option.relation"
-          class="tree-relation-card"
+          class="relation-chip"
           :class="{
             active: pendingRelation === option.relation,
             disabled: !option.enabled
           }"
           @click="selectRelation(option)"
         >
-          <text class="tree-relation-card-label">{{ option.label }}</text>
-        </view>
+          {{ option.label }}
+        </text>
       </view>
       <text v-if="lastDisabledReason" class="disabled-hint">{{ lastDisabledReason }}</text>
-    </MiniCard>
+    </view>
 
-    <MiniCard>
-      <MiniSectionHeader title="补充这个人的信息" />
+    <view class="archive-form-panel kinship-panel">
+      <view class="archive-section-head">
+        <text class="archive-section-title">补充这个人的信息</text>
+        <text class="archive-section-subtitle">性别、出生日期与长幼关系</text>
+      </view>
       <view v-if="!pendingRelation" class="empty-hint">
         <text class="tree-muted">请先选择下一层关系。</text>
       </view>
       <view v-else class="pending-form">
         <text class="pending-relation-hint">正在为「{{ selectedRelationLabel }}」补充信息</text>
-        <view class="picker-row">
-          <text class="tree-field-label">性别</text>
-          <view class="tag-group">
-            <text
-              v-for="item in genderOptions"
-              :key="item.value"
-              class="tag selectable"
-              :class="{ active: pendingPerson.gender === item.value }"
-              @click="pendingPerson.gender = item.value"
-            >
-              {{ item.label }}
-            </text>
-          </view>
+        <text class="tree-field-label">性别</text>
+        <view class="choice-row">
+          <text
+            v-for="item in genderOptions"
+            :key="item.value"
+            class="choice-chip"
+            :class="{ active: pendingPerson.gender === item.value }"
+            @click="pendingPerson.gender = item.value"
+          >
+            {{ item.label }}
+          </text>
         </view>
-        <input v-model.trim="pendingPerson.birthday" class="tree-input" placeholder="出生日期（可选）" />
-        <input v-model.trim="pendingAgeInput" class="tree-input" type="number" placeholder="年龄（可选）" />
-        <view v-if="pendingRelation === 'sibling'" class="picker-row">
+        <text class="tree-field-label">出生日期（可选）</text>
+        <input v-model.trim="pendingPerson.birthday" class="tree-input" placeholder="如 1990-01-01" />
+        <text class="tree-field-label">年龄（可选）</text>
+        <input v-model.trim="pendingAgeInput" class="tree-input" type="number" placeholder="请输入年龄" />
+        <view v-if="pendingRelation === 'sibling'" class="relative-age-block">
           <text class="tree-field-label">长幼（相对上一位）</text>
-          <view class="tag-group">
+          <view class="choice-row">
             <text
               v-for="item in relativeAgeOptions"
               :key="item.value"
-              class="tag selectable"
+              class="choice-chip"
               :class="{ active: pendingRelativeAge === item.value }"
               @click="pendingRelativeAge = item.value"
             >
@@ -117,48 +117,52 @@
             </text>
           </view>
         </view>
-        <MiniButton @click="appendStep">添加到路径</MiniButton>
+        <MiniButton class="append-action" size="sm" @click="appendStep">添加到路径</MiniButton>
         <text v-if="appendError" class="tree-field-error">{{ appendError }}</text>
       </view>
-    </MiniCard>
-
-    <view class="tree-result-plaque result-card" :class="`result-${resolution.status}`">
-      <template v-if="resolution.status === 'resolved'">
-        <text class="result-label">规范称谓</text>
-        <text class="result-title">{{ resolution.primaryTitle }}</text>
-      </template>
-      <template v-else-if="resolution.incompleteInfo">
-        <text class="result-label">信息不足</text>
-        <text class="result-unsupported">关系信息不完整</text>
-        <text class="tree-muted result-hint">请补充性别、长幼或父母方向等客观信息。</text>
-      </template>
-      <template v-else>
-        <text class="result-label">客观关系路径</text>
-        <text class="result-title muted-title">{{ resolution.pathDescription }}</text>
-        <text class="tree-muted result-hint">当前路径暂无对应规范称谓。</text>
-      </template>
-
-      <text v-if="resolution.explanation" class="explanation-text">{{ resolution.explanation }}</text>
     </view>
 
-    <MiniCard class="action-card">
-      <view class="action-row">
-        <MiniButton
-          variant="secondary"
-          size="sm"
-          :block="false"
-          class="action-btn"
-          :class="{ 'btn-weak': steps.length === 0 }"
-          @click="undoStep"
-        >
-          撤销一步
-        </MiniButton>
-        <MiniButton variant="secondary" size="sm" :block="false" class="action-btn" @click="confirmReset">
-          重新开始
-        </MiniButton>
-        <MiniButton class="action-btn-wide" @click="copyDescription">复制关系描述</MiniButton>
+    <view class="kinship-result" :class="`result-${resolution.status}`">
+      <view class="result-head">
+        <text class="result-seal">称谓</text>
+        <text class="result-kicker">批注结果</text>
       </view>
-    </MiniCard>
+      <view class="result-body">
+        <template v-if="resolution.status === 'resolved'">
+          <text class="result-label">规范称谓</text>
+          <text class="result-title">{{ resolution.primaryTitle }}</text>
+        </template>
+        <template v-else-if="resolution.incompleteInfo">
+          <text class="result-label">信息不足</text>
+          <text class="result-unsupported">关系信息不完整</text>
+          <text class="tree-muted result-hint">请补充性别、长幼或父母方向等客观信息。</text>
+        </template>
+        <template v-else>
+          <text class="result-label">客观关系路径</text>
+          <text class="result-title muted-title">{{ resolution.pathDescription }}</text>
+          <text class="tree-muted result-hint">当前路径暂无对应规范称谓。</text>
+        </template>
+        <text v-if="resolution.explanation" class="explanation-text">{{ resolution.explanation }}</text>
+      </view>
+    </view>
+
+    <view class="kinship-actions">
+      <MiniButton
+        variant="secondary"
+        size="sm"
+        class="action-btn"
+        :class="{ 'btn-weak': steps.length === 0 }"
+        @click="undoStep"
+      >
+        撤销一步
+      </MiniButton>
+      <MiniButton variant="secondary" size="sm" class="action-btn" @click="confirmReset">
+        重新开始
+      </MiniButton>
+      <MiniButton variant="ghost" size="sm" class="action-btn-wide" @click="copyDescription">
+        复制关系描述
+      </MiniButton>
+    </view>
 
     <view class="footer-check">
       <text class="self-check-text">规则自检：{{ selfCheckSummary }}</text>
@@ -171,9 +175,7 @@ import { computed, ref } from 'vue'
 
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniCard from '@/components/base/MiniCard.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import MiniSectionHeader from '@/components/base/MiniSectionHeader.vue'
 import { canAppendRelation, getRelationOptions } from '@/features/kinship/allowedRelations'
 import {
   formatStepLabel,
@@ -183,6 +185,7 @@ import { resolveKinship } from '@/features/kinship/resolveKinship'
 import { runKinshipSelfChecks } from '@/features/kinship/testCases'
 import type { Gender, KinshipContext, KinshipRelation, KinshipStep, PersonFacts, RelativeAge } from '@/features/kinship/types'
 import { MAX_KINSHIP_DEPTH } from '@/features/kinship/types'
+import { validateDateInput } from '@/utils/inputValidation'
 
 const maxDepth = MAX_KINSHIP_DEPTH
 const maxDepthHint = `推导关系结果仅供参考，最多支持 ${MAX_KINSHIP_DEPTH} 层关系路径。`
@@ -307,8 +310,18 @@ function appendStep() {
     appendError.value = '请先选择本人性别。'
     return
   }
+  const selfBirthdayError = validateDateInput(self.value.birthday, '本人出生日期')
+  if (selfBirthdayError) {
+    appendError.value = selfBirthdayError
+    return
+  }
   if (!pendingRelation.value) {
     appendError.value = '请先选择下一层关系。'
+    return
+  }
+  const pendingBirthdayError = validateDateInput(pendingPerson.value.birthday, '亲属出生日期')
+  if (pendingBirthdayError) {
+    appendError.value = pendingBirthdayError
     return
   }
   const validation = canAppendRelation(context.value, pendingRelation.value)
@@ -391,74 +404,137 @@ function copyDescription() {
 </script>
 
 <style scoped>
-.path-card :deep(.mini-section-header) {
-  margin-bottom: 12rpx;
+.kinship-page {
+  padding-top: 28rpx;
 }
 
-.picker-row {
-  margin-top: 12rpx;
+.kinship-page :deep(.mini-back-home) {
+  margin-bottom: 22rpx;
 }
 
-.tag-group {
+.beta-notice,
+.local-only-notice {
+  margin-bottom: 16rpx;
+}
+
+.kinship-panel {
+  margin-bottom: 24rpx;
+}
+
+.choice-row {
   display: flex;
   flex-wrap: wrap;
   gap: 10rpx;
+  margin-top: 8rpx;
 }
 
-.tag.selectable {
-  min-width: 72rpx;
-  min-height: 56rpx;
+.choice-chip {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 72rpx;
+  min-height: 56rpx;
   box-sizing: border-box;
-  cursor: pointer;
+  border: 1rpx solid var(--archive-line);
+  background: rgba(255, 248, 234, 0.58);
+  color: var(--archive-ink-soft);
+  padding: 0 18rpx;
+  font-size: 24rpx;
 }
 
-.tag.active {
-  background: var(--tree-primary, #1f3a5f);
-  color: #fff;
+.choice-chip.active {
+  border-color: var(--archive-blue);
+  background: rgba(22, 51, 83, 0.08);
+  color: var(--archive-blue);
+  font-weight: 650;
 }
 
-.path-pills,
-.path-pill,
-.path-pill-self,
-.path-separator {
-  display: none;
+.path-tag-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8rpx 6rpx;
+  margin-top: 8rpx;
+  padding: 18rpx 0;
+  border-top: 1rpx solid var(--archive-line);
+  border-bottom: 1rpx solid var(--archive-line);
 }
 
-.result-card {
-  margin-bottom: 20rpx;
+.path-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48rpx;
+  border: 1rpx solid var(--archive-line-strong);
+  background: rgba(255, 249, 236, 0.72);
+  color: var(--archive-ink);
+  padding: 0 16rpx;
+  font-size: 24rpx;
+  line-height: 1.3;
+}
+
+.path-tag-self {
+  border-color: var(--archive-blue);
+  background: rgba(22, 51, 83, 0.08);
+  color: var(--archive-blue);
+  font-weight: 700;
+}
+
+.path-tag-link {
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
 }
 
 .path-meta {
   display: block;
   margin-top: 12rpx;
-  color: var(--tree-text-secondary);
-  font-size: 24rpx;
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
 }
 
 .relation-grid {
   display: flex;
   flex-wrap: wrap;
-  gap: 12rpx;
+  gap: 10rpx;
+  margin-top: 8rpx;
 }
 
-.tree-relation-card {
-  min-height: 92rpx;
+.relation-chip {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: 108rpx;
+  min-height: 72rpx;
+  box-sizing: border-box;
+  border: 1rpx solid var(--archive-line-strong);
+  background: rgba(255, 249, 236, 0.42);
+  color: var(--archive-ink);
+  padding: 0 18rpx;
+  font-size: 26rpx;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.relation-chip.active {
+  border-color: var(--archive-cinnabar);
+  background: rgba(168, 59, 45, 0.08);
+  color: var(--archive-cinnabar);
+  font-weight: 650;
+}
+
+.relation-chip.disabled {
+  opacity: 0.42;
 }
 
 .disabled-hint {
   display: block;
   margin-top: 16rpx;
-  color: #9ca3af;
+  color: var(--archive-ink-soft);
   font-size: 24rpx;
   line-height: 1.6;
 }
 
 .empty-hint {
-  padding: 16rpx 0 8rpx;
+  padding: 8rpx 0;
 }
 
 .pending-form {
@@ -467,41 +543,88 @@ function copyDescription() {
 
 .pending-relation-hint {
   display: block;
-  margin-bottom: 16rpx;
-  color: #2f6b57;
-  font-size: 26rpx;
+  margin-bottom: 12rpx;
+  color: var(--archive-blue);
+  font-size: 24rpx;
 }
 
-.result-card.result-card {
-  border: none;
+.relative-age-block {
+  margin-top: 8rpx;
+}
+
+.append-action {
+  margin-top: 18rpx;
+  align-self: flex-start;
+}
+
+.kinship-result {
+  margin-bottom: 24rpx;
+  border-top: 1rpx solid rgba(168, 59, 45, 0.28);
+  border-bottom: 1rpx solid rgba(168, 59, 45, 0.18);
+  background: rgba(168, 59, 45, 0.04);
+  padding: 24rpx 0 28rpx;
+}
+
+.result-head {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-bottom: 16rpx;
+}
+
+.result-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56rpx;
+  height: 56rpx;
+  border: 2rpx solid var(--archive-cinnabar);
+  color: var(--archive-cinnabar);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 24rpx;
+  font-weight: 800;
+}
+
+.result-kicker {
+  color: var(--archive-cinnabar);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.result-body {
+  border-top: 1rpx solid var(--archive-line);
+  padding-top: 18rpx;
 }
 
 .result-label {
   display: block;
-  margin-bottom: 12rpx;
-  color: #6b7280;
-  font-size: 24rpx;
+  margin-bottom: 8rpx;
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
   font-weight: 600;
-  letter-spacing: 1rpx;
 }
 
 .result-title {
   display: block;
-  color: #2f6b57;
+  color: var(--archive-cinnabar);
+  font-family: 'Songti SC', 'STSong', serif;
   font-size: 40rpx;
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1.4;
 }
 
 .muted-title {
+  color: var(--archive-ink);
   font-size: 32rpx;
+  font-weight: 700;
 }
 
 .result-unsupported {
   display: block;
-  color: #6b7280;
+  color: var(--archive-ink-soft);
   font-size: 30rpx;
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1.5;
 }
 
@@ -510,59 +633,21 @@ function copyDescription() {
   margin-top: 12rpx;
 }
 
-.candidate-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10rpx;
-  margin-bottom: 8rpx;
-}
-
-.candidate-tag {
-  display: inline-flex;
-  border-radius: 999rpx;
-  background: #fff;
-  border: 1rpx solid #b8d4c8;
-  color: #2f6b57;
-  padding: 10rpx 20rpx;
-  font-size: 28rpx;
-  font-weight: 600;
-}
-
-.aliases-block {
-  margin-top: 20rpx;
-  padding-top: 20rpx;
-  border-top: 1rpx solid #e5e0d6;
-}
-
-.aliases-label {
-  display: block;
-  margin-bottom: 6rpx;
-  color: #6b7280;
-  font-size: 24rpx;
-}
-
-.aliases-text {
-  color: #374151;
-  font-size: 26rpx;
-  line-height: 1.6;
-}
-
 .explanation-text {
   display: block;
   margin-top: 16rpx;
-  color: #6b7280;
-  font-size: 26rpx;
-  line-height: 1.7;
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--archive-line);
+  color: var(--archive-ink-soft);
+  font-size: 24rpx;
+  line-height: 1.75;
 }
 
-.action-card {
-  padding-bottom: 12rpx;
-}
-
-.action-row {
+.kinship-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
+  margin-bottom: 20rpx;
 }
 
 .action-btn {
@@ -578,30 +663,14 @@ function copyDescription() {
   opacity: 0.5;
 }
 
-.beta-notice {
-  margin-bottom: 16rpx;
-}
-
-.kinship-banner,
-.genealogy-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16rpx;
-}
-
-.banner-copy {
-  flex: 1;
-  min-width: 0;
-}
-
 .footer-check {
   padding: 4rpx 0 24rpx;
   text-align: center;
 }
 
 .self-check-text {
-  color: #d1d5db;
+  color: var(--archive-ink-soft);
   font-size: 18rpx;
+  opacity: 0.55;
 }
 </style>
