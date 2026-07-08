@@ -24,8 +24,18 @@ test('manage.vue wires parent memberType for create and place flows', () => {
   assert.match(manageSource, /parentRoleValues/)
   assert.match(manageSource, /showParentRolePicker/)
   assert.match(manageSource, /showPlaceParentRolePicker/)
+  assert.match(manageSource, /新成员归属/)
+  assert.match(manageSource, /defaultParentRoleIndex/)
+  assert.match(manageSource, /ADD_MOTHER'\s+\?\s+1\s+:\s+0/)
   assert.match(manageSource, /unlocatedTypeAnomalies/)
   assert.match(manageSource, /filterUnlocatedLineageMemberIds/)
+})
+
+test('manage.vue refreshes and preserves selected base member by id', () => {
+  assert.match(manageSource, /onShow/)
+  assert.match(manageSource, /selectedBaseMemberId/)
+  assert.match(manageSource, /syncCreateBaseSelection/)
+  assert.match(manageSource, /String\(selectedBaseMember\.value\?\.memberId/)
 })
 
 test('manage.vue uses session for auth gate', () => {

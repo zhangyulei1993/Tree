@@ -63,10 +63,14 @@
           <text class="archive-section-subtitle">以现有成员为起点，创建一个新成员并放入家谱</text>
         </view>
         <picker :range="memberLabels" :value="baseMemberIndex" @change="onBaseMemberChange">
-          <view class="field-picker">{{ selectedBaseMember?.name || '选择基准成员' }}</view>
+          <view class="field-picker">
+            <text class="field-picker-prefix">基准成员：</text>{{ selectedBaseMember?.name || '选择基准成员' }}
+          </view>
         </picker>
         <picker :range="relationLabels" :value="relationIndex" @change="onRelationChange">
-          <view class="field-picker">{{ relationLabels[relationIndex] }}</view>
+          <view class="field-picker">
+            <text class="field-picker-prefix">要添加：</text>{{ relationLabels[relationIndex] }}
+          </view>
         </picker>
         <picker
           v-if="showParentRolePicker"
@@ -74,8 +78,13 @@
           :value="parentRoleIndex"
           @change="onParentRoleChange"
         >
-          <view class="field-picker">父母身份：{{ parentRoleLabels[parentRoleIndex] }}</view>
+          <view class="field-picker">
+            <text class="field-picker-prefix">新成员归属：</text>{{ parentRoleLabels[parentRoleIndex] }}
+          </view>
         </picker>
+        <text v-if="showParentRolePicker" class="field-help">
+          用于决定家谱纸签样式；父亲通常为家庭成员，母亲通常为配偶，可按实际家庭调整。
+        </text>
         <input v-model.trim="relativeName" class="tree-input" maxlength="80" placeholder="新亲属姓名" />
         <picker :range="genderLabels" :value="relativeGenderIndex" @change="onRelativeGenderChange">
           <view class="field-picker">性别：{{ genderLabels[relativeGenderIndex] }}</view>
@@ -143,8 +152,11 @@
             :value="placeParentRoleIndex"
             @change="onPlaceParentRoleChange"
           >
-            <view class="field-picker">父母身份：{{ parentRoleLabels[placeParentRoleIndex] }}</view>
+            <view class="field-picker">新成员归属：{{ parentRoleLabels[placeParentRoleIndex] }}</view>
           </picker>
+          <text v-if="showPlaceParentRolePicker" class="field-help">
+            用于决定家谱纸签样式；父亲通常为家庭成员，母亲通常为配偶，可按实际家庭调整。
+          </text>
           <MiniNotice v-if="unlocatedTypeAnomalies.length > 0" tone="warm" title="成员类型数据异常">
             以下暂存成员缺少 memberType，已从未定位列表排除：{{
               unlocatedTypeAnomalies.map((member) => member.name).join('、')
@@ -196,7 +208,7 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -277,6 +289,10 @@ const manageSection = ref<'create' | 'locate' | 'relations'>('create')
 const initialBaseMemberId = ref('')
 const initialAddType = ref<RelationshipAddType | ''>('')
 const initialSelectionApplied = ref(false)
+const hasLoadedOnce = ref(false)
+const selectedBaseMemberId = ref('')
+const selectedPlaceMemberId = ref('')
+const selectedPlaceBaseMemberId = ref('')
 
 const canManage = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
@@ -331,12 +347,13 @@ function asIndex(event: { detail: { value: string | number } }) {
 
 function onBaseMemberChange(event: { detail: { value: string | number } }) {
   baseMemberIndex.value = asIndex(event)
+  selectedBaseMemberId.value = String(selectedBaseMember.value?.memberId || '')
   applyRelationGenderDefault()
 }
 
 function onRelationChange(event: { detail: { value: string | number } }) {
   relationIndex.value = asIndex(event)
-  parentRoleIndex.value = 0
+  parentRoleIndex.value = defaultParentRoleIndex(relationValues[relationIndex.value])
   applyRelationGenderDefault()
 }
 
@@ -354,16 +371,19 @@ function onUnlocatedGenderChange(event: { detail: { value: string | number } }) 
 
 function onPlaceMemberChange(event: { detail: { value: string | number } }) {
   placeMemberIndex.value = asIndex(event)
+  selectedPlaceMemberId.value = String(selectedPlaceMember.value?.memberId || '')
   placeBaseIndex.value = 0
+  selectedPlaceBaseMemberId.value = String(selectedPlaceBase.value?.memberId || '')
 }
 
 function onPlaceBaseChange(event: { detail: { value: string | number } }) {
   placeBaseIndex.value = asIndex(event)
+  selectedPlaceBaseMemberId.value = String(selectedPlaceBase.value?.memberId || '')
 }
 
 function onPlaceRelationChange(event: { detail: { value: string | number } }) {
   placeRelationIndex.value = asIndex(event)
-  placeParentRoleIndex.value = 0
+  placeParentRoleIndex.value = defaultParentRoleIndex(relationValues[placeRelationIndex.value])
 }
 
 function onPlaceParentRoleChange(event: { detail: { value: string | number } }) {
@@ -377,6 +397,45 @@ function applyRelationGenderDefault() {
   if (addType === 'ADD_SPOUSE') {
     relativeGenderIndex.value = selectedBaseMember.value?.gender === 'FEMALE' ? 0 : 1
   }
+}
+
+function defaultParentRoleIndex(addType: RelationshipAddType | undefined) {
+  return addType === 'ADD_MOTHER' ? 1 : 0
+}
+
+function syncCreateBaseSelection(preferredMemberId = selectedBaseMemberId.value) {
+  const index = members.value.findIndex((member) => String(member.memberId) === preferredMemberId)
+  if (index >= 0) {
+    baseMemberIndex.value = index
+  } else {
+    baseMemberIndex.value = Math.min(baseMemberIndex.value, Math.max(0, members.value.length - 1))
+  }
+  selectedBaseMemberId.value = String(selectedBaseMember.value?.memberId || '')
+}
+
+function syncPlacementSelection(
+  preferredMemberId = selectedPlaceMemberId.value,
+  preferredBaseMemberId = selectedPlaceBaseMemberId.value
+) {
+  const memberIndex = unlocatedMembers.value.findIndex(
+    (member) => String(member.memberId) === preferredMemberId
+  )
+  if (memberIndex >= 0) {
+    placeMemberIndex.value = memberIndex
+  } else {
+    placeMemberIndex.value = Math.min(placeMemberIndex.value, Math.max(0, unlocatedMembers.value.length - 1))
+  }
+  selectedPlaceMemberId.value = String(selectedPlaceMember.value?.memberId || '')
+
+  const baseIndex = placementBaseMembers.value.findIndex(
+    (member) => String(member.memberId) === preferredBaseMemberId
+  )
+  if (baseIndex >= 0) {
+    placeBaseIndex.value = baseIndex
+  } else {
+    placeBaseIndex.value = Math.min(placeBaseIndex.value, Math.max(0, placementBaseMembers.value.length - 1))
+  }
+  selectedPlaceBaseMemberId.value = String(selectedPlaceBase.value?.memberId || '')
 }
 
 function yearValue(value: string) {
@@ -395,6 +454,10 @@ async function loadData() {
   loading.value = true
   loadError.value = ''
   try {
+    const previousBaseMemberId = selectedBaseMemberId.value || String(selectedBaseMember.value?.memberId || '')
+    const previousPlaceMemberId = selectedPlaceMemberId.value || String(selectedPlaceMember.value?.memberId || '')
+    const previousPlaceBaseMemberId = selectedPlaceBaseMemberId.value || String(selectedPlaceBase.value?.memberId || '')
+    const shouldApplyInitialSelection = !initialSelectionApplied.value
     const [familyResult, memberResult, treeResult] = await Promise.all([
       getFamilyDetail(familyId.value),
       listFamilyMembers(familyId.value),
@@ -403,9 +466,15 @@ async function loadData() {
     family.value = familyResult
     members.value = memberResult
     tree.value = treeResult
-    baseMemberIndex.value = Math.min(baseMemberIndex.value, Math.max(0, memberResult.length - 1))
     applyInitialSelection()
-    applyRelationGenderDefault()
+    syncCreateBaseSelection(shouldApplyInitialSelection ? selectedBaseMemberId.value : previousBaseMemberId)
+    syncPlacementSelection(previousPlaceMemberId, previousPlaceBaseMemberId)
+    if (shouldApplyInitialSelection) {
+      parentRoleIndex.value = defaultParentRoleIndex(relationValues[relationIndex.value])
+      placeParentRoleIndex.value = defaultParentRoleIndex(relationValues[placeRelationIndex.value])
+      applyRelationGenderDefault()
+    }
+    hasLoadedOnce.value = true
   } catch (error) {
     loadError.value = apiErrorMessage(error, '家庭管理数据加载失败。')
   } finally {
@@ -419,7 +488,10 @@ function applyInitialSelection() {
   const memberIndex = members.value.findIndex(
     (member) => String(member.memberId) === initialBaseMemberId.value
   )
-  if (memberIndex >= 0) baseMemberIndex.value = memberIndex
+  if (memberIndex >= 0) {
+    baseMemberIndex.value = memberIndex
+    selectedBaseMemberId.value = String(members.value[memberIndex]?.memberId || '')
+  }
   const addTypeIndex = relationValues.indexOf(initialAddType.value as RelationshipAddType)
   if (addTypeIndex >= 0) relationIndex.value = addTypeIndex
 }
@@ -643,6 +715,11 @@ onLoad((options) => {
   }
   loadData()
 })
+
+onShow(() => {
+  if (!hasLoadedOnce.value || loading.value || !familyId.value) return
+  loadData()
+})
 </script>
 
 <style scoped>
@@ -688,6 +765,18 @@ onLoad((options) => {
 .manage-action {
   margin-top: 20rpx;
   align-self: flex-start;
+}
+
+.field-picker-prefix {
+  color: var(--archive-ink-soft);
+}
+
+.field-help {
+  display: block;
+  margin: -10rpx 0 16rpx;
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
+  line-height: 1.7;
 }
 
 .manage-page .archive-relation-actions {
