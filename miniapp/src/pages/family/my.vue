@@ -69,6 +69,14 @@
         <text class="showcase-notice-text">加入家庭请通过成员邀请，暂不提供公开搜索或申请加入。</text>
       </view>
 
+      <view class="create-family-entry archive-panel" @click="openCreateFamily">
+        <view class="create-family-copy">
+          <text class="create-family-title">新建家谱册</text>
+          <text class="create-family-desc">{{ createFamilyHint }}</text>
+        </view>
+        <text class="archive-thin-button">{{ createFamilyActionText }}</text>
+      </view>
+
       <view v-if="session.isLoggedIn" class="showcase-invite-link" @click="openInvitations">
         <text class="showcase-invite-label">查看收到的家庭邀请</text>
         <text class="archive-arrow">›</text>
@@ -153,6 +161,14 @@ const showcasePageSize = 20
 const hasMyFamilies = computed(() => myFamiliesLoaded.value && families.value.length > 0)
 const isResolvingMyFamilyMode = computed(() => loadingMyFamilies.value && !myFamiliesLoaded.value)
 const showcaseHasMore = computed(() => showcaseItems.value.length < showcaseTotal.value)
+const createFamilyActionText = computed(() => (session.isLoggedIn ? '创建家庭' : '登录后创建'))
+const createFamilyHint = computed(() =>
+  session.isLoggedIn
+    ? session.isProfileComplete
+      ? '准备自己整理家谱？填写姓氏与地区，开启新的家谱册。'
+      : '准备自己整理家谱？完善资料后即可创建家庭。'
+    : '准备自己整理家谱？登录并完善资料后可创建家庭。'
+)
 
 async function loadMyFamilies() {
   session.restoreSession()
@@ -295,6 +311,40 @@ onShow(refreshPage)
   color: var(--archive-ink-soft);
   font-size: 23rpx;
   line-height: 1.65;
+}
+
+.create-family-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 18rpx;
+  padding: 22rpx 0;
+}
+
+.create-family-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.create-family-title,
+.create-family-desc {
+  display: block;
+}
+
+.create-family-title {
+  color: var(--archive-blue);
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 30rpx;
+  font-weight: 700;
+  letter-spacing: 1rpx;
+}
+
+.create-family-desc {
+  margin-top: 8rpx;
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
+  line-height: 1.62;
 }
 
 .showcase-invite-link {

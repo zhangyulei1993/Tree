@@ -32,7 +32,7 @@
           <view class="bamboo-mist bamboo-mist-b" />
         </view>
 
-        <view class="home-primary-entry" @click="goMyFamilyTab">
+        <view class="home-primary-entry" @click="openHomePrimaryEntry">
           <view>
             <text class="entry-title">{{ primaryEntryTitle }}</text>
             <text class="entry-desc">{{ primaryEntryDesc }}</text>
@@ -133,14 +133,19 @@ const archiveStats = ref<ArchiveStat[]>([
 const hasOwnFamilies = ref(false)
 
 const featuredRead = computed(() => articles.value.find((item) => item.isFeatured) || articles.value[0] || null)
+const shouldPromptCreateFamily = computed(() => !hasOwnFamilies.value && session.isLoggedIn)
 const primaryEntryTitle = computed(() =>
-  hasOwnFamilies.value ? '翻开我的家谱' : '浏览展示家庭'
+  hasOwnFamilies.value ? '翻开我的家谱' : shouldPromptCreateFamily.value ? '创建我的家庭' : '浏览展示家庭'
 )
 const primaryEntryDesc = computed(() =>
-  hasOwnFamilies.value ? '查看成员、关系和家谱册页' : '无需登录，先看公开展示册页'
+  hasOwnFamilies.value
+    ? '查看成员、关系和家谱册页'
+    : shouldPromptCreateFamily.value
+      ? '填写姓氏，建立自己的家谱册页'
+      : '无需登录，先看公开展示册页'
 )
 const directoryTagText = computed(() =>
-  hasOwnFamilies.value ? ['家', '谱'] : ['展', '示']
+  hasOwnFamilies.value ? ['家', '谱'] : shouldPromptCreateFamily.value ? ['建', '谱'] : ['展', '示']
 )
 
 function categoryTitle(key: string) {
@@ -244,6 +249,19 @@ function go(url: string) {
 
 function goMyFamilyTab() {
   uni.switchTab({ url: '/pages/family/my' })
+}
+
+function openCreateFamily() {
+  if (!session.requireProfileComplete('/pages/family/create')) return
+  uni.navigateTo({ url: '/pages/family/create' })
+}
+
+function openHomePrimaryEntry() {
+  if (!hasOwnFamilies.value && session.isLoggedIn) {
+    openCreateFamily()
+    return
+  }
+  goMyFamilyTab()
 }
 
 async function refreshHome() {

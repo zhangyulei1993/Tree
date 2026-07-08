@@ -159,6 +159,18 @@ test('home page has showcase section without search wording', () => {
   assert.match(home, /查看更多展示家庭/)
   assert.match(home, /listPublicFamilyShowcase/)
   assert.match(home, /阅读精选/)
+  assert.match(home, /创建我的家庭/)
+  assert.match(home, /openHomePrimaryEntry/)
+  assert.match(home, /pages\/family\/create/)
+})
+
+test('my family tab keeps create entry when showing public showcase', () => {
+  const myFamily = read(join(miniappSrc, 'pages', 'family', 'my.vue'))
+  assert.match(myFamily, /展示家庭/)
+  assert.match(myFamily, /新建家谱册/)
+  assert.match(myFamily, /创建家庭/)
+  assert.match(myFamily, /openCreateFamily/)
+  assert.match(myFamily, /pages\/family\/create/)
 })
 
 test('public profile page has no join apply entry', () => {
