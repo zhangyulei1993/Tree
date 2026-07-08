@@ -183,16 +183,10 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
     const renderNodes: RenderCoupleNode[] = []
     const nodeById = new Map<string, RenderCoupleNode>()
     let scrollIntoViewId: string | undefined
-    let rootAnchorAssigned = false
 
     root.each((node) => {
       if (node.data.virtual) return
       const width = node.data.coupleWidth
-      const scrollAnchorId = rootAnchorAssigned ? undefined : 'tree-root-anchor'
-      if (scrollAnchorId) {
-        rootAnchorAssigned = true
-        scrollIntoViewId = scrollAnchorId
-      }
 
       const renderNode: RenderCoupleNode = {
         id: node.data.id,
@@ -200,12 +194,26 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
         x: node.x - width / 2 + shiftX,
         y: node.y + shiftY,
         width,
-        height: COUPLE_ROW_H,
-        scrollAnchorId
+        height: COUPLE_ROW_H
       }
       renderNodes.push(renderNode)
       nodeById.set(renderNode.id, renderNode)
     })
+
+    const viewerMemberId = safeInput.viewerMemberId
+    if (viewerMemberId != null) {
+      const viewerNode = renderNodes.find((item) =>
+        item.parents.some((parent) => parent.memberId === viewerMemberId)
+      )
+      if (viewerNode) {
+        viewerNode.scrollAnchorId = `tree-viewer-anchor-${viewerMemberId}`
+        scrollIntoViewId = viewerNode.scrollAnchorId
+      }
+    }
+    if (!scrollIntoViewId && renderNodes.length > 0) {
+      renderNodes[0].scrollAnchorId = 'tree-root-anchor'
+      scrollIntoViewId = 'tree-root-anchor'
+    }
 
     const renderLinks: RenderTreeLink[] = []
     for (const link of root.links()) {

@@ -8,7 +8,7 @@
 
     <template v-else>
       <view class="scroll-hint">
-        <text class="hint-text">可左右、上下滑动查看完整家谱</text>
+        <text class="hint-text">按父母、子女、配偶关系自然展开，可左右、上下滑动查看</text>
       </view>
 
       <scroll-view
@@ -89,7 +89,7 @@
       <view v-if="layout.unlocatedMembers.length > 0" class="unlocated-section">
         <view class="unlocated-head">
           <text class="unlocated-title">未定位成员</text>
-          <text class="unlocated-desc">以下成员未接入主家谱主干，可在「定位成员」中挂接。</text>
+          <text class="unlocated-desc">以下成员暂未接入当前关系图，可在「定位成员」中挂接。</text>
         </view>
         <view class="unlocated-list">
           <FamilyTreePersonCard

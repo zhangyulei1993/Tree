@@ -54,7 +54,7 @@
       </view>
 
       <view class="tree-scroll-note">
-        <text>纸签家谱可左右滑动查看；配偶为浅纸签，不作为主干展开入口。</text>
+        <text>纸签家谱可左右滑动查看；配偶为浅纸签，不作为关系扩展入口。</text>
       </view>
 
       <template v-if="viewMode === 'structure'">
@@ -92,7 +92,7 @@
         </view>
         <view class="legend-item">
           <text class="legend-tag lineage" />
-          <text>族内成员</text>
+          <text>家庭成员</text>
         </view>
         <view class="legend-item">
           <text class="legend-tag spouse" />

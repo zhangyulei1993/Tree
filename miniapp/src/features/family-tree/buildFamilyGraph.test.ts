@@ -218,7 +218,7 @@ test('missing memberType is excluded from unlocated lineage list', () => {
   assert.deepEqual(filterUnlocatedLineageMemberIds([100], related, memberTypeById), [])
 })
 
-test('deep viewer keeps initial viewport anchored to the patrilineal root', () => {
+test('deep viewer keeps initial viewport anchored to the current center', () => {
   const nodes = [
     node(1, '张曾祖父', 'MALE', 'LINEAGE_MEMBER', '1920-01-01'),
     node(2, '李曾祖母', 'FEMALE', 'SPOUSE', '1922-01-01'),
@@ -242,7 +242,7 @@ test('deep viewer keeps initial viewport anchored to the patrilineal root', () =
     item.parents.some((parent) => parent.memberId === 5)
   )
 
-  assert.equal(layout.scrollIntoViewId, 'tree-root-anchor')
-  assert.equal(rootNode?.scrollAnchorId, 'tree-root-anchor')
-  assert.equal(viewerNode?.scrollAnchorId, undefined)
+  assert.equal(layout.scrollIntoViewId, 'tree-viewer-anchor-5')
+  assert.equal(rootNode?.scrollAnchorId, undefined)
+  assert.equal(viewerNode?.scrollAnchorId, 'tree-viewer-anchor-5')
 })

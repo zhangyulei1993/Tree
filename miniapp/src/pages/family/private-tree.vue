@@ -23,18 +23,6 @@
         <view v-if="family" class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
       </view>
 
-      <view class="generation-tabs">
-        <view
-          v-for="item in generationTabs"
-          :key="item"
-          class="generation-tab"
-          :class="{ active: activeGeneration === item }"
-          @click="activeGeneration = item"
-        >
-          <text>{{ item }}</text>
-        </view>
-      </view>
-
       <view v-if="canManageFamily" class="genealogy-tools">
         <text class="genealogy-tools-label">家谱管理</text>
         <view class="genealogy-tools-links">
@@ -62,7 +50,7 @@
       </view>
 
       <view class="tree-scroll-note">
-        <text>纸签家谱可左右滑动查看；配偶为浅纸签，不作为主干展开入口。</text>
+        <text>纸签家谱可左右滑动查看；配偶为浅纸签，不作为关系扩展入口。</text>
       </view>
 
       <template v-if="viewMode === 'structure'">
@@ -108,7 +96,7 @@
         </view>
         <view class="legend-item">
           <text class="legend-tag lineage" />
-          <text>族内成员</text>
+          <text>家庭成员</text>
         </view>
         <view class="legend-item">
           <text class="legend-tag current" />
@@ -156,8 +144,6 @@ const loading = ref(false)
 const errorMessage = ref('')
 const viewMode = ref<FamilyTreeViewMode>('structure')
 const viewerMemberId = ref<number | null>(null)
-const generationTabs = ['一世', '二世', '三世', '四世', '五世']
-const activeGeneration = ref('一世')
 
 const edgeCount = computed(() => (tree.value ? countVisibleEdges(tree.value) : 0))
 const relationSentences = computed(() => (tree.value ? buildRelationSentences(tree.value) : []))
@@ -288,37 +274,6 @@ onUnload(resetPageData)
   justify-content: space-between;
   gap: 24rpx;
   margin-bottom: 24rpx;
-}
-
-.generation-tabs {
-  display: flex;
-  align-items: center;
-  gap: 26rpx;
-  margin-bottom: 24rpx;
-  border-bottom: 1rpx solid var(--archive-line);
-}
-
-.generation-tab {
-  position: relative;
-  padding: 0 0 16rpx;
-  color: var(--archive-ink-soft);
-  font-size: 25rpx;
-  line-height: 1.4;
-}
-
-.generation-tab.active {
-  color: var(--archive-cinnabar);
-  font-weight: 750;
-}
-
-.generation-tab.active::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  bottom: -1rpx;
-  left: 0;
-  height: 3rpx;
-  background: var(--archive-cinnabar);
 }
 
 .genealogy-tools {
