@@ -126,6 +126,41 @@ func TestWechatClientMsgSecCheckErrcodeNonZero(t *testing.T) {
 	}
 }
 
+func TestWechatClientMsgSecCheckRefreshesExpiredAccessToken(t *testing.T) {
+	var tokenRequests int
+	var checkRequests int
+	client := newTestWechatClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "token") {
+			tokenRequests++
+			_, _ = w.Write([]byte(`{"access_token":"fresh-token","expires_in":7200}`))
+			return
+		}
+		checkRequests++
+		if checkRequests == 1 {
+			if got := r.URL.Query().Get("access_token"); got != "cached-test-token" {
+				t.Fatalf("first check should use cached token, got %q", got)
+			}
+			_, _ = w.Write([]byte(`{"errcode":40001,"errmsg":"invalid credential"}`))
+			return
+		}
+		if got := r.URL.Query().Get("access_token"); got != "fresh-token" {
+			t.Fatalf("retry should use refreshed token, got %q", got)
+		}
+		_, _ = w.Write([]byte(`{"errcode":0,"result":{"suggest":"pass","label":100},"trace_id":"retry-trace"}`))
+	})
+
+	result, err := client.MsgSecCheck(context.Background(), "user-openid", 1, "正常昵称")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Suggest != SuggestPass || result.TraceID != "retry-trace" {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+	if tokenRequests != 1 || checkRequests != 2 {
+		t.Fatalf("expected one token refresh and two checks, got token=%d check=%d", tokenRequests, checkRequests)
+	}
+}
+
 func TestWechatClientMsgSecCheckHTTPNon2xx(t *testing.T) {
 	client := newTestWechatClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "token") {

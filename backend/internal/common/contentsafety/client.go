@@ -17,11 +17,11 @@ import (
 )
 
 const (
-	msgSecCheckURL    = "https://api.weixin.qq.com/wxa/msg_sec_check"
-	accessTokenURL    = "https://api.weixin.qq.com/cgi-bin/token"
-	accessTokenSkew   = 2 * time.Minute
-	defaultTokenTTL   = 2 * time.Hour
-	msgSecVersion     = 2
+	msgSecCheckURL  = "https://api.weixin.qq.com/wxa/msg_sec_check"
+	accessTokenURL  = "https://api.weixin.qq.com/cgi-bin/token"
+	accessTokenSkew = 2 * time.Minute
+	defaultTokenTTL = 2 * time.Hour
+	msgSecVersion   = 2
 )
 
 var (
@@ -29,6 +29,15 @@ var (
 	ErrInvalidSuggest = errors.New("msg_sec_check suggest invalid")
 	ErrHTTPStatus     = errors.New("msg_sec_check http status error")
 )
+
+type wechatAPIError struct {
+	operation string
+	code      int
+}
+
+func (e wechatAPIError) Error() string {
+	return fmt.Sprintf("wechat %s failed: %d", e.operation, e.code)
+}
 
 type Client interface {
 	MsgSecCheck(ctx context.Context, openid string, scene int, content string) (Result, error)
@@ -75,7 +84,19 @@ func (c *WechatClient) MsgSecCheck(ctx context.Context, openid string, scene int
 	if err != nil {
 		return Result{}, err
 	}
+	result, err := c.msgSecCheckWithToken(ctx, accessToken, openid, scene, content)
+	if isAccessTokenInvalidError(err) {
+		c.clearAccessToken(accessToken)
+		accessToken, tokenErr := c.getAccessToken(ctx)
+		if tokenErr != nil {
+			return Result{}, tokenErr
+		}
+		return c.msgSecCheckWithToken(ctx, accessToken, openid, scene, content)
+	}
+	return result, err
+}
 
+func (c *WechatClient) msgSecCheckWithToken(ctx context.Context, accessToken string, openid string, scene int, content string) (Result, error) {
 	body, err := json.Marshal(map[string]any{
 		"openid":  openid,
 		"scene":   scene,
@@ -121,7 +142,7 @@ func (c *WechatClient) MsgSecCheck(ctx context.Context, openid string, scene int
 		return Result{}, err
 	}
 	if payload.ErrCode != 0 {
-		return Result{}, fmt.Errorf("wechat msg_sec_check failed: %d", payload.ErrCode)
+		return Result{}, wechatAPIError{operation: "msg_sec_check", code: payload.ErrCode}
 	}
 
 	suggest, err := normalizeSuggest(payload.Result.Suggest)
@@ -133,6 +154,19 @@ func (c *WechatClient) MsgSecCheck(ctx context.Context, openid string, scene int
 		Label:   payload.Result.Label,
 		TraceID: payload.TraceID,
 	}, nil
+}
+
+func isAccessTokenInvalidError(err error) bool {
+	var apiErr wechatAPIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	switch apiErr.code {
+	case 40001, 40014, 42001:
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeSuggest(raw string) (string, error) {
@@ -198,4 +232,13 @@ func (c *WechatClient) getAccessToken(ctx context.Context) (string, error) {
 	token := c.cachedToken
 	c.tokenMu.Unlock()
 	return token, nil
+}
+
+func (c *WechatClient) clearAccessToken(staleToken string) {
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
+	if staleToken == "" || c.cachedToken == staleToken {
+		c.cachedToken = ""
+		c.tokenExpires = time.Time{}
+	}
 }
