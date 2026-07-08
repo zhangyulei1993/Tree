@@ -29,7 +29,7 @@
               公众号
             </text>
           </view>
-          <text class="scroll-read">{{ readMinutes(article) }} 分钟</text>
+          <text class="scroll-published">{{ formatPublishDate(article.publishedAt || article.createdAt) }}</text>
         </view>
       </view>
 
@@ -145,13 +145,22 @@ function categoryShort(key: string) {
   return map[key] || '文'
 }
 
-function readMinutes(item: Pick<ContentArticleDetail, 'title' | 'summary' | 'body'>) {
-  const chars = `${item.title}${item.summary || ''}${item.body || ''}`.replace(/\s/g, '').length
-  return Math.max(1, Math.round(chars / 400))
-}
-
 function goBack() {
   uni.switchTab({ url: '/pages/content/index' })
+}
+
+function formatPublishDate(value?: string | null) {
+  if (!value) return '发布时间待定'
+  const match = value.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/)
+  if (match) {
+    return `发布于 ${match[1]}.${match[2].padStart(2, '0')}.${match[3].padStart(2, '0')}`
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '发布时间待定'
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `发布于 ${year}.${month}.${day}`
 }
 
 onLoad((options) => {
@@ -284,9 +293,10 @@ async function openOfficialArticle() {
   color: var(--archive-blue);
 }
 
-.scroll-read {
+.scroll-published {
   color: var(--archive-ink-soft);
   font-size: 21rpx;
+  white-space: nowrap;
 }
 
 .scroll-external {

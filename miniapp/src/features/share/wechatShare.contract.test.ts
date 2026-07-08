@@ -110,6 +110,20 @@ test('content detail page supports image blocks in internal articles', () => {
   assert.match(source, /src\.startsWith\('\/static\/'\)/)
 })
 
+test('content pages show published date instead of estimated read minutes', () => {
+  const detailSource = readPage('pages/content/detail.vue')
+  const indexSource = readPage('pages/content/index.vue')
+
+  assert.match(detailSource, /formatPublishDate/)
+  assert.match(indexSource, /formatPublishDate/)
+  assert.match(detailSource, /发布于/)
+  assert.match(indexSource, /发布于/)
+  assert.equal(/readMinutes/.test(detailSource), false)
+  assert.equal(/readMinutes/.test(indexSource), false)
+  assert.equal(/分钟/.test(detailSource), false)
+  assert.equal(/分钟/.test(indexSource), false)
+})
+
 test('home page wires mini program share entry and handler', () => {
   const source = readPage('pages/home/index.vue')
   assert.match(source, /onShareAppMessage/)

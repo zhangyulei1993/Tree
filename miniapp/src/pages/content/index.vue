@@ -40,7 +40,9 @@
               公众号
             </text>
           </view>
-          <text class="spotlight-read">{{ readMinutes(spotlightArticle) }} 分钟</text>
+          <text class="spotlight-published">
+            {{ formatPublishDate(spotlightArticle.publishedAt || spotlightArticle.createdAt) }}
+          </text>
         </view>
         <text class="spotlight-category">{{ spotlightArticle.categoryName }}</text>
         <text class="spotlight-title">{{ spotlightArticle.title }}</text>
@@ -93,7 +95,7 @@
                     公众号
                   </text>
                 </view>
-                <text class="article-read">{{ readMinutes(article) }} 分钟</text>
+                <text class="article-published">{{ formatPublishDate(article.publishedAt || article.createdAt) }}</text>
               </view>
               <text class="archive-row-title article-title">{{ article.title }}</text>
               <text class="archive-row-desc article-summary">{{ article.summary }}</text>
@@ -182,14 +184,23 @@ function categoryShort(key: string) {
   return map[key] || '文'
 }
 
-function readMinutes(article: ContentArticleSummary) {
-  const chars = `${article.title}${article.summary || ''}`.replace(/\s/g, '').length
-  return Math.max(1, Math.round(chars / 400))
-}
-
 function articleUrl(id: number | string) {
   const article = articles.value.find((item) => item.id === id)
   return `/pages/content/detail?id=${encodeURIComponent(article?.slug || String(id))}`
+}
+
+function formatPublishDate(value?: string | null) {
+  if (!value) return '发布时间待定'
+  const match = value.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/)
+  if (match) {
+    return `发布于 ${match[1]}.${match[2].padStart(2, '0')}.${match[3].padStart(2, '0')}`
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '发布时间待定'
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `发布于 ${year}.${month}.${day}`
 }
 
 async function goArticle(article: ContentArticleSummary) {
@@ -320,9 +331,10 @@ async function goArticle(article: ContentArticleSummary) {
   color: var(--archive-blue);
 }
 
-.spotlight-read {
+.spotlight-published {
   color: var(--archive-ink-soft);
   font-size: 21rpx;
+  white-space: nowrap;
 }
 
 .spotlight-category {
@@ -454,7 +466,7 @@ async function goArticle(article: ContentArticleSummary) {
   color: var(--archive-blue);
 }
 
-.article-read {
+.article-published {
   color: var(--archive-ink-soft);
   font-size: 20rpx;
   white-space: nowrap;
