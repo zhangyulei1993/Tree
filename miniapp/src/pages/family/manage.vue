@@ -83,7 +83,7 @@
           </view>
         </picker>
         <text v-if="showParentRolePicker" class="field-help">
-          用于决定家谱纸签样式；父亲通常为家庭成员，母亲通常为配偶，可按实际家庭调整。
+          用于决定家谱纸签样式；若已有另一位家庭成员父/母，可选择配偶，否则先用家庭成员建立父母关系。
         </text>
         <input v-model.trim="relativeName" class="tree-input" maxlength="80" placeholder="新亲属姓名" />
         <picker :range="genderLabels" :value="relativeGenderIndex" @change="onRelativeGenderChange">
@@ -155,7 +155,7 @@
             <view class="field-picker">新成员归属：{{ parentRoleLabels[placeParentRoleIndex] }}</view>
           </picker>
           <text v-if="showPlaceParentRolePicker" class="field-help">
-            用于决定家谱纸签样式；父亲通常为家庭成员，母亲通常为配偶，可按实际家庭调整。
+            用于决定家谱纸签样式；若已有另一位家庭成员父/母，可选择配偶，否则先用家庭成员建立父母关系。
           </text>
           <MiniNotice v-if="unlocatedTypeAnomalies.length > 0" tone="warm" title="成员类型数据异常">
             以下暂存成员缺少 memberType，已从未定位列表排除：{{
@@ -268,7 +268,7 @@ const relationLabels = ['父亲', '母亲', '子女', '配偶', '兄弟姐妹']
 const genderValues: Gender[] = ['MALE', 'FEMALE']
 const genderLabels = ['男', '女']
 const parentRoleValues: MemberType[] = ['LINEAGE_MEMBER', 'SPOUSE']
-const parentRoleLabels = ['本家成员', '本家成员的配偶']
+const parentRoleLabels = ['家庭成员', '家庭成员的配偶']
 const baseMemberIndex = ref(0)
 const relationIndex = ref(0)
 const parentRoleIndex = ref(0)
@@ -353,7 +353,7 @@ function onBaseMemberChange(event: { detail: { value: string | number } }) {
 
 function onRelationChange(event: { detail: { value: string | number } }) {
   relationIndex.value = asIndex(event)
-  parentRoleIndex.value = defaultParentRoleIndex(relationValues[relationIndex.value])
+  parentRoleIndex.value = defaultParentRoleIndex(relationValues[relationIndex.value], selectedBaseMember.value?.memberId)
   applyRelationGenderDefault()
 }
 
@@ -383,7 +383,10 @@ function onPlaceBaseChange(event: { detail: { value: string | number } }) {
 
 function onPlaceRelationChange(event: { detail: { value: string | number } }) {
   placeRelationIndex.value = asIndex(event)
-  placeParentRoleIndex.value = defaultParentRoleIndex(relationValues[placeRelationIndex.value])
+  placeParentRoleIndex.value = defaultParentRoleIndex(
+    relationValues[placeRelationIndex.value],
+    selectedPlaceBase.value?.memberId
+  )
 }
 
 function onPlaceParentRoleChange(event: { detail: { value: string | number } }) {
@@ -399,8 +402,22 @@ function applyRelationGenderDefault() {
   }
 }
 
-function defaultParentRoleIndex(addType: RelationshipAddType | undefined) {
-  return addType === 'ADD_MOTHER' ? 1 : 0
+function defaultParentRoleIndex(addType: RelationshipAddType | undefined, baseMemberId?: number) {
+  if (addType === 'ADD_MOTHER' && hasLineageParentByGender(baseMemberId, 'MALE')) return 1
+  if (addType === 'ADD_FATHER' && hasLineageParentByGender(baseMemberId, 'FEMALE')) return 1
+  return 0
+}
+
+function hasLineageParentByGender(childMemberId: number | undefined, gender: Gender) {
+  if (!childMemberId) return false
+  const parentIds = tree.value.edges
+    .filter((edge) => edge.relationshipType === 'PARENT_CHILD' && edge.toMemberId === childMemberId)
+    .map((edge) => edge.fromMemberId)
+  return tree.value.nodes.some((node) =>
+    parentIds.includes(node.memberId) &&
+    node.gender === gender &&
+    node.memberType === 'LINEAGE_MEMBER'
+  )
 }
 
 function syncCreateBaseSelection(preferredMemberId = selectedBaseMemberId.value) {
@@ -470,8 +487,14 @@ async function loadData() {
     syncCreateBaseSelection(shouldApplyInitialSelection ? selectedBaseMemberId.value : previousBaseMemberId)
     syncPlacementSelection(previousPlaceMemberId, previousPlaceBaseMemberId)
     if (shouldApplyInitialSelection) {
-      parentRoleIndex.value = defaultParentRoleIndex(relationValues[relationIndex.value])
-      placeParentRoleIndex.value = defaultParentRoleIndex(relationValues[placeRelationIndex.value])
+      parentRoleIndex.value = defaultParentRoleIndex(
+        relationValues[relationIndex.value],
+        selectedBaseMember.value?.memberId
+      )
+      placeParentRoleIndex.value = defaultParentRoleIndex(
+        relationValues[placeRelationIndex.value],
+        selectedPlaceBase.value?.memberId
+      )
       applyRelationGenderDefault()
     }
     hasLoadedOnce.value = true
