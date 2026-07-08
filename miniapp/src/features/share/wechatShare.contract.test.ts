@@ -100,6 +100,16 @@ test('content detail page wires wechat share button and handler', () => {
   assert.match(source, /分享给微信好友/)
 })
 
+test('content detail page supports image blocks in internal articles', () => {
+  const source = readPage('pages/content/detail.vue')
+  assert.match(source, /bodyBlocks/)
+  assert.match(source, /parseArticleBodyLine/)
+  assert.match(source, /markdownImage/)
+  assert.match(source, /scroll-body-image/)
+  assert.match(source, /src\.startsWith\('https:\/\/'\)/)
+  assert.match(source, /src\.startsWith\('\/static\/'\)/)
+})
+
 test('home page wires mini program share entry and handler', () => {
   const source = readPage('pages/home/index.vue')
   assert.match(source, /onShareAppMessage/)

@@ -146,7 +146,15 @@
           />
         </el-form-item>
         <el-form-item v-if="articleForm.contentType === 'INTERNAL'" label="正文">
-          <el-input v-model="articleForm.body" type="textarea" :rows="10" />
+          <el-input
+            v-model="articleForm.body"
+            type="textarea"
+            :rows="10"
+            placeholder="支持分段正文；图片单独一行填写：![图片说明](https://...) 或 /static/xxx.jpg"
+          />
+          <div class="article-body-tip">
+            正文图片需使用 HTTPS 地址或小程序静态资源路径，例如：![首页封面](/static/content-guide/guide-home.jpg)
+          </div>
         </el-form-item>
         <template v-else>
           <el-form-item label="文章链接">
@@ -530,5 +538,12 @@ function formatTime(value?: string | null) {
 
 .sort-input {
   margin-left: 18px;
+}
+
+.article-body-tip {
+  margin-top: 6px;
+  color: #8c8c8c;
+  font-size: 12px;
+  line-height: 1.6;
 }
 </style>

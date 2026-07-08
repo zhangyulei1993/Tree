@@ -51,13 +51,17 @@
               :src="article.coverUrl"
               mode="widthFix"
             />
-            <text
-              v-for="(paragraph, index) in bodyParagraphs"
-              :key="index"
-              class="scroll-paragraph"
-            >
-              {{ paragraph }}
-            </text>
+            <template v-for="(block, index) in bodyBlocks" :key="`${block.type}-${index}`">
+              <view v-if="block.type === 'image'" class="scroll-image-block">
+                <image
+                  class="scroll-body-image"
+                  :src="block.url"
+                  mode="widthFix"
+                />
+                <text v-if="block.caption" class="scroll-image-caption">{{ block.caption }}</text>
+              </view>
+              <text v-else class="scroll-paragraph">{{ block.text }}</text>
+            </template>
           </view>
         </view>
       </view>
@@ -90,18 +94,46 @@ const article = ref<ContentArticleDetail | null>(null)
 const loading = ref(false)
 const error = ref('')
 
+type ArticleBodyBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; url: string; caption: string }
+
 const categoryTitle = computed(() => {
   if (!article.value) return ''
   return article.value.categoryName || '内容'
 })
 
-const bodyParagraphs = computed(() => {
+const bodyBlocks = computed<ArticleBodyBlock[]>(() => {
   if (!article.value) return []
   return article.value.body
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean)
+    .map(parseArticleBodyLine)
 })
+
+function parseArticleBodyLine(line: string): ArticleBodyBlock {
+  const markdownImage = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/)
+  if (markdownImage) {
+    const caption = markdownImage[1].trim()
+    const url = markdownImage[2].trim()
+    if (isSupportedImageSrc(url)) {
+      return { type: 'image', url, caption }
+    }
+  }
+
+  if (isSupportedImageSrc(line)) {
+    return { type: 'image', url: line, caption: '' }
+  }
+
+  return { type: 'text', text: line }
+}
+
+function isSupportedImageSrc(value: string) {
+  const src = value.trim()
+  const isImage = /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(src)
+  return isImage && (src.startsWith('https://') || src.startsWith('/static/'))
+}
 
 function categoryShort(key: string) {
   const map: Record<string, string> = {
@@ -307,6 +339,29 @@ async function openOfficialArticle() {
   width: 100%;
   margin-bottom: 28rpx;
   border: 1rpx solid var(--archive-line);
+}
+
+.scroll-image-block {
+  margin-bottom: 30rpx;
+  border-top: 1rpx solid var(--archive-line);
+  border-bottom: 1rpx solid var(--archive-line);
+  padding: 18rpx 0 16rpx;
+}
+
+.scroll-body-image {
+  display: block;
+  width: 100%;
+  border: 1rpx solid var(--archive-line);
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.scroll-image-caption {
+  display: block;
+  margin-top: 12rpx;
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
+  line-height: 1.6;
+  text-align: center;
 }
 
 .scroll-paragraph {
