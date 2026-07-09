@@ -305,6 +305,75 @@ function siblingCases(): RelativeTitleTestCase[] {
   ]
 }
 
+function siblingUnknownSeniorityCases(): RelativeTitleTestCase[] {
+  const nodes: TreeNode[] = [
+    n(1, '父', 'MALE', ''),
+    n(2, '我', 'FEMALE', ''),
+    n(3, '兄弟', 'MALE', ''),
+    n(4, '姐妹', 'FEMALE', '')
+  ]
+  const edges: TreeEdge[] = [
+    pc(1, 2, 1),
+    pc(1, 3, 2),
+    pc(1, 4, 3)
+  ]
+  return [
+    { name: 'sibling-unknown-seniority-brother', viewerMemberId: 2, targetMemberId: 3, nodes, edges, expected: '兄弟' },
+    { name: 'sibling-unknown-seniority-sister', viewerMemberId: 2, targetMemberId: 4, nodes, edges, expected: '姐妹' }
+  ]
+}
+
+function collateralUnknownSeniorityCases(): RelativeTitleTestCase[] {
+  const nodes: TreeNode[] = [
+    n(1, '祖父', 'MALE', ''),
+    n(2, '父亲', 'MALE', ''),
+    n(3, '我', 'FEMALE', ''),
+    n(4, '父亲的兄弟', 'MALE', ''),
+    n(5, '父亲兄弟的儿子', 'MALE', ''),
+    n(6, '父亲兄弟的女儿', 'FEMALE', ''),
+    n(7, '父亲的姐妹', 'FEMALE', ''),
+    n(8, '父亲姐妹的儿子', 'MALE', ''),
+    n(9, '曾祖父', 'MALE', ''),
+    n(10, '祖父兄弟', 'MALE', ''),
+    n(11, '祖父姐妹', 'FEMALE', ''),
+    n(12, '祖父兄弟的儿子', 'MALE', ''),
+    n(13, '祖父兄弟的儿媳', 'FEMALE', '', 'SPOUSE'),
+    n(14, '祖父兄弟的孙子', 'MALE', ''),
+    n(15, '祖父兄弟的孙媳', 'FEMALE', '', 'SPOUSE'),
+    n(16, '祖父兄弟的曾孙', 'MALE', '')
+  ]
+  const edges: TreeEdge[] = [
+    pc(1, 2, 1),
+    pc(2, 3, 2),
+    pc(1, 4, 3),
+    pc(4, 5, 4),
+    pc(4, 6, 5),
+    pc(1, 7, 6),
+    pc(7, 8, 7),
+    pc(9, 1, 8),
+    pc(9, 10, 9),
+    pc(9, 11, 10),
+    pc(10, 12, 11),
+    sp(12, 13, 12),
+    pc(12, 14, 13),
+    sp(14, 15, 14),
+    pc(14, 16, 15)
+  ]
+  return [
+    { name: 'father-brother-unknown-seniority', viewerMemberId: 3, targetMemberId: 4, nodes, edges, expected: '叔伯' },
+    { name: 'father-brother-son-unknown-seniority', viewerMemberId: 3, targetMemberId: 5, nodes, edges, expected: '堂兄弟' },
+    { name: 'father-brother-daughter-unknown-seniority', viewerMemberId: 3, targetMemberId: 6, nodes, edges, expected: '堂姐妹' },
+    { name: 'father-sister-son-unknown-seniority', viewerMemberId: 3, targetMemberId: 8, nodes, edges, expected: '表兄弟' },
+    { name: 'grandfather-brother-unknown-seniority', viewerMemberId: 3, targetMemberId: 10, nodes, edges, expected: '伯叔祖父' },
+    { name: 'grandfather-sister-unknown-seniority', viewerMemberId: 3, targetMemberId: 11, nodes, edges, expected: '姑祖母' },
+    { name: 'grandfather-brother-son-unknown-seniority', viewerMemberId: 3, targetMemberId: 12, nodes, edges, expected: '堂伯叔' },
+    { name: 'grandfather-brother-son-spouse-unknown-seniority', viewerMemberId: 3, targetMemberId: 13, nodes, edges, expected: '堂伯叔母' },
+    { name: 'grandfather-brother-grandson-unknown-seniority', viewerMemberId: 3, targetMemberId: 14, nodes, edges, expected: '堂兄弟' },
+    { name: 'grandfather-brother-grandson-spouse-unknown-seniority', viewerMemberId: 3, targetMemberId: 15, nodes, edges, expected: '堂亲配偶' },
+    { name: 'grandfather-brother-great-grandson-unknown-seniority', viewerMemberId: 3, targetMemberId: 16, nodes, edges, expected: '堂侄' }
+  ]
+}
+
 function inlawCases(): RelativeTitleTestCase[] {
   const nodes: TreeNode[] = [
     n(1, '父', 'MALE', '1970-01-01'),
@@ -884,6 +953,8 @@ export function allRelativeTitleTestCases(): RelativeTitleTestCase[] {
   return [
     ...zhangCases(),
     ...siblingCases(),
+    ...siblingUnknownSeniorityCases(),
+    ...collateralUnknownSeniorityCases(),
     ...inlawCases(),
     ...nephewCases(),
     ...cousinChildCases(),

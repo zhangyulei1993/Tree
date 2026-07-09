@@ -524,7 +524,7 @@ function closeInvitePanel() {
 function confirmDeleteMember(member: FamilyMember) {
   uni.showModal({
     title: '删除成员节点',
-    content: `确定删除“${member.name}”吗？有亲属关系、创建者或管理员身份时，系统会拒绝删除。`,
+    content: `确定删除“${member.name}”吗？仅连接父母关系时会一并解除；已有子女、配偶、创建者或管理员身份时系统会拒绝。`,
     success: (result) => {
       if (result.confirm) removeMember(member)
     }
@@ -541,6 +541,11 @@ async function removeMember(member: FamilyMember) {
     await loadMembers()
   } catch (error) {
     actionError.value = apiErrorMessage(error, '删除成员失败。')
+    uni.showModal({
+      title: '删除失败',
+      content: actionError.value,
+      showCancel: false
+    })
   } finally {
     deletingMemberId.value = ''
   }

@@ -90,6 +90,10 @@
           <view class="field-picker">性别：{{ genderLabels[relativeGenderIndex] }}</view>
         </picker>
         <input v-model="relativeBirthYear" class="tree-input" type="number" placeholder="出生年份（可选）" />
+        <view class="switch-row">
+          <text>目前健在</text>
+          <switch :checked="relativeIsAlive" color="#163353" @change="onRelativeAliveChange" />
+        </view>
         <textarea
           v-model.trim="relationNote"
           class="tree-textarea"
@@ -114,6 +118,10 @@
         <picker :range="genderLabels" :value="unlocatedGenderIndex" @change="onUnlocatedGenderChange">
           <view class="field-picker">性别：{{ genderLabels[unlocatedGenderIndex] }}</view>
         </picker>
+        <view class="switch-row">
+          <text>目前健在</text>
+          <switch :checked="unlocatedIsAlive" color="#163353" @change="onUnlocatedAliveChange" />
+        </view>
         <MiniButton
           class="manage-action"
           variant="secondary"
@@ -275,10 +283,12 @@ const parentRoleIndex = ref(0)
 const relativeName = ref('')
 const relativeGenderIndex = ref(0)
 const relativeBirthYear = ref('')
+const relativeIsAlive = ref(true)
 const relationNote = ref('')
 const submitting = ref(false)
 const unlocatedName = ref('')
 const unlocatedGenderIndex = ref(0)
+const unlocatedIsAlive = ref(true)
 const creatingUnlocated = ref(false)
 const placeMemberIndex = ref(0)
 const placeBaseIndex = ref(0)
@@ -365,8 +375,16 @@ function onRelativeGenderChange(event: { detail: { value: string | number } }) {
   relativeGenderIndex.value = asIndex(event)
 }
 
+function onRelativeAliveChange(event: { detail: { value: boolean } }) {
+  relativeIsAlive.value = Boolean(event.detail.value)
+}
+
 function onUnlocatedGenderChange(event: { detail: { value: string | number } }) {
   unlocatedGenderIndex.value = asIndex(event)
+}
+
+function onUnlocatedAliveChange(event: { detail: { value: boolean } }) {
+  unlocatedIsAlive.value = Boolean(event.detail.value)
 }
 
 function onPlaceMemberChange(event: { detail: { value: string | number } }) {
@@ -548,7 +566,7 @@ async function submitRelative() {
       name: normalizeText(relativeName.value),
       gender: genderValues[relativeGenderIndex.value],
       birthYear: yearValue(relativeBirthYear.value),
-      isAlive: true,
+      isAlive: relativeIsAlive.value,
       userBindingPolicy: 'OPTIONAL'
     }
     if (addType === 'ADD_FATHER' || addType === 'ADD_MOTHER') {
@@ -565,6 +583,7 @@ async function submitRelative() {
     })
     relativeName.value = ''
     relativeBirthYear.value = ''
+    relativeIsAlive.value = true
     relationNote.value = ''
     uni.showToast({ title: '已创建并放入家谱', icon: 'success' })
     await loadData()
@@ -593,10 +612,11 @@ async function submitUnlocated() {
     await createFamilyMember(familyId.value, {
       name: normalizeText(unlocatedName.value),
       gender: genderValues[unlocatedGenderIndex.value],
-      isAlive: true,
+      isAlive: unlocatedIsAlive.value,
       userBindingPolicy: 'OPTIONAL'
     })
     unlocatedName.value = ''
+    unlocatedIsAlive.value = true
     uni.showToast({ title: '成员已暂存', icon: 'success' })
     await loadData()
   } catch (error) {

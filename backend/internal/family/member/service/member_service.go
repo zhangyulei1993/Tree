@@ -301,7 +301,7 @@ func (s *memberService) Delete(ctx context.Context, actorID uint64, familyID uin
 	}
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: actorID, Scene: contentsafety.SceneSocial,
-		Fields: contentsafety.OptionalField("delete_reason", req.Reason),
+		Fields:   contentsafety.OptionalField("delete_reason", req.Reason),
 		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return businessErr
@@ -321,7 +321,7 @@ func (s *memberService) Delete(ctx context.Context, actorID uint64, familyID uin
 		if _, err := txRepo.FindForUpdate(ctx, familyID, memberID); err != nil {
 			return err
 		}
-		if count, err := txRepo.CountActiveRelationships(ctx, familyID, memberID); err != nil {
+		if count, err := txRepo.CountBlockingRelationships(ctx, familyID, memberID); err != nil {
 			return err
 		} else if count > 0 {
 			return errHasRelationships
@@ -337,11 +337,20 @@ func (s *memberService) Delete(ctx context.Context, actorID uint64, familyID uin
 			return err
 		}
 		now := time.Now()
+		incomingDeletedCount, err := txRepo.SoftDeleteIncomingParentRelationships(ctx, familyID, memberID, actorID, cleanString(req.Reason), now)
+		if err != nil {
+			return err
+		}
 		if err := txRepo.SoftDelete(ctx, familyID, memberID, actorID, cleanString(req.Reason), now); err != nil {
 			return err
 		}
 		if err := txRepo.IncrementGraphVersion(ctx, familyID); err != nil {
 			return err
+		}
+		if incomingDeletedCount > 0 {
+			if err := writeRelationshipCleanupLog(ctx, tx, actorID, memberID, familyID, incomingDeletedCount, audit); err != nil {
+				return err
+			}
 		}
 		return writeLog(ctx, tx, actorID, "DELETE_MEMBER", memberID, familyID, audit)
 	})
@@ -349,7 +358,7 @@ func (s *memberService) Delete(ctx context.Context, actorID uint64, familyID uin
 	case errors.Is(err, errFounderProtected), errors.Is(err, errPrivilegedLink):
 		return memberError(CodeMemberFounderProtected, "家庭创始人或管理员成员不能直接删除")
 	case errors.Is(err, errHasRelationships):
-		return memberError(CodeMemberHasRelationships, "该成员存在关联关系，不能删除")
+		return memberError(CodeMemberHasRelationships, "该成员已有子女或配偶关系，不能直接删除")
 	case errors.Is(err, errFamilyUnavailable):
 		return memberError(CodeMemberFamilyUnavailable, "家庭状态不允许操作")
 	case errors.Is(err, gorm.ErrRecordNotFound):
@@ -435,7 +444,7 @@ func (s *memberService) UnbindUser(ctx context.Context, actorID uint64, familyID
 	}
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: actorID, Scene: contentsafety.SceneSocial,
-		Fields: contentsafety.OptionalField("unbind_reason", req.Reason),
+		Fields:   contentsafety.OptionalField("unbind_reason", req.Reason),
 		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
@@ -663,6 +672,20 @@ func writeLogWithUser(ctx context.Context, tx *gorm.DB, actorID uint64, targetUs
 		input.UserID = &targetUserID
 	}
 	return operationlog.NewGormService(tx).WriteSuccess(ctx, input)
+}
+
+func writeRelationshipCleanupLog(ctx context.Context, tx *gorm.DB, actorID uint64, memberID uint64, familyID uint64, count int64, audit AuditInput) error {
+	targetType := "FAMILY_RELATIONSHIP"
+	detail, _ := json.Marshal(map[string]any{
+		"relationshipCount":   count,
+		"deletedWithMemberID": memberID,
+	})
+	return operationlog.NewGormService(tx).WriteSuccess(ctx, operationlog.WriteInput{
+		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
+		Module: "FAMILY_RELATIONSHIP", Action: "DELETE_RELATIONSHIP_WITH_MEMBER", TargetType: &targetType,
+		FamilyID: &familyID, MemberID: &memberID, DetailJSON: detail,
+		IP: cleanString(&audit.IP), UserAgent: cleanString(&audit.UserAgent),
+	})
 }
 
 func cleanString(value *string) *string {

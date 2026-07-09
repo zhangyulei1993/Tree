@@ -29,7 +29,8 @@ type MemberRepository interface {
 	FindForUpdate(context.Context, uint64, uint64) (*membermodel.FamilyMember, error)
 	Update(context.Context, uint64, uint64, map[string]any) error
 	SoftDelete(context.Context, uint64, uint64, uint64, *string, time.Time) error
-	CountActiveRelationships(context.Context, uint64, uint64) (int64, error)
+	CountBlockingRelationships(context.Context, uint64, uint64) (int64, error)
+	SoftDeleteIncomingParentRelationships(context.Context, uint64, uint64, uint64, *string, time.Time) (int64, error)
 	FindUserForUpdate(context.Context, uint64) (*usermodel.User, error)
 	FindActiveLinkByMember(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
 	FindActiveLinkByUser(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
@@ -113,13 +114,28 @@ func (r *GormMemberRepository) SoftDelete(ctx context.Context, familyID uint64, 
 		}).Error
 }
 
-func (r *GormMemberRepository) CountActiveRelationships(ctx context.Context, familyID uint64, memberID uint64) (int64, error) {
+func (r *GormMemberRepository) CountBlockingRelationships(ctx context.Context, familyID uint64, memberID uint64) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Table("family_relationships").
 		Where("family_id = ? AND status = ? AND deleted_at IS NULL", familyID, "ACTIVE").
-		Where("from_member_id = ? OR to_member_id = ?", memberID, memberID).
+		Where("(relationship_type = ? AND from_member_id = ?) OR (relationship_type = ? AND (from_member_id = ? OR to_member_id = ?))",
+			"PARENT_CHILD", memberID, "SPOUSE", memberID, memberID).
 		Count(&count).Error
 	return count, err
+}
+
+func (r *GormMemberRepository) SoftDeleteIncomingParentRelationships(ctx context.Context, familyID uint64, memberID uint64, userID uint64, reason *string, now time.Time) (int64, error) {
+	result := r.db.WithContext(ctx).Table("family_relationships").
+		Where("family_id = ? AND relationship_type = ? AND to_member_id = ? AND status = ? AND deleted_at IS NULL",
+			familyID, "PARENT_CHILD", memberID, "ACTIVE").
+		Updates(map[string]any{
+			"status":             "DELETED",
+			"deleted_at":         now,
+			"deleted_by_user_id": userID,
+			"delete_reason":      reason,
+			"updated_at":         now,
+		})
+	return result.RowsAffected, result.Error
 }
 
 func (r *GormMemberRepository) FindUserForUpdate(ctx context.Context, userID uint64) (*usermodel.User, error) {

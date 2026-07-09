@@ -34,6 +34,7 @@
     {"path": "pages/account/cancel", "style": {"navigationBarTitleText": "注销账号"}},
     {"path": "pages/tools/kinship", "style": {"navigationBarTitleText": "亲属关系工具"}}
   ],
+  "subPackages": [],
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "Tree",

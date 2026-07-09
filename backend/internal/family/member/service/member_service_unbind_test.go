@@ -50,6 +50,7 @@ type memberRepoFake struct {
 	member          membermodel.FamilyMember
 	links           []rolemodel.FamilyMemberUserLink
 	relationshipCnt int64
+	incomingDeleted bool
 }
 
 func (r *memberRepoFake) WithTx(*gorm.DB) memberrepo.MemberRepository { return r }
@@ -88,11 +89,17 @@ func (r *memberRepoFake) FindForUpdate(_ context.Context, familyID, memberID uin
 func (r *memberRepoFake) Update(context.Context, uint64, uint64, map[string]any) error { return nil }
 
 func (r *memberRepoFake) SoftDelete(context.Context, uint64, uint64, uint64, *string, time.Time) error {
+	r.member.Status = "DELETED"
 	return nil
 }
 
-func (r *memberRepoFake) CountActiveRelationships(context.Context, uint64, uint64) (int64, error) {
+func (r *memberRepoFake) CountBlockingRelationships(context.Context, uint64, uint64) (int64, error) {
 	return r.relationshipCnt, nil
+}
+
+func (r *memberRepoFake) SoftDeleteIncomingParentRelationships(context.Context, uint64, uint64, uint64, *string, time.Time) (int64, error) {
+	r.incomingDeleted = true
+	return 1, nil
 }
 
 func (r *memberRepoFake) FindUserForUpdate(context.Context, uint64) (*usermodel.User, error) {
@@ -199,6 +206,55 @@ func TestUnbindUserRules(t *testing.T) {
 		}
 		if repo.family.GraphVersion != beforeGV {
 			t.Fatal("unbind must not increment graph version")
+		}
+	})
+}
+
+func TestDeleteMemberRelationshipRules(t *testing.T) {
+	originalTx := runMemberTransaction
+	runMemberTransaction = func(_ context.Context, _ *gorm.DB, fn func(tx *gorm.DB) error) error {
+		return fn(nil)
+	}
+	t.Cleanup(func() { runMemberTransaction = originalTx })
+
+	t.Run("member with only incoming parent links can be deleted", func(t *testing.T) {
+		repo := &memberRepoFake{
+			family: coremodel.Family{ID: 22, Status: "NORMAL", GraphVersion: 10},
+			member: membermodel.FamilyMember{ID: 6, FamilyID: 22, Status: "ACTIVE"},
+		}
+		err := testMemberService(repo, true).Delete(context.Background(), 8, 22, 6, dto.DeleteMemberRequest{}, AuditInput{})
+		if err != nil {
+			t.Fatalf("unexpected %#v", err)
+		}
+		if repo.member.Status != "DELETED" {
+			t.Fatal("member should be deleted")
+		}
+		if !repo.incomingDeleted {
+			t.Fatal("incoming parent relationships should be soft deleted with the member")
+		}
+		if repo.family.GraphVersion != 11 {
+			t.Fatal("delete must increment graph version once")
+		}
+	})
+
+	t.Run("member with children or spouse is rejected", func(t *testing.T) {
+		repo := &memberRepoFake{
+			family:          coremodel.Family{ID: 22, Status: "NORMAL", GraphVersion: 10},
+			member:          membermodel.FamilyMember{ID: 6, FamilyID: 22, Status: "ACTIVE"},
+			relationshipCnt: 1,
+		}
+		err := testMemberService(repo, true).Delete(context.Background(), 8, 22, 6, dto.DeleteMemberRequest{}, AuditInput{})
+		if err == nil || err.Code != CodeMemberHasRelationships {
+			t.Fatalf("unexpected %#v", err)
+		}
+		if repo.member.Status != "ACTIVE" {
+			t.Fatal("blocked delete must keep member active")
+		}
+		if repo.incomingDeleted {
+			t.Fatal("blocked delete must not delete relationships")
+		}
+		if repo.family.GraphVersion != 10 {
+			t.Fatal("blocked delete must not increment graph version")
 		}
 	})
 }
