@@ -117,7 +117,7 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
-import { listFamilyMembers } from '@/api/members'
+import { deleteFamilyMember, listFamilyMembers, updateFamilyMember } from '@/api/members'
 import { getPrivateTree } from '@/api/tree'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
@@ -134,7 +134,7 @@ import {
 import type { FamilyTreeViewMode } from '@/features/family-tree/types'
 import { isSpouseMember, isExternalMember } from '@/features/family-tree/graph'
 import { useSessionStore } from '@/stores/session'
-import type { FamilyDetail, FamilyTreeResult, RelationshipAddType, TreeNode } from '@/types/api'
+import type { FamilyDetail, FamilyTreeResult, TreeNode } from '@/types/api'
 
 const session = useSessionStore()
 const familyId = ref('')
@@ -150,14 +150,6 @@ const relationSentences = computed(() => (tree.value ? buildRelationSentences(tr
 const canManageFamily = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
 )
-
-const nodeActionTypes: RelationshipAddType[] = [
-  'ADD_FATHER',
-  'ADD_MOTHER',
-  'ADD_CHILD',
-  'ADD_SPOUSE',
-  'ADD_SIBLING'
-]
 
 function resetPageData() {
   loading.value = false
@@ -219,28 +211,81 @@ function openManageSection(section: 'create' | 'locate' | 'relations') {
 
 function openNodeActions(node: TreeNode) {
   if (!canManageFamily.value) return
-  if (isSpouseMember(node) || isExternalMember(node)) {
-    uni.navigateTo({
-      url: `/pages/family/member-edit?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(String(node.memberId))}`
-    })
-    return
-  }
+  const items = ['编辑成员资料']
+  if (!isSpouseMember(node) && !isExternalMember(node)) items.push('添加关系')
+  items.push(node.isLiving === false ? '标记为健在' : '标记为已故')
+  items.push('删除成员')
   uni.showActionSheet({
-    itemList: ['编辑成员资料', '添加父亲', '添加母亲', '添加子女', '添加配偶', '添加兄弟姐妹'],
+    itemList: items,
     success: (result) => {
-      if (result.tapIndex === 0) {
-        uni.navigateTo({
-          url: `/pages/family/member-edit?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(String(node.memberId))}`
-        })
+      const action = items[result.tapIndex]
+      if (action === '编辑成员资料') {
+        openMemberEdit(node)
         return
       }
-      const addType = nodeActionTypes[result.tapIndex - 1]
-      if (!addType) return
-      uni.navigateTo({
-        url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=create&baseMemberId=${encodeURIComponent(String(node.memberId))}&addType=${encodeURIComponent(addType)}`
-      })
+      if (action === '添加关系') {
+        openAddRelation(node)
+        return
+      }
+      if (action === '标记为健在' || action === '标记为已故') {
+        updateLivingState(node, action === '标记为健在')
+        return
+      }
+      if (action === '删除成员') {
+        confirmDeleteMember(node)
+      }
     }
   })
+}
+
+function openMemberEdit(node: TreeNode) {
+  uni.navigateTo({
+    url: `/pages/family/member-edit?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(String(node.memberId))}`
+  })
+}
+
+function openAddRelation(node: TreeNode) {
+  uni.navigateTo({
+    url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=create&baseMemberId=${encodeURIComponent(String(node.memberId))}`
+  })
+}
+
+async function updateLivingState(node: TreeNode, isAlive: boolean) {
+  try {
+    await updateFamilyMember(familyId.value, node.memberId, { isAlive })
+    uni.showToast({ title: isAlive ? '已标记健在' : '已标记已故', icon: 'success' })
+    await loadTree()
+  } catch (error) {
+    uni.showModal({
+      title: '更新失败',
+      content: apiErrorMessage(error, '更新健在状态失败。'),
+      showCancel: false
+    })
+  }
+}
+
+function confirmDeleteMember(node: TreeNode) {
+  uni.showModal({
+    title: '删除成员',
+    content: `确定删除“${node.displayName || '该成员'}”吗？没有子女时会一并解除父母/配偶关系；已有子女时系统会拒绝。`,
+    success: (result) => {
+      if (result.confirm) deleteMember(node)
+    }
+  })
+}
+
+async function deleteMember(node: TreeNode) {
+  try {
+    await deleteFamilyMember(familyId.value, node.memberId, '小程序家谱节点删除')
+    uni.showToast({ title: '成员已删除', icon: 'success' })
+    await loadTree()
+  } catch (error) {
+    uni.showModal({
+      title: '删除失败',
+      content: apiErrorMessage(error, '删除成员失败。'),
+      showCancel: false
+    })
+  }
 }
 
 onLoad((options) => {

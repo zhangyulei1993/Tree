@@ -66,7 +66,7 @@
       <view v-if="canDeleteCurrentMember" class="archive-danger-panel">
         <text class="archive-danger-title">删除成员节点</text>
         <text class="archive-danger-desc">
-          只删除家谱节点，不删除平台账号。已有子女或配偶关系时不能直接删除；仅连接父母的成员可删除并同步解除父母关系。创建者和管理员身份亦不可删除。
+          只删除家谱节点，不删除平台账号。已有子女关系时不能直接删除；父母或配偶关系会随成员删除同步解除。创建者和管理员身份亦不可删除。
         </text>
         <MiniButton
           class="edit-action"
@@ -223,7 +223,7 @@ async function saveMember() {
 function confirmDeleteMember() {
   uni.showModal({
     title: '删除成员',
-    content: `确定删除“${form.name || '该成员'}”吗？仅连接父母关系时会一并解除；已有子女或配偶关系时系统会拒绝。`,
+    content: `确定删除“${form.name || '该成员'}”吗？父母或配偶关系会一并解除；已有子女关系时系统会拒绝。`,
     success: (result) => {
       if (result.confirm) deleteMember()
     }

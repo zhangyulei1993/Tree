@@ -337,7 +337,7 @@ func (s *memberService) Delete(ctx context.Context, actorID uint64, familyID uin
 			return err
 		}
 		now := time.Now()
-		incomingDeletedCount, err := txRepo.SoftDeleteIncomingParentRelationships(ctx, familyID, memberID, actorID, cleanString(req.Reason), now)
+		relationshipDeletedCount, err := txRepo.SoftDeleteDeletableRelationships(ctx, familyID, memberID, actorID, cleanString(req.Reason), now)
 		if err != nil {
 			return err
 		}
@@ -347,8 +347,8 @@ func (s *memberService) Delete(ctx context.Context, actorID uint64, familyID uin
 		if err := txRepo.IncrementGraphVersion(ctx, familyID); err != nil {
 			return err
 		}
-		if incomingDeletedCount > 0 {
-			if err := writeRelationshipCleanupLog(ctx, tx, actorID, memberID, familyID, incomingDeletedCount, audit); err != nil {
+		if relationshipDeletedCount > 0 {
+			if err := writeRelationshipCleanupLog(ctx, tx, actorID, memberID, familyID, relationshipDeletedCount, audit); err != nil {
 				return err
 			}
 		}
@@ -358,7 +358,7 @@ func (s *memberService) Delete(ctx context.Context, actorID uint64, familyID uin
 	case errors.Is(err, errFounderProtected), errors.Is(err, errPrivilegedLink):
 		return memberError(CodeMemberFounderProtected, "家庭创始人或管理员成员不能直接删除")
 	case errors.Is(err, errHasRelationships):
-		return memberError(CodeMemberHasRelationships, "该成员已有子女或配偶关系，不能直接删除")
+		return memberError(CodeMemberHasRelationships, "该成员已有子女关系，不能直接删除")
 	case errors.Is(err, errFamilyUnavailable):
 		return memberError(CodeMemberFamilyUnavailable, "家庭状态不允许操作")
 	case errors.Is(err, gorm.ErrRecordNotFound):

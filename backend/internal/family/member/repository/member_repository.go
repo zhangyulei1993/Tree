@@ -30,7 +30,7 @@ type MemberRepository interface {
 	Update(context.Context, uint64, uint64, map[string]any) error
 	SoftDelete(context.Context, uint64, uint64, uint64, *string, time.Time) error
 	CountBlockingRelationships(context.Context, uint64, uint64) (int64, error)
-	SoftDeleteIncomingParentRelationships(context.Context, uint64, uint64, uint64, *string, time.Time) (int64, error)
+	SoftDeleteDeletableRelationships(context.Context, uint64, uint64, uint64, *string, time.Time) (int64, error)
 	FindUserForUpdate(context.Context, uint64) (*usermodel.User, error)
 	FindActiveLinkByMember(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
 	FindActiveLinkByUser(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
@@ -118,16 +118,16 @@ func (r *GormMemberRepository) CountBlockingRelationships(ctx context.Context, f
 	var count int64
 	err := r.db.WithContext(ctx).Table("family_relationships").
 		Where("family_id = ? AND status = ? AND deleted_at IS NULL", familyID, "ACTIVE").
-		Where("(relationship_type = ? AND from_member_id = ?) OR (relationship_type = ? AND (from_member_id = ? OR to_member_id = ?))",
-			"PARENT_CHILD", memberID, "SPOUSE", memberID, memberID).
+		Where("relationship_type = ? AND from_member_id = ?", "PARENT_CHILD", memberID).
 		Count(&count).Error
 	return count, err
 }
 
-func (r *GormMemberRepository) SoftDeleteIncomingParentRelationships(ctx context.Context, familyID uint64, memberID uint64, userID uint64, reason *string, now time.Time) (int64, error) {
+func (r *GormMemberRepository) SoftDeleteDeletableRelationships(ctx context.Context, familyID uint64, memberID uint64, userID uint64, reason *string, now time.Time) (int64, error) {
 	result := r.db.WithContext(ctx).Table("family_relationships").
-		Where("family_id = ? AND relationship_type = ? AND to_member_id = ? AND status = ? AND deleted_at IS NULL",
-			familyID, "PARENT_CHILD", memberID, "ACTIVE").
+		Where("family_id = ? AND status = ? AND deleted_at IS NULL", familyID, "ACTIVE").
+		Where("(relationship_type = ? AND to_member_id = ?) OR (relationship_type = ? AND (from_member_id = ? OR to_member_id = ?))",
+			"PARENT_CHILD", memberID, "SPOUSE", memberID, memberID).
 		Updates(map[string]any{
 			"status":             "DELETED",
 			"deleted_at":         now,

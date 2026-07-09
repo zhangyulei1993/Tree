@@ -524,7 +524,7 @@ function closeInvitePanel() {
 function confirmDeleteMember(member: FamilyMember) {
   uni.showModal({
     title: '删除成员节点',
-    content: `确定删除“${member.name}”吗？仅连接父母关系时会一并解除；已有子女、配偶、创建者或管理员身份时系统会拒绝。`,
+    content: `确定删除“${member.name}”吗？父母或配偶关系会一并解除；已有子女、创建者或管理员身份时系统会拒绝。`,
     success: (result) => {
       if (result.confirm) removeMember(member)
     }
