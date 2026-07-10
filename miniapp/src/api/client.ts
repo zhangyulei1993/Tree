@@ -1,6 +1,4 @@
 import type { ApiResponse } from '@/types/api'
-import { parseQuotaErrorMessage } from '@/features/quota/quotaDisplay'
-import { isMpWeixinPlatform } from '@/features/session/wechatLogin'
 
 const environment = import.meta.env as ImportMetaEnv & {
   VITE_API_MODE?: string
@@ -10,12 +8,87 @@ const environment = import.meta.env as ImportMetaEnv & {
 export const apiMode = environment.VITE_API_MODE === 'real' ? 'real' : 'mock'
 export const isRealApiMode = apiMode === 'real'
 
+const QUOTA_EXCEEDED_CODES = new Set([41502, 41503, 41504])
+
+type QuotaApiError = Error & {
+  code?: number
+  data?: {
+    trustTier?: unknown
+  }
+}
+
+type SystemInfo = {
+  uniPlatform?: string
+}
+
+type UniRuntime = {
+  getSystemInfoSync?: () => SystemInfo
+}
+
 function isAbsoluteHttpUrl(value: string) {
   return /^https?:\/\//i.test(value)
 }
 
 function isLocalhostUrl(value: string) {
   return /^(https?:\/\/)?(127\.0\.0\.1|localhost)([:/]|$)/i.test(value)
+}
+
+function isQuotaApiError(error: unknown): error is QuotaApiError {
+  return error instanceof Error && 'code' in error
+}
+
+function trustTierFromError(error: QuotaApiError) {
+  const trustTier = error.data?.trustTier
+  return typeof trustTier === 'string' ? trustTier : ''
+}
+
+function quotaReachedMessage(trustTier: string) {
+  if (trustTier === 'WECHAT_ONLY') {
+    return '当前扩展能力尚未开放'
+  }
+  return '已达到当前账号权益上限'
+}
+
+function parseQuotaErrorMessage(error: unknown, fallback: string) {
+  if (isQuotaApiError(error)) {
+    if (error.code && QUOTA_EXCEEDED_CODES.has(error.code)) {
+      return quotaReachedMessage(trustTierFromError(error))
+    }
+    return error.message || fallback
+  }
+  if (!(error instanceof Error)) {
+    return fallback
+  }
+  return error.message || fallback
+}
+
+function readUniRuntime(): UniRuntime | null {
+  try {
+    if (typeof uni !== 'undefined' && uni && typeof uni.getSystemInfoSync === 'function') {
+      return uni as UniRuntime
+    }
+  } catch {
+    // uni may be unavailable outside uni-app runtimes.
+  }
+  return null
+}
+
+function resolveUniPlatform(): string {
+  const runtime = readUniRuntime()
+  if (!runtime?.getSystemInfoSync) {
+    return ''
+  }
+  try {
+    const info = runtime.getSystemInfoSync()
+    const platform = typeof info?.uniPlatform === 'string' ? info.uniPlatform.trim() : ''
+    return platform
+  } catch {
+    return ''
+  }
+}
+
+function isMpWeixinPlatform(platform = resolveUniPlatform()): boolean {
+  return platform === 'mp-weixin'
 }
 
 function resolveApiBaseURL() {

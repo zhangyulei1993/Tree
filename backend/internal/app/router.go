@@ -257,6 +257,7 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.POST("/:familyId/dissolution-requests", handler.CreateDissolutionRequest)
 	families.GET("/:familyId/dissolution-requests/current", handler.CurrentDissolutionRequest)
 	families.POST("/:familyId/dissolution-requests/:requestId/cancel", handler.CancelDissolutionRequest)
+	families.POST("/:familyId/dissolution/finalize", handler.FinalizeDissolution)
 	families.POST("/:familyId/members", memberHandler.Create)
 	families.GET("/:familyId/members", memberHandler.List)
 	families.GET("/:familyId/members/:memberId", memberHandler.Detail)
@@ -427,7 +428,7 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 	transferService := transferservice.NewService(transferRepository, transferUnitOfWork, quotaService, contentSafety)
 	dissolutionRepository := dissolutionrepo.NewRepository(db)
 	dissolutionUnitOfWork := dissolutionrepo.NewUnitOfWork(db, dissolutionRepository)
-	dissolutionService := dissolutionservice.NewService(dissolutionRepository, dissolutionUnitOfWork, quotaService)
+	dissolutionService := dissolutionservice.NewService(dissolutionRepository, dissolutionUnitOfWork, quotaService, s.cfg.Family.DissolutionCooldownDays)
 	return familyhandler.NewFamilyHandler(service),
 		memberhandler.NewMemberHandler(memberService),
 		relationshiphandler.NewRelationshipHandler(relationshipService),

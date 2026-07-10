@@ -104,6 +104,8 @@ export interface FamilySummary {
   regionText?: string | null
   avatarUrl?: string | null
   status: string
+  dissolutionCooldownUntil?: string | null
+  dissolutionCooldownDays: number
   publicDisplayStatus: string
   publicDisplayEnabled: boolean
   role: string
@@ -112,6 +114,7 @@ export interface FamilySummary {
 export interface FamilyDetail extends FamilySummary {
   regionCode?: string | null
   description?: string | null
+  dissolutionCompletedAt?: string | null
   searchable: boolean
   publicContactName?: string | null
   publicContactPhone?: string | null
@@ -247,6 +250,7 @@ export interface RejectInvitationInput {
 export interface CreateInvitationInput {
   inviteChannel: 'SHARE_LINK'
   inviteMessage?: string
+  pendingMemberLabel?: string
   familyRoleAfterAccept: 'MEMBER'
 }
 
@@ -256,6 +260,7 @@ export interface Invitation {
   familyName: string
   targetMemberId: number | string
   targetMemberName: string
+  pendingMemberLabel?: string | null
   inviterDisplayName?: string
   inviterRole?: string
   inviteType?: string

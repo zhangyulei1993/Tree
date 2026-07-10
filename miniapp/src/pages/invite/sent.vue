@@ -71,11 +71,44 @@
     </template>
 
     <template v-else>
+      <view v-if="familyName && memberId" class="member-invite-panel archive-form-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">邀请绑定节点</text>
+          <text class="archive-section-subtitle">从家庭树节点直接发起，邀请对方确认并绑定此成员</text>
+        </view>
+        <view class="archive-list member-invite-summary">
+          <view class="archive-row share-field-row">
+            <text class="share-field-label">目标节点</text>
+            <text class="share-field-value">{{ memberName || '未命名成员' }}</text>
+          </view>
+        </view>
+        <textarea
+          v-model.trim="memberInviteMessage"
+          class="tree-textarea family-invite-message"
+          maxlength="300"
+          placeholder="给对方的说明（可选）"
+        />
+        <MiniButton
+          size="sm"
+          :loading="actingType === 'create-member'"
+          :disabled="Boolean(actingId) || actingType === 'create-member'"
+          @click="createMemberBindingInvitation"
+        >
+          生成节点邀请
+        </MiniButton>
+      </view>
+
       <view v-if="familyName" class="family-invite-panel archive-form-panel">
         <view class="archive-section-head">
           <text class="archive-section-title">邀请加入家庭</text>
           <text class="archive-section-subtitle">适合确认对方属于本家庭，但成员节点还需要之后再确认</text>
         </view>
+        <input
+          v-model.trim="pendingMemberLabel"
+          class="tree-input pending-member-label"
+          maxlength="40"
+          placeholder="待确认身份标签，如：二房长子（待确认）"
+        />
         <textarea
           v-model.trim="familyInviteMessage"
           class="tree-textarea family-invite-message"
@@ -83,7 +116,7 @@
           placeholder="给对方的说明（可选）"
         />
         <MiniNotice tone="security" title="身份待确认">
-          对方接受后会先绑定到“待确认成员”，管理员之后可在家庭树中编辑资料并接入关系图。
+          对方接受前不会出现在成员表；接受后会以你填写的身份标签进入家庭，便于后续区分多个待确认成员。
         </MiniNotice>
         <MiniButton
           size="sm"
@@ -194,6 +227,7 @@ import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
 import {
   cancelInvitation,
+  createInvitation,
   createFamilyInvitation,
   listFamilyInvitations,
   regenerateInvitation
@@ -206,21 +240,25 @@ import { invitationStatusText } from '@/components/base/formatStatus'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import { useSessionStore } from '@/stores/session'
 import type { CreatedInvitation, Invitation } from '@/types/api'
-import { optionalText, validateTextFields } from '@/utils/inputValidation'
+import { optionalText, validateTextField, validateTextFields } from '@/utils/inputValidation'
 
 const session = useSessionStore()
 const familyId = ref('')
 const familyName = ref('')
 const familySurname = ref('')
 const familyRole = ref('')
+const memberId = ref('')
+const memberName = ref('')
 const invitations = ref<Invitation[]>([])
 const loading = ref(false)
 const loadError = ref('')
 const operationError = ref('')
 const actingId = ref<number | string | null>(null)
-const actingType = ref<'' | 'cancel' | 'regenerate' | 'create-family'>('')
+const actingType = ref<'' | 'cancel' | 'regenerate' | 'create-family' | 'create-member'>('')
 const shareResult = ref<CreatedInvitation | null>(null)
 const familyInviteMessage = ref('')
+const memberInviteMessage = ref('')
+const pendingMemberLabel = ref('')
 const familyRoleLabel = computed(() => (familyRole.value === 'FOUNDER' ? '创建者' : '管理员'))
 const familySealLetter = computed(() => familySurname.value.slice(0, 1) || familyName.value.slice(0, 1) || '邀')
 const pendingCount = computed(() =>
@@ -230,7 +268,7 @@ const shareInvitationSubtitle = computed(() => {
   const invitation = shareResult.value?.invitation
   if (!invitation) return ''
   return isPendingMemberInvitation(invitation)
-    ? '邀请对方先加入家庭，成员身份稍后确认'
+    ? `邀请对方先加入家庭，身份标签：${inviteTargetText(invitation)}`
     : `邀请 ${invitation.targetMemberName} 绑定账号`
 })
 const invitationGroups = computed(() => {
@@ -243,7 +281,10 @@ const invitationGroups = computed(() => {
 })
 
 function currentRoute() {
-  return `/pages/invite/sent?familyId=${encodeURIComponent(familyId.value)}`
+  const query = [`familyId=${encodeURIComponent(familyId.value)}`]
+  if (memberId.value) query.push(`memberId=${encodeURIComponent(memberId.value)}`)
+  if (memberName.value) query.push(`memberName=${encodeURIComponent(memberName.value)}`)
+  return `/pages/invite/sent?${query.join('&')}`
 }
 
 function invitationStatusClass(status: string) {
@@ -278,7 +319,9 @@ function isPendingMemberInvitation(item: Invitation) {
 }
 
 function inviteTargetText(item: Invitation) {
-  return isPendingMemberInvitation(item) ? '待确认成员' : item.targetMemberName
+  return isPendingMemberInvitation(item)
+    ? item.pendingMemberLabel || item.targetMemberName || '待确认成员'
+    : item.targetMemberName
 }
 
 function resetTransientUI() {
@@ -294,6 +337,8 @@ function resetPageData() {
   familyName.value = ''
   familySurname.value = ''
   familyRole.value = ''
+  memberId.value = ''
+  memberName.value = ''
   invitations.value = []
   resetTransientUI()
 }
@@ -391,8 +436,15 @@ function confirmRegenerate(item: Invitation) {
 }
 
 async function createPendingFamilyInvitation() {
-  const validationMessage = validateTextFields([
-    optionalText('邀请说明', familyInviteMessage.value)
+  const labelError = validateTextField({
+    label: '待确认身份标签',
+    value: pendingMemberLabel.value,
+    kind: 'name',
+    required: true,
+    maxLength: 40
+  })
+  const validationMessage = labelError || validateTextFields([
+    { value: familyInviteMessage.value, label: '邀请说明', kind: 'multiLine', maxLength: 300 }
   ])
   if (validationMessage) {
     operationError.value = validationMessage
@@ -404,12 +456,40 @@ async function createPendingFamilyInvitation() {
     shareResult.value = await createFamilyInvitation(familyId.value, {
       inviteChannel: 'SHARE_LINK',
       inviteMessage: familyInviteMessage.value.trim() || undefined,
+      pendingMemberLabel: pendingMemberLabel.value.trim(),
       familyRoleAfterAccept: 'MEMBER'
     })
     familyInviteMessage.value = ''
+    pendingMemberLabel.value = ''
     await loadInvitations()
   } catch (error) {
     operationError.value = apiErrorMessage(error, '生成家庭邀请失败。')
+  } finally {
+    actingType.value = ''
+  }
+}
+
+async function createMemberBindingInvitation() {
+  if (!memberId.value) return
+  const validationMessage = validateTextFields([
+    { value: memberInviteMessage.value, label: '邀请说明', kind: 'multiLine', maxLength: 300 }
+  ])
+  if (validationMessage) {
+    operationError.value = validationMessage
+    return
+  }
+  actingType.value = 'create-member'
+  operationError.value = ''
+  try {
+    shareResult.value = await createInvitation(familyId.value, memberId.value, {
+      inviteChannel: 'SHARE_LINK',
+      inviteMessage: memberInviteMessage.value.trim() || undefined,
+      familyRoleAfterAccept: 'MEMBER'
+    })
+    memberInviteMessage.value = ''
+    await loadInvitations()
+  } catch (error) {
+    operationError.value = apiErrorMessage(error, '生成节点邀请失败。')
   } finally {
     actingType.value = ''
   }
@@ -449,7 +529,7 @@ onShareAppMessage(() => {
     return buildInviteSharePayload({
       inviteToken: shareResult.value.inviteToken,
       familyName: invitation.familyName,
-      targetMemberName: invitation.targetMemberName,
+      targetMemberName: inviteTargetText(invitation),
       inviteType: invitation.inviteType
     })
   }
@@ -458,6 +538,8 @@ onShareAppMessage(() => {
 
 onLoad((options) => {
   familyId.value = String(options?.familyId || '')
+  memberId.value = String(options?.memberId || '')
+  memberName.value = String(options?.memberName || '')
   session.restoreSession()
   if (session.isLoggedIn && familyId.value) {
     loading.value = true
@@ -501,13 +583,19 @@ onUnload(resetPageData)
 
 .sent-group,
 .share-panel,
+.member-invite-panel,
 .family-invite-panel,
 .sent-state {
   margin-bottom: 24rpx;
 }
 
+.pending-member-label,
 .family-invite-message {
   margin-bottom: 14rpx;
+}
+
+.member-invite-summary {
+  margin: 8rpx 0 14rpx;
 }
 
 .family-invite-panel :deep(.mini-notice) {

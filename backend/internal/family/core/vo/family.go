@@ -3,39 +3,44 @@ package vo
 import "time"
 
 type FamilySummary struct {
-	ID                   uint64  `json:"id"`
-	FamilyName           string  `json:"familyName"`
-	FamilySurname        string  `json:"familySurname"`
-	NativePlace          *string `json:"nativePlace,omitempty"`
-	RegionText           *string `json:"regionText,omitempty"`
-	AvatarURL            *string `json:"avatarUrl,omitempty"`
-	Status               string  `json:"status"`
-	PublicDisplayStatus  string  `json:"publicDisplayStatus"`
-	PublicDisplayEnabled bool    `json:"publicDisplayEnabled"`
-	Role                 string  `json:"role"`
+	ID                       uint64     `json:"id"`
+	FamilyName               string     `json:"familyName"`
+	FamilySurname            string     `json:"familySurname"`
+	NativePlace              *string    `json:"nativePlace,omitempty"`
+	RegionText               *string    `json:"regionText,omitempty"`
+	AvatarURL                *string    `json:"avatarUrl,omitempty"`
+	Status                   string     `json:"status"`
+	DissolutionCooldownUntil *time.Time `json:"dissolutionCooldownUntil,omitempty"`
+	DissolutionCooldownDays  int        `json:"dissolutionCooldownDays"`
+	PublicDisplayStatus      string     `json:"publicDisplayStatus"`
+	PublicDisplayEnabled     bool       `json:"publicDisplayEnabled"`
+	Role                     string     `json:"role"`
 }
 
 type FamilyDetail struct {
-	ID                     uint64  `json:"id"`
-	FamilyName             string  `json:"familyName"`
-	FamilySurname          string  `json:"familySurname"`
-	NativePlace            *string `json:"nativePlace,omitempty"`
-	RegionCode             *string `json:"regionCode,omitempty"`
-	RegionText             *string `json:"regionText,omitempty"`
-	Description            *string `json:"description,omitempty"`
-	AvatarURL              *string `json:"avatarUrl,omitempty"`
-	Status                 string  `json:"status"`
-	Searchable             bool    `json:"searchable"`
-	PublicDisplayStatus    string  `json:"publicDisplayStatus"`
-	PublicDisplayEnabled   bool    `json:"publicDisplayEnabled"`
-	PublicContactName      *string `json:"publicContactName,omitempty"`
-	PublicContactPhone     *string `json:"publicContactPhone,omitempty"`
-	PublicContactWechat    *string `json:"publicContactWechat,omitempty"`
-	PublicContactNote      *string `json:"publicContactNote,omitempty"`
-	PublicContactVisible   bool    `json:"publicContactVisible"`
-	CurrentFounderMemberID *uint64 `json:"currentFounderMemberId,omitempty"`
-	GraphVersion           int64   `json:"graphVersion"`
-	Role                   string  `json:"role"`
+	ID                       uint64     `json:"id"`
+	FamilyName               string     `json:"familyName"`
+	FamilySurname            string     `json:"familySurname"`
+	NativePlace              *string    `json:"nativePlace,omitempty"`
+	RegionCode               *string    `json:"regionCode,omitempty"`
+	RegionText               *string    `json:"regionText,omitempty"`
+	Description              *string    `json:"description,omitempty"`
+	AvatarURL                *string    `json:"avatarUrl,omitempty"`
+	Status                   string     `json:"status"`
+	DissolutionCooldownUntil *time.Time `json:"dissolutionCooldownUntil,omitempty"`
+	DissolutionCooldownDays  int        `json:"dissolutionCooldownDays"`
+	DissolutionCompletedAt   *time.Time `json:"dissolutionCompletedAt,omitempty"`
+	Searchable               bool       `json:"searchable"`
+	PublicDisplayStatus      string     `json:"publicDisplayStatus"`
+	PublicDisplayEnabled     bool       `json:"publicDisplayEnabled"`
+	PublicContactName        *string    `json:"publicContactName,omitempty"`
+	PublicContactPhone       *string    `json:"publicContactPhone,omitempty"`
+	PublicContactWechat      *string    `json:"publicContactWechat,omitempty"`
+	PublicContactNote        *string    `json:"publicContactNote,omitempty"`
+	PublicContactVisible     bool       `json:"publicContactVisible"`
+	CurrentFounderMemberID   *uint64    `json:"currentFounderMemberId,omitempty"`
+	GraphVersion             int64      `json:"graphVersion"`
+	Role                     string     `json:"role"`
 }
 
 type PublicFamily struct {

@@ -184,7 +184,9 @@ function isPendingMemberInvitation(item: Invitation) {
 }
 
 function inviteTargetText(item: Invitation) {
-  return isPendingMemberInvitation(item) ? '身份待确认' : item.targetMemberName
+  return isPendingMemberInvitation(item)
+    ? item.pendingMemberLabel || item.targetMemberName || '身份待确认'
+    : item.targetMemberName
 }
 
 function inviteChannelText(channel: string) {

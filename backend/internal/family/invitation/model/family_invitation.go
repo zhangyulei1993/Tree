@@ -17,6 +17,7 @@ type FamilyInvitation struct {
 	FamilyRoleAfterAccept string     `gorm:"column:family_role_after_accept;size:40;not null;default:MEMBER"`
 	InviteToken           *string    `gorm:"column:invite_token;size:180"`
 	InviteMessage         *string    `gorm:"column:invite_message;size:500"`
+	PendingMemberLabel    *string    `gorm:"column:pending_member_label;size:120"`
 	Status                string     `gorm:"column:status;size:40;not null;default:PENDING"`
 	AcceptedByUserID      *uint64    `gorm:"column:accepted_by_user_id"`
 	AcceptedAt            *time.Time `gorm:"column:accepted_at"`

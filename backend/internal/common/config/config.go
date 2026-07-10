@@ -16,6 +16,7 @@ type Config struct {
 	AdminSecurity AdminSecurityConfig
 	VerifyCode    VerifyCodeConfig
 	Wechat        WechatConfig
+	Family        FamilyConfig
 }
 
 type AppConfig struct {
@@ -65,6 +66,10 @@ type WechatConfig struct {
 	MiniAppID     string
 	MiniAppSecret string
 	MockEnabled   bool
+}
+
+type FamilyConfig struct {
+	DissolutionCooldownDays int
 }
 
 func Load() (*Config, error) {
@@ -127,6 +132,9 @@ func Load() (*Config, error) {
 			MiniAppSecret: v.GetString("wechat.mini_app_secret"),
 			MockEnabled:   v.GetBool("wechat.mock_enabled"),
 		},
+		Family: FamilyConfig{
+			DissolutionCooldownDays: v.GetInt("family.dissolution_cooldown_days"),
+		},
 	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
@@ -175,5 +183,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("wechat.mini_app_id", "")
 	v.SetDefault("wechat.mini_app_secret", "")
 	v.SetDefault("wechat.mock_enabled", false)
+	v.SetDefault("family.dissolution_cooldown_days", 7)
 	v.SetDefault("log.level", "debug")
 }

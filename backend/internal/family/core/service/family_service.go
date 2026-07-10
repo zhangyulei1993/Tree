@@ -24,24 +24,27 @@ import (
 )
 
 const (
-	familyStatusNormal             = "NORMAL"
-	familyStatusDissolutionPending = "DISSOLUTION_PENDING"
-	familyPublicPrivate            = "PRIVATE"
-	dissolutionStatusPending       = "PENDING"
-	dissolutionStatusCancelled     = "CANCELLED"
+	familyStatusNormal              = "NORMAL"
+	familyStatusDissolutionPending  = "DISSOLUTION_PENDING"
+	familyStatusDissolutionCooldown = "DISSOLUTION_COOLDOWN"
+	familyStatusDissolved           = "DISSOLVED"
+	familyPublicPrivate             = "PRIVATE"
+	dissolutionStatusPending        = "PENDING"
+	dissolutionStatusCancelled      = "CANCELLED"
 
-	CodeFamilySurnameRequired         apperrors.Code = 42004
-	CodeFamilyCreateStatusDenied      apperrors.Code = 42006
-	CodeFamilyNotFound                apperrors.Code = 42101
-	CodeFamilyNotPublic               apperrors.Code = 42103
-	CodeFamilyDetailForbidden         apperrors.Code = 42104
-	CodeFamilyUpdateForbidden         apperrors.Code = 42201
-	CodeFamilyUpdateStatusDenied      apperrors.Code = 42202
-	CodeFamilyLeaveForbidden          apperrors.Code = 42203
-	CodeFamilyLeaveNotLinked          apperrors.Code = 42204
-	CodeFamilyDissolutionForbidden    apperrors.Code = 46301
-	CodeFamilyDissolutionStatusDenied apperrors.Code = 46302
-	CodeFamilyDissolutionPending      apperrors.Code = 46303
+	CodeFamilySurnameRequired           apperrors.Code = 42004
+	CodeFamilyCreateStatusDenied        apperrors.Code = 42006
+	CodeFamilyNotFound                  apperrors.Code = 42101
+	CodeFamilyNotPublic                 apperrors.Code = 42103
+	CodeFamilyDetailForbidden           apperrors.Code = 42104
+	CodeFamilyUpdateForbidden           apperrors.Code = 42201
+	CodeFamilyUpdateStatusDenied        apperrors.Code = 42202
+	CodeFamilyLeaveForbidden            apperrors.Code = 42203
+	CodeFamilyLeaveNotLinked            apperrors.Code = 42204
+	CodeFamilyDissolutionForbidden      apperrors.Code = 46301
+	CodeFamilyDissolutionStatusDenied   apperrors.Code = 46302
+	CodeFamilyDissolutionPending        apperrors.Code = 46303
+	CodeFamilyDissolutionFinalizeDenied apperrors.Code = 46304
 )
 
 var (
@@ -68,6 +71,7 @@ type FamilyService interface {
 	CreateDissolutionRequest(context.Context, uint64, uint64, dto.CreateDissolutionRequest, AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	CurrentDissolutionRequest(context.Context, uint64, uint64) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	CancelDissolutionRequest(context.Context, uint64, uint64, uint64, dto.CancelDissolutionRequest, AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError)
+	FinalizeDissolution(context.Context, uint64, uint64, AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError)
 	Leave(context.Context, uint64, uint64, dto.LeaveFamilyRequest, AuditInput) (*vo.LeaveFamilyResult, *apperrors.BusinessError)
 }
 
@@ -215,7 +219,8 @@ func (s *familyService) List(ctx context.Context, userID uint64) ([]vo.FamilySum
 		result = append(result, vo.FamilySummary{
 			ID: row.ID, FamilyName: row.FamilyName, FamilySurname: row.FamilySurname,
 			NativePlace: row.NativePlace, RegionText: row.RegionText, AvatarURL: row.AvatarURL,
-			Status: row.Status, PublicDisplayStatus: row.PublicDisplayStatus,
+			Status: row.Status, DissolutionCooldownUntil: row.DissolutionCooldownUntil,
+			DissolutionCooldownDays: row.DissolutionCooldownDays, PublicDisplayStatus: row.PublicDisplayStatus,
 			PublicDisplayEnabled: row.PublicDisplayEnabled, Role: row.FamilyRole,
 		})
 	}
@@ -550,6 +555,54 @@ func (s *familyService) CancelDissolutionRequest(ctx context.Context, userID uin
 	return dissolutionVO(request), nil
 }
 
+func (s *familyService) FinalizeDissolution(ctx context.Context, userID uint64, familyID uint64, audit AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError) {
+	allowed, err := s.permissions.CanManageFamily(ctx, userID, familyID)
+	if err != nil || !allowed {
+		return nil, familyError(CodeFamilyDissolutionFinalizeDenied, "无权跳过冷静期")
+	}
+	link, err := s.permissions.GetActiveLink(ctx, userID, familyID)
+	if err != nil || link.FamilyRole != string(enums.FamilyRoleFounder) {
+		return nil, familyError(CodeFamilyDissolutionFinalizeDenied, "只有创建者可以跳过冷静期")
+	}
+	now := time.Now()
+	var family *familymodel.Family
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		txRepo := s.repo.WithTx(tx)
+		value, err := txRepo.FindFamilyByIDForUpdate(ctx, familyID)
+		if err != nil {
+			return err
+		}
+		if value.Status != familyStatusDissolutionCooldown {
+			return errDissolutionFamilyStatus
+		}
+		if err := txRepo.UpdateFamily(ctx, familyID, map[string]any{
+			"status":                   familyStatusDissolved,
+			"dissolution_completed_at": now,
+		}); err != nil {
+			return err
+		}
+		if err := operationlog.NewGormService(tx).WriteSuccess(ctx, userOperationLog(
+			userID, "FINALIZE_DISSOLUTION", "FAMILY", familyID, familyID, &link.MemberID, audit,
+		)); err != nil {
+			return err
+		}
+		value.Status = familyStatusDissolved
+		value.DissolutionCompletedAt = &now
+		family = value
+		return nil
+	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, familyError(CodeFamilyNotFound, "家庭不存在")
+	}
+	if errors.Is(err, errDissolutionFamilyStatus) {
+		return nil, familyError(CodeFamilyDissolutionStatusDenied, "当前家庭不处于冷静期")
+	}
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	return familyDetail(family, link.FamilyRole), nil
+}
+
 func publicFamilyListItem(family *familymodel.Family) vo.PublicFamilyListItem {
 	item := vo.PublicFamilyListItem{
 		ID:                   family.ID,
@@ -617,7 +670,10 @@ func familyDetail(family *familymodel.Family, role string) *vo.FamilyDetail {
 		ID: family.ID, FamilyName: family.FamilyName, FamilySurname: family.FamilySurname,
 		NativePlace: family.NativePlace, RegionCode: family.RegionCode, RegionText: family.RegionText,
 		Description: family.Description, AvatarURL: family.AvatarURL, Status: family.Status,
-		Searchable: family.Searchable, PublicDisplayStatus: family.PublicDisplayStatus,
+		DissolutionCooldownUntil: family.DissolutionCooldownUntil,
+		DissolutionCooldownDays:  family.DissolutionCooldownDays,
+		DissolutionCompletedAt:   family.DissolutionCompletedAt,
+		Searchable:               family.Searchable, PublicDisplayStatus: family.PublicDisplayStatus,
 		PublicDisplayEnabled: family.PublicDisplayEnabled,
 		PublicContactName:    family.PublicContactName, PublicContactPhone: family.PublicContactPhone,
 		PublicContactWechat: family.PublicContactWechat, PublicContactNote: family.PublicContactNote,

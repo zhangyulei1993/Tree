@@ -33,12 +33,7 @@
       </view>
 
       <view v-if="canManageFamily" class="genealogy-tools">
-        <text class="genealogy-tools-label">关系管理</text>
-        <view class="genealogy-tools-links">
-          <button class="genealogy-tool-link" @click="openManageSection('node')">添加节点</button>
-          <button class="genealogy-tool-link" @click="openManageSection('pending')">添加暂存</button>
-          <button class="genealogy-tool-link" @click="openManageSection('place')">暂存转化</button>
-        </view>
+        <button class="genealogy-tool-link" @click="openManage">关系管理</button>
       </view>
 
       <view class="tree-mode-line">
@@ -212,15 +207,16 @@ function openMembers() {
   uni.redirectTo({ url: `/pages/family/members?familyId=${encodeURIComponent(familyId.value)}` })
 }
 
-function openManageSection(section: 'node' | 'pending' | 'place') {
+function openManage() {
   uni.navigateTo({
-    url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=${section}`
+    url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}`
   })
 }
 
 function openNodeActions(node: TreeNode) {
   if (!canManageFamily.value) return
   const items = ['编辑成员资料']
+  if (node.userBindingState === 'UNBOUND') items.push('邀请本人绑定')
   if (!isSpouseMember(node) && !isExternalMember(node)) items.push('添加关系', '调整关系')
   if (node.isLiving === true) {
     items.push('标记为已故')
@@ -236,6 +232,10 @@ function openNodeActions(node: TreeNode) {
       const action = items[result.tapIndex]
       if (action === '编辑成员资料') {
         openMemberEdit(node)
+        return
+      }
+      if (action === '邀请本人绑定') {
+        openInviteMember(node)
         return
       }
       if (action === '添加关系') {
@@ -260,6 +260,12 @@ function openNodeActions(node: TreeNode) {
 function openMemberEdit(node: TreeNode) {
   uni.navigateTo({
     url: `/pages/family/member-edit?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(String(node.memberId))}`
+  })
+}
+
+function openInviteMember(node: TreeNode) {
+  uni.navigateTo({
+    url: `/pages/invite/sent?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(String(node.memberId))}&memberName=${encodeURIComponent(node.displayName || '')}`
   })
 }
 
@@ -357,22 +363,9 @@ onUnload(resetPageData)
   padding: 18rpx 0;
 }
 
-.genealogy-tools-label {
-  display: block;
-  margin-bottom: 12rpx;
-  color: var(--archive-cinnabar);
-  font-size: 21rpx;
-  font-weight: 700;
-  letter-spacing: 2rpx;
-}
-
-.genealogy-tools-links {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10rpx;
-}
-
 .genealogy-tool-link {
+  display: block;
+  width: 100%;
   min-height: 62rpx;
   margin: 0;
   border: 1rpx solid var(--archive-line-strong);

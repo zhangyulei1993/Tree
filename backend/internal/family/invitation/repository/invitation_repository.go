@@ -27,6 +27,7 @@ type Repository interface {
 	DB() *gorm.DB
 	FindFamily(context.Context, uint64, bool) (*familymodel.Family, error)
 	FindMember(context.Context, uint64, uint64, bool) (*membermodel.FamilyMember, error)
+	FindMemberAnyStatus(context.Context, uint64, uint64, bool) (*membermodel.FamilyMember, error)
 	FindUser(context.Context, uint64, bool) (*usermodel.User, error)
 	FindActiveLinkByMember(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
 	FindActiveLinkByUser(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
@@ -42,6 +43,7 @@ type Repository interface {
 	CancelPendingJoinRequestsForUser(context.Context, uint64, uint64, time.Time) (int64, error)
 	UpdateStatus(context.Context, uint64, string, map[string]any) error
 	CreateLink(context.Context, *rolemodel.FamilyMemberUserLink) error
+	UpdateMember(context.Context, uint64, uint64, map[string]any) error
 	WriteLog(context.Context, operationlog.WriteInput) error
 	WriteFailedLog(context.Context, operationlog.WriteInput) error
 }
@@ -69,6 +71,16 @@ func (r *GormRepository) FindMember(ctx context.Context, familyID, memberID uint
 		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
 	}
 	err := query.Where("id = ? AND family_id = ? AND status = ? AND deleted_at IS NULL", memberID, familyID, "ACTIVE").First(&value).Error
+	return &value, err
+}
+
+func (r *GormRepository) FindMemberAnyStatus(ctx context.Context, familyID, memberID uint64, lock bool) (*membermodel.FamilyMember, error) {
+	var value membermodel.FamilyMember
+	query := r.db.WithContext(ctx)
+	if lock {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	err := query.Where("id = ? AND family_id = ? AND deleted_at IS NULL", memberID, familyID).First(&value).Error
 	return &value, err
 }
 
@@ -201,6 +213,12 @@ func (r *GormRepository) UpdateStatus(ctx context.Context, id uint64, current st
 
 func (r *GormRepository) CreateLink(ctx context.Context, value *rolemodel.FamilyMemberUserLink) error {
 	return r.db.WithContext(ctx).Create(value).Error
+}
+
+func (r *GormRepository) UpdateMember(ctx context.Context, familyID, memberID uint64, values map[string]any) error {
+	return r.db.WithContext(ctx).Model(&membermodel.FamilyMember{}).
+		Where("id = ? AND family_id = ? AND deleted_at IS NULL", memberID, familyID).
+		Updates(values).Error
 }
 
 func (r *GormRepository) WriteLog(ctx context.Context, input operationlog.WriteInput) error {

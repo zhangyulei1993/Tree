@@ -4,6 +4,7 @@ type CreateInvitationRequest struct {
 	InviteChannel         string  `json:"inviteChannel" binding:"required"`
 	TargetUserID          *uint64 `json:"targetUserId"`
 	InviteMessage         *string `json:"inviteMessage"`
+	PendingMemberLabel    *string `json:"pendingMemberLabel"`
 	FamilyRoleAfterAccept *string `json:"familyRoleAfterAccept"`
 }
 

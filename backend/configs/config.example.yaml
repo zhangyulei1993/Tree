@@ -36,5 +36,8 @@ wechat:
   mini_app_secret: ""
   mock_enabled: true
 
+family:
+  dissolution_cooldown_days: 7
+
 log:
   level: debug

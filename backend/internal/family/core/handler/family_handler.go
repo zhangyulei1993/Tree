@@ -196,6 +196,17 @@ func (h *FamilyHandler) CancelDissolutionRequest(ctx *gin.Context) {
 	})
 }
 
+func (h *FamilyHandler) FinalizeDissolution(ctx *gin.Context) {
+	h.withFamilyID(ctx, func(familyID uint64) {
+		userID, ok := currentUser(ctx)
+		if !ok {
+			return
+		}
+		result, businessErr := h.service.FinalizeDissolution(ctx.Request.Context(), userID, familyID, audit(ctx))
+		writeResult(ctx, result, businessErr)
+	})
+}
+
 func (h *FamilyHandler) withFamilyID(ctx *gin.Context, fn func(uint64)) {
 	familyID, err := strconv.ParseUint(ctx.Param("familyId"), 10, 64)
 	if err != nil || familyID == 0 {
@@ -225,7 +236,8 @@ func writeResult[T any](ctx *gin.Context, result T, businessErr *apperrors.Busin
 			if businessErr.Code == familyservice.CodeFamilyDetailForbidden ||
 				businessErr.Code == familyservice.CodeFamilyUpdateForbidden ||
 				businessErr.Code == familyservice.CodeFamilyLeaveForbidden ||
-				businessErr.Code == familyservice.CodeFamilyDissolutionForbidden {
+				businessErr.Code == familyservice.CodeFamilyDissolutionForbidden ||
+				businessErr.Code == familyservice.CodeFamilyDissolutionFinalizeDenied {
 				status = http.StatusForbidden
 			}
 			if businessErr.Code == familyservice.CodeFamilyNotFound || businessErr.Code == apperrors.CodeResourceNotFound {

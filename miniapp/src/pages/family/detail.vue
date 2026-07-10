@@ -175,6 +175,8 @@ function familyStatusText(status: string) {
       return '已停用'
     case 'DISSOLVED':
       return '已解散'
+    case 'DISSOLUTION_COOLDOWN':
+      return '恢复冷静期'
     case 'DISSOLUTION_PENDING':
       return '解散待审核'
     case 'PENDING':

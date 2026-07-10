@@ -92,6 +92,23 @@ func (r *fakeRepo) FindFamily(context.Context, uint64, bool) (*model.Family, err
 func (r *fakeRepo) FindMember(_ context.Context, _ uint64, memberID uint64, _ bool) (*membermodel.FamilyMember, error) {
 	if memberID == r.member.ID {
 		v := r.member
+		if v.Status != "ACTIVE" {
+			return nil, gorm.ErrRecordNotFound
+		}
+		return &v, nil
+	}
+	v, ok := r.members[memberID]
+	if !ok {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if v.Status != "ACTIVE" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &v, nil
+}
+func (r *fakeRepo) FindMemberAnyStatus(_ context.Context, _ uint64, memberID uint64, _ bool) (*membermodel.FamilyMember, error) {
+	if memberID == r.member.ID {
+		v := r.member
 		return &v, nil
 	}
 	v, ok := r.members[memberID]
@@ -235,6 +252,20 @@ func (r *fakeRepo) CreateLink(_ context.Context, value *rolemodel.FamilyMemberUs
 	r.links = append(r.links, *value)
 	return nil
 }
+func (r *fakeRepo) UpdateMember(_ context.Context, familyID, memberID uint64, values map[string]any) error {
+	v, ok := r.members[memberID]
+	if !ok || v.FamilyID != familyID {
+		return gorm.ErrRecordNotFound
+	}
+	if status, ok := values["status"].(string); ok {
+		v.Status = status
+	}
+	r.members[memberID] = v
+	if r.member.ID == memberID {
+		r.member = v
+	}
+	return nil
+}
 func (r *fakeRepo) WriteLog(_ context.Context, input operationlog.WriteInput) error {
 	r.logs = append(r.logs, logRecord{input: input, result: operationlog.ResultSuccess})
 	return nil
@@ -289,19 +320,25 @@ func TestInvitationCreationRules(t *testing.T) {
 	t.Run("family invite creates pending member node", func(t *testing.T) {
 		repo := newFakeRepo()
 		svc := testService(repo, true, now)
-		result, err := svc.CreateFamily(context.Background(), 8, 2, dto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, AuditInput{})
+		result, err := svc.CreateFamily(context.Background(), 8, 2, dto.CreateInvitationRequest{
+			InviteChannel:      "SHARE_LINK",
+			PendingMemberLabel: stringPtr("二房长子（待确认）"),
+		}, AuditInput{})
 		if err != nil {
 			t.Fatalf("unexpected error: %#v", err)
 		}
-		if result.Invitation.TargetMemberName != "待确认成员" {
+		if result.Invitation.TargetMemberName != "二房长子（待确认）" {
 			t.Fatalf("unexpected target member name: %s", result.Invitation.TargetMemberName)
+		}
+		if result.Invitation.PendingMemberLabel == nil || *result.Invitation.PendingMemberLabel != "二房长子（待确认）" {
+			t.Fatalf("unexpected pending label: %#v", result.Invitation.PendingMemberLabel)
 		}
 		stored := repo.invitations[result.Invitation.InvitationID]
 		if stored.InviteType != "JOIN_FAMILY_PENDING_MEMBER" || stored.TargetMemberID == 0 {
 			t.Fatalf("unexpected invitation: %#v", stored)
 		}
 		member := repo.members[stored.TargetMemberID]
-		if member.DisplayName != "待确认成员" || member.UserBindingPolicy != "OPTIONAL" {
+		if member.DisplayName != "二房长子（待确认）" || member.UserBindingPolicy != "OPTIONAL" || member.Status != "PENDING" {
 			t.Fatalf("unexpected pending member: %#v", member)
 		}
 		if repo.family.GraphVersion != 15 {
@@ -409,6 +446,25 @@ func TestInvitationMutations(t *testing.T) {
 		result, err := testService(repo, true, now).Accept(context.Background(), 9, 1, AuditInput{})
 		if err != nil || result.Status != "ACCEPTED" {
 			t.Fatalf("unexpected %#v %#v", result, err)
+		}
+	})
+	t.Run("accept pending family invite activates hidden member", func(t *testing.T) {
+		repo := newFakeRepo()
+		repo.members[20] = membermodel.FamilyMember{
+			ID: 20, FamilyID: 2, DisplayName: "二房长子（待确认）", Status: "PENDING", UserBindingPolicy: "OPTIONAL",
+		}
+		repo.invitations[1] = &invitationmodel.FamilyInvitation{
+			ID: 1, FamilyID: 2, TargetMemberID: 20, InviterUserID: uint64Ptr(8),
+			InviteType: "JOIN_FAMILY_PENDING_MEMBER", InviteChannel: "SHARE_LINK",
+			FamilyRoleAfterAccept: "MEMBER", Status: "PENDING", ExpiredAt: now.Add(time.Hour),
+			PendingMemberLabel: stringPtr("二房长子（待确认）"),
+		}
+		result, err := testService(repo, true, now).Accept(context.Background(), 9, 1, AuditInput{})
+		if err != nil || result.Status != "ACCEPTED" {
+			t.Fatalf("unexpected %#v %#v", result, err)
+		}
+		if repo.members[20].Status != "ACTIVE" {
+			t.Fatalf("pending member should activate on accept: %#v", repo.members[20])
 		}
 	})
 	t.Run("expired and non-pending rejected", func(t *testing.T) {

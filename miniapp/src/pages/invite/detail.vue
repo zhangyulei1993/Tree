@@ -201,7 +201,9 @@ const invitationSubtitle = computed(() =>
   isPendingMemberInvitation.value ? '确认是否加入该家庭，成员身份可稍后再确认' : '请核对家庭与成员身份，再决定是否家庭树绑定'
 )
 const inviteTargetText = computed(() =>
-  isPendingMemberInvitation.value ? '身份待确认' : invitation.value?.targetMemberName || ''
+  isPendingMemberInvitation.value
+    ? invitation.value?.pendingMemberLabel || invitation.value?.targetMemberName || '身份待确认'
+    : invitation.value?.targetMemberName || ''
 )
 const inviteTargetHint = computed(() =>
   isPendingMemberInvitation.value

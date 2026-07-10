@@ -6,6 +6,8 @@ export function familyStatusText(status?: string): string {
       return '已停用'
     case 'DISSOLVED':
       return '已解散'
+    case 'DISSOLUTION_COOLDOWN':
+      return '恢复冷静期'
     case 'DISSOLUTION_PENDING':
       return '解散待审核'
     default:
@@ -146,7 +148,7 @@ export function statusTagTone(
   const key = status?.toUpperCase() || ''
   if (['ACTIVE', 'NORMAL', 'APPROVED', 'ACCEPTED', 'PUBLISHED'].includes(key)) return 'active'
   if (['PENDING', 'PENDING_PHONE_BIND', 'DISSOLUTION_PENDING', 'DRAFT'].includes(key)) return 'pending'
-  if (['DISABLED', 'REJECTED', 'CANCELLED', 'DELETED', 'DISSOLVED', 'EXPIRED', 'TAKEN_DOWN'].includes(key))
+  if (['DISABLED', 'REJECTED', 'CANCELLED', 'DELETED', 'DISSOLVED', 'DISSOLUTION_COOLDOWN', 'EXPIRED', 'TAKEN_DOWN'].includes(key))
     return 'danger'
   return 'muted'
 }

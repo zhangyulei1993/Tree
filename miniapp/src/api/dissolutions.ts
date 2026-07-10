@@ -1,5 +1,5 @@
 import { request } from '@/api/client'
-import type { DissolutionRequest } from '@/types/api'
+import type { DissolutionRequest, FamilyDetail } from '@/types/api'
 
 type DissolutionResponse = Omit<DissolutionRequest, 'requestId'> & {
   id: number | string
@@ -34,4 +34,10 @@ export async function cancelDissolution(
     { method: 'POST', data: cancelReason ? { cancelReason } : {} }
   )
   return normalize(result) as DissolutionRequest
+}
+
+export async function finalizeDissolution(familyId: number | string) {
+  return request<FamilyDetail>(`/families/${familyId}/dissolution/finalize`, {
+    method: 'POST'
+  })
 }

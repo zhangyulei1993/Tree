@@ -16,7 +16,7 @@
           <text class="archive-kicker">Family Permissions</text>
           <text class="archive-title">公开展示与权限</text>
           <text class="archive-subtitle">
-            {{ family.familyName }} · 管理公开信息、家庭角色和高风险操作
+            {{ family.familyName }} · 管理公开信息、家庭角色与操作记录
           </text>
         </view>
         <view class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
@@ -32,16 +32,38 @@
       </view>
 
       <template v-else>
-        <MiniNotice v-if="family.status === 'DISSOLVED'" tone="warm" title="家庭已解散，等待恢复">
-          该家庭已停止对外服务，设置暂不可编辑。请等待平台管理员恢复家庭后再继续操作。
+        <MiniNotice v-if="family.status === 'DISSOLVED'" tone="warm" title="家庭已完成解散">
+          该家庭已从用户端隐藏，当前仅保留后台恢复通道。若需恢复，请联系平台管理员处理。
         </MiniNotice>
         <view v-if="family.status === 'DISSOLVED'" class="archive-form-panel">
           <MiniEmptyState
             symbol="⏸"
-            title="家庭已解散"
-            description="当前仅可查看家庭概览，公开展示、角色与高风险操作需恢复后可用。"
+            title="家庭已完成解散"
+            description="冷静期已结束或已被创建者跳过，当前仅保留后台恢复能力。"
           />
         </view>
+
+        <template v-else-if="family.status === 'DISSOLUTION_COOLDOWN'">
+          <MiniNotice tone="warm" title="家庭处于恢复冷静期">
+            冷静期内家庭仅可查看、不可编辑，并会从普通家庭列表隐藏。创建者确认无误后，可直接跳过冷静期完成解散。
+          </MiniNotice>
+          <view class="archive-form-panel">
+            <view class="archive-section-head">
+              <text class="archive-section-title">恢复冷静期</text>
+              <text class="archive-section-subtitle">
+                截止 {{ formatDateTime(family.dissolutionCooldownUntil) }} · {{ family.dissolutionCooldownDays || 0 }} 天
+              </text>
+            </view>
+            <MiniButton
+              v-if="family.role === 'FOUNDER'"
+              class="settings-action"
+              variant="secondary"
+              @click="confirmFinalizeDissolution"
+            >
+              跳过冷静期并完成解散
+            </MiniButton>
+          </view>
+        </template>
 
         <MiniNotice v-else-if="family.status === 'DISSOLUTION_PENDING'" tone="warm" title="家庭解散申请审核中">
           审核完成或取消申请前，家庭资料、公开展示、角色和创建者转让暂不可调整。
@@ -65,10 +87,18 @@
             </view>
             <view
               class="archive-segment-tab"
-              :class="{ active: settingsSection === 'security' }"
-              @click="settingsSection = 'security'"
+              :class="{ active: settingsSection === 'transfer' }"
+              @click="settingsSection = 'transfer'"
             >
-              <text>风险</text>
+              <text>转让</text>
+            </view>
+            <view
+              v-if="family.role === 'FOUNDER'"
+              class="archive-segment-tab"
+              :class="{ active: settingsSection === 'dissolution' }"
+              @click="settingsSection = 'dissolution'"
+            >
+              <text>解散</text>
             </view>
             <view
               class="archive-segment-tab"
@@ -83,9 +113,9 @@
             {{ operationError }}
           </MiniNotice>
 
-          <view v-if="settingsSection === 'security' && family.role !== 'FOUNDER'" class="archive-form-panel">
+          <view v-if="settingsSection === 'transfer' && family.role !== 'FOUNDER'" class="archive-form-panel">
             <MiniNotice tone="security" title="仅创建者可操作">
-              创建者转让和家庭解散属于高风险操作，家庭管理员只能查看其他设置。
+              创建者转让属于高风险操作，家庭管理员只能查看公开、角色与记录。
             </MiniNotice>
           </view>
 
@@ -211,7 +241,7 @@
             </view>
           </view>
 
-          <view v-if="family.role === 'FOUNDER' && settingsSection === 'security'" class="archive-form-panel">
+          <view v-if="family.role === 'FOUNDER' && settingsSection === 'transfer'" class="archive-form-panel">
             <view class="archive-section-head">
               <text class="archive-section-title">转让创建者</text>
               <text class="archive-section-subtitle">目标必须是已绑定账号的活跃家庭成员，需后台审核</text>
@@ -233,7 +263,13 @@
             </template>
           </view>
 
-          <view v-if="family.role === 'FOUNDER' && settingsSection === 'security'" class="archive-danger-panel">
+          <view v-if="settingsSection === 'dissolution' && family.role !== 'FOUNDER'" class="archive-form-panel">
+            <MiniNotice tone="security" title="仅创建者可操作">
+              家庭解散属于高风险操作，仅创建者可以发起或取消。
+            </MiniNotice>
+          </view>
+
+          <view v-if="family.role === 'FOUNDER' && settingsSection === 'dissolution'" class="archive-danger-panel">
             <text class="archive-danger-title">解散家庭</text>
             <text class="archive-danger-desc">高风险操作，审核通过后家庭将停止使用</text>
             <template v-if="currentDissolution">
@@ -283,6 +319,7 @@ import { ApiError, apiErrorMessage, isRealApiMode } from '@/api/client'
 import {
   cancelDissolution,
   createDissolution,
+  finalizeDissolution,
   getCurrentDissolution
 } from '@/api/dissolutions'
 import { setFamilyAdmin, unsetFamilyAdmin } from '@/api/familyRoles'
@@ -335,7 +372,7 @@ const togglingPublicDisplay = ref(false)
 const transferTargetIndex = ref(0)
 const transferReason = ref('')
 const dissolutionReason = ref('')
-const settingsSection = ref<'public' | 'roles' | 'security' | 'logs'>('public')
+const settingsSection = ref<'public' | 'roles' | 'transfer' | 'dissolution' | 'logs'>('public')
 const publicForm = reactive({
   searchable: false,
   publicContactName: '',
@@ -668,6 +705,25 @@ function confirmCancelDissolution() {
   })
 }
 
+function confirmFinalizeDissolution() {
+  if (!family.value || family.value.role !== 'FOUNDER') return
+  uni.showModal({
+    title: '跳过冷静期',
+    content: '跳过后家庭将直接完成解散，并继续保持对用户端隐藏。此后如需恢复，请联系后台处理。确认继续吗？',
+    confirmColor: '#A83B2D',
+    success: async (result) => {
+      if (!result.confirm) return
+      try {
+        family.value = await finalizeDissolution(familyId.value)
+        currentDissolution.value = null
+        uni.showToast({ title: '已完成解散', icon: 'success' })
+      } catch (error) {
+        operationError.value = apiErrorMessage(error, '完成解散失败，请稍后重试。')
+      }
+    }
+  })
+}
+
 function publicStatusText(status: string) {
   return ({ PRIVATE: '未申请', PENDING: '待审核', APPROVED: '已获展示权限', REJECTED: '已驳回', TAKEN_DOWN: '已下架' } as Record<string, string>)[status] || '未知状态'
 }
@@ -727,6 +783,20 @@ function memberName(memberId: number | string) {
 
 function formatDate(value: string) {
   return value ? value.slice(0, 10) : ''
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '待确定'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '待确定'
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
 }
 
 function openFamilyOverview() {

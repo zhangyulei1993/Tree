@@ -25,6 +25,7 @@ export async function listMyFamilies(): Promise<FamilySummary[]> {
         nativePlace: source.nativePlace,
         regionText: source.regionText,
         status: family.status,
+        dissolutionCooldownDays: 0,
         publicDisplayStatus: 'APPROVED',
         publicDisplayEnabled: true,
         role: family.role
@@ -56,6 +57,7 @@ export async function getFamilyDetail(familyId: number | string): Promise<Family
       regionText: source.regionText,
       description: source.description,
       status: source.status,
+      dissolutionCooldownDays: 0,
       publicDisplayStatus: 'APPROVED',
       publicDisplayEnabled: true,
       role: mine?.role || 'MEMBER',
@@ -81,6 +83,7 @@ export async function createFamily(input: CreateFamilyInput): Promise<FamilyDeta
       regionText: input.regionText || null,
       description: input.description || null,
       status: 'NORMAL',
+      dissolutionCooldownDays: 0,
       publicDisplayStatus: 'PRIVATE',
       publicDisplayEnabled: false,
       role: 'FOUNDER',

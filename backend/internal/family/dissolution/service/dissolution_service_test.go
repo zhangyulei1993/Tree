@@ -95,6 +95,18 @@ func (r *fakeRepo) UpdateFamily(_ context.Context, _ uint64, values map[string]a
 	if value, ok := values["dissolved_at"].(time.Time); ok {
 		r.family.DissolvedAt = &value
 	}
+	if value, ok := values["dissolution_cooldown_until"].(time.Time); ok {
+		r.family.DissolutionCooldownUntil = &value
+	}
+	if value, ok := values["dissolution_cooldown_days"].(int); ok {
+		r.family.DissolutionCooldownDays = value
+	}
+	if value, ok := values["dissolution_hidden_at"].(time.Time); ok {
+		r.family.DissolutionHiddenAt = &value
+	}
+	if value, ok := values["dissolution_completed_at"].(time.Time); ok {
+		r.family.DissolutionCompletedAt = &value
+	}
 	if value, ok := values["restored_at"].(time.Time); ok {
 		r.family.RestoredAt = &value
 	}
@@ -112,7 +124,7 @@ func (u fakeUOW) WithinTransaction(ctx context.Context, fn func(dissolutionrepo.
 }
 
 func newTestService(repo *fakeRepo) *service {
-	svc := NewService(repo, fakeUOW{repo: repo}, nil).(*service)
+	svc := NewService(repo, fakeUOW{repo: repo}, nil, 7).(*service)
 	svc.now = func() time.Time { return time.Date(2026, 6, 8, 10, 0, 0, 0, time.UTC) }
 	return svc
 }
@@ -134,9 +146,12 @@ func TestDissolutionReviewRules(t *testing.T) {
 		if err != nil || result.RequestStatus != dissolutionenum.StatusApproved {
 			t.Fatalf("unexpected %#v %#v", result, err)
 		}
-		if repo.family.Status != string(enums.StatusDissolved) || repo.family.PublicDisplayStatus != string(enums.StatusPrivate) ||
+		if repo.family.Status != string(enums.StatusDissolutionCooldown) || repo.family.PublicDisplayStatus != string(enums.StatusPrivate) ||
 			repo.family.Searchable || repo.family.DissolvedAt == nil || repo.family.GraphVersion != before || len(repo.logs) != 1 {
 			t.Fatal("dissolution approval did not update family correctly")
+		}
+		if repo.family.DissolutionCooldownUntil == nil || repo.family.DissolutionCooldownDays != 7 || repo.family.DissolutionHiddenAt == nil {
+			t.Fatal("cooldown fields not initialized")
 		}
 	})
 	t.Run("super admin rejects dissolution", func(t *testing.T) {
@@ -151,7 +166,7 @@ func TestDissolutionReviewRules(t *testing.T) {
 func TestRestoreFamily(t *testing.T) {
 	t.Run("restore dissolved family", func(t *testing.T) {
 		repo := newFakeRepo()
-		repo.family.Status = string(enums.StatusDissolved)
+		repo.family.Status = string(enums.StatusDissolutionCooldown)
 		repo.family.PublicDisplayStatus = string(enums.StatusTakenDown)
 		repo.family.Searchable = false
 		before := repo.family.GraphVersion
@@ -165,7 +180,7 @@ func TestRestoreFamily(t *testing.T) {
 	})
 	t.Run("platform cannot restore", func(t *testing.T) {
 		repo := newFakeRepo()
-		repo.family.Status = string(enums.StatusDissolved)
+		repo.family.Status = string(enums.StatusDissolutionCooldown)
 		if _, err := newTestService(repo).Restore(context.Background(), 1, string(enums.AdminRolePlatformAdmin), 2, dissolutiondto.RestoreFamilyRequest{}, AuditInput{}); err == nil || err.Code != CodeFamilyRestoreAdminDenied {
 			t.Fatalf("unexpected %#v", err)
 		}

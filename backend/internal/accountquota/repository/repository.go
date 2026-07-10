@@ -146,13 +146,13 @@ func (r *GormRepository) CountOwnedFamilies(ctx context.Context, userID uint64) 
 		Table("family_member_user_links AS link").
 		Joins("JOIN families AS family ON family.id = link.family_id").
 		Where("link.user_id = ? AND link.link_status = 'ACTIVE' AND link.family_role = 'FOUNDER'", userID).
-		Where("family.deleted_at IS NULL AND family.status != 'DISSOLVED'").
+		Where("family.deleted_at IS NULL AND family.status NOT IN ('DISSOLUTION_COOLDOWN', 'DISSOLVED')").
 		Count(&count).Error
 	return int(count), err
 }
 
 func joinedFamilyStatusClause() string {
-	return "family.deleted_at IS NULL AND family.status != 'DISSOLVED'"
+	return "family.deleted_at IS NULL AND family.status NOT IN ('DISSOLUTION_COOLDOWN', 'DISSOLVED')"
 }
 
 func (r *GormRepository) CountJoinedFamilies(ctx context.Context, userID uint64) (int, error) {
@@ -211,7 +211,7 @@ func (r *GormRepository) ListOwnedFamilyIDs(ctx context.Context, userID uint64) 
 		Select("link.family_id").
 		Joins("JOIN families AS family ON family.id = link.family_id").
 		Where("link.user_id = ? AND link.link_status = 'ACTIVE' AND link.family_role = 'FOUNDER'", userID).
-		Where("family.deleted_at IS NULL AND family.status != 'DISSOLVED'").
+		Where("family.deleted_at IS NULL AND family.status NOT IN ('DISSOLUTION_COOLDOWN', 'DISSOLVED')").
 		Scan(&ids).Error
 	return ids, err
 }
@@ -223,7 +223,7 @@ SELECT COUNT(*) FROM (
   SELECT u.id
   FROM users u
   JOIN family_member_user_links link ON link.user_id = u.id AND link.link_status = 'ACTIVE' AND link.family_role = 'FOUNDER'
-  JOIN families family ON family.id = link.family_id AND family.deleted_at IS NULL AND family.status != 'DISSOLVED'
+  JOIN families family ON family.id = link.family_id AND family.deleted_at IS NULL AND family.status NOT IN ('DISSOLUTION_COOLDOWN', 'DISSOLVED')
   WHERE u.deleted_at IS NULL
     AND ((? = 'PHONE_BOUND' AND u.phone_login_enabled = 1) OR (? = 'WECHAT_ONLY' AND u.phone_login_enabled = 0))
   GROUP BY u.id
@@ -239,7 +239,7 @@ SELECT COUNT(*) FROM (
   SELECT u.id
   FROM users u
   JOIN family_member_user_links link ON link.user_id = u.id AND link.link_status = 'ACTIVE' AND link.family_role IN ('MEMBER', 'FAMILY_ADMIN')
-  JOIN families family ON family.id = link.family_id AND family.deleted_at IS NULL AND family.status != 'DISSOLVED'
+  JOIN families family ON family.id = link.family_id AND family.deleted_at IS NULL AND family.status NOT IN ('DISSOLUTION_COOLDOWN', 'DISSOLVED')
   WHERE u.deleted_at IS NULL
     AND ((? = 'PHONE_BOUND' AND u.phone_login_enabled = 1) OR (? = 'WECHAT_ONLY' AND u.phone_login_enabled = 0))
   GROUP BY u.id
@@ -255,7 +255,7 @@ SELECT COUNT(DISTINCT user_id) FROM (
   SELECT u.id AS user_id
   FROM users u
   JOIN family_member_user_links link ON link.user_id = u.id AND link.link_status = 'ACTIVE' AND link.family_role = 'FOUNDER'
-  JOIN families family ON family.id = link.family_id AND family.deleted_at IS NULL AND family.status != 'DISSOLVED'
+  JOIN families family ON family.id = link.family_id AND family.deleted_at IS NULL AND family.status NOT IN ('DISSOLUTION_COOLDOWN', 'DISSOLVED')
   WHERE u.deleted_at IS NULL
     AND ((? = 'PHONE_BOUND' AND u.phone_login_enabled = 1) OR (? = 'WECHAT_ONLY' AND u.phone_login_enabled = 0))
   GROUP BY u.id
@@ -264,7 +264,7 @@ SELECT COUNT(DISTINCT user_id) FROM (
   SELECT u.id AS user_id
   FROM users u
   JOIN family_member_user_links link ON link.user_id = u.id AND link.link_status = 'ACTIVE' AND link.family_role IN ('MEMBER', 'FAMILY_ADMIN')
-  JOIN families family ON family.id = link.family_id AND family.deleted_at IS NULL AND family.status != 'DISSOLVED'
+  JOIN families family ON family.id = link.family_id AND family.deleted_at IS NULL AND family.status NOT IN ('DISSOLUTION_COOLDOWN', 'DISSOLVED')
   WHERE u.deleted_at IS NULL
     AND ((? = 'PHONE_BOUND' AND u.phone_login_enabled = 1) OR (? = 'WECHAT_ONLY' AND u.phone_login_enabled = 0))
   GROUP BY u.id
@@ -281,7 +281,7 @@ SELECT COUNT(*) FROM (
   FROM families family
   JOIN family_member_user_links founder_link ON founder_link.family_id = family.id AND founder_link.link_status = 'ACTIVE' AND founder_link.family_role = 'FOUNDER'
   JOIN users founder_user ON founder_user.id = founder_link.user_id AND founder_user.deleted_at IS NULL
-  WHERE family.deleted_at IS NULL AND family.status != 'DISSOLVED'
+  WHERE family.deleted_at IS NULL AND family.status NOT IN ('DISSOLUTION_COOLDOWN', 'DISSOLVED')
     AND ((? = 'PHONE_BOUND' AND founder_user.phone_login_enabled = 1) OR (? = 'WECHAT_ONLY' AND founder_user.phone_login_enabled = 0))
   GROUP BY family.id
   HAVING (

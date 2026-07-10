@@ -199,6 +199,7 @@ func (r *GormFamilyRepository) ListByUser(ctx context.Context, userID uint64) ([
 		Joins("JOIN family_member_user_links ON family_member_user_links.family_id = families.id").
 		Where("family_member_user_links.user_id = ? AND family_member_user_links.link_status = ?", userID, "ACTIVE").
 		Where("families.deleted_at IS NULL").
+		Where("families.status NOT IN ?", []string{"DISSOLUTION_COOLDOWN", "DISSOLVED"}).
 		Order("families.updated_at DESC").
 		Scan(&rows).Error
 	return rows, err

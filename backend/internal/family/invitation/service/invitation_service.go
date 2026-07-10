@@ -82,6 +82,10 @@ func (s *service) CreateFamily(ctx context.Context, actorID, familyID uint64, re
 	if err != nil || !allowed {
 		return nil, inviteError(CodeInvitationForbidden, "无权创建邀请")
 	}
+	label := clean(req.PendingMemberLabel)
+	if label == nil {
+		return nil, inviteError(CodeMemberNotInvitable, "请填写待确认身份标签")
+	}
 	channel := strings.ToUpper(strings.TrimSpace(req.InviteChannel))
 	if channel != inviteenum.ChannelShareLink && channel != inviteenum.ChannelInApp {
 		return nil, inviteError(CodeMemberNotInvitable, "邀请方式不支持")
@@ -95,7 +99,10 @@ func (s *service) CreateFamily(ctx context.Context, actorID, familyID uint64, re
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID:   actorID,
 		Scene:    contentsafety.SceneSocial,
-		Fields:   contentsafety.OptionalField("invite_message", req.InviteMessage),
+		Fields: contentsafety.MergeFields(
+			contentsafety.OptionalField("invite_message", req.InviteMessage),
+			contentsafety.StringField("pending_member_label", *label),
+		),
 		FamilyID: &familyID,
 		IP:       audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
@@ -118,17 +125,17 @@ func (s *service) CreateFamily(ctx context.Context, actorID, familyID uint64, re
 	member := &membermodel.FamilyMember{
 		FamilyID:          familyID,
 		MemberType:        "LINEAGE_MEMBER",
-		DisplayName:       "待确认成员",
+		DisplayName:       *label,
 		Gender:            string(enums.GenderUnknown),
 		UserBindingPolicy: string(enums.UserBindingOptional),
-		Status:            string(enums.StatusActive),
+		Status:            string(enums.StatusPending),
 		CreatedByUserID:   &actorID,
 	}
 	invitation := &invitationmodel.FamilyInvitation{
 		FamilyID: familyID, InviterUserID: &actorID,
 		TargetUserID: req.TargetUserID, InviteType: inviteenum.TypeJoinFamilyPendingMember,
 		InviteChannel: channel, InviteActorType: actorType, FamilyRoleAfterAccept: role,
-		InviteToken: stringPtr(tokenHash(rawToken)), InviteMessage: clean(req.InviteMessage),
+		InviteToken: stringPtr(tokenHash(rawToken)), InviteMessage: clean(req.InviteMessage), PendingMemberLabel: label,
 		Status: inviteenum.StatusPending, ExpiredAt: now.Add(invitationTTL),
 	}
 	err = s.uow.WithinTransaction(ctx, func(repo inviterepo.Repository) error {
@@ -345,8 +352,15 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 		if invitation.InviteChannel == inviteenum.ChannelInApp && (invitation.TargetUserID == nil || *invitation.TargetUserID != actorID) {
 			return errTargetMismatch
 		}
-		member, err := repo.FindMember(ctx, invitation.FamilyID, invitation.TargetMemberID, true)
+		member, err := repo.FindMemberAnyStatus(ctx, invitation.FamilyID, invitation.TargetMemberID, true)
 		if err != nil || member.UserBindingPolicy == string(enums.UserBindingNotRequired) {
+			return errMemberUnavailable
+		}
+		if invitation.InviteType == inviteenum.TypeJoinFamilyPendingMember {
+			if member.Status != string(enums.StatusPending) && member.Status != string(enums.StatusActive) {
+				return errMemberUnavailable
+			}
+		} else if member.Status != string(enums.StatusActive) {
 			return errMemberUnavailable
 		}
 		user, err := repo.FindUser(ctx, actorID, true)
@@ -372,6 +386,14 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 				return err
 			}
 			if err := s.quota.AssertCanJoinFamily(ctx, repo.DB(), actorID); err != nil {
+				return err
+			}
+		}
+		if invitation.InviteType == inviteenum.TypeJoinFamilyPendingMember && member.Status == string(enums.StatusPending) {
+			if err := repo.UpdateMember(ctx, invitation.FamilyID, invitation.TargetMemberID, map[string]any{
+				"status":     string(enums.StatusActive),
+				"updated_at": now,
+			}); err != nil {
 				return err
 			}
 		}
@@ -572,7 +594,7 @@ func (s *service) Regenerate(ctx context.Context, actorID, invitationID uint64, 
 			InviterUserID: &actorID, InviteType: value.InviteType,
 			InviteChannel: inviteenum.ChannelShareLink, InviteActorType: value.InviteActorType,
 			FamilyRoleAfterAccept: value.FamilyRoleAfterAccept,
-			InviteToken:           stringPtr(tokenHash(rawToken)), InviteMessage: value.InviteMessage,
+			InviteToken:           stringPtr(tokenHash(rawToken)), InviteMessage: value.InviteMessage, PendingMemberLabel: value.PendingMemberLabel,
 			Status: inviteenum.StatusPending, ExpiredAt: now.Add(invitationTTL),
 		}
 		if err := repo.Create(ctx, replacement); err != nil {
@@ -610,6 +632,7 @@ func invitationVO(row *inviterepo.InvitationRow) vo.Invitation {
 	return vo.Invitation{
 		InvitationID: row.ID, FamilyID: row.FamilyID, FamilyName: row.FamilyName,
 		TargetMemberID: row.TargetMemberID, TargetMemberName: row.TargetMemberName,
+		PendingMemberLabel: row.PendingMemberLabel,
 		InviterDisplayName: row.InviterDisplayName, InviterRole: row.InviteActorType,
 		InviteType: row.InviteType, InviteChannel: row.InviteChannel, InviteMessage: row.InviteMessage,
 		FamilyRoleAfterAccept: row.FamilyRoleAfterAccept, Status: row.Status,

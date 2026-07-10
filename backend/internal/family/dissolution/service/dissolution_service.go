@@ -41,14 +41,18 @@ type Service interface {
 }
 
 type service struct {
-	repo  dissolutionrepo.Repository
-	uow   dissolutionrepo.UnitOfWork
-	quota quotaservice.Service
-	now   func() time.Time
+	repo         dissolutionrepo.Repository
+	uow          dissolutionrepo.UnitOfWork
+	quota        quotaservice.Service
+	now          func() time.Time
+	cooldownDays int
 }
 
-func NewService(repo dissolutionrepo.Repository, uow dissolutionrepo.UnitOfWork, quota quotaservice.Service) Service {
-	return &service{repo: repo, uow: uow, quota: quota, now: time.Now}
+func NewService(repo dissolutionrepo.Repository, uow dissolutionrepo.UnitOfWork, quota quotaservice.Service, cooldownDays int) Service {
+	if cooldownDays <= 0 {
+		cooldownDays = 7
+	}
+	return &service{repo: repo, uow: uow, quota: quota, now: time.Now, cooldownDays: cooldownDays}
 }
 
 func (s *service) ListAdmin(ctx context.Context, adminID uint64, role string, req dissolutiondto.ListDissolutionQuery) (*vo.ListResult, *apperrors.BusinessError) {
@@ -106,11 +110,17 @@ func (s *service) review(ctx context.Context, adminID uint64, role string, reque
 		}
 		familyValues := map[string]any{"status": string(enums.StatusNormal)}
 		if nextStatus == dissolutionenum.StatusApproved {
+			cooldownUntil := now.AddDate(0, 0, s.cooldownDays)
 			familyValues = map[string]any{
-				"status":                string(enums.StatusDissolved),
-				"dissolved_at":          now,
-				"searchable":            false,
-				"public_display_status": string(enums.StatusPrivate),
+				"status":                     string(enums.StatusDissolutionCooldown),
+				"dissolved_at":               now,
+				"dissolution_cooldown_until": cooldownUntil,
+				"dissolution_cooldown_days":  s.cooldownDays,
+				"dissolution_hidden_at":      now,
+				"dissolution_completed_at":   nil,
+				"searchable":                 false,
+				"public_display_status":      string(enums.StatusPrivate),
+				"public_display_enabled":     false,
 			}
 		}
 		if err := repo.UpdateFamily(ctx, request.FamilyID, familyValues); err != nil {
@@ -134,7 +144,7 @@ func (s *service) Restore(ctx context.Context, adminID uint64, role string, fami
 		if err != nil {
 			return errNotFound
 		}
-		if family.Status != string(enums.StatusDissolved) {
+		if family.Status != string(enums.StatusDissolved) && family.Status != string(enums.StatusDissolutionCooldown) {
 			return errRestoreStatus
 		}
 		if s.quota != nil {
@@ -148,10 +158,15 @@ func (s *service) Restore(ctx context.Context, adminID uint64, role string, fami
 		}
 		now := s.now()
 		if err := repo.UpdateFamily(ctx, familyID, map[string]any{
-			"status":                string(enums.StatusNormal),
-			"public_display_status": string(enums.StatusPrivate),
-			"searchable":            searchable,
-			"restored_at":           now,
+			"status":                     string(enums.StatusNormal),
+			"public_display_status":      string(enums.StatusPrivate),
+			"public_display_enabled":     false,
+			"searchable":                 searchable,
+			"dissolution_cooldown_until": nil,
+			"dissolution_cooldown_days":  0,
+			"dissolution_hidden_at":      nil,
+			"dissolution_completed_at":   nil,
+			"restored_at":                now,
 		}); err != nil {
 			return err
 		}

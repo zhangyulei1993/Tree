@@ -8,6 +8,7 @@ type Invitation struct {
 	FamilyName            string     `json:"familyName"`
 	TargetMemberID        uint64     `json:"targetMemberId"`
 	TargetMemberName      string     `json:"targetMemberName"`
+	PendingMemberLabel    *string    `json:"pendingMemberLabel,omitempty"`
 	InviterDisplayName    string     `json:"inviterDisplayName"`
 	InviterRole           string     `json:"inviterRole"`
 	InviteType            string     `json:"inviteType"`
