@@ -153,7 +153,7 @@ let transitionVersion = 0
 const featureItems = [
   {
     title: '家庭族谱',
-    desc: '创建家庭、录入成员与关系，维护私密家谱结构'
+    desc: '创建家庭、录入成员与关系，维护私密家庭树结构'
   },
   {
     title: '邀请与加入',
@@ -161,7 +161,7 @@ const featureItems = [
   },
   {
     title: '公开展示',
-    desc: '经审核后可对外展示脱敏后的家族简介与公开家谱'
+    desc: '经审核后可对外展示脱敏后的家族简介与公开家庭树'
   }
 ]
 

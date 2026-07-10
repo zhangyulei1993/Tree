@@ -4,7 +4,7 @@
       <view>
         <text class="archive-kicker">Public Archive</text>
         <text class="archive-title">展示家庭</text>
-        <text class="archive-subtitle">浏览经平台审核的家庭简介与公开家谱</text>
+        <text class="archive-subtitle">浏览经平台审核的家庭简介与公开家庭树</text>
       </view>
       <view class="archive-seal">展</view>
     </view>

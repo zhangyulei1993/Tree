@@ -14,53 +14,57 @@
       <view v-if="family" class="manage-head archive-page-head">
         <view>
           <text class="archive-kicker">Genealogy Admin</text>
-          <text class="archive-title">家谱管理</text>
+          <text class="archive-title">关系管理</text>
           <text class="archive-subtitle">
-            {{ family.familyName }} · 添加亲属、定位成员并维护关系
+            {{ family.familyName }} · 添加节点、暂存成员并接入家庭树
           </text>
         </view>
         <view class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
       </view>
 
       <view v-if="family" class="manage-context">
-        <text class="archive-chip">{{ roleText(family.role) }}</text>
-        <text class="context-back" @click="openPrivateTree">返回家谱</text>
+        <text class="context-back" @click="openPrivateTree">返回关系图</text>
       </view>
 
       <view v-if="!canManage" class="manage-state archive-form-panel">
         <MiniNotice tone="warm" title="无管理权限">只有家庭创建者或家庭管理员可以维护成员和关系。</MiniNotice>
-        <MiniButton variant="secondary" @click="openPrivateTree">返回家谱</MiniButton>
+        <MiniButton variant="secondary" @click="openPrivateTree">返回关系图</MiniButton>
       </view>
 
       <template v-else>
       <view class="archive-segment-tabs">
         <view
           class="archive-segment-tab"
-          :class="{ active: manageSection === 'create' }"
-          @click="manageSection = 'create'"
+          :class="{ active: manageSection === 'node' }"
+          @click="manageSection = 'node'"
         >
-          <text>添加亲属</text>
+          <text>添加节点</text>
         </view>
         <view
           class="archive-segment-tab"
-          :class="{ active: manageSection === 'locate' }"
-          @click="manageSection = 'locate'"
+          :class="{ active: manageSection === 'pending' }"
+          @click="manageSection = 'pending'"
         >
-          <text>定位成员</text>
+          <text>添加暂存</text>
         </view>
         <view
           class="archive-segment-tab"
-          :class="{ active: manageSection === 'relations' }"
-          @click="manageSection = 'relations'"
+          :class="{ active: manageSection === 'place' }"
+          @click="manageSection = 'place'"
         >
-          <text>关系维护</text>
+          <text>暂存转化</text>
         </view>
       </view>
+      <view class="manage-flow-note archive-panel">
+        <text>添加节点：关系已确认，直接接入家庭树。</text>
+        <text>添加暂存：只记录成员档案，暂不进入关系图。</text>
+        <text>暂存转化：确认分支后，把暂存成员接入家庭树。</text>
+      </view>
 
-      <view v-if="manageSection === 'create'" class="archive-form-panel">
+      <view v-if="manageSection === 'node'" class="archive-form-panel">
         <view class="archive-section-head">
-          <text class="archive-section-title">创建新亲属</text>
-          <text class="archive-section-subtitle">以现有成员为起点，创建一个新成员并放入家谱</text>
+          <text class="archive-section-title">添加节点</text>
+          <text class="archive-section-subtitle">已确认亲属关系时，以基准成员为起点创建并接入家庭树</text>
         </view>
         <picker :range="memberLabels" :value="baseMemberIndex" @change="onBaseMemberChange">
           <view class="field-picker">
@@ -83,9 +87,9 @@
           </view>
         </picker>
         <text v-if="showParentRolePicker" class="field-help">
-          用于决定家谱纸签样式；若已有另一位家庭成员父/母，可选择配偶，否则先用家庭成员建立父母关系。
+          用于决定关系图纸签样式；若已有另一位家庭成员父/母，可选择配偶，否则先用家庭成员建立父母关系。
         </text>
-        <input v-model.trim="relativeName" class="tree-input" maxlength="80" placeholder="新亲属姓名" />
+        <input v-model.trim="relativeName" class="tree-input" maxlength="80" placeholder="节点成员姓名" />
         <picker :range="genderLabels" :value="relativeGenderIndex" @change="onRelativeGenderChange">
           <view class="field-picker">性别：{{ genderLabels[relativeGenderIndex] }}</view>
         </picker>
@@ -105,14 +109,14 @@
         </MiniNotice>
         <text v-if="operationError" class="tree-field-error">{{ operationError }}</text>
         <MiniButton class="manage-action" :loading="submitting" :disabled="submitting" @click="submitRelative">
-          创建并放入家谱
+          创建并接入家庭树
         </MiniButton>
       </view>
 
-      <view v-if="manageSection === 'locate'" class="archive-form-panel">
+      <view v-if="manageSection === 'pending'" class="archive-form-panel">
         <view class="archive-section-head">
-          <text class="archive-section-title">暂存未定位成员</text>
-          <text class="archive-section-subtitle">只创建成员档案，稍后再确定其家谱位置</text>
+          <text class="archive-section-title">添加暂存</text>
+          <text class="archive-section-subtitle">知道姓名但分支身份还不确定时，先暂存为成员档案</text>
         </view>
         <input v-model.trim="unlocatedName" class="tree-input" maxlength="80" placeholder="成员姓名" />
         <picker :range="genderLabels" :value="unlocatedGenderIndex" @change="onUnlocatedGenderChange">
@@ -133,20 +137,20 @@
         </MiniButton>
       </view>
 
-      <view v-if="manageSection === 'locate'" class="archive-form-panel">
+      <view v-if="manageSection === 'place'" class="archive-form-panel">
         <view class="archive-section-head">
-          <text class="archive-section-title">定位已有成员</text>
-          <text class="archive-section-subtitle">将暂存成员连接到一个现有成员，正式放入家谱</text>
+          <text class="archive-section-title">暂存转化</text>
+          <text class="archive-section-subtitle">确认清楚后，将暂存成员连接到现有成员并进入关系图</text>
         </view>
         <MiniEmptyState
           v-if="unlocatedMembers.length === 0"
           symbol="位"
-          title="没有待定位成员"
+          title="没有待接入成员"
           description="暂存但尚未建立任何关系的成员会显示在这里。"
         />
         <template v-else>
           <picker :range="unlocatedMemberLabels" :value="placeMemberIndex" @change="onPlaceMemberChange">
-            <view class="field-picker">待定位：{{ selectedPlaceMember?.name || '选择成员' }}</view>
+            <view class="field-picker">待接入：{{ selectedPlaceMember?.name || '选择成员' }}</view>
           </picker>
           <picker :range="placementBaseLabels" :value="placeBaseIndex" @change="onPlaceBaseChange">
             <view class="field-picker">基准成员：{{ selectedPlaceBase?.name || '选择基准成员' }}</view>
@@ -163,34 +167,39 @@
             <view class="field-picker">新成员归属：{{ parentRoleLabels[placeParentRoleIndex] }}</view>
           </picker>
           <text v-if="showPlaceParentRolePicker" class="field-help">
-            用于决定家谱纸签样式；若已有另一位家庭成员父/母，可选择配偶，否则先用家庭成员建立父母关系。
+            用于决定关系图纸签样式；若已有另一位家庭成员父/母，可选择配偶，否则先用家庭成员建立父母关系。
           </text>
           <MiniNotice v-if="unlocatedTypeAnomalies.length > 0" tone="warm" title="成员类型数据异常">
-            以下暂存成员缺少 memberType，已从未定位列表排除：{{
+            以下暂存成员缺少 memberType，已从待接入列表排除：{{
               unlocatedTypeAnomalies.map((member) => member.name).join('、')
             }}
           </MiniNotice>
-          <MiniNotice tone="security" title="定位说明">
-            关系以“基准成员”为起点，例如选择“子女”表示待定位成员是基准成员的子女。
+          <MiniNotice tone="security" title="接入说明">
+            关系以“基准成员”为起点，例如选择“子女”表示待接入成员是基准成员的子女。
           </MiniNotice>
           <MiniButton class="manage-action" :loading="placingMember" :disabled="placingMember" @click="submitPlacement">
-            放入家谱
+            接入家庭树
           </MiniButton>
         </template>
       </view>
 
       <view v-if="manageSection === 'relations'" class="archive-form-panel">
         <view class="archive-section-head">
-          <text class="archive-section-title">已有关系</text>
-          <text class="archive-section-subtitle">删除错误关系后可重新创建正确关系</text>
+          <text class="archive-section-title">调整关系</text>
+          <text class="archive-section-subtitle">
+            {{ relationScopeMember ? `围绕“${relationScopeMember.name}”调整当前关系` : '删除错误关系后可重新创建正确关系' }}
+          </text>
         </view>
+        <MiniNotice tone="security" title="操作影响">
+          删除或调整关系会立即影响家庭树位置和称谓；如果只是还没确认分支，建议先使用「添加暂存」。
+        </MiniNotice>
         <MiniEmptyState
-          v-if="tree.edges.length === 0"
+          v-if="visibleRelationshipEdges.length === 0"
           symbol="系"
           title="暂无关系"
-          description="创建亲属关系后会显示在这里。"
+          description="该成员暂无可调整关系，或当前家庭尚未创建亲属关系。"
         />
-        <view v-for="edge in tree.edges" :key="edge.relationshipId" class="archive-relation-row">
+        <view v-for="edge in visibleRelationshipEdges" :key="edge.relationshipId" class="archive-relation-row">
           <view class="archive-relation-copy">
             <text class="archive-relation-title">{{ relationSentence(edge) }}</text>
             <text class="tree-muted">{{ relationshipKind(edge) }}</text>
@@ -295,7 +304,7 @@ const placeBaseIndex = ref(0)
 const placeRelationIndex = ref(0)
 const placeParentRoleIndex = ref(0)
 const placingMember = ref(false)
-const manageSection = ref<'create' | 'locate' | 'relations'>('create')
+const manageSection = ref<'node' | 'pending' | 'place' | 'relations'>('node')
 const initialBaseMemberId = ref('')
 const initialAddType = ref<RelationshipAddType | ''>('')
 const initialSelectionApplied = ref(false)
@@ -350,6 +359,16 @@ const selectedPlaceMember = computed(() => unlocatedMembers.value[placeMemberInd
 const placementBaseMembers = computed(() => members.value.filter((member) => member.memberId !== selectedPlaceMember.value?.memberId))
 const placementBaseLabels = computed(() => placementBaseMembers.value.map((member) => member.name))
 const selectedPlaceBase = computed(() => placementBaseMembers.value[placeBaseIndex.value])
+const relationScopeMember = computed(() =>
+  members.value.find((member) => String(member.memberId) === initialBaseMemberId.value) || null
+)
+const visibleRelationshipEdges = computed(() => {
+  const scopeMemberId = Number(initialBaseMemberId.value)
+  if (!scopeMemberId || !Number.isFinite(scopeMemberId)) return tree.value.edges
+  return tree.value.edges.filter((edge) =>
+    edge.fromMemberId === scopeMemberId || edge.toMemberId === scopeMemberId
+  )
+})
 
 function asIndex(event: { detail: { value: string | number } }) {
   return Number(event.detail.value)
@@ -585,7 +604,7 @@ async function submitRelative() {
     relativeBirthYear.value = ''
     relativeIsAlive.value = true
     relationNote.value = ''
-    uni.showToast({ title: '已创建并放入家谱', icon: 'success' })
+    uni.showToast({ title: '已创建并接入家庭树', icon: 'success' })
     await loadData()
   } catch (error) {
     operationError.value = apiErrorMessage(error, '创建亲属失败。')
@@ -630,7 +649,7 @@ async function submitPlacement() {
   const member = selectedPlaceMember.value
   const base = selectedPlaceBase.value
   if (!member || !base || placingMember.value) {
-    operationError.value = '请选择待定位成员和基准成员。'
+    operationError.value = '请选择待接入成员和基准成员。'
     return
   }
   placingMember.value = true
@@ -655,12 +674,12 @@ async function submitPlacement() {
       payload.memberType = parentRoleValues[placeParentRoleIndex.value]
     }
     await placeExistingMember(familyId.value, payload)
-    uni.showToast({ title: '成员已放入家谱', icon: 'success' })
+    uni.showToast({ title: '成员已接入家庭树', icon: 'success' })
     placeMemberIndex.value = 0
     placeBaseIndex.value = 0
     await loadData()
   } catch (error) {
-    operationError.value = apiErrorMessage(error, '成员定位失败。')
+    operationError.value = apiErrorMessage(error, '接入成员失败。')
   } finally {
     placingMember.value = false
   }
@@ -692,7 +711,7 @@ function relationshipKind(edge: TreeEdge) {
 function confirmDeleteRelationship(relationshipId: number) {
   uni.showModal({
     title: '删除关系',
-    content: '删除后家谱结构会立即更新，确定继续吗？',
+    content: '删除后家庭树会立即更新，确定继续吗？',
     success: (result) => {
       if (result.confirm) removeRelationship(relationshipId)
     }
@@ -729,10 +748,6 @@ async function removeRelationship(relationshipId: number) {
   }
 }
 
-function roleText(role: string) {
-  return ({ FOUNDER: '创建者', FAMILY_ADMIN: '家庭管理员', MEMBER: '普通成员' } as Record<string, string>)[role] || '成员'
-}
-
 function openPrivateTree() {
   if (getCurrentPages().length > 1) {
     uni.navigateBack()
@@ -749,8 +764,17 @@ onLoad((options) => {
   const requestedType = String(options?.addType || '') as RelationshipAddType
   initialAddType.value = relationValues.includes(requestedType) ? requestedType : ''
   const requestedSection = String(options?.section || '')
-  if (requestedSection === 'locate' || requestedSection === 'relations') {
+  if (
+    requestedSection === 'node' ||
+    requestedSection === 'pending' ||
+    requestedSection === 'place' ||
+    requestedSection === 'relations'
+  ) {
     manageSection.value = requestedSection
+  } else if (requestedSection === 'create') {
+    manageSection.value = 'node'
+  } else if (requestedSection === 'locate') {
+    manageSection.value = 'place'
   }
   if (!familyId.value) {
     loadError.value = '缺少家庭信息。'
@@ -799,6 +823,17 @@ onShow(() => {
 
 .context-back:active {
   color: var(--archive-cinnabar);
+}
+
+.manage-flow-note {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  margin-bottom: 20rpx;
+  padding: 18rpx 0;
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
+  line-height: 1.6;
 }
 
 .manage-page .archive-form-panel + .archive-form-panel {

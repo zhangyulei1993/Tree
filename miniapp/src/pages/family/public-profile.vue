@@ -15,7 +15,7 @@
       <view class="profile-head archive-page-head">
         <view>
           <text class="archive-kicker">Public Folio</text>
-          <text class="archive-title">公开族谱扉页</text>
+          <text class="archive-title">公开家庭扉页</text>
           <text class="archive-subtitle">经平台审核后对外展示的家庭简介</text>
         </view>
         <view class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
@@ -35,7 +35,7 @@
         <view class="public-spine archive-book-spine">
           <text>公</text>
           <text>开</text>
-          <text>谱</text>
+          <text>树</text>
         </view>
       </view>
 
@@ -49,16 +49,16 @@
       <view class="public-directory archive-list">
         <view class="archive-row" @click="openPublicTree">
           <view class="archive-row-main">
-            <text class="archive-row-title">查看公开家谱</text>
-            <text class="archive-row-desc">浏览经脱敏处理的公开家谱结构</text>
+            <text class="archive-row-title">查看公开家庭树</text>
+            <text class="archive-row-desc">浏览经脱敏处理的公开关系图</text>
           </view>
-          <text class="archive-row-meta">家谱</text>
+          <text class="archive-row-meta">家庭树</text>
           <text class="archive-arrow">›</text>
         </view>
       </view>
 
       <view class="public-actions">
-        <MiniButton @click="openPublicTree">查看公开家谱</MiniButton>
+        <MiniButton @click="openPublicTree">查看公开家庭树</MiniButton>
         <!-- #ifdef MP-WEIXIN -->
         <button class="wechat-share-button" open-type="share">分享公开家庭</button>
         <!-- #endif -->

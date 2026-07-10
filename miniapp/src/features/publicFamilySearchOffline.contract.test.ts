@@ -167,7 +167,6 @@ test('home page has showcase section without search wording', () => {
 test('my family tab keeps create entry when showing public showcase', () => {
   const myFamily = read(join(miniappSrc, 'pages', 'family', 'my.vue'))
   assert.match(myFamily, /展示家庭/)
-  assert.match(myFamily, /新建家谱册/)
   assert.match(myFamily, /创建家庭/)
   assert.match(myFamily, /openCreateFamily/)
   assert.match(myFamily, /pages\/family\/create/)

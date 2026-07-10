@@ -63,6 +63,7 @@ type FamilyService interface {
 	PublicDetail(context.Context, uint64) (*vo.PublicFamily, *apperrors.BusinessError)
 	ListPublicFamilies(context.Context, dto.ListPublicFamiliesQuery) (*vo.ListPublicFamiliesResult, *apperrors.BusinessError)
 	ListPublicFamilyShowcase(context.Context, dto.ListPublicFamilyShowcaseQuery) (*vo.ListPublicFamilyShowcaseResult, *apperrors.BusinessError)
+	ListOperationLogs(context.Context, uint64, uint64, int, int) (*vo.ListOperationLogsResult, *apperrors.BusinessError)
 	Update(context.Context, uint64, uint64, dto.UpdateFamilyRequest, AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError)
 	CreateDissolutionRequest(context.Context, uint64, uint64, dto.CreateDissolutionRequest, AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	CurrentDissolutionRequest(context.Context, uint64, uint64) (*vo.DissolutionRequest, *apperrors.BusinessError)
@@ -214,10 +215,35 @@ func (s *familyService) List(ctx context.Context, userID uint64) ([]vo.FamilySum
 		result = append(result, vo.FamilySummary{
 			ID: row.ID, FamilyName: row.FamilyName, FamilySurname: row.FamilySurname,
 			NativePlace: row.NativePlace, RegionText: row.RegionText, AvatarURL: row.AvatarURL,
-			Status: row.Status, PublicDisplayStatus: row.PublicDisplayStatus, Role: row.FamilyRole,
+			Status: row.Status, PublicDisplayStatus: row.PublicDisplayStatus,
+			PublicDisplayEnabled: row.PublicDisplayEnabled, Role: row.FamilyRole,
 		})
 	}
 	return result, nil
+}
+
+func (s *familyService) ListOperationLogs(ctx context.Context, userID uint64, familyID uint64, page int, pageSize int) (*vo.ListOperationLogsResult, *apperrors.BusinessError) {
+	allowed, err := s.permissions.CanManageFamily(ctx, userID, familyID)
+	if err != nil || !allowed {
+		return nil, familyError(CodeFamilyDetailForbidden, "无权查看家庭操作记录")
+	}
+	page, pageSize = normalizeOperationLogPage(page, pageSize)
+	rows, total, err := s.repo.ListOperationLogs(ctx, familyID, page, pageSize)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	items := make([]vo.OperationLogItem, 0, len(rows))
+	for i := range rows {
+		row := rows[i]
+		items = append(items, vo.OperationLogItem{
+			ID: row.ID, OperatorType: row.OperatorType, OperatorAdminID: row.OperatorAdminID,
+			OperatorUserID: row.OperatorUserID, Module: row.Module, Action: row.Action,
+			TargetType: row.TargetType, TargetID: row.TargetID, MemberID: row.MemberID,
+			UserID: row.UserID, Result: row.Result, ErrorMessage: row.ErrorMessage,
+			CreatedAt: row.CreatedAt,
+		})
+	}
+	return &vo.ListOperationLogsResult{Items: items, Page: page, PageSize: pageSize, Total: total}, nil
 }
 
 func (s *familyService) Detail(ctx context.Context, userID uint64, familyID uint64) (*vo.FamilyDetail, *apperrors.BusinessError) {
@@ -354,7 +380,7 @@ func (s *familyService) Update(ctx context.Context, userID uint64, familyID uint
 func (s *familyService) Leave(ctx context.Context, userID uint64, familyID uint64, req dto.LeaveFamilyRequest, audit AuditInput) (*vo.LeaveFamilyResult, *apperrors.BusinessError) {
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: userID, Scene: contentsafety.SceneSocial,
-		Fields: contentsafety.OptionalField("leave_reason", req.Reason),
+		Fields:   contentsafety.OptionalField("leave_reason", req.Reason),
 		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
@@ -414,7 +440,7 @@ func (s *familyService) CreateDissolutionRequest(ctx context.Context, userID uin
 	}
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: userID, Scene: contentsafety.SceneSocial,
-		Fields: contentsafety.OptionalField("dissolution_request_reason", req.RequestReason),
+		Fields:   contentsafety.OptionalField("dissolution_request_reason", req.RequestReason),
 		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
@@ -496,7 +522,7 @@ func (s *familyService) CancelDissolutionRequest(ctx context.Context, userID uin
 	}
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: userID, Scene: contentsafety.SceneSocial,
-		Fields: contentsafety.OptionalField("dissolution_cancel_reason", req.CancelReason),
+		Fields:   contentsafety.OptionalField("dissolution_cancel_reason", req.CancelReason),
 		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
@@ -573,13 +599,27 @@ func normalizePublicSearchPage(page, pageSize int) (int, int) {
 	return page, pageSize
 }
 
+func normalizeOperationLogPage(page, pageSize int) (int, int) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+	return page, pageSize
+}
+
 func familyDetail(family *familymodel.Family, role string) *vo.FamilyDetail {
 	return &vo.FamilyDetail{
 		ID: family.ID, FamilyName: family.FamilyName, FamilySurname: family.FamilySurname,
 		NativePlace: family.NativePlace, RegionCode: family.RegionCode, RegionText: family.RegionText,
 		Description: family.Description, AvatarURL: family.AvatarURL, Status: family.Status,
 		Searchable: family.Searchable, PublicDisplayStatus: family.PublicDisplayStatus,
-		PublicContactName: family.PublicContactName, PublicContactPhone: family.PublicContactPhone,
+		PublicDisplayEnabled: family.PublicDisplayEnabled,
+		PublicContactName:    family.PublicContactName, PublicContactPhone: family.PublicContactPhone,
 		PublicContactWechat: family.PublicContactWechat, PublicContactNote: family.PublicContactNote,
 		PublicContactVisible: family.PublicContactVisible, CurrentFounderMemberID: family.CurrentFounderMemberID,
 		GraphVersion: family.GraphVersion, Role: role,

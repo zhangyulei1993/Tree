@@ -59,11 +59,13 @@ type logRecord struct {
 type fakeRepo struct {
 	family              model.Family
 	member              membermodel.FamilyMember
+	members             map[uint64]membermodel.FamilyMember
 	users               map[uint64]usermodel.User
 	invitations         map[uint64]*invitationmodel.FamilyInvitation
 	links               []rolemodel.FamilyMemberUserLink
 	logs                []logRecord
 	nextID              uint64
+	nextMemberID        uint64
 	pendingJoinRequests int64
 }
 
@@ -71,11 +73,14 @@ func newFakeRepo() *fakeRepo {
 	return &fakeRepo{
 		family: model.Family{ID: 2, FamilyName: "Tree", Status: "NORMAL", GraphVersion: 14},
 		member: membermodel.FamilyMember{ID: 6, FamilyID: 2, DisplayName: "Member", Status: "ACTIVE", UserBindingPolicy: "OPTIONAL"},
+		members: map[uint64]membermodel.FamilyMember{
+			6: {ID: 6, FamilyID: 2, DisplayName: "Member", Status: "ACTIVE", UserBindingPolicy: "OPTIONAL"},
+		},
 		users: map[uint64]usermodel.User{
 			8: {ID: 8, Status: "ACTIVE", PhoneVerified: true},
 			9: {ID: 9, Status: "ACTIVE", PhoneVerified: true},
 		},
-		invitations: map[uint64]*invitationmodel.FamilyInvitation{}, nextID: 1,
+		invitations: map[uint64]*invitationmodel.FamilyInvitation{}, nextID: 1, nextMemberID: 20,
 	}
 }
 func (r *fakeRepo) WithTx(*gorm.DB) inviterepo.Repository { return r }
@@ -84,8 +89,15 @@ func (r *fakeRepo) FindFamily(context.Context, uint64, bool) (*model.Family, err
 	v := r.family
 	return &v, nil
 }
-func (r *fakeRepo) FindMember(context.Context, uint64, uint64, bool) (*membermodel.FamilyMember, error) {
-	v := r.member
+func (r *fakeRepo) FindMember(_ context.Context, _ uint64, memberID uint64, _ bool) (*membermodel.FamilyMember, error) {
+	if memberID == r.member.ID {
+		v := r.member
+		return &v, nil
+	}
+	v, ok := r.members[memberID]
+	if !ok {
+		return nil, gorm.ErrRecordNotFound
+	}
 	return &v, nil
 }
 func (r *fakeRepo) FindUser(_ context.Context, id uint64, _ bool) (*usermodel.User, error) {
@@ -127,6 +139,19 @@ func (r *fakeRepo) Create(_ context.Context, value *invitationmodel.FamilyInvita
 	r.invitations[value.ID] = &copy
 	return nil
 }
+func (r *fakeRepo) CreateMember(_ context.Context, value *membermodel.FamilyMember) error {
+	value.ID = r.nextMemberID
+	r.nextMemberID++
+	value.CreatedAt = time.Now()
+	copy := *value
+	r.members[value.ID] = copy
+	r.member = copy
+	return nil
+}
+func (r *fakeRepo) IncrementGraphVersion(context.Context, uint64) error {
+	r.family.GraphVersion++
+	return nil
+}
 func (r *fakeRepo) FindByID(_ context.Context, id uint64, _ bool) (*invitationmodel.FamilyInvitation, error) {
 	v, ok := r.invitations[id]
 	if !ok {
@@ -141,7 +166,7 @@ func (r *fakeRepo) FindRowByID(_ context.Context, id uint64) (*inviterepo.Invita
 		return nil, gorm.ErrRecordNotFound
 	}
 	return &inviterepo.InvitationRow{
-		FamilyInvitation: *v, FamilyName: "Tree", TargetMemberName: "Member",
+		FamilyInvitation: *v, FamilyName: "Tree", TargetMemberName: r.memberName(v.TargetMemberID),
 		InviterDisplayName: "邀请人",
 	}, nil
 }
@@ -149,7 +174,7 @@ func (r *fakeRepo) FindByTokenHash(_ context.Context, hash string) (*inviterepo.
 	for _, v := range r.invitations {
 		if v.InviteToken != nil && *v.InviteToken == hash {
 			return &inviterepo.InvitationRow{
-				FamilyInvitation: *v, FamilyName: "Tree", TargetMemberName: "Member",
+				FamilyInvitation: *v, FamilyName: "Tree", TargetMemberName: r.memberName(v.TargetMemberID),
 				InviterDisplayName: "邀请人",
 			}, nil
 		}
@@ -161,7 +186,7 @@ func (r *fakeRepo) ListForUser(_ context.Context, userID uint64) ([]inviterepo.I
 	for _, v := range r.invitations {
 		if v.TargetUserID != nil && *v.TargetUserID == userID {
 			rows = append(rows, inviterepo.InvitationRow{
-				FamilyInvitation: *v, InviterDisplayName: "邀请人",
+				FamilyInvitation: *v, FamilyName: "Tree", TargetMemberName: r.memberName(v.TargetMemberID), InviterDisplayName: "邀请人",
 			})
 		}
 	}
@@ -172,7 +197,7 @@ func (r *fakeRepo) ListForFamily(_ context.Context, familyID uint64) ([]invitere
 	for _, v := range r.invitations {
 		if v.FamilyID == familyID {
 			rows = append(rows, inviterepo.InvitationRow{
-				FamilyInvitation: *v, FamilyName: "Tree", TargetMemberName: "Member",
+				FamilyInvitation: *v, FamilyName: "Tree", TargetMemberName: r.memberName(v.TargetMemberID),
 				InviterDisplayName: "邀请人",
 			})
 		}
@@ -220,6 +245,13 @@ func (r *fakeRepo) WriteFailedLog(_ context.Context, input operationlog.WriteInp
 	return nil
 }
 
+func (r *fakeRepo) memberName(memberID uint64) string {
+	if member, ok := r.members[memberID]; ok {
+		return member.DisplayName
+	}
+	return "Member"
+}
+
 type fakeUOW struct{ repo inviterepo.Repository }
 
 func (u fakeUOW) WithinTransaction(ctx context.Context, fn func(inviterepo.Repository) error) error {
@@ -252,6 +284,28 @@ func TestInvitationCreationRules(t *testing.T) {
 		logJSON, _ := json.Marshal(repo.logs)
 		if string(logJSON) == "" || contains(string(logJSON), result.InviteToken) {
 			t.Fatal("operation log contains raw token")
+		}
+	})
+	t.Run("family invite creates pending member node", func(t *testing.T) {
+		repo := newFakeRepo()
+		svc := testService(repo, true, now)
+		result, err := svc.CreateFamily(context.Background(), 8, 2, dto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, AuditInput{})
+		if err != nil {
+			t.Fatalf("unexpected error: %#v", err)
+		}
+		if result.Invitation.TargetMemberName != "待确认成员" {
+			t.Fatalf("unexpected target member name: %s", result.Invitation.TargetMemberName)
+		}
+		stored := repo.invitations[result.Invitation.InvitationID]
+		if stored.InviteType != "JOIN_FAMILY_PENDING_MEMBER" || stored.TargetMemberID == 0 {
+			t.Fatalf("unexpected invitation: %#v", stored)
+		}
+		member := repo.members[stored.TargetMemberID]
+		if member.DisplayName != "待确认成员" || member.UserBindingPolicy != "OPTIONAL" {
+			t.Fatalf("unexpected pending member: %#v", member)
+		}
+		if repo.family.GraphVersion != 15 {
+			t.Fatalf("graph version not incremented: %d", repo.family.GraphVersion)
 		}
 	})
 	t.Run("in-app invite validates target", func(t *testing.T) {

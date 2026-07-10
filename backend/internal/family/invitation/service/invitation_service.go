@@ -24,6 +24,7 @@ import (
 	invitationmodel "tree/backend/internal/family/invitation/model"
 	inviterepo "tree/backend/internal/family/invitation/repository"
 	"tree/backend/internal/family/invitation/vo"
+	membermodel "tree/backend/internal/family/member/model"
 	rolemodel "tree/backend/internal/family/role/model"
 	operationlog "tree/backend/internal/operationlog/service"
 )
@@ -49,6 +50,7 @@ type AuditInput struct {
 
 type Service interface {
 	Create(context.Context, uint64, uint64, uint64, dto.CreateInvitationRequest, AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError)
+	CreateFamily(context.Context, uint64, uint64, dto.CreateInvitationRequest, AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError)
 	Detail(context.Context, string) (*vo.Invitation, *apperrors.BusinessError)
 	Accept(context.Context, uint64, uint64, AuditInput) (*vo.Invitation, *apperrors.BusinessError)
 	Reject(context.Context, uint64, uint64, dto.RejectInvitationRequest, AuditInput) (*vo.Invitation, *apperrors.BusinessError)
@@ -73,6 +75,118 @@ func NewService(repo inviterepo.Repository, uow inviterepo.UnitOfWork, permissio
 		contentSafety = contentsafety.FailClosed()
 	}
 	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, contentSafety: contentSafety, now: time.Now, token: randomToken}
+}
+
+func (s *service) CreateFamily(ctx context.Context, actorID, familyID uint64, req dto.CreateInvitationRequest, audit AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError) {
+	allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID)
+	if err != nil || !allowed {
+		return nil, inviteError(CodeInvitationForbidden, "无权创建邀请")
+	}
+	channel := strings.ToUpper(strings.TrimSpace(req.InviteChannel))
+	if channel != inviteenum.ChannelShareLink && channel != inviteenum.ChannelInApp {
+		return nil, inviteError(CodeMemberNotInvitable, "邀请方式不支持")
+	}
+	if channel == inviteenum.ChannelInApp && (req.TargetUserID == nil || *req.TargetUserID == 0) {
+		return nil, inviteError(CodeMemberNotInvitable, "站内邀请必须指定用户")
+	}
+	if channel == inviteenum.ChannelShareLink && req.TargetUserID != nil {
+		return nil, inviteError(CodeMemberNotInvitable, "分享邀请不能指定站内用户")
+	}
+	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
+		UserID:   actorID,
+		Scene:    contentsafety.SceneSocial,
+		Fields:   contentsafety.OptionalField("invite_message", req.InviteMessage),
+		FamilyID: &familyID,
+		IP:       audit.IP, UserAgent: audit.UserAgent,
+	}); businessErr != nil {
+		return nil, businessErr
+	}
+	if req.FamilyRoleAfterAccept != nil &&
+		strings.ToUpper(strings.TrimSpace(*req.FamilyRoleAfterAccept)) != string(enums.FamilyRoleMember) {
+		return nil, inviteError(CodeMemberNotInvitable, "邀请接受后的家庭角色只能是 MEMBER")
+	}
+	rawToken, err := s.token()
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	now := s.now()
+	role := string(enums.FamilyRoleMember)
+	actorType := inviteenum.ActorFamilyAdmin
+	if link, err := s.permissions.GetActiveLink(ctx, actorID, familyID); err == nil && link.FamilyRole == string(enums.FamilyRoleFounder) {
+		actorType = inviteenum.ActorFamilyFounder
+	}
+	member := &membermodel.FamilyMember{
+		FamilyID:          familyID,
+		MemberType:        "LINEAGE_MEMBER",
+		DisplayName:       "待确认成员",
+		Gender:            string(enums.GenderUnknown),
+		UserBindingPolicy: string(enums.UserBindingOptional),
+		Status:            string(enums.StatusActive),
+		CreatedByUserID:   &actorID,
+	}
+	invitation := &invitationmodel.FamilyInvitation{
+		FamilyID: familyID, InviterUserID: &actorID,
+		TargetUserID: req.TargetUserID, InviteType: inviteenum.TypeJoinFamilyPendingMember,
+		InviteChannel: channel, InviteActorType: actorType, FamilyRoleAfterAccept: role,
+		InviteToken: stringPtr(tokenHash(rawToken)), InviteMessage: clean(req.InviteMessage),
+		Status: inviteenum.StatusPending, ExpiredAt: now.Add(invitationTTL),
+	}
+	err = s.uow.WithinTransaction(ctx, func(repo inviterepo.Repository) error {
+		family, err := repo.FindFamily(ctx, familyID, true)
+		if err != nil || family.Status != string(enums.StatusNormal) {
+			return errMemberUnavailable
+		}
+		if req.TargetUserID != nil {
+			user, err := repo.FindUser(ctx, *req.TargetUserID, true)
+			if err != nil || user.Status != string(enums.StatusActive) {
+				return errMemberUnavailable
+			}
+			linked, err := linkExists(repo.FindActiveLinkByUser(ctx, familyID, *req.TargetUserID))
+			if err != nil {
+				return err
+			}
+			if linked {
+				return errUserLinked
+			}
+		}
+		if s.quota != nil {
+			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), actorID); err != nil {
+				return err
+			}
+			if err := s.quota.AssertCanAddMember(ctx, repo.DB(), familyID, 1); err != nil {
+				return err
+			}
+		}
+		if err := repo.CreateMember(ctx, member); err != nil {
+			return err
+		}
+		if err := repo.IncrementGraphVersion(ctx, familyID); err != nil {
+			return err
+		}
+		invitation.TargetMemberID = member.ID
+		if err := repo.Create(ctx, invitation); err != nil {
+			return err
+		}
+		if err := writePendingMemberLog(ctx, repo, actorID, familyID, member.ID, audit); err != nil {
+			return err
+		}
+		return writeLog(ctx, repo, actorID, familyID, member.ID, invitation.ID, "CREATE_FAMILY_INVITATION", audit)
+	})
+	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
+	}
+	if businessErr := mapError(err); businessErr != nil {
+		return nil, businessErr
+	}
+	row, err := s.repo.FindByTokenHash(ctx, tokenHash(rawToken))
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	return &vo.CreatedInvitation{Invitation: invitationVO(row), InviteToken: rawToken}, nil
 }
 
 func (s *service) Create(ctx context.Context, actorID, familyID, memberID uint64, req dto.CreateInvitationRequest, audit AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError) {
@@ -304,7 +418,7 @@ func (s *service) Reject(ctx context.Context, actorID, invitationID uint64, req 
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: actorID, Scene: contentsafety.SceneSocial,
 		Fields: contentsafety.OptionalField("reject_reason", req.Reason),
-		IP: audit.IP, UserAgent: audit.UserAgent,
+		IP:     audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
 	}
@@ -341,7 +455,7 @@ func (s *service) Cancel(ctx context.Context, actorID, invitationID uint64, req 
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: actorID, Scene: contentsafety.SceneSocial,
 		Fields: contentsafety.OptionalField("cancel_reason", req.Reason),
-		IP: audit.IP, UserAgent: audit.UserAgent,
+		IP:     audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
 	}
@@ -497,7 +611,7 @@ func invitationVO(row *inviterepo.InvitationRow) vo.Invitation {
 		InvitationID: row.ID, FamilyID: row.FamilyID, FamilyName: row.FamilyName,
 		TargetMemberID: row.TargetMemberID, TargetMemberName: row.TargetMemberName,
 		InviterDisplayName: row.InviterDisplayName, InviterRole: row.InviteActorType,
-		InviteChannel: row.InviteChannel, InviteMessage: row.InviteMessage,
+		InviteType: row.InviteType, InviteChannel: row.InviteChannel, InviteMessage: row.InviteMessage,
 		FamilyRoleAfterAccept: row.FamilyRoleAfterAccept, Status: row.Status,
 		ExpiredAt: row.ExpiredAt, AcceptedAt: row.AcceptedAt, RejectedAt: row.RejectedAt,
 		CancelledAt: row.CancelledAt, CreatedAt: row.CreatedAt,
@@ -510,6 +624,16 @@ func writeLog(ctx context.Context, repo inviterepo.Repository, actorID, familyID
 		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
 		Module: "FAMILY_INVITATION", Action: action, TargetType: &targetType,
 		TargetID: &invitationID, FamilyID: &familyID, MemberID: &memberID,
+		IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
+	})
+}
+
+func writePendingMemberLog(ctx context.Context, repo inviterepo.Repository, actorID, familyID, memberID uint64, audit AuditInput) error {
+	targetType := "FAMILY_MEMBER"
+	return repo.WriteLog(ctx, operationlog.WriteInput{
+		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
+		Module: "FAMILY_MEMBER", Action: "CREATE_PENDING_INVITATION_MEMBER", TargetType: &targetType,
+		TargetID: &memberID, FamilyID: &familyID, MemberID: &memberID,
 		IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
 	})
 }

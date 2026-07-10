@@ -1,5 +1,5 @@
 import { request } from '@/api/client'
-import type { FamilyPublicStatus, PaginatedResult, PublicApplication } from '@/types/api'
+import type { FamilyOperationLog, FamilyPublicStatus, PaginatedResult, PublicApplication } from '@/types/api'
 
 export function listPublicApplications(familyId: number | string) {
   return request<PaginatedResult<PublicApplication>>(
@@ -27,7 +27,19 @@ export function cancelPublicApplication(
 
 export function closePublicFamily(familyId: number | string, reason?: string) {
   return request<FamilyPublicStatus, { reason?: string }>(
-    `/families/${familyId}/take-down-public`,
+    `/families/${familyId}/public-display/disable`,
     { method: 'POST', data: reason ? { reason } : {} }
+  )
+}
+
+export function enablePublicFamily(familyId: number | string) {
+  return request<FamilyPublicStatus>(`/families/${familyId}/public-display/enable`, {
+    method: 'POST'
+  })
+}
+
+export function listFamilyOperationLogs(familyId: number | string) {
+  return request<PaginatedResult<FamilyOperationLog>>(
+    `/families/${familyId}/operation-logs?page=1&pageSize=20`
   )
 }

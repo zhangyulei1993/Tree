@@ -136,7 +136,7 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
         renderedCount,
         scrollIntoViewId: undefined,
         unlocatedMembers,
-        message: '家谱结构暂时无法生成，可查看关系明细'
+        message: '家庭树暂时无法生成，可查看关系明细'
       }
     }
 
@@ -263,7 +263,7 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
       renderedCount,
       scrollIntoViewId,
       unlocatedMembers,
-      message: renderNodes.length === 0 ? '家谱结构暂时无法生成，可查看关系明细' : undefined
+      message: renderNodes.length === 0 ? '家庭树暂时无法生成，可查看关系明细' : undefined
     }
   } catch {
     return {
@@ -276,7 +276,7 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
       renderedCount,
       scrollIntoViewId: undefined,
       unlocatedMembers: [],
-      message: '家谱结构暂时无法生成，可查看关系明细'
+      message: '家庭树暂时无法生成，可查看关系明细'
     }
   }
 }

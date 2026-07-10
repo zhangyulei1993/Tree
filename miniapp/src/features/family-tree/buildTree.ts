@@ -327,7 +327,7 @@ export function buildFamilyTree(input: FamilyTreeBuildInput): BuiltFamilyTree {
       orphanUnits,
       memberCount: memberIds.length,
       visibleMemberCount,
-      message: layers.length === 0 ? '家谱结构暂时无法生成，可查看关系明细' : undefined
+      message: layers.length === 0 ? '家庭树暂时无法生成，可查看关系明细' : undefined
     }
   } catch {
     return {
@@ -336,7 +336,7 @@ export function buildFamilyTree(input: FamilyTreeBuildInput): BuiltFamilyTree {
       orphanUnits: [],
       memberCount: memberIds.length,
       visibleMemberCount: 0,
-      message: '家谱结构暂时无法生成，可查看关系明细'
+      message: '家庭树暂时无法生成，可查看关系明细'
     }
   }
 }

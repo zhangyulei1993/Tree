@@ -13,12 +13,17 @@ import (
 	dissolutionmodel "tree/backend/internal/family/dissolution/model"
 	membermodel "tree/backend/internal/family/member/model"
 	rolemodel "tree/backend/internal/family/role/model"
+	operationmodel "tree/backend/internal/operationlog/model"
 	usermodel "tree/backend/internal/user/model"
 )
 
 type FamilyListRow struct {
 	familymodel.Family
 	FamilyRole string `gorm:"column:family_role"`
+}
+
+type OperationLogRow struct {
+	operationmodel.OperationLog
 }
 
 type PublicFamilySearchQuery struct {
@@ -45,6 +50,7 @@ type FamilyRepository interface {
 	FindPublicFamilyByID(ctx context.Context, familyID uint64) (*familymodel.Family, error)
 	SearchPublicFamilies(ctx context.Context, query PublicFamilySearchQuery) ([]familymodel.Family, int64, error)
 	ListByUser(ctx context.Context, userID uint64) ([]FamilyListRow, error)
+	ListOperationLogs(ctx context.Context, familyID uint64, page int, pageSize int) ([]OperationLogRow, int64, error)
 	UpdateFamily(ctx context.Context, familyID uint64, values map[string]any) error
 	CreateDissolutionRequest(ctx context.Context, request *dissolutionmodel.FamilyDissolutionRequest) error
 	FindCurrentDissolutionRequest(ctx context.Context, familyID uint64) (*dissolutionmodel.FamilyDissolutionRequest, error)
@@ -127,7 +133,7 @@ func (r *GormFamilyRepository) FindFamilyByIDForUpdate(ctx context.Context, fami
 func (r *GormFamilyRepository) FindPublicFamilyByID(ctx context.Context, familyID uint64) (*familymodel.Family, error) {
 	var family familymodel.Family
 	if err := r.db.WithContext(ctx).
-		Where("id = ? AND deleted_at IS NULL AND status = ? AND public_display_status = ?", familyID, "NORMAL", "APPROVED").
+		Where("id = ? AND deleted_at IS NULL AND status = ? AND public_display_status = ? AND public_display_enabled = ?", familyID, "NORMAL", "APPROVED", true).
 		First(&family).Error; err != nil {
 		return nil, err
 	}
@@ -141,7 +147,8 @@ func (r *GormFamilyRepository) SearchPublicFamilies(ctx context.Context, query P
 		Where("deleted_at IS NULL").
 		Where("status = ?", "NORMAL").
 		Where("searchable = ?", true).
-		Where("public_display_status = ?", "APPROVED")
+		Where("public_display_status = ?", "APPROVED").
+		Where("public_display_enabled = ?", true)
 
 	if keyword := strings.TrimSpace(query.Keyword); keyword != "" {
 		pattern := "%" + keyword + "%"
@@ -197,8 +204,34 @@ func (r *GormFamilyRepository) ListByUser(ctx context.Context, userID uint64) ([
 	return rows, err
 }
 
+func (r *GormFamilyRepository) ListOperationLogs(ctx context.Context, familyID uint64, page int, pageSize int) ([]OperationLogRow, int64, error) {
+	page, pageSize = normalizeOperationLogPage(page, pageSize)
+	db := r.db.WithContext(ctx).Model(&operationmodel.OperationLog{}).
+		Where("family_id = ?", familyID)
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []OperationLogRow
+	err := db.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error
+	return rows, total, err
+}
+
 func (r *GormFamilyRepository) UpdateFamily(ctx context.Context, familyID uint64, values map[string]any) error {
 	return r.db.WithContext(ctx).Model(&familymodel.Family{}).Where("id = ?", familyID).Updates(values).Error
+}
+
+func normalizeOperationLogPage(page, pageSize int) (int, int) {
+	if page <= 0 {
+		page = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+	return page, pageSize
 }
 
 func (r *GormFamilyRepository) CreateDissolutionRequest(ctx context.Context, request *dissolutionmodel.FamilyDissolutionRequest) error {

@@ -14,21 +14,30 @@
     <template v-else-if="tree">
       <view class="tree-head">
         <view>
-          <text class="archive-kicker">Genealogy</text>
-          <text class="archive-title">家谱</text>
-          <text class="archive-subtitle">
-            {{ family?.familyName || '家谱结构' }} · {{ treeViewLabel(tree.treeMode) }} · {{ tree.nodes.length }} 位成员
-          </text>
+        <text class="archive-kicker">Family Tree</text>
+        <text class="archive-title">家庭树</text>
+        <text class="archive-subtitle">
+            {{ family?.familyName || '家庭关系' }} · 家庭树 · {{ tree.nodes.length }} 位成员
+        </text>
         </view>
         <view v-if="family" class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
       </view>
 
+      <view class="archive-segment-tabs family-tree-tabs">
+        <view class="archive-segment-tab active">
+          <text>家庭树</text>
+        </view>
+        <view class="archive-segment-tab" @click="openMembers">
+          <text>成员表</text>
+        </view>
+      </view>
+
       <view v-if="canManageFamily" class="genealogy-tools">
-        <text class="genealogy-tools-label">家谱管理</text>
+        <text class="genealogy-tools-label">关系管理</text>
         <view class="genealogy-tools-links">
-          <button class="genealogy-tool-link" @click="openManageSection('create')">添加亲属</button>
-          <button class="genealogy-tool-link" @click="openManageSection('locate')">定位成员</button>
-          <button class="genealogy-tool-link" @click="openManageSection('relations')">关系维护</button>
+          <button class="genealogy-tool-link" @click="openManageSection('node')">添加节点</button>
+          <button class="genealogy-tool-link" @click="openManageSection('pending')">添加暂存</button>
+          <button class="genealogy-tool-link" @click="openManageSection('place')">暂存转化</button>
         </view>
       </view>
 
@@ -50,15 +59,15 @@
       </view>
 
       <view class="tree-scroll-note">
-        <text>纸签家谱可左右滑动查看；配偶为浅纸签，不作为关系扩展入口。</text>
+        <text>关系图可左右滑动查看；配偶为浅纸签，不作为关系扩展入口。</text>
       </view>
 
       <template v-if="viewMode === 'structure'">
         <MiniEmptyState
           v-if="tree.nodes.length === 0"
-          symbol="谱"
+          symbol="树"
           title="暂无成员"
-          description="请先在家庭成员中添加成员后再查看家谱。"
+          description="请先在家庭树成员中添加成员后再查看关系图。"
         />
         <FamilyTreeStructureView
           v-else
@@ -126,11 +135,7 @@ import MiniNotice from '@/components/base/MiniNotice.vue'
 import FamilyTreeStructureView from '@/components/family/FamilyTreeStructureView.vue'
 import RelationSentenceList from '@/components/family/RelationSentenceList.vue'
 import { resolveCurrentMemberId } from '@/features/family-tree/resolveCurrentMember'
-import {
-  buildRelationSentences,
-  countVisibleEdges,
-  treeViewLabel
-} from '@/features/family-tree/relationSentences'
+import { buildRelationSentences, countVisibleEdges } from '@/features/family-tree/relationSentences'
 import type { FamilyTreeViewMode } from '@/features/family-tree/types'
 import { isSpouseMember, isExternalMember } from '@/features/family-tree/graph'
 import { useSessionStore } from '@/stores/session'
@@ -203,7 +208,11 @@ function openFamilyOverview() {
   uni.redirectTo({ url: `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}` })
 }
 
-function openManageSection(section: 'create' | 'locate' | 'relations') {
+function openMembers() {
+  uni.redirectTo({ url: `/pages/family/members?familyId=${encodeURIComponent(familyId.value)}` })
+}
+
+function openManageSection(section: 'node' | 'pending' | 'place') {
   uni.navigateTo({
     url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=${section}`
   })
@@ -212,8 +221,14 @@ function openManageSection(section: 'create' | 'locate' | 'relations') {
 function openNodeActions(node: TreeNode) {
   if (!canManageFamily.value) return
   const items = ['编辑成员资料']
-  if (!isSpouseMember(node) && !isExternalMember(node)) items.push('添加关系')
-  items.push(node.isLiving === false ? '标记为健在' : '标记为已故')
+  if (!isSpouseMember(node) && !isExternalMember(node)) items.push('添加关系', '调整关系')
+  if (node.isLiving === true) {
+    items.push('标记为已故')
+  } else if (node.isLiving === false) {
+    items.push('标记为健在')
+  } else {
+    items.push('标记为健在', '标记为已故')
+  }
   items.push('删除成员')
   uni.showActionSheet({
     itemList: items,
@@ -225,6 +240,10 @@ function openNodeActions(node: TreeNode) {
       }
       if (action === '添加关系') {
         openAddRelation(node)
+        return
+      }
+      if (action === '调整关系') {
+        openAdjustRelation(node)
         return
       }
       if (action === '标记为健在' || action === '标记为已故') {
@@ -246,7 +265,13 @@ function openMemberEdit(node: TreeNode) {
 
 function openAddRelation(node: TreeNode) {
   uni.navigateTo({
-    url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=create&baseMemberId=${encodeURIComponent(String(node.memberId))}`
+    url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=node&baseMemberId=${encodeURIComponent(String(node.memberId))}`
+  })
+}
+
+function openAdjustRelation(node: TreeNode) {
+  uni.navigateTo({
+    url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=relations&baseMemberId=${encodeURIComponent(String(node.memberId))}`
   })
 }
 
@@ -276,7 +301,7 @@ function confirmDeleteMember(node: TreeNode) {
 
 async function deleteMember(node: TreeNode) {
   try {
-    await deleteFamilyMember(familyId.value, node.memberId, '小程序家谱节点删除')
+    await deleteFamilyMember(familyId.value, node.memberId, '小程序家庭树节点删除')
     uni.showToast({ title: '成员已删除', icon: 'success' })
     await loadTree()
   } catch (error) {
@@ -319,6 +344,10 @@ onUnload(resetPageData)
   justify-content: space-between;
   gap: 24rpx;
   margin-bottom: 24rpx;
+}
+
+.family-tree-tabs {
+  margin-bottom: 20rpx;
 }
 
 .genealogy-tools {

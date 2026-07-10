@@ -7,9 +7,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
-	"tree/backend/internal/common/contentsafety"
 	familymodel "tree/backend/internal/family/core/model"
 	publicdto "tree/backend/internal/family/publicdisplay/dto"
 	publicenum "tree/backend/internal/family/publicdisplay/enum"
@@ -74,11 +74,17 @@ func (r *fakeRepo) UpdateFamilyPublicStatus(_ context.Context, _ uint64, values 
 	if value, ok := values["public_display_status"].(string); ok {
 		r.family.PublicDisplayStatus = value
 	}
+	if value, ok := values["public_display_enabled"].(bool); ok {
+		r.family.PublicDisplayEnabled = value
+	}
 	if value, ok := values["public_applied_at"].(time.Time); ok {
 		r.family.PublicAppliedAt = &value
 	}
 	if value, ok := values["public_approved_at"].(time.Time); ok {
 		r.family.PublicApprovedAt = &value
+	}
+	if value, ok := values["public_enabled_at"].(time.Time); ok {
+		r.family.PublicEnabledAt = &value
 	}
 	if value, ok := values["public_taken_down_at"].(time.Time); ok {
 		r.family.PublicTakenDownAt = &value
@@ -223,19 +229,20 @@ func TestPublicApplicationFlow(t *testing.T) {
 			t.Fatalf("unexpected %#v", err)
 		}
 	})
-	t.Run("family manager closes approved public display immediately", func(t *testing.T) {
+	t.Run("family manager disables approved public display without revoking permission", func(t *testing.T) {
 		repo := newFakeRepo()
 		repo.family.PublicDisplayStatus = publicenum.PublicApproved
+		repo.family.PublicDisplayEnabled = true
 		before := repo.family.GraphVersion
 		result, err := newTestService(repo, true, now).TakeDownUser(
 			context.Background(), 8, 2, publicdto.TakeDownPublicFamilyRequest{}, AuditInput{},
 		)
-		if err != nil || result.PublicDisplayStatus != publicenum.PublicTakenDown {
+		if err != nil || result.PublicDisplayStatus != publicenum.PublicApproved || result.PublicDisplayEnabled {
 			t.Fatalf("unexpected %#v %#v", result, err)
 		}
 		if repo.family.GraphVersion != before || len(repo.logs) != 1 ||
-			repo.logs[0].OperatorUserID == nil || repo.logs[0].Action != "CLOSE_PUBLIC_FAMILY" {
-			t.Fatal("user take down must preserve graph version and write user operation log")
+			repo.logs[0].OperatorUserID == nil || repo.logs[0].Action != "DISABLE_PUBLIC_DISPLAY" {
+			t.Fatal("user disable must preserve graph version and write user operation log")
 		}
 	})
 	t.Run("non-manager cannot close public display", func(t *testing.T) {

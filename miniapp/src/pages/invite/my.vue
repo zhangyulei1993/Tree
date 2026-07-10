@@ -19,8 +19,8 @@
     </view>
 
     <template v-if="authChecked">
-      <MiniNotice tone="security" title="核对成员身份">
-        邀请由家庭管理员发起，请核对家庭名称、成员姓名和邀请发起人后再接受。
+      <MiniNotice tone="security" title="核对邀请信息">
+        邀请由家庭管理员发起，请核对家庭名称、成员身份和邀请发起人后再接受。
       </MiniNotice>
 
       <view v-if="loading && invitations.length === 0" class="invite-state archive-form-panel">
@@ -51,7 +51,7 @@
               <view class="invite-item-head">
                 <view class="archive-row-main">
                   <text class="archive-row-title">{{ item.familyName }}</text>
-                  <text class="archive-row-desc">邀请成员：{{ item.targetMemberName }}</text>
+                  <text class="archive-row-desc">成员身份：{{ inviteTargetText(item) }}</text>
                 </view>
                 <text class="archive-status-tag" :class="invitationStatusClass(displayStatus(item))">
                   {{ invitationStatusText(displayStatus(item)) }}
@@ -143,7 +143,7 @@ const invitationGroups = computed(() => {
   const pending = invitations.value.filter((item) => displayStatus(item) === 'PENDING')
   const history = invitations.value.filter((item) => displayStatus(item) !== 'PENDING')
   return [
-    { key: 'pending', title: '待我处理', subtitle: '需要确认成员身份的邀请', items: pending },
+    { key: 'pending', title: '待我处理', subtitle: '需要确认家庭与成员身份的邀请', items: pending },
     { key: 'history', title: '历史记录', subtitle: '已接受、拒绝或失效的邀请', items: history }
   ].filter((group) => group.items.length > 0)
 })
@@ -177,6 +177,14 @@ function formatDate(value: string) {
 function displayStatus(item: Invitation) {
   if (item.status === 'PENDING' && new Date(item.expiredAt).getTime() <= Date.now()) return 'EXPIRED'
   return item.status
+}
+
+function isPendingMemberInvitation(item: Invitation) {
+  return item.inviteType === 'JOIN_FAMILY_PENDING_MEMBER'
+}
+
+function inviteTargetText(item: Invitation) {
+  return isPendingMemberInvitation(item) ? '身份待确认' : item.targetMemberName
 }
 
 function inviteChannelText(channel: string) {

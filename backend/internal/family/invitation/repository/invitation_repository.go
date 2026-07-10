@@ -31,7 +31,9 @@ type Repository interface {
 	FindActiveLinkByMember(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
 	FindActiveLinkByUser(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
 	FindPendingByMember(context.Context, uint64, uint64, time.Time) (*invitationmodel.FamilyInvitation, error)
+	CreateMember(context.Context, *membermodel.FamilyMember) error
 	Create(context.Context, *invitationmodel.FamilyInvitation) error
+	IncrementGraphVersion(context.Context, uint64) error
 	FindByID(context.Context, uint64, bool) (*invitationmodel.FamilyInvitation, error)
 	FindRowByID(context.Context, uint64) (*InvitationRow, error)
 	FindByTokenHash(context.Context, string) (*InvitationRow, error)
@@ -102,6 +104,16 @@ func (r *GormRepository) FindPendingByMember(ctx context.Context, familyID, memb
 
 func (r *GormRepository) Create(ctx context.Context, value *invitationmodel.FamilyInvitation) error {
 	return r.db.WithContext(ctx).Create(value).Error
+}
+
+func (r *GormRepository) CreateMember(ctx context.Context, value *membermodel.FamilyMember) error {
+	return r.db.WithContext(ctx).Create(value).Error
+}
+
+func (r *GormRepository) IncrementGraphVersion(ctx context.Context, familyID uint64) error {
+	return r.db.WithContext(ctx).Model(&familymodel.Family{}).
+		Where("id = ?", familyID).
+		UpdateColumn("graph_version", gorm.Expr("graph_version + 1")).Error
 }
 
 func (r *GormRepository) FindByID(ctx context.Context, id uint64, lock bool) (*invitationmodel.FamilyInvitation, error) {

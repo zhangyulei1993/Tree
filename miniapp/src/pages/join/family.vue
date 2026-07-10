@@ -24,7 +24,7 @@
     </view>
 
     <MiniNotice tone="security" title="审核说明">
-      仅家庭创建者和管理员可查看与处理。通过前请确认申请人在家谱中的位置。
+      仅家庭创建者和管理员可查看与处理。通过前请确认申请人在家庭树中的位置。
     </MiniNotice>
 
     <view v-if="loading && requests.length === 0" class="review-state archive-form-panel">
@@ -115,7 +115,7 @@
               <template v-if="resolveMode === 'bind'">
                 <view class="archive-section-head">
                   <text class="archive-section-title">绑定到已有成员</text>
-                  <text class="archive-section-subtitle">适合家谱里已经有这个人，只是还没有绑定账号</text>
+                  <text class="archive-section-subtitle">适合家庭树里已经有这个人，只是还没有绑定账号</text>
                 </view>
                 <picker
                   v-if="bindableMembers.length > 0"
@@ -141,7 +141,7 @@
 
               <template v-else-if="resolveMode === 'locate'">
                 <view class="archive-section-head">
-                  <text class="archive-section-title">创建新成员并放入家谱</text>
+                  <text class="archive-section-title">创建新成员并放入家庭树</text>
                   <text class="archive-section-subtitle">适合知道申请人与某位已有成员的关系</text>
                 </view>
                 <text class="tree-field-label">新成员姓名</text>
@@ -161,7 +161,7 @@
                   <view class="field-picker">{{ selectedBaseMemberLabel }}</view>
                 </picker>
                 <MiniNotice v-else tone="warm">
-                  当前家庭还没有可作为基准的成员，无法定位到家谱。
+                  当前家庭还没有可作为基准的成员，无法定位到家庭树。
                 </MiniNotice>
                 <text class="tree-field-label">与基准成员的关系</text>
                 <picker mode="selector" :range="relationOptionLabels" :value="addTypeIndex" @change="onSelectAddType">
@@ -336,7 +336,7 @@ const requestGroups = computed(() => {
   const pending = requests.value.filter((item) => item.requestStatus === 'PENDING')
   const history = requests.value.filter((item) => item.requestStatus !== 'PENDING')
   return [
-    { key: 'pending', title: '待我审核', subtitle: '需要确认申请人身份和家谱位置', items: pending },
+    { key: 'pending', title: '待我审核', subtitle: '需要确认申请人身份和家庭树位置', items: pending },
     { key: 'history', title: '历史申请', subtitle: '已通过或驳回的处理记录', items: history }
   ].filter((group) => group.items.length > 0)
 })

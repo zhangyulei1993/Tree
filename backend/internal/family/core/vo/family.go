@@ -3,15 +3,16 @@ package vo
 import "time"
 
 type FamilySummary struct {
-	ID                  uint64  `json:"id"`
-	FamilyName          string  `json:"familyName"`
-	FamilySurname       string  `json:"familySurname"`
-	NativePlace         *string `json:"nativePlace,omitempty"`
-	RegionText          *string `json:"regionText,omitempty"`
-	AvatarURL           *string `json:"avatarUrl,omitempty"`
-	Status              string  `json:"status"`
-	PublicDisplayStatus string  `json:"publicDisplayStatus"`
-	Role                string  `json:"role"`
+	ID                   uint64  `json:"id"`
+	FamilyName           string  `json:"familyName"`
+	FamilySurname        string  `json:"familySurname"`
+	NativePlace          *string `json:"nativePlace,omitempty"`
+	RegionText           *string `json:"regionText,omitempty"`
+	AvatarURL            *string `json:"avatarUrl,omitempty"`
+	Status               string  `json:"status"`
+	PublicDisplayStatus  string  `json:"publicDisplayStatus"`
+	PublicDisplayEnabled bool    `json:"publicDisplayEnabled"`
+	Role                 string  `json:"role"`
 }
 
 type FamilyDetail struct {
@@ -26,6 +27,7 @@ type FamilyDetail struct {
 	Status                 string  `json:"status"`
 	Searchable             bool    `json:"searchable"`
 	PublicDisplayStatus    string  `json:"publicDisplayStatus"`
+	PublicDisplayEnabled   bool    `json:"publicDisplayEnabled"`
 	PublicContactName      *string `json:"publicContactName,omitempty"`
 	PublicContactPhone     *string `json:"publicContactPhone,omitempty"`
 	PublicContactWechat    *string `json:"publicContactWechat,omitempty"`
@@ -78,6 +80,29 @@ type PublicFamilyShowcaseItem struct {
 	PublicApprovedAt *time.Time `json:"publicApprovedAt,omitempty"`
 	CreatedAt        time.Time  `json:"createdAt"`
 	UpdatedAt        time.Time  `json:"updatedAt"`
+}
+
+type OperationLogItem struct {
+	ID              uint64    `json:"id"`
+	OperatorType    string    `json:"operatorType"`
+	OperatorAdminID *uint64   `json:"operatorAdminId,omitempty"`
+	OperatorUserID  *uint64   `json:"operatorUserId,omitempty"`
+	Module          string    `json:"module"`
+	Action          string    `json:"action"`
+	TargetType      *string   `json:"targetType,omitempty"`
+	TargetID        *uint64   `json:"targetId,omitempty"`
+	MemberID        *uint64   `json:"memberId,omitempty"`
+	UserID          *uint64   `json:"userId,omitempty"`
+	Result          string    `json:"result"`
+	ErrorMessage    *string   `json:"errorMessage,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
+type ListOperationLogsResult struct {
+	Items    []OperationLogItem `json:"items"`
+	Page     int                `json:"page"`
+	PageSize int                `json:"pageSize"`
+	Total    int64              `json:"total"`
 }
 
 type ListPublicFamilyShowcaseResult struct {

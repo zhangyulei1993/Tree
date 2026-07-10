@@ -72,6 +72,29 @@ func (h *Handler) TakeDownUser(ctx *gin.Context) {
 	write(ctx, http.StatusOK, result, err)
 }
 
+func (h *Handler) EnableUser(ctx *gin.Context) {
+	userID, familyID, ok := userAndFamily(ctx)
+	if !ok {
+		return
+	}
+	result, err := h.service.EnableUser(ctx.Request.Context(), userID, familyID, audit(ctx))
+	write(ctx, http.StatusOK, result, err)
+}
+
+func (h *Handler) DisableUser(ctx *gin.Context) {
+	userID, familyID, ok := userAndFamily(ctx)
+	if !ok {
+		return
+	}
+	var req dto.TakeDownPublicFamilyRequest
+	if ctx.Request.ContentLength != 0 && ctx.ShouldBindJSON(&req) != nil {
+		bad(ctx)
+		return
+	}
+	result, err := h.service.DisableUser(ctx.Request.Context(), userID, familyID, req, audit(ctx))
+	write(ctx, http.StatusOK, result, err)
+}
+
 func (h *Handler) ListAdmin(ctx *gin.Context) {
 	adminID, role, ok := adminAndRole(ctx)
 	if !ok {

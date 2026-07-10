@@ -12,12 +12,18 @@ test('manage.vue imports useSessionStore from session store', () => {
   assert.match(manageSource, /const session = useSessionStore\(\)/)
 })
 
-test('manage.vue exposes three manage sections in template', () => {
-  assert.match(manageSource, /manageSection === 'create'/)
-  assert.match(manageSource, /manageSection === 'locate'/)
+test('manage.vue separates node, pending and placement flows', () => {
+  assert.match(manageSource, /manageSection === 'node'/)
+  assert.match(manageSource, /manageSection === 'pending'/)
+  assert.match(manageSource, /manageSection === 'place'/)
   assert.match(manageSource, /manageSection === 'relations'/)
-  assert.match(manageSource, /创建并放入家谱/)
-  assert.match(manageSource, /放入家谱/)
+  assert.match(manageSource, /添加节点/)
+  assert.match(manageSource, /添加暂存/)
+  assert.match(manageSource, /暂存转化/)
+  assert.match(manageSource, /创建并接入家庭树/)
+  assert.match(manageSource, /接入家庭树/)
+  assert.match(manageSource, /requestedSection === 'create'/)
+  assert.match(manageSource, /requestedSection === 'locate'/)
 })
 
 test('manage.vue wires parent memberType for create and place flows', () => {

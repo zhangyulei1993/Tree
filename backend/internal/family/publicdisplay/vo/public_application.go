@@ -29,9 +29,11 @@ type ListResult struct {
 }
 
 type FamilyPublicStatus struct {
-	FamilyID            uint64     `json:"familyId"`
-	PublicDisplayStatus string     `json:"publicDisplayStatus"`
-	PublicAppliedAt     *time.Time `json:"publicAppliedAt,omitempty"`
-	PublicApprovedAt    *time.Time `json:"publicApprovedAt,omitempty"`
-	PublicTakenDownAt   *time.Time `json:"publicTakenDownAt,omitempty"`
+	FamilyID             uint64     `json:"familyId"`
+	PublicDisplayStatus  string     `json:"publicDisplayStatus"`
+	PublicDisplayEnabled bool       `json:"publicDisplayEnabled"`
+	PublicAppliedAt      *time.Time `json:"publicAppliedAt,omitempty"`
+	PublicApprovedAt     *time.Time `json:"publicApprovedAt,omitempty"`
+	PublicEnabledAt      *time.Time `json:"publicEnabledAt,omitempty"`
+	PublicTakenDownAt    *time.Time `json:"publicTakenDownAt,omitempty"`
 }

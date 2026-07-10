@@ -36,7 +36,7 @@
       <view class="archive-form-panel">
         <view class="archive-section-head">
           <text class="archive-section-title">成员档案</text>
-          <text class="archive-section-subtitle">字段变更会同步到成员名册与家谱节点</text>
+          <text class="archive-section-subtitle">字段变更会同步到家庭树成员与关系图节点</text>
         </view>
         <text class="tree-field-label">成员姓名</text>
         <input v-model.trim="form.name" class="tree-input" maxlength="80" placeholder="请输入成员姓名" />
@@ -66,7 +66,7 @@
       <view v-if="canDeleteCurrentMember" class="archive-danger-panel">
         <text class="archive-danger-title">删除成员节点</text>
         <text class="archive-danger-desc">
-          只删除家谱节点，不删除平台账号。已有子女关系时不能直接删除；父母或配偶关系会随成员删除同步解除。创建者和管理员身份亦不可删除。
+          只删除家庭树节点，不删除平台账号。已有子女关系时不能直接删除；父母或配偶关系会随成员删除同步解除。创建者和管理员身份亦不可删除。
         </text>
         <MiniButton
           class="edit-action"

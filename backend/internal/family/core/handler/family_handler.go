@@ -117,6 +117,19 @@ func (h *FamilyHandler) Update(ctx *gin.Context) {
 	})
 }
 
+func (h *FamilyHandler) OperationLogs(ctx *gin.Context) {
+	h.withFamilyID(ctx, func(familyID uint64) {
+		userID, ok := currentUser(ctx)
+		if !ok {
+			return
+		}
+		page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
+		pageSize, _ := strconv.Atoi(ctx.DefaultQuery("pageSize", "20"))
+		result, businessErr := h.service.ListOperationLogs(ctx.Request.Context(), userID, familyID, page, pageSize)
+		writeResult(ctx, result, businessErr)
+	})
+}
+
 func (h *FamilyHandler) Leave(ctx *gin.Context) {
 	h.withFamilyID(ctx, func(familyID uint64) {
 		userID, ok := currentUser(ctx)

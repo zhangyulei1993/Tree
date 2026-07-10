@@ -91,9 +91,13 @@ export function buildInviteSharePayload(input: {
   inviteToken: string
   familyName: string
   targetMemberName: string
+  inviteType?: string
 }): WechatSharePayload {
+  const title = input.inviteType === 'JOIN_FAMILY_PENDING_MEMBER'
+    ? `${input.familyName} 邀请你加入家庭`
+    : `${input.familyName} 邀请你确认「${input.targetMemberName}」身份并加入家庭树`
   return {
-    title: `${input.familyName} 邀请你确认「${input.targetMemberName}」身份并加入家谱`,
+    title,
     path: buildInviteSharePath(input.inviteToken),
     imageUrl: INVITATION_SHARE_IMAGE
   }

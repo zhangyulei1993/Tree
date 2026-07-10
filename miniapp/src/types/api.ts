@@ -105,6 +105,7 @@ export interface FamilySummary {
   avatarUrl?: string | null
   status: string
   publicDisplayStatus: string
+  publicDisplayEnabled: boolean
   role: string
 }
 
@@ -257,6 +258,7 @@ export interface Invitation {
   targetMemberName: string
   inviterDisplayName?: string
   inviterRole?: string
+  inviteType?: string
   inviteChannel: string
   inviteMessage?: string | null
   familyRoleAfterAccept: string
@@ -459,9 +461,27 @@ export interface PublicApplication {
 export interface FamilyPublicStatus {
   familyId: number | string
   publicDisplayStatus: string
+  publicDisplayEnabled: boolean
   publicAppliedAt?: string | null
   publicApprovedAt?: string | null
+  publicEnabledAt?: string | null
   publicTakenDownAt?: string | null
+}
+
+export interface FamilyOperationLog {
+  id: number | string
+  operatorType: string
+  operatorAdminId?: number | string | null
+  operatorUserId?: number | string | null
+  module: string
+  action: string
+  targetType?: string | null
+  targetId?: number | string | null
+  memberId?: number | string | null
+  userId?: number | string | null
+  result: string
+  errorMessage?: string | null
+  createdAt: string
 }
 
 export interface RoleChangeResult {

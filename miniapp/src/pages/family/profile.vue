@@ -20,7 +20,6 @@
       </view>
 
       <view class="profile-context">
-        <text class="archive-chip">{{ roleText(family.role) }}</text>
         <text class="context-back" @click="openFamilyDetail">返回详情</text>
       </view>
 
@@ -123,7 +122,7 @@
       <view v-if="family.role !== 'FOUNDER'" class="archive-danger-panel">
         <text class="archive-danger-title">退出家庭</text>
         <text class="archive-danger-desc">
-          仅解除账号绑定，不删除家谱资料。创建者需先转让身份后才能退出。
+          仅解除账号绑定，不删除家庭树资料。创建者需先转让身份后才能退出。
         </text>
         <MiniButton class="profile-action" variant="danger" :loading="leaving" :disabled="leaving" @click="confirmLeave">
           退出该家庭
@@ -279,7 +278,7 @@ function confirmLeave() {
   if (!family.value || leaving.value) return
   uni.showModal({
     title: '确认退出家庭',
-    content: '退出后你的账号将与当前成员节点解除绑定，家谱资料不会删除。再次加入需要重新申请或接受邀请。确定继续吗？',
+    content: '退出后你的账号将与当前成员节点解除绑定，家庭树资料不会删除。再次加入需要重新申请或接受邀请。确定继续吗？',
     confirmColor: '#B5473C',
     success: (result) => {
       if (result.confirm) submitLeave()
@@ -304,10 +303,6 @@ async function submitLeave() {
   } finally {
     leaving.value = false
   }
-}
-
-function roleText(role: string) {
-  return ({ FOUNDER: '创建者', FAMILY_ADMIN: '家庭管理员', MEMBER: '普通成员' } as Record<string, string>)[role] || '成员'
 }
 
 function publicStatusText(status: string) {

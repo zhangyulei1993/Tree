@@ -16,6 +16,7 @@ type Family struct {
 	Status                 string     `gorm:"column:status;size:40;not null;default:NORMAL"`
 	Searchable             bool       `gorm:"column:searchable;not null;default:1"`
 	PublicDisplayStatus    string     `gorm:"column:public_display_status;size:40;not null;default:PRIVATE"`
+	PublicDisplayEnabled   bool       `gorm:"column:public_display_enabled;not null;default:0"`
 	PublicContactName      *string    `gorm:"column:public_contact_name;size:100"`
 	PublicContactPhone     *string    `gorm:"column:public_contact_phone;size:30"`
 	PublicContactWechat    *string    `gorm:"column:public_contact_wechat;size:120"`
@@ -25,6 +26,7 @@ type Family struct {
 	GraphVersion           int64      `gorm:"column:graph_version;not null;default:1"`
 	PublicAppliedAt        *time.Time `gorm:"column:public_applied_at"`
 	PublicApprovedAt       *time.Time `gorm:"column:public_approved_at"`
+	PublicEnabledAt        *time.Time `gorm:"column:public_enabled_at"`
 	PublicTakenDownAt      *time.Time `gorm:"column:public_taken_down_at"`
 	DisabledAt             *time.Time `gorm:"column:disabled_at"`
 	DisabledByAdminID      *uint64    `gorm:"column:disabled_by_admin_id"`

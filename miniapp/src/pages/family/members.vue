@@ -4,13 +4,22 @@
 
     <view class="members-head">
       <view>
-        <text class="archive-kicker">Family Roster</text>
-        <text class="archive-title">成员名册</text>
+        <text class="archive-kicker">Family Tree</text>
+        <text class="archive-title">家庭树</text>
         <text class="archive-subtitle">
-          {{ family?.familyName || '查看成员档案、账号绑定和邀请状态' }}
+          {{ family?.familyName || '成员资料与亲属关系' }} · 成员表
         </text>
       </view>
       <view v-if="family" class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
+    </view>
+
+    <view class="archive-segment-tabs family-tree-tabs">
+      <view class="archive-segment-tab" @click="openRelationGraph">
+        <text>家庭树</text>
+      </view>
+      <view class="archive-segment-tab active">
+        <text>成员表</text>
+      </view>
     </view>
 
     <view class="members-tools">
@@ -30,7 +39,6 @@
     </view>
 
     <view v-if="family" class="members-context">
-      <text class="archive-chip">{{ roleText(family.role) || '成员' }}</text>
       <text class="archive-chip">共 {{ filteredMembers.length }} 位</text>
     </view>
 
@@ -80,7 +88,7 @@
                 </view>
               </view>
               <view class="member-side">
-                <text class="member-role">{{ roleText(member.boundFamilyRole) || formatMemberBindingNeed(member) }}</text>
+                <text class="member-role">{{ formatMemberBindingNeed(member) }}</text>
                 <text v-if="memberInvitation(member)" class="member-invite">{{ invitationSummary(memberInvitation(member)!) }}</text>
               </view>
               <text class="member-more" @tap.stop="handleMemberMoreTap(member)">
@@ -459,7 +467,7 @@ function invitationSummary(item: Invitation) {
 function confirmUnbindMember(member: FamilyMember) {
   uni.showModal({
     title: '解除账号绑定',
-    content: `确定解除「${member.name}」的账号绑定吗？解除后该账号将不能再以此节点身份进入当前家庭；成员节点与家谱关系不会删除。`,
+    content: `确定解除「${member.name}」的账号绑定吗？解除后该账号将不能再以此节点身份进入当前家庭；成员节点与家庭树关系不会删除。`,
     success: (result) => {
       if (result.confirm) unbindMemberAccount(member)
     }
@@ -487,6 +495,10 @@ function openSentInvitations() {
 
 function openFamilyOverview() {
   uni.redirectTo({ url: `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}` })
+}
+
+function openRelationGraph() {
+  uni.redirectTo({ url: `/pages/family/private-tree?familyId=${encodeURIComponent(familyId.value)}` })
 }
 
 function goEditMember(member: FamilyMember) {
@@ -644,19 +656,6 @@ function memberStatusText(status: string) {
   }
 }
 
-function roleText(role?: string | null) {
-  switch (role) {
-    case 'FOUNDER':
-      return '创建者'
-    case 'FAMILY_ADMIN':
-      return '管理员'
-    case 'MEMBER':
-      return '成员'
-    default:
-      return role ? '未知角色' : ''
-  }
-}
-
 function surnameLetter(member: FamilyMember) {
   return member.name.trim().slice(0, 1) || '氏'
 }
@@ -677,9 +676,9 @@ function memberGroupTitle(member: FamilyMember) {
 function memberGenerationLabel(member: FamilyMember) {
   if (member.birthYear) {
     const decade = Math.floor(member.birthYear / 10) * 10
-    return `${decade}代`
+    return `${decade}年代`
   }
-  return '世代待补'
+  return '年份待补'
 }
 
 onLoad((options) => {
@@ -691,7 +690,7 @@ onLoad((options) => {
 })
 onShareAppMessage(() => ({
   title: selectedInviteMember.value
-    ? `${family.value?.familyName || '家庭'} 邀请你确认「${selectedInviteMember.value.name}」身份并加入家谱`
+    ? `${family.value?.familyName || '家庭'} 邀请你确认「${selectedInviteMember.value.name}」身份并加入家庭树`
     : 'Tree 家脉亲缘',
   path: invitePath(),
   imageUrl: '/static/share/family-invitation.jpg'
@@ -716,6 +715,10 @@ onUnload(resetPageData)
   justify-content: space-between;
   gap: 24rpx;
   margin-bottom: 26rpx;
+}
+
+.family-tree-tabs {
+  margin-bottom: 20rpx;
 }
 
 .members-tools {

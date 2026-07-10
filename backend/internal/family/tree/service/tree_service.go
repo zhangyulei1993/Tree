@@ -69,7 +69,7 @@ func (s *treeService) GetPublicTree(ctx context.Context, familyID uint64) (*vo.T
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	if !publicFamily(family.Status, family.PublicDisplayStatus) {
+	if !publicFamily(family.Status, family.PublicDisplayStatus, family.PublicDisplayEnabled) {
 		return nil, treeError(CodePublicTreeForbidden, "公开家庭树不可访问")
 	}
 	return s.loadTree(ctx, familyID, family.GraphVersion, true)
@@ -99,7 +99,7 @@ func (s *treeService) loadTree(ctx context.Context, familyID uint64, graphVersio
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	if public && !publicFamily(snapshot.Family.Status, snapshot.Family.PublicDisplayStatus) {
+	if public && !publicFamily(snapshot.Family.Status, snapshot.Family.PublicDisplayStatus, snapshot.Family.PublicDisplayEnabled) {
 		return nil, treeError(CodePublicTreeForbidden, "公开家庭树不可访问")
 	}
 
@@ -265,8 +265,8 @@ func bindingState(row treerepo.MemberRow) string {
 	return "UNBOUND"
 }
 
-func publicFamily(status string, publicDisplayStatus string) bool {
-	return status == "NORMAL" && publicDisplayStatus == "APPROVED"
+func publicFamily(status string, publicDisplayStatus string, publicDisplayEnabled bool) bool {
+	return status == "NORMAL" && publicDisplayStatus == "APPROVED" && publicDisplayEnabled
 }
 
 func appendUnique(values []uint64, value uint64) []uint64 {

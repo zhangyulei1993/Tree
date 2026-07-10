@@ -450,7 +450,7 @@ func testRepository() *fakeRepository {
 func testSnapshot() *treerepo.Snapshot {
 	return &treerepo.Snapshot{
 		Family: familymodel.Family{
-			ID: 2, Status: "NORMAL", PublicDisplayStatus: "APPROVED",
+			ID: 2, Status: "NORMAL", PublicDisplayStatus: "APPROVED", PublicDisplayEnabled: true,
 			TreeMode: "LIST_TREE", GraphVersion: 14,
 		},
 		Members: []treerepo.MemberRow{

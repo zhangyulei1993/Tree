@@ -5,8 +5,8 @@
     <view v-if="familyName" class="sent-head archive-page-head">
       <view>
         <text class="archive-kicker">Sent Invitations</text>
-        <text class="archive-title">发出的成员邀请</text>
-        <text class="archive-subtitle">{{ familyName }} · 管理该家庭发出的账号绑定邀请</text>
+        <text class="archive-title">发出的家庭邀请</text>
+        <text class="archive-subtitle">{{ familyName }} · 管理加入家庭与账号绑定邀请</text>
       </view>
       <view class="archive-seal">{{ familySealLetter }}</view>
     </view>
@@ -22,7 +22,7 @@
           <view class="archive-section-head share-section-head">
             <text class="archive-section-title">待发送邀请</text>
             <text class="archive-section-subtitle">
-              邀请 {{ shareResult.invitation.targetMemberName }} 绑定账号
+              {{ shareInvitationSubtitle }}
             </text>
           </view>
           <text class="archive-status-tag is-cinnabar">待接受</text>
@@ -38,8 +38,8 @@
             <text class="share-field-value">{{ shareResult.invitation.familyName }}</text>
           </view>
           <view class="archive-row share-field-row">
-            <text class="share-field-label">确认身份</text>
-            <text class="share-field-value">{{ shareResult.invitation.targetMemberName }}</text>
+            <text class="share-field-label">{{ isPendingMemberInvitation(shareResult.invitation) ? '成员身份' : '确认身份' }}</text>
+            <text class="share-field-value">{{ inviteTargetText(shareResult.invitation) }}</text>
           </view>
           <view class="archive-row share-field-row">
             <text class="share-field-label">邀请方式</text>
@@ -71,8 +71,32 @@
     </template>
 
     <template v-else>
+      <view v-if="familyName" class="family-invite-panel archive-form-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">邀请加入家庭</text>
+          <text class="archive-section-subtitle">适合确认对方属于本家庭，但成员节点还需要之后再确认</text>
+        </view>
+        <textarea
+          v-model.trim="familyInviteMessage"
+          class="tree-textarea family-invite-message"
+          maxlength="300"
+          placeholder="给对方的说明（可选）"
+        />
+        <MiniNotice tone="security" title="身份待确认">
+          对方接受后会先绑定到“待确认成员”，管理员之后可在家庭树中编辑资料并接入关系图。
+        </MiniNotice>
+        <MiniButton
+          size="sm"
+          :loading="actingType === 'create-family'"
+          :disabled="Boolean(actingId) || actingType === 'create-family'"
+          @click="createPendingFamilyInvitation"
+        >
+          生成家庭邀请
+        </MiniButton>
+      </view>
+
       <view v-if="loading && invitations.length === 0" class="sent-state archive-form-panel">
-        <MiniEmptyState symbol="…" title="正在加载" description="正在加载发出的成员邀请..." />
+        <MiniEmptyState symbol="…" title="正在加载" description="正在加载发出的家庭邀请..." />
       </view>
 
       <view v-else-if="loadError && invitations.length === 0" class="sent-state archive-form-panel">
@@ -88,8 +112,8 @@
       <view v-else-if="invitations.length === 0" class="sent-state archive-form-panel">
         <MiniEmptyState
           symbol="邀"
-          title="暂无发出的成员邀请"
-          description="可在成员列表中，对未绑定账号的成员发出邀请。"
+          title="暂无发出的家庭邀请"
+          description="可直接邀请加入家庭，也可在成员列表中邀请绑定指定成员。"
           action-text="前往成员列表"
           @action="openMembers"
         />
@@ -117,7 +141,7 @@
             >
               <view class="sent-item-head">
                 <view class="archive-row-main">
-                  <text class="archive-row-title">{{ item.targetMemberName }}</text>
+                  <text class="archive-row-title">{{ inviteTargetText(item) }}</text>
                   <text class="archive-row-desc">{{ item.inviteMessage || '未填写邀请说明' }}</text>
                 </view>
                 <text class="archive-status-tag" :class="invitationStatusClass(displayStatus(item))">
@@ -170,6 +194,7 @@ import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
 import {
   cancelInvitation,
+  createFamilyInvitation,
   listFamilyInvitations,
   regenerateInvitation
 } from '@/api/invitations'
@@ -181,6 +206,7 @@ import { invitationStatusText } from '@/components/base/formatStatus'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import { useSessionStore } from '@/stores/session'
 import type { CreatedInvitation, Invitation } from '@/types/api'
+import { optionalText, validateTextFields } from '@/utils/inputValidation'
 
 const session = useSessionStore()
 const familyId = ref('')
@@ -192,13 +218,21 @@ const loading = ref(false)
 const loadError = ref('')
 const operationError = ref('')
 const actingId = ref<number | string | null>(null)
-const actingType = ref<'' | 'cancel' | 'regenerate'>('')
+const actingType = ref<'' | 'cancel' | 'regenerate' | 'create-family'>('')
 const shareResult = ref<CreatedInvitation | null>(null)
+const familyInviteMessage = ref('')
 const familyRoleLabel = computed(() => (familyRole.value === 'FOUNDER' ? '创建者' : '管理员'))
 const familySealLetter = computed(() => familySurname.value.slice(0, 1) || familyName.value.slice(0, 1) || '邀')
 const pendingCount = computed(() =>
   invitations.value.filter((item) => displayStatus(item) === 'PENDING').length
 )
+const shareInvitationSubtitle = computed(() => {
+  const invitation = shareResult.value?.invitation
+  if (!invitation) return ''
+  return isPendingMemberInvitation(invitation)
+    ? '邀请对方先加入家庭，成员身份稍后确认'
+    : `邀请 ${invitation.targetMemberName} 绑定账号`
+})
 const invitationGroups = computed(() => {
   const current = invitations.value.filter((item) => displayStatus(item) === 'PENDING')
   const history = invitations.value.filter((item) => displayStatus(item) !== 'PENDING')
@@ -237,6 +271,14 @@ function inviteLinkStatusText(item: Invitation) {
   if (status === 'REJECTED') return '对方已拒绝'
   if (status === 'CANCELLED') return '链接已取消'
   return '不可分享'
+}
+
+function isPendingMemberInvitation(item: Invitation) {
+  return item.inviteType === 'JOIN_FAMILY_PENDING_MEMBER'
+}
+
+function inviteTargetText(item: Invitation) {
+  return isPendingMemberInvitation(item) ? '待确认成员' : item.targetMemberName
 }
 
 function resetTransientUI() {
@@ -281,7 +323,7 @@ async function loadInvitations() {
     familyRole.value = family.role
     invitations.value = invitationRows
   } catch (error) {
-    loadError.value = apiErrorMessage(error, '发出的成员邀请加载失败。')
+    loadError.value = apiErrorMessage(error, '发出的家庭邀请加载失败。')
   } finally {
     loading.value = false
   }
@@ -316,7 +358,7 @@ function openFamilyOverview() {
 function confirmCancel(item: Invitation) {
   uni.showModal({
     title: '取消邀请',
-    content: `确定取消发给「${item.targetMemberName}」的邀请吗？`,
+    content: `确定取消发给「${inviteTargetText(item)}」的邀请吗？`,
     success: (result) => {
       if (result.confirm) cancel(item)
     }
@@ -346,6 +388,31 @@ function confirmRegenerate(item: Invitation) {
       if (result.confirm) regenerate(item)
     }
   })
+}
+
+async function createPendingFamilyInvitation() {
+  const validationMessage = validateTextFields([
+    optionalText('邀请说明', familyInviteMessage.value)
+  ])
+  if (validationMessage) {
+    operationError.value = validationMessage
+    return
+  }
+  actingType.value = 'create-family'
+  operationError.value = ''
+  try {
+    shareResult.value = await createFamilyInvitation(familyId.value, {
+      inviteChannel: 'SHARE_LINK',
+      inviteMessage: familyInviteMessage.value.trim() || undefined,
+      familyRoleAfterAccept: 'MEMBER'
+    })
+    familyInviteMessage.value = ''
+    await loadInvitations()
+  } catch (error) {
+    operationError.value = apiErrorMessage(error, '生成家庭邀请失败。')
+  } finally {
+    actingType.value = ''
+  }
 }
 
 async function regenerate(item: Invitation) {
@@ -382,7 +449,8 @@ onShareAppMessage(() => {
     return buildInviteSharePayload({
       inviteToken: shareResult.value.inviteToken,
       familyName: invitation.familyName,
-      targetMemberName: invitation.targetMemberName
+      targetMemberName: invitation.targetMemberName,
+      inviteType: invitation.inviteType
     })
   }
   return buildHomeSharePayload()
@@ -433,8 +501,17 @@ onUnload(resetPageData)
 
 .sent-group,
 .share-panel,
+.family-invite-panel,
 .sent-state {
   margin-bottom: 24rpx;
+}
+
+.family-invite-message {
+  margin-bottom: 14rpx;
+}
+
+.family-invite-panel :deep(.mini-notice) {
+  margin-bottom: 16rpx;
 }
 
 .sent-list {

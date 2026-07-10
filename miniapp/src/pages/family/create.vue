@@ -9,9 +9,9 @@
     <template v-else>
       <view class="create-head archive-page-head">
         <view>
-          <text class="archive-kicker">New Genealogy</text>
+          <text class="archive-kicker">New Family Tree</text>
           <text class="archive-title">创建家庭</text>
-          <text class="archive-subtitle">填写姓氏与基本信息，开启新家谱册</text>
+          <text class="archive-subtitle">填写姓氏与基本信息，建立家庭树</text>
         </view>
         <view class="archive-seal create-seal" :class="{ muted: !form.surname.trim() }">{{ coverSurnameLetter }}</view>
       </view>
@@ -29,14 +29,14 @@
         </view>
         <view class="create-spine archive-book-spine">
           <text>新</text>
-          <text>谱</text>
-          <text>册</text>
+          <text>家</text>
+          <text>树</text>
         </view>
       </view>
 
       <view class="archive-form-panel">
         <view class="archive-section-head">
-          <text class="archive-section-title">家谱册信息</text>
+          <text class="archive-section-title">家庭信息</text>
           <text class="archive-section-subtitle">创建后将自动生成创建者成员节点</text>
         </view>
 
@@ -47,7 +47,7 @@
         <picker mode="selector" :range="genderLabels" :value="genderIndex" @change="onGenderChange">
           <view class="field-picker">{{ genderLabels[genderIndex] }}</view>
         </picker>
-        <MiniNotice tone="info">性别用于正确初始化家谱中的本人节点，创建后仍可在成员资料中修改。</MiniNotice>
+        <MiniNotice tone="info">性别用于正确初始化家庭树中的本人节点，创建后仍可在成员资料中修改。</MiniNotice>
 
         <text class="tree-field-label">家庭名称</text>
         <input v-model.trim="form.familyName" class="tree-input" maxlength="100" placeholder="可选，默认生成“某氏家族”" />
@@ -111,7 +111,7 @@ const coverFamilyName = computed(() => {
   const customName = form.familyName.trim()
   if (customName) return customName
   const surname = form.surname.trim()
-  return surname ? `${surname}氏家族` : '新家谱册'
+  return surname ? `${surname}氏家族` : '新家庭'
 })
 
 const coverRegionSummary = computed(() => {

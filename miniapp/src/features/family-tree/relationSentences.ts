@@ -60,10 +60,10 @@ export function countVisibleEdges(tree: Pick<FamilyTreeResult, 'edges'>): number
 export function treeViewLabel(mode: string): string {
   switch (mode) {
     case 'LIST_TREE':
-      return '家谱列表'
+      return '成员列表'
     case 'GRAPH_TREE':
-      return '家谱图谱'
+      return '关系图'
     default:
-      return '家谱'
+      return '家庭树'
   }
 }

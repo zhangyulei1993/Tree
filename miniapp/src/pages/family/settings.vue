@@ -23,7 +23,6 @@
       </view>
 
       <view class="settings-context">
-        <text class="archive-chip">{{ roleText(family.role) }}</text>
         <text class="context-back" @click="openFamilyOverview">返回详情</text>
       </view>
 
@@ -55,21 +54,28 @@
               :class="{ active: settingsSection === 'public' }"
               @click="settingsSection = 'public'"
             >
-              <text>公开展示</text>
+              <text>公开</text>
             </view>
             <view
               class="archive-segment-tab"
               :class="{ active: settingsSection === 'roles' }"
               @click="settingsSection = 'roles'"
             >
-              <text>角色权限</text>
+              <text>角色</text>
             </view>
             <view
               class="archive-segment-tab"
               :class="{ active: settingsSection === 'security' }"
               @click="settingsSection = 'security'"
             >
-              <text>高风险操作</text>
+              <text>风险</text>
+            </view>
+            <view
+              class="archive-segment-tab"
+              :class="{ active: settingsSection === 'logs' }"
+              @click="settingsSection = 'logs'"
+            >
+              <text>记录</text>
             </view>
           </view>
 
@@ -85,45 +91,17 @@
 
           <view v-if="settingsSection === 'public'" class="archive-form-panel">
             <view class="archive-section-head">
-              <text class="archive-section-title">公开信息</text>
-              <text class="archive-section-subtitle">这些信息仅在家庭获准公开后对访客展示</text>
-            </view>
-            <input v-model.trim="publicForm.publicContactName" class="tree-input" maxlength="80" placeholder="公开联系人" />
-            <input v-model.trim="publicForm.publicContactPhone" class="tree-input" maxlength="30" placeholder="公开联系电话" />
-            <input v-model.trim="publicForm.publicContactWechat" class="tree-input" maxlength="80" placeholder="公开微信" />
-            <textarea v-model.trim="publicForm.publicContactNote" class="tree-textarea" maxlength="300" placeholder="公开联系说明" />
-            <label class="switch-row">
-              <text>公开联系方式</text>
-              <switch :checked="publicForm.publicContactVisible" color="#163353" @change="onPublicContactVisibleChange" />
-            </label>
-            <label class="switch-row">
-              <text>允许展示收录</text>
-              <switch :checked="publicForm.searchable" color="#163353" @change="onSearchableChange" />
-            </label>
-            <MiniButton
-              class="settings-action"
-              variant="secondary"
-              :loading="savingPublicInfo"
-              :disabled="savingPublicInfo"
-              @click="savePublicInfo"
-            >
-              保存公开信息
-            </MiniButton>
-          </view>
-
-          <view v-if="settingsSection === 'public'" class="archive-form-panel">
-            <view class="archive-section-head">
-              <text class="archive-section-title">公开展示申请</text>
+              <text class="archive-section-title">展示权限</text>
               <text class="archive-section-subtitle">当前状态：{{ publicStatusText(family.publicDisplayStatus) }}</text>
             </view>
             <template v-if="family.publicDisplayStatus === 'APPROVED'">
-              <MiniNotice tone="security" title="家庭当前已公开">
-                公开家庭主页和公开家谱可被访客访问。家庭主动关闭会立即生效，无需再次等待审核。
+              <MiniNotice tone="security" title="已获得展示权限">
+                平台已允许该家庭公开展示；是否对外展示由家庭自行开启或关闭。
               </MiniNotice>
-              <textarea v-model.trim="takeDownReason" class="tree-textarea" maxlength="500" placeholder="关闭说明（可选）" />
-              <MiniButton class="settings-action" variant="danger" :loading="takingDown" :disabled="takingDown" @click="confirmClosePublic">
-                关闭公开展示
-              </MiniButton>
+              <label class="switch-row">
+                <text>{{ family.publicDisplayEnabled ? '正在公开展示' : '暂未公开展示' }}</text>
+                <switch :checked="family.publicDisplayEnabled" color="#163353" @change="onPublicDisplayToggle" />
+              </label>
             </template>
             <textarea
               v-else-if="!pendingPublicApplication"
@@ -142,7 +120,7 @@
               提交公开申请
             </MiniButton>
             <MiniNotice v-if="pendingPublicApplication" tone="warm" title="申请待审核">
-              {{ pendingPublicApplication.reason || '管理员审核通过后，家庭主页和公开家谱才会对外开放。' }}
+              {{ pendingPublicApplication.reason || '平台审核通过后，将获得展示权限；是否展示仍由家庭自行开启。' }}
             </MiniNotice>
             <MiniButton
               v-if="pendingPublicApplication"
@@ -163,6 +141,34 @@
                 <text class="archive-row-meta">{{ formatDate(item.createdAt) }}</text>
               </view>
             </view>
+          </view>
+
+          <view v-if="settingsSection === 'public' && family.publicDisplayStatus === 'APPROVED'" class="archive-form-panel">
+            <view class="archive-section-head">
+              <text class="archive-section-title">公开信息</text>
+              <text class="archive-section-subtitle">开启展示时，访客会看到这些公开资料</text>
+            </view>
+            <input v-model.trim="publicForm.publicContactName" class="tree-input" maxlength="80" placeholder="公开联系人" />
+            <input v-model.trim="publicForm.publicContactPhone" class="tree-input" maxlength="30" placeholder="公开联系电话" />
+            <input v-model.trim="publicForm.publicContactWechat" class="tree-input" maxlength="80" placeholder="公开微信" />
+            <textarea v-model.trim="publicForm.publicContactNote" class="tree-textarea" maxlength="300" placeholder="公开联系说明" />
+            <label class="switch-row">
+              <text>公开联系方式</text>
+              <switch :checked="publicForm.publicContactVisible" color="#163353" @change="onPublicContactVisibleChange" />
+            </label>
+            <label class="switch-row">
+              <text>展示家庭列表收录</text>
+              <switch :checked="publicForm.searchable" color="#163353" @change="onSearchableChange" />
+            </label>
+            <MiniButton
+              class="settings-action"
+              variant="secondary"
+              :loading="savingPublicInfo"
+              :disabled="savingPublicInfo"
+              @click="savePublicInfo"
+            >
+              保存公开信息
+            </MiniButton>
           </view>
 
           <view v-if="settingsSection === 'roles'" class="archive-form-panel">
@@ -241,6 +247,28 @@
               <MiniButton class="settings-action" variant="secondary" @click="confirmCreateDissolution">申请解散家庭</MiniButton>
             </template>
           </view>
+
+          <view v-if="settingsSection === 'logs'" class="archive-form-panel">
+            <view class="archive-section-head">
+              <text class="archive-section-title">操作记录</text>
+              <text class="archive-section-subtitle">展示最近的家庭成员、关系、邀请与公开展示操作</text>
+            </view>
+            <MiniEmptyState
+              v-if="operationLogs.length === 0"
+              symbol="录"
+              title="暂无记录"
+              description="家庭重要操作会记录在这里。"
+            />
+            <view v-else class="archive-list">
+              <view v-for="log in operationLogs" :key="log.id" class="archive-row">
+                <view class="archive-row-main">
+                  <text class="archive-row-title">{{ operationActionText(log.action) }}</text>
+                  <text class="archive-row-desc">{{ operationModuleText(log.module) }} · {{ operationActorText(log.operatorType) }}</text>
+                </view>
+                <text class="archive-row-meta">{{ formatDate(log.createdAt) }}</text>
+              </view>
+            </view>
+          </view>
         </template>
       </template>
     </template>
@@ -268,6 +296,8 @@ import { listFamilyMembers } from '@/api/members'
 import {
   cancelPublicApplication,
   closePublicFamily,
+  enablePublicFamily,
+  listFamilyOperationLogs,
   listPublicApplications,
   submitPublicApplication
 } from '@/api/publicApplications'
@@ -280,6 +310,7 @@ import type {
   DissolutionRequest,
   FamilyDetail,
   FamilyMember,
+  FamilyOperationLog,
   FounderTransferRequest,
   PublicApplication
 } from '@/types/api'
@@ -290,6 +321,7 @@ const familyId = ref('')
 const family = ref<FamilyDetail | null>(null)
 const members = ref<FamilyMember[]>([])
 const publicApplications = ref<PublicApplication[]>([])
+const operationLogs = ref<FamilyOperationLog[]>([])
 const currentTransfer = ref<FounderTransferRequest | null>(null)
 const currentDissolution = ref<DissolutionRequest | null>(null)
 const loading = ref(false)
@@ -299,11 +331,11 @@ const savingPublicInfo = ref(false)
 const publicSubmitting = ref(false)
 const publicReason = ref('')
 const takeDownReason = ref('')
-const takingDown = ref(false)
+const togglingPublicDisplay = ref(false)
 const transferTargetIndex = ref(0)
 const transferReason = ref('')
 const dissolutionReason = ref('')
-const settingsSection = ref<'public' | 'roles' | 'security'>('public')
+const settingsSection = ref<'public' | 'roles' | 'security' | 'logs'>('public')
 const publicForm = reactive({
   searchable: false,
   publicContactName: '',
@@ -363,11 +395,14 @@ async function loadData() {
     const familyResult = await getFamilyDetail(familyId.value)
     family.value = familyResult
     if (familyResult.role !== 'FOUNDER' && familyResult.role !== 'FAMILY_ADMIN') return
-    const [memberResult, publicResult, transferResult, dissolutionResult] = await Promise.all([
+    const [memberResult, publicResult, logResult, transferResult, dissolutionResult] = await Promise.all([
       listFamilyMembers(familyId.value),
       isRealApiMode
         ? listPublicApplications(familyId.value)
         : Promise.resolve({ items: [], page: 1, pageSize: 50, total: 0 }),
+      isRealApiMode
+        ? listFamilyOperationLogs(familyId.value)
+        : Promise.resolve({ items: [], page: 1, pageSize: 20, total: 0 }),
       isRealApiMode
         ? nullableRequest(() => getCurrentFounderTransfer(familyId.value))
         : Promise.resolve(null),
@@ -377,6 +412,7 @@ async function loadData() {
     ])
     members.value = memberResult
     publicApplications.value = publicResult.items
+    operationLogs.value = logResult.items
     currentTransfer.value = transferResult
     currentDissolution.value = dissolutionResult
     fillPublicForm(familyResult)
@@ -466,6 +502,31 @@ function confirmCancelPublic() {
   })
 }
 
+function onPublicDisplayToggle(event: Event) {
+  const nextValue = switchValue(event)
+  if (nextValue) {
+    enablePublicDisplay()
+    return
+  }
+  confirmClosePublic()
+}
+
+async function enablePublicDisplay() {
+  if (togglingPublicDisplay.value) return
+  togglingPublicDisplay.value = true
+  operationError.value = ''
+  try {
+    const result = await enablePublicFamily(familyId.value)
+    if (family.value) family.value.publicDisplayEnabled = result.publicDisplayEnabled
+    uni.showToast({ title: '公开展示已开启', icon: 'success' })
+    await loadData()
+  } catch (error) {
+    operationError.value = apiErrorMessage(error, '开启公开展示失败。')
+  } finally {
+    togglingPublicDisplay.value = false
+  }
+}
+
 function confirmClosePublic() {
   const validationMessage = validateTextFields([
     { value: takeDownReason.value, label: '关闭说明', kind: 'multiLine', maxLength: 500 }
@@ -476,10 +537,10 @@ function confirmClosePublic() {
   }
   uni.showModal({
     title: '关闭公开展示',
-    content: '关闭后，公开主页和公开家谱将立即不可访问。重新公开时需要再次提交审核。确定继续吗？',
+    content: '关闭后，公开主页和公开家庭树将立即不可访问；展示权限仍保留，可稍后重新开启。确定继续吗？',
     success: async (result) => {
       if (!result.confirm) return
-      takingDown.value = true
+      togglingPublicDisplay.value = true
       operationError.value = ''
       try {
         await closePublicFamily(familyId.value, optionalText(takeDownReason.value) || '')
@@ -489,7 +550,7 @@ function confirmClosePublic() {
       } catch (error) {
         operationError.value = apiErrorMessage(error, '关闭公开展示失败。')
       } finally {
-        takingDown.value = false
+        togglingPublicDisplay.value = false
       }
     }
   })
@@ -608,7 +669,7 @@ function confirmCancelDissolution() {
 }
 
 function publicStatusText(status: string) {
-  return ({ PRIVATE: '未公开', PENDING: '待审核', APPROVED: '已公开', REJECTED: '已驳回', TAKEN_DOWN: '已下架' } as Record<string, string>)[status] || '未知状态'
+  return ({ PRIVATE: '未申请', PENDING: '待审核', APPROVED: '已获展示权限', REJECTED: '已驳回', TAKEN_DOWN: '已下架' } as Record<string, string>)[status] || '未知状态'
 }
 
 function applicationStatusText(status: string) {
@@ -617,6 +678,47 @@ function applicationStatusText(status: string) {
 
 function roleText(role?: string | null) {
   return ({ FOUNDER: '创建者', FAMILY_ADMIN: '家庭管理员', MEMBER: '普通成员' } as Record<string, string>)[role || ''] || '未知角色'
+}
+
+function operationModuleText(module: string) {
+  return ({
+    FAMILY: '家庭资料',
+    FAMILY_MEMBER: '成员资料',
+    FAMILY_RELATIONSHIP: '家庭关系',
+    FAMILY_INVITATION: '家庭邀请',
+    FAMILY_JOIN_REQUEST: '加入申请',
+    FAMILY_PUBLIC_APPLICATION: '公开展示',
+    FAMILY_ROLE: '角色权限',
+    FAMILY_DISSOLUTION: '家庭解散',
+    FAMILY_FOUNDER_TRANSFER: '创建者转让'
+  } as Record<string, string>)[module] || module
+}
+
+function operationActionText(action: string) {
+  return ({
+    CREATE_FAMILY: '创建家庭',
+    UPDATE_FAMILY: '更新家庭资料',
+    CREATE_MEMBER: '创建成员',
+    UPDATE_MEMBER: '更新成员',
+    DELETE_MEMBER: '删除成员',
+    CREATE_RELATIONSHIP: '创建关系',
+    UPDATE_RELATIONSHIP: '调整关系',
+    DELETE_RELATIONSHIP: '删除关系',
+    PLACE_EXISTING_MEMBER: '接入暂存成员',
+    SUBMIT_PUBLIC_APPLICATION: '提交展示权限申请',
+    CANCEL_PUBLIC_APPLICATION: '取消展示权限申请',
+    APPROVE_PUBLIC_APPLICATION: '展示权限审核通过',
+    REJECT_PUBLIC_APPLICATION: '展示权限审核驳回',
+    ENABLE_PUBLIC_DISPLAY: '开启公开展示',
+    DISABLE_PUBLIC_DISPLAY: '关闭公开展示',
+    CLOSE_PUBLIC_FAMILY: '关闭公开展示',
+    SET_FAMILY_ADMIN: '设置管理员',
+    UNSET_FAMILY_ADMIN: '取消管理员'
+  } as Record<string, string>)[action] || action
+}
+
+function operationActorText(operatorType: string) {
+  return operatorType === 'ADMIN' ? '平台操作' : '家庭操作'
 }
 
 function memberName(memberId: number | string) {

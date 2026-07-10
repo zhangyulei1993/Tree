@@ -24,7 +24,8 @@
         </view>
         <view class="cover-book archive-book-spine">
           <text>家</text>
-          <text>谱</text>
+          <text>庭</text>
+          <text>树</text>
         </view>
       </view>
 
@@ -36,7 +37,6 @@
       </view>
 
       <view class="status-line">
-        <text class="archive-chip">{{ roleText(family.role) }}</text>
         <text class="archive-chip">{{ familyStatusText(family.status) }}</text>
         <text class="archive-chip">{{ publicStatusText(family.publicDisplayStatus) }}</text>
       </view>
@@ -50,22 +50,14 @@
           <text class="archive-row-meta">档案</text>
           <text class="archive-arrow">›</text>
         </view>
-        <view class="archive-row" @click="openMembers">
+        <navigator class="archive-row" :url="familyTreeUrl" hover-class="none">
           <view class="archive-row-main">
-            <text class="archive-row-title">成员名册</text>
-            <text class="archive-row-desc">查看成员资料、账号绑定和邀请状态</text>
+            <text class="archive-row-title">家庭树</text>
+            <text class="archive-row-desc">在家庭树与成员表之间切换查看</text>
           </view>
-          <text class="archive-row-meta">名册</text>
+          <text class="archive-row-meta">家庭树 / 成员表</text>
           <text class="archive-arrow">›</text>
-        </view>
-        <view class="archive-row" @click="openTree">
-          <view class="archive-row-main">
-            <text class="archive-row-title">家谱</text>
-            <text class="archive-row-desc">查看父母子女与配偶关系</text>
-          </view>
-          <text class="archive-row-meta">v{{ family.graphVersion }}</text>
-          <text class="archive-arrow">›</text>
-        </view>
+        </navigator>
         <view v-if="canManageFamily" class="archive-row" @click="openManageCenter">
           <view class="archive-row-main">
             <text class="archive-row-title">家庭管理</text>
@@ -85,16 +77,18 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
+import { listFamilyMembers } from '@/api/members'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniFamilyPageSkeleton from '@/components/base/MiniFamilyPageSkeleton.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import { useSessionStore } from '@/stores/session'
-import type { FamilyDetail } from '@/types/api'
+import type { FamilyDetail, FamilyMember } from '@/types/api'
 
 const session = useSessionStore()
 const familyId = ref('')
 const family = ref<FamilyDetail | null>(null)
+const members = ref<FamilyMember[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
 const navigating = ref(false)
@@ -102,15 +96,19 @@ const navigating = ref(false)
 const canManageFamily = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
 )
+const familyTreeUrl = computed(() =>
+  `/pages/family/private-tree?familyId=${encodeURIComponent(familyId.value)}`
+)
+const lastMemberUpdatedAtText = computed(() => formatLatestMemberUpdate(members.value))
 
 const dossierItems = computed(() => {
   const currentFamily = family.value
   if (!currentFamily) return []
   return [
     { label: '姓氏', value: `${currentFamily.familySurname || '未录'}氏` },
-    { label: '始祖', value: currentFamily.currentFounderMemberId ? `成员 ${currentFamily.currentFounderMemberId}` : '待补录' },
+    { label: '成员数', value: `${members.value.length} 位` },
     { label: '地区', value: currentFamily.regionText || currentFamily.nativePlace || '未填写' },
-    { label: '传世', value: `谱版 ${currentFamily.graphVersion}` }
+    { label: '最近更新', value: lastMemberUpdatedAtText.value }
   ]
 })
 
@@ -130,7 +128,12 @@ async function loadFamily() {
   loading.value = isInitialLoad
   errorMessage.value = ''
   try {
-    family.value = await getFamilyDetail(familyId.value)
+    const [familyDetail, familyMembers] = await Promise.all([
+      getFamilyDetail(familyId.value),
+      listFamilyMembers(familyId.value)
+    ])
+    family.value = familyDetail
+    members.value = familyMembers
   } catch (error) {
     errorMessage.value = apiErrorMessage(error, '家庭详情加载失败。')
   } finally {
@@ -142,6 +145,7 @@ function resetPageData() {
   loading.value = false
   errorMessage.value = ''
   family.value = null
+  members.value = []
 }
 
 function navigateOnce(url: string) {
@@ -159,29 +163,8 @@ function openProfile() {
   navigateOnce(`/pages/family/profile?familyId=${encodeURIComponent(familyId.value)}`)
 }
 
-function openMembers() {
-  navigateOnce(`/pages/family/members?familyId=${encodeURIComponent(familyId.value)}`)
-}
-
-function openTree() {
-  navigateOnce(`/pages/family/private-tree?familyId=${encodeURIComponent(familyId.value)}`)
-}
-
 function openManageCenter() {
   navigateOnce(`/pages/family/manage-center?familyId=${encodeURIComponent(familyId.value)}`)
-}
-
-function roleText(role: string) {
-  switch (role) {
-    case 'FOUNDER':
-      return '创建者'
-    case 'FAMILY_ADMIN':
-      return '管理员'
-    case 'MEMBER':
-      return '成员'
-    default:
-      return role ? '未知角色' : '成员'
-  }
 }
 
 function familyStatusText(status: string) {
@@ -207,6 +190,22 @@ function familyStatusText(status: string) {
     default:
       return '未知状态'
   }
+}
+
+function formatLatestMemberUpdate(memberList: FamilyMember[]) {
+  const latestTime = memberList
+    .map((member) => Date.parse(member.updatedAt || member.createdAt || ''))
+    .filter((time) => Number.isFinite(time))
+    .sort((a, b) => b - a)[0]
+  if (!latestTime) return '暂无记录'
+  return new Date(latestTime).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
 }
 
 function publicStatusText(status: string) {

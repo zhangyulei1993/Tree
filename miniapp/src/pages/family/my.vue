@@ -48,7 +48,7 @@
             <text class="archive-row-title">{{ family.familyName }}</text>
             <text class="archive-row-desc">{{ familyRegionLabel(family) }}</text>
           </view>
-          <text class="archive-row-meta">{{ roleText(family.role) }}</text>
+          <text class="archive-row-meta">进入</text>
           <text class="archive-arrow">›</text>
         </view>
       </view>
@@ -71,7 +71,7 @@
 
       <view class="create-family-entry archive-panel" @click="openCreateFamily">
         <view class="create-family-copy">
-          <text class="create-family-title">新建家谱册</text>
+          <text class="create-family-title">创建家庭</text>
           <text class="create-family-desc">{{ createFamilyHint }}</text>
         </view>
         <text class="archive-thin-button">{{ createFamilyActionText }}</text>
@@ -165,9 +165,9 @@ const createFamilyActionText = computed(() => (session.isLoggedIn ? '创建家�
 const createFamilyHint = computed(() =>
   session.isLoggedIn
     ? session.isProfileComplete
-      ? '准备自己整理家谱？填写姓氏与地区，开启新的家谱册。'
-      : '准备自己整理家谱？完善资料后即可创建家庭。'
-    : '准备自己整理家谱？登录并完善资料后可创建家庭。'
+      ? '准备记录家庭关系？填写姓氏与地区，建立新的家庭树。'
+      : '准备记录家庭关系？完善资料后即可创建家庭。'
+    : '准备记录家庭关系？登录并完善资料后可创建家庭。'
 )
 
 async function loadMyFamilies() {
@@ -257,19 +257,6 @@ function familyRegionLabel(family: FamilySummary) {
 
 function showcaseDesc(family: PublicFamilyShowcaseItem) {
   return family.description || family.regionText || family.nativePlace || '已公开展示'
-}
-
-function roleText(role: string) {
-  switch (role) {
-    case 'FOUNDER':
-      return '创建者'
-    case 'FAMILY_ADMIN':
-      return '管理员'
-    case 'MEMBER':
-      return '成员'
-    default:
-      return role ? '未知角色' : '成员'
-  }
 }
 
 onShow(refreshPage)

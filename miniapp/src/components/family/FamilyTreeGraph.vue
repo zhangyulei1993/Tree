@@ -2,7 +2,7 @@
   <view class="family-tree-graph">
     <view v-if="!layout.success" class="tree-fallback">
       <MiniNotice tone="warm" title="结构生成提示">
-        {{ layout.message || '家谱结构暂时无法生成，可查看关系明细' }}
+        {{ layout.message || '家庭树暂时无法生成，可查看关系明细' }}
       </MiniNotice>
     </view>
 
@@ -82,7 +82,6 @@
         <text class="footnote">
           共 {{ layout.memberCount }} 位成员，树中展示 {{ layout.renderedCount }} 位
           <text v-if="viewerMemberId"> · 深蓝纸签为当前中心视角</text>
-          <text v-if="graphVersion"> · 家谱版本 {{ graphVersion }}</text>
         </text>
       </view>
 
@@ -147,8 +146,6 @@ const kinshipTitles = computed(() =>
     graphVersion: props.tree?.graphVersion ?? 0
   })
 )
-
-const graphVersion = computed(() => props.tree?.graphVersion || null)
 
 const familySurname = computed(() => {
   const counts = new Map<string, number>()

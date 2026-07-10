@@ -30,7 +30,7 @@ func newFakeRepo() *fakeRepo {
 	return &fakeRepo{
 		family: familymodel.Family{
 			ID: 2, FamilyName: "Tree", Status: string(enums.StatusNormal),
-			PublicDisplayStatus: publicenum.PublicApproved, GraphVersion: 7,
+			PublicDisplayStatus: publicenum.PublicApproved, PublicDisplayEnabled: true, GraphVersion: 7,
 		},
 		messages: map[uint64]*messagemodel.VisitorMessage{},
 		nextID:   1,

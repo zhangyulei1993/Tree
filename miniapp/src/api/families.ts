@@ -26,6 +26,7 @@ export async function listMyFamilies(): Promise<FamilySummary[]> {
         regionText: source.regionText,
         status: family.status,
         publicDisplayStatus: 'APPROVED',
+        publicDisplayEnabled: true,
         role: family.role
       }
     })
@@ -56,6 +57,7 @@ export async function getFamilyDetail(familyId: number | string): Promise<Family
       description: source.description,
       status: source.status,
       publicDisplayStatus: 'APPROVED',
+      publicDisplayEnabled: true,
       role: mine?.role || 'MEMBER',
       searchable: true,
       publicContactVisible: Boolean(source.contact),
@@ -80,6 +82,7 @@ export async function createFamily(input: CreateFamilyInput): Promise<FamilyDeta
       description: input.description || null,
       status: 'NORMAL',
       publicDisplayStatus: 'PRIVATE',
+      publicDisplayEnabled: false,
       role: 'FOUNDER',
       searchable: true,
       publicContactVisible: false,

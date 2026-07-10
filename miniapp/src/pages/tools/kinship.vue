@@ -43,7 +43,7 @@
     <view class="archive-form-panel kinship-panel">
       <view class="archive-section-head">
         <text class="archive-section-title">关系路径</text>
-        <text class="archive-section-subtitle">从「我」出发，沿谱系节点推导</text>
+        <text class="archive-section-subtitle">从「我」出发，沿家庭关系推导</text>
       </view>
       <view class="path-tag-chain">
         <text class="path-tag path-tag-self">我</text>

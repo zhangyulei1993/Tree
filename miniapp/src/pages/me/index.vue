@@ -115,8 +115,8 @@ const accountStatusLabel = computed(() =>
 const directoryItems = [
   { title: '个人资料', desc: '昵称、头像与基础资料', count: '', url: '/pages/me/profile' },
   { title: '关联成员', desc: '查看家庭事务与成员身份', count: '1', url: '/pages/me/family-affairs' },
-  { title: '我的贡献', desc: '整理家谱、邀请亲友的记录', count: '', url: '/pages/me/family-affairs' },
-  { title: '修谱记录', desc: '家庭邀请、加入申请与事务', count: '', url: '/pages/me/family-affairs' },
+  { title: '我的贡献', desc: '整理家庭树、邀请亲友的记录', count: '', url: '/pages/me/family-affairs' },
+  { title: '家庭树记录', desc: '家庭邀请、加入申请与事务', count: '', url: '/pages/me/family-affairs' },
   { title: '设置', desc: '账号与安全、手机号登录', count: '', url: '/pages/me/account-security' },
   { title: '帮助与反馈', desc: '使用说明与联系方式', count: '', url: '/pages/me/about' },
   { title: '关于我们', desc: '协议、隐私与版本信息', count: '', url: '/pages/me/about' }

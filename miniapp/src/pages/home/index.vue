@@ -107,13 +107,13 @@ import { onLoad, onShareAppMessage, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { listContentArticles, listContentCategories } from '@/api/content'
-import { getFamilyDetail, listMyFamilies, listPublicFamilyShowcase } from '@/api/families'
+import { listMyFamilies, listPublicFamilyShowcase } from '@/api/families'
 import { listFamilyMembers } from '@/api/members'
 import { promptPrivacyConsentIfNeeded } from '@/features/legal/privacyConsent'
 import { openWechatOfficialArticle } from '@/features/content/wechatOfficialArticle'
 import { buildHomeSharePayload } from '@/features/share/wechatShare'
 import { useSessionStore } from '@/stores/session'
-import type { ContentArticleSummary, ContentCategory, PublicFamilyShowcaseItem } from '@/types/api'
+import type { ContentArticleSummary, ContentCategory, FamilyMember, PublicFamilyShowcaseItem } from '@/types/api'
 
 interface ArchiveStat {
   label: string
@@ -127,7 +127,7 @@ const showcaseFamilies = ref<PublicFamilyShowcaseItem[]>([])
 const showcaseTotal = ref(0)
 const archiveStats = ref<ArchiveStat[]>([
   { label: '展示家庭', value: '—' },
-  { label: '传世故事', value: '—' },
+  { label: '家庭故事', value: '—' },
   { label: '阅读篇目', value: '—' }
 ])
 const hasOwnFamilies = ref(false)
@@ -135,17 +135,17 @@ const hasOwnFamilies = ref(false)
 const featuredRead = computed(() => articles.value.find((item) => item.isFeatured) || articles.value[0] || null)
 const shouldPromptCreateFamily = computed(() => !hasOwnFamilies.value && session.isLoggedIn)
 const primaryEntryTitle = computed(() =>
-  hasOwnFamilies.value ? '翻开我的家谱' : shouldPromptCreateFamily.value ? '创建我的家庭' : '浏览展示家庭'
+  hasOwnFamilies.value ? '打开家庭树' : shouldPromptCreateFamily.value ? '创建我的家庭' : '浏览展示家庭'
 )
 const primaryEntryDesc = computed(() =>
   hasOwnFamilies.value
-    ? '查看成员、关系和家谱册页'
+    ? '查看家庭成员与关系图'
     : shouldPromptCreateFamily.value
-      ? '填写姓氏，建立自己的家谱册页'
+      ? '填写姓氏，建立自己的家庭树'
       : '无需登录，先看公开展示册页'
 )
 const directoryTagText = computed(() =>
-  hasOwnFamilies.value ? ['家', '谱'] : shouldPromptCreateFamily.value ? ['建', '谱'] : ['展', '示']
+  hasOwnFamilies.value ? ['家', '树'] : shouldPromptCreateFamily.value ? ['建', '树'] : ['展', '示']
 )
 
 function categoryTitle(key: string) {
@@ -154,19 +154,6 @@ function categoryTitle(key: string) {
 
 function articleUrl(id: number | string) {
   return `/pages/content/detail?id=${encodeURIComponent(id)}`
-}
-
-function familyRoleText(role?: string) {
-  switch (role) {
-    case 'FOUNDER':
-      return '创建者'
-    case 'FAMILY_ADMIN':
-      return '管理员'
-    case 'MEMBER':
-      return '成员'
-    default:
-      return '成员'
-  }
 }
 
 async function openReadingArticle(article: ContentArticleSummary) {
@@ -214,14 +201,11 @@ async function loadArchiveStats() {
       if (myFamilies.length > 0) {
         hasOwnFamilies.value = true
         const primary = myFamilies[0]
-        const [members, detail] = await Promise.all([
-          listFamilyMembers(primary.id),
-          getFamilyDetail(primary.id)
-        ])
+        const members = await listFamilyMembers(primary.id)
         archiveStats.value = [
           { label: '成员人数', value: String(members.length) },
-          { label: '家庭角色', value: familyRoleText(detail.role) },
-          { label: '谱系版本', value: `v${detail.graphVersion}` }
+          { label: '最近更新', value: formatLatestMemberUpdate(members) },
+          { label: '我的家庭', value: String(myFamilies.length) }
         ]
         return
       }
@@ -232,9 +216,22 @@ async function loadArchiveStats() {
   hasOwnFamilies.value = false
   archiveStats.value = [
     { label: '展示家庭', value: showcaseTotal.value > 0 ? String(showcaseTotal.value) : '—' },
-    { label: '传世故事', value: articles.value.length > 0 ? String(articles.value.length) : '—' },
+    { label: '家庭故事', value: articles.value.length > 0 ? String(articles.value.length) : '—' },
     { label: '阅读篇目', value: categories.value.length > 0 ? String(categories.value.length) : '—' }
   ]
+}
+
+function formatLatestMemberUpdate(members: FamilyMember[]) {
+  const latestTime = members
+    .map((member) => Date.parse(member.updatedAt || member.createdAt || ''))
+    .filter((time) => Number.isFinite(time))
+    .sort((a, b) => b - a)[0]
+  if (!latestTime) return '暂无记录'
+  return new Date(latestTime).toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  })
 }
 
 function openShowcaseFamily(familyId: number | string) {

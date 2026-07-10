@@ -21,7 +21,7 @@
         <view>
           <text class="archive-kicker">Invitation Letter</text>
           <text class="archive-title">邀请确认</text>
-          <text class="archive-subtitle">请核对家庭与成员身份，再决定是否入谱绑定</text>
+          <text class="archive-subtitle">{{ invitationSubtitle }}</text>
         </view>
         <view class="archive-seal detail-seal">谱</view>
       </view>
@@ -29,13 +29,13 @@
       <view class="invite-letter" :class="{ pending: invitation.status === 'PENDING' }">
         <view class="invite-letter-head">
           <view class="invite-letter-copy">
-            <text class="invite-letter-kicker">入谱邀请帖</text>
+            <text class="invite-letter-kicker">家庭邀请帖</text>
             <text class="invite-family-name">{{ invitation.familyName }}</text>
             <view class="invite-target-line">
-              <text class="invite-target-label">邀请确认成员</text>
-              <text class="invite-target-tag archive-paper-tag">{{ invitation.targetMemberName }}</text>
+              <text class="invite-target-label">{{ isPendingMemberInvitation ? '成员身份' : '邀请确认成员' }}</text>
+              <text class="invite-target-tag archive-paper-tag">{{ inviteTargetText }}</text>
             </view>
-            <text class="invite-target-hint">接受后，你的账号将与该家谱成员节点绑定。</text>
+            <text class="invite-target-hint">{{ inviteTargetHint }}</text>
           </view>
           <view class="invite-letter-spine archive-book-spine">
             <text>入</text>
@@ -85,10 +85,10 @@
         </view>
         <view class="invite-benefits archive-list">
           <view class="archive-row invite-benefit-row">
-            <text class="invite-benefit-text">在「{{ invitation.familyName }}」中确认自己的成员身份</text>
+            <text class="invite-benefit-text">{{ isPendingMemberInvitation ? '先加入家庭，成员身份之后由管理员确认' : `在「${invitation.familyName}」中确认自己的成员身份` }}</text>
           </view>
           <view class="archive-row invite-benefit-row">
-            <text class="invite-benefit-text">查看家庭成员和家谱关系</text>
+            <text class="invite-benefit-text">查看家庭成员和家庭树关系</text>
           </view>
           <view class="archive-row invite-benefit-row">
             <text class="invite-benefit-text">在个人中心查看已加入的家庭</text>
@@ -97,7 +97,7 @@
       </view>
 
       <MiniNotice tone="security" title="接受前请确认">
-        请确认上方姓名就是你在家谱中的身份。如果信息不符，请先拒绝邀请并联系家庭管理员。平台不会向你索要密码或验证码。
+        {{ acceptNoticeText }}
       </MiniNotice>
 
       <view v-if="invitation.status === 'PENDING'" class="archive-form-panel invite-action-panel">
@@ -174,7 +174,7 @@
 
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import { acceptInvitation, getInvitationDetail, rejectInvitation } from '@/api/invitations'
 import { apiErrorMessage } from '@/api/client'
@@ -196,6 +196,23 @@ const acting = ref<'' | 'accept' | 'reject'>('')
 const loadError = ref('')
 const actionError = ref('')
 const result = ref('')
+const isPendingMemberInvitation = computed(() => invitation.value?.inviteType === 'JOIN_FAMILY_PENDING_MEMBER')
+const invitationSubtitle = computed(() =>
+  isPendingMemberInvitation.value ? '确认是否加入该家庭，成员身份可稍后再确认' : '请核对家庭与成员身份，再决定是否家庭树绑定'
+)
+const inviteTargetText = computed(() =>
+  isPendingMemberInvitation.value ? '身份待确认' : invitation.value?.targetMemberName || ''
+)
+const inviteTargetHint = computed(() =>
+  isPendingMemberInvitation.value
+    ? '接受后，你会先加入该家庭；管理员稍后可确认你的成员节点。'
+    : '接受后，你的账号将与该家庭树成员节点绑定。'
+)
+const acceptNoticeText = computed(() =>
+  isPendingMemberInvitation.value
+    ? '请确认这是你要加入的家庭。成员身份暂不确定时，可以先接受邀请，之后再由家庭管理员确认。平台不会向你索要密码或验证码。'
+    : '请确认上方姓名就是你在家庭树中的身份。如果信息不符，请先拒绝邀请并联系家庭管理员。平台不会向你索要密码或验证码。'
+)
 
 function currentRoute() {
   return `/pages/invite/detail?inviteToken=${encodeURIComponent(inviteToken.value)}`

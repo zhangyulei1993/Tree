@@ -72,7 +72,7 @@ func (s *service) CreatePublic(ctx context.Context, familyID uint64, req message
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	if !publicFamily(family.Status, family.PublicDisplayStatus) {
+	if !publicFamily(family.Status, family.PublicDisplayStatus, family.PublicDisplayEnabled) {
 		return nil, messageError(CodeVisitorMessageFamilyPrivate, "家庭未公开，不能留言")
 	}
 	ip := strings.TrimSpace(audit.IP)
@@ -110,7 +110,7 @@ func (s *service) ListPublic(ctx context.Context, familyID uint64, req messagedt
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	if !publicFamily(family.Status, family.PublicDisplayStatus) {
+	if !publicFamily(family.Status, family.PublicDisplayStatus, family.PublicDisplayEnabled) {
 		return nil, messageError(CodeVisitorMessageFamilyPrivate, "家庭未公开，不能留言")
 	}
 	req.Page, req.PageSize = normalizePage(req.Page, req.PageSize)
@@ -246,8 +246,8 @@ func messageVO(row *messagerepo.MessageRow) vo.VisitorMessage {
 	}
 }
 
-func publicFamily(status string, displayStatus string) bool {
-	return status == string(enums.StatusNormal) && displayStatus == publicenum.PublicApproved
+func publicFamily(status string, displayStatus string, displayEnabled bool) bool {
+	return status == string(enums.StatusNormal) && displayStatus == publicenum.PublicApproved && displayEnabled
 }
 
 func writeAdminLog(ctx context.Context, repo messagerepo.Repository, adminID uint64, role string, familyID uint64, messageID uint64, action string, audit AuditInput) error {

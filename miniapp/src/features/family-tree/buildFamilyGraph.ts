@@ -105,7 +105,7 @@ export function buildFamilyGraph(input: FamilyTreeBuildInput): BuiltFamilyGraph 
       unlocatedMemberIds,
       memberCount,
       renderedCount: rendered.size,
-      message: roots.length === 0 ? '家谱结构暂时无法生成，可查看关系明细' : undefined
+      message: roots.length === 0 ? '家庭树暂时无法生成，可查看关系明细' : undefined
     }
   } catch {
     return {
@@ -115,7 +115,7 @@ export function buildFamilyGraph(input: FamilyTreeBuildInput): BuiltFamilyGraph 
       unlocatedMemberIds: [],
       memberCount,
       renderedCount: 0,
-      message: '家谱结构暂时无法生成，可查看关系明细'
+      message: '家庭树暂时无法生成，可查看关系明细'
     }
   }
 }
