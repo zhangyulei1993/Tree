@@ -55,8 +55,12 @@
               <el-button size="small" @click="openAudit(row.requestId, 'reject')">驳回</el-button>
             </div>
             <div v-else-if="row.requestStatus === 'APPROVED'" class="table-actions">
+              <template v-if="row.familyStatus === 'DISSOLUTION_COOLDOWN'">
+                <el-button size="small" type="primary" @click="openRestore(row.familyId)">恢复家庭</el-button>
+                <el-button size="small" type="danger" @click="openFinalize(row.familyId)">完成解散</el-button>
+              </template>
               <el-button
-                v-if="row.familyStatus === 'DISSOLVED'"
+                v-else-if="row.familyStatus === 'DISSOLVED'"
                 size="small"
                 type="primary"
                 @click="openRestore(row.familyId)"
@@ -109,6 +113,15 @@
       danger
       @confirm="confirmRestore"
     />
+    <ConfirmDialog
+      v-model="finalizeConfirmVisible"
+      title="确认完成解散"
+      message="完成后家庭状态将变为 DISSOLVED，冷静期结束，并正式释放相关账号权益占用。该操作后仍可由后台恢复。"
+      :submitting="submitting"
+      :close-on-confirm="false"
+      danger
+      @confirm="confirmFinalize"
+    />
   </div>
 </template>
 
@@ -116,7 +129,7 @@
 import { ElMessage } from 'element-plus'
 import { onMounted, ref } from 'vue'
 
-import { restoreFamily } from '@/api/adminFamilies'
+import { finalizeDissolutionFamily, restoreFamily } from '@/api/adminFamilies'
 import { getApiErrorMessage } from '@/api/client'
 import {
   approveDissolutionRequest,
@@ -143,6 +156,7 @@ const operationError = ref('')
 const auditVisible = ref(false)
 const approveConfirmVisible = ref(false)
 const restoreConfirmVisible = ref(false)
+const finalizeConfirmVisible = ref(false)
 const auditAction = ref<'approve' | 'reject'>('approve')
 const auditTitle = ref('家庭解散审核')
 const auditKey = ref(0)
@@ -210,6 +224,12 @@ function openRestore(targetFamilyId: number) {
   restoreConfirmVisible.value = true
 }
 
+function openFinalize(targetFamilyId: number) {
+  operationError.value = ''
+  selectedFamilyId.value = targetFamilyId
+  finalizeConfirmVisible.value = true
+}
+
 async function submitAudit(reviewComment: string) {
   if (!selectedRequestId.value || submitting.value) return
   const comment = reviewComment.trim() || undefined
@@ -260,6 +280,22 @@ async function confirmRestore() {
     await restoreFamily(selectedFamilyId.value, { searchable: true })
     restoreConfirmVisible.value = false
     ElMessage.success('家庭已恢复，公开状态已重置为私有')
+    await loadRequests()
+  } catch (error) {
+    operationError.value = getApiErrorMessage(error)
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function confirmFinalize() {
+  if (!selectedFamilyId.value || submitting.value) return
+  submitting.value = true
+  operationError.value = ''
+  try {
+    await finalizeDissolutionFamily(selectedFamilyId.value)
+    finalizeConfirmVisible.value = false
+    ElMessage.success('家庭已完成解散')
     await loadRequests()
   } catch (error) {
     operationError.value = getApiErrorMessage(error)

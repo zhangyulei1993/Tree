@@ -19,13 +19,14 @@ import (
 )
 
 const (
-	CodeDissolutionNotFound      apperrors.Code = 46201
-	CodeDissolutionInvalidStatus apperrors.Code = 46202
-	CodeDissolutionDuplicate     apperrors.Code = 46203
-	CodeDissolutionForbidden     apperrors.Code = 46204
-	CodeDissolutionAdminDenied   apperrors.Code = 46205
-	CodeFamilyRestoreStatus      apperrors.Code = 46206
-	CodeFamilyRestoreAdminDenied apperrors.Code = 46207
+	CodeDissolutionNotFound       apperrors.Code = 46201
+	CodeDissolutionInvalidStatus  apperrors.Code = 46202
+	CodeDissolutionDuplicate      apperrors.Code = 46203
+	CodeDissolutionForbidden      apperrors.Code = 46204
+	CodeDissolutionAdminDenied    apperrors.Code = 46205
+	CodeFamilyRestoreStatus       apperrors.Code = 46206
+	CodeFamilyRestoreAdminDenied  apperrors.Code = 46207
+	CodeFamilyFinalizeAdminDenied apperrors.Code = 46208
 )
 
 type AuditInput struct {
@@ -38,6 +39,7 @@ type Service interface {
 	Approve(context.Context, uint64, string, uint64, dissolutiondto.ReviewDissolutionRequest, AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	Reject(context.Context, uint64, string, uint64, dissolutiondto.ReviewDissolutionRequest, AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	Restore(context.Context, uint64, string, uint64, dissolutiondto.RestoreFamilyRequest, AuditInput) (*vo.RestoreResult, *apperrors.BusinessError)
+	Finalize(context.Context, uint64, string, uint64, AuditInput) (*vo.FinalizeResult, *apperrors.BusinessError)
 }
 
 type service struct {
@@ -183,6 +185,47 @@ func (s *service) Restore(ctx context.Context, adminID uint64, role string, fami
 			}
 		}
 	}
+	if businessErr := mapError(err); businessErr != nil {
+		return nil, businessErr
+	}
+	return result, nil
+}
+
+func (s *service) Finalize(ctx context.Context, adminID uint64, role string, familyID uint64, audit AuditInput) (*vo.FinalizeResult, *apperrors.BusinessError) {
+	if !canAdminReview(role) {
+		return nil, dissolutionError(CodeFamilyFinalizeAdminDenied, "后台无权完成解散")
+	}
+	var result *vo.FinalizeResult
+	err := s.uow.WithinTransaction(ctx, func(repo dissolutionrepo.Repository) error {
+		family, err := repo.FindFamily(ctx, familyID, true)
+		if err != nil {
+			return errNotFound
+		}
+		if family.Status != string(enums.StatusDissolutionCooldown) {
+			return errRestoreStatus
+		}
+		now := s.now()
+		if err := repo.UpdateFamily(ctx, familyID, map[string]any{
+			"status":                   string(enums.StatusDissolved),
+			"searchable":               false,
+			"public_display_enabled":   false,
+			"dissolution_completed_at": now,
+		}); err != nil {
+			return err
+		}
+		if err := writeAdminLog(ctx, repo, adminID, role, familyID, familyID, "FINALIZE_DISSOLUTION", audit); err != nil {
+			return err
+		}
+		result = &vo.FinalizeResult{
+			FamilyID:               familyID,
+			Status:                 string(enums.StatusDissolved),
+			PublicDisplayStatus:    family.PublicDisplayStatus,
+			Searchable:             false,
+			GraphVersion:           family.GraphVersion,
+			DissolutionCompletedAt: &now,
+		}
+		return nil
+	})
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}

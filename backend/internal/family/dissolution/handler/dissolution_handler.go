@@ -70,6 +70,19 @@ func (h *Handler) Restore(ctx *gin.Context) {
 	write(ctx, http.StatusOK, result, err)
 }
 
+func (h *Handler) Finalize(ctx *gin.Context) {
+	adminID, role, ok := adminAndRole(ctx)
+	if !ok {
+		return
+	}
+	familyID, ok := pathID(ctx, "familyId")
+	if !ok {
+		return
+	}
+	result, err := h.service.Finalize(ctx.Request.Context(), adminID, role, familyID, audit(ctx))
+	write(ctx, http.StatusOK, result, err)
+}
+
 func adminAndRole(ctx *gin.Context) (uint64, string, bool) {
 	adminID, err := middleware.CurrentAdminID(ctx)
 	if err != nil {
@@ -113,7 +126,7 @@ func write(ctx *gin.Context, status int, result any, err *apperrors.BusinessErro
 	}
 	httpStatus := http.StatusBadRequest
 	switch err.Code {
-	case dissolutionservice.CodeDissolutionAdminDenied, dissolutionservice.CodeFamilyRestoreAdminDenied:
+	case dissolutionservice.CodeDissolutionAdminDenied, dissolutionservice.CodeFamilyRestoreAdminDenied, dissolutionservice.CodeFamilyFinalizeAdminDenied:
 		httpStatus = http.StatusForbidden
 	case dissolutionservice.CodeDissolutionNotFound,
 		apperrors.CodeResourceNotFound:

@@ -37,3 +37,12 @@ type RestoreResult struct {
 	GraphVersion        int64      `json:"graphVersion"`
 	RestoredAt          *time.Time `json:"restoredAt,omitempty"`
 }
+
+type FinalizeResult struct {
+	FamilyID               uint64     `json:"familyId"`
+	Status                 string     `json:"status"`
+	PublicDisplayStatus    string     `json:"publicDisplayStatus"`
+	Searchable             bool       `json:"searchable"`
+	GraphVersion           int64      `json:"graphVersion"`
+	DissolutionCompletedAt *time.Time `json:"dissolutionCompletedAt,omitempty"`
+}

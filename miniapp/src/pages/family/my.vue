@@ -23,7 +23,7 @@
       </view>
 
       <view class="my-toolbar">
-        <text class="archive-chip">共 {{ families.length }} 个家庭</text>
+        <text class="archive-chip">正常 {{ activeFamilies.length }} · 冷静期 {{ cooldownFamilies.length }}</text>
         <text class="archive-thin-button" @click="openCreateFamily">创建家庭</text>
       </view>
 
@@ -36,20 +36,54 @@
         <MiniEmptyState symbol="…" title="正在加载" description="正在加载家庭列表..." />
       </view>
 
-      <view v-else class="my-family-list archive-list">
-        <view
-          v-for="family in families"
-          :key="family.id"
-          class="archive-row"
-          @click="openFamily(family.id)"
-        >
-          <text class="archive-surname-stamp">{{ family.familySurname.slice(0, 1) }}</text>
-          <view class="archive-row-main">
-            <text class="archive-row-title">{{ family.familyName }}</text>
-            <text class="archive-row-desc">{{ familyRegionLabel(family) }}</text>
+      <view v-else class="my-family-groups">
+        <view v-if="activeFamilies.length > 0" class="archive-form-panel">
+          <view class="archive-section-head">
+            <text class="archive-section-title">正常家庭</text>
+            <text class="archive-section-subtitle">可继续查看与管理</text>
           </view>
-          <text class="archive-row-meta">进入</text>
-          <text class="archive-arrow">›</text>
+          <view class="my-family-list archive-list">
+            <view
+              v-for="family in activeFamilies"
+              :key="family.id"
+              class="archive-row"
+              @click="openFamily(family.id)"
+            >
+              <text class="archive-surname-stamp">{{ family.familySurname.slice(0, 1) }}</text>
+              <view class="archive-row-main">
+                <text class="archive-row-title">{{ family.familyName }}</text>
+                <text class="archive-row-desc">{{ familyRegionLabel(family) }}</text>
+              </view>
+              <text class="archive-row-meta">进入</text>
+              <text class="archive-arrow">›</text>
+            </view>
+          </view>
+        </view>
+
+        <view v-if="cooldownFamilies.length > 0" class="archive-form-panel">
+          <view class="archive-section-head">
+            <text class="archive-section-title">恢复冷静期</text>
+            <text class="archive-section-subtitle">仍占用账号权益，可查看、可恢复、可完成解散</text>
+          </view>
+          <MiniNotice tone="warm" title="冷静期家庭不会丢失">
+            冷静期内家庭仍保留在列表中。进入后，创建者可恢复家庭，或直接完成解散。
+          </MiniNotice>
+          <view class="my-family-list archive-list">
+            <view
+              v-for="family in cooldownFamilies"
+              :key="family.id"
+              class="archive-row archive-row-cooldown"
+              @click="openFamily(family.id)"
+            >
+              <text class="archive-surname-stamp">{{ family.familySurname.slice(0, 1) }}</text>
+              <view class="archive-row-main">
+                <text class="archive-row-title">{{ family.familyName }}</text>
+                <text class="archive-row-desc">{{ cooldownDesc(family) }}</text>
+              </view>
+              <text class="archive-row-meta">冷静期</text>
+              <text class="archive-arrow">›</text>
+            </view>
+          </view>
         </view>
       </view>
     </template>
@@ -161,6 +195,8 @@ const showcasePageSize = 20
 const hasMyFamilies = computed(() => myFamiliesLoaded.value && families.value.length > 0)
 const isResolvingMyFamilyMode = computed(() => loadingMyFamilies.value && !myFamiliesLoaded.value)
 const showcaseHasMore = computed(() => showcaseItems.value.length < showcaseTotal.value)
+const activeFamilies = computed(() => families.value.filter((family) => family.status !== 'DISSOLUTION_COOLDOWN'))
+const cooldownFamilies = computed(() => families.value.filter((family) => family.status === 'DISSOLUTION_COOLDOWN'))
 const createFamilyActionText = computed(() => (session.isLoggedIn ? '创建家庭' : '登录后创建'))
 const createFamilyHint = computed(() =>
   session.isLoggedIn
@@ -253,6 +289,22 @@ function openCreateFamily() {
 
 function familyRegionLabel(family: FamilySummary) {
   return family.regionText || family.nativePlace || '暂未填写地区'
+}
+
+function cooldownDesc(family: FamilySummary) {
+  const region = familyRegionLabel(family)
+  if (!family.dissolutionCooldownUntil) return `${region} · 恢复冷静期中`
+  return `${region} · 截止 ${formatCooldown(family.dissolutionCooldownUntil)}`
+}
+
+function formatCooldown(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '冷静期中'
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  const hour = `${date.getHours()}`.padStart(2, '0')
+  const minute = `${date.getMinutes()}`.padStart(2, '0')
+  return `${month}-${day} ${hour}:${minute}`
 }
 
 function showcaseDesc(family: PublicFamilyShowcaseItem) {
@@ -365,6 +417,16 @@ onShow(refreshPage)
 
 .showcase-load-more .disabled {
   opacity: 0.55;
+}
+
+.my-family-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.archive-row-cooldown .archive-row-meta {
+  color: var(--archive-cinnabar);
 }
 
 .my-resolving-panel {

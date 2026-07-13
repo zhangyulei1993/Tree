@@ -195,6 +195,15 @@ export interface RestoreFamilyResult {
   restoredAt?: string
 }
 
+export interface FinalizeFamilyResult {
+  familyId: number
+  status: string
+  publicDisplayStatus: string
+  searchable: boolean
+  graphVersion: number
+  dissolutionCompletedAt?: string
+}
+
 export interface TakeDownPublicFamilyRequest {
   reason?: string
 }

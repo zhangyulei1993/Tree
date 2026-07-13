@@ -703,3 +703,47 @@ func TestJoinedCountIncludesDissolutionPending(t *testing.T) {
 		t.Fatalf("expected DISSOLUTION_PENDING family to count toward joined usage, got %d", count)
 	}
 }
+
+func TestCooldownFamiliesStillCountTowardQuotaUsage(t *testing.T) {
+	ctx := context.Background()
+	tx := quotaTestDB(t)
+	repo := quotarepo.NewRepository(tx)
+	founder := createQuotaUser(t, tx, false, "冷静期创始人")
+	memberUser := createQuotaUser(t, tx, false, "冷静期成员")
+	family := &familymodel.Family{
+		FamilyName: "冷静期家庭", FamilySurname: "周", Status: "DISSOLUTION_COOLDOWN",
+		PublicDisplayStatus: string(enums.StatusPrivate), Searchable: false, GraphVersion: 1,
+	}
+	if err := tx.Create(family).Error; err != nil {
+		t.Fatalf("create family: %v", err)
+	}
+	founderMember := &membermodel.FamilyMember{
+		FamilyID: family.ID, DisplayName: "创建者", Status: string(enums.StatusActive), Gender: string(enums.GenderMale),
+	}
+	member := &membermodel.FamilyMember{
+		FamilyID: family.ID, DisplayName: "成员", Status: string(enums.StatusActive), Gender: string(enums.GenderFemale),
+	}
+	for _, row := range []*membermodel.FamilyMember{founderMember, member} {
+		if err := tx.Create(row).Error; err != nil {
+			t.Fatalf("create member: %v", err)
+		}
+	}
+	links := []rolemodel.FamilyMemberUserLink{
+		{FamilyID: family.ID, MemberID: founderMember.ID, UserID: founder.ID, LinkStatus: string(enums.StatusActive), LinkSource: "TEST", FamilyRole: string(enums.FamilyRoleFounder)},
+		{FamilyID: family.ID, MemberID: member.ID, UserID: memberUser.ID, LinkStatus: string(enums.StatusActive), LinkSource: "TEST", FamilyRole: string(enums.FamilyRoleMember)},
+	}
+	if err := tx.Create(&links).Error; err != nil {
+		t.Fatalf("create links: %v", err)
+	}
+	owned, err := repo.CountOwnedFamilies(ctx, founder.ID)
+	if err != nil {
+		t.Fatalf("count owned: %v", err)
+	}
+	joined, err := repo.CountJoinedFamilies(ctx, memberUser.ID)
+	if err != nil {
+		t.Fatalf("count joined: %v", err)
+	}
+	if owned != 1 || joined != 1 {
+		t.Fatalf("expected cooldown family to count toward quota usage, got owned=%d joined=%d", owned, joined)
+	}
+}

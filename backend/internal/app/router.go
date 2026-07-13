@@ -316,6 +316,7 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	admin.POST("/dissolution-requests/:requestId/approve", dissolutionHandler.Approve)
 	admin.POST("/dissolution-requests/:requestId/reject", dissolutionHandler.Reject)
 	admin.POST("/families/:familyId/restore", dissolutionHandler.Restore)
+	admin.POST("/families/:familyId/finalize-dissolution", dissolutionHandler.Finalize)
 }
 
 func (s *Server) registerContentRoutes(api *gin.RouterGroup) {

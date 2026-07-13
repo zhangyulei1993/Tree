@@ -185,4 +185,25 @@ func TestRestoreFamily(t *testing.T) {
 			t.Fatalf("unexpected %#v", err)
 		}
 	})
+	t.Run("root can finalize cooldown family", func(t *testing.T) {
+		repo := newFakeRepo()
+		repo.family.Status = string(enums.StatusDissolutionCooldown)
+		repo.family.PublicDisplayStatus = string(enums.StatusPrivate)
+		repo.family.Searchable = false
+		before := repo.family.GraphVersion
+		result, err := newTestService(repo).Finalize(context.Background(), 1, string(enums.AdminRoleRootAdmin), 2, AuditInput{})
+		if err != nil || result.Status != string(enums.StatusDissolved) || result.Searchable {
+			t.Fatalf("unexpected %#v %#v", result, err)
+		}
+		if repo.family.Status != string(enums.StatusDissolved) || repo.family.GraphVersion != before || repo.family.DissolutionCompletedAt == nil || len(repo.logs) != 1 {
+			t.Fatal("finalize did not update family correctly")
+		}
+	})
+	t.Run("platform cannot finalize", func(t *testing.T) {
+		repo := newFakeRepo()
+		repo.family.Status = string(enums.StatusDissolutionCooldown)
+		if _, err := newTestService(repo).Finalize(context.Background(), 1, string(enums.AdminRolePlatformAdmin), 2, AuditInput{}); err == nil || err.Code != CodeFamilyFinalizeAdminDenied {
+			t.Fatalf("unexpected %#v", err)
+		}
+	})
 }
