@@ -41,3 +41,9 @@ export async function finalizeDissolution(familyId: number | string) {
     method: 'POST'
   })
 }
+
+export async function restoreDissolution(familyId: number | string) {
+  return request<FamilyDetail>(`/families/${familyId}/dissolution/restore`, {
+    method: 'POST'
+  })
+}

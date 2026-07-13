@@ -72,6 +72,7 @@ type FamilyService interface {
 	CurrentDissolutionRequest(context.Context, uint64, uint64) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	CancelDissolutionRequest(context.Context, uint64, uint64, uint64, dto.CancelDissolutionRequest, AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	FinalizeDissolution(context.Context, uint64, uint64, AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError)
+	RestoreDissolution(context.Context, uint64, uint64, AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError)
 	Leave(context.Context, uint64, uint64, dto.LeaveFamilyRequest, AuditInput) (*vo.LeaveFamilyResult, *apperrors.BusinessError)
 }
 
@@ -598,6 +599,77 @@ func (s *familyService) FinalizeDissolution(ctx context.Context, userID uint64, 
 		return nil, familyError(CodeFamilyDissolutionStatusDenied, "当前家庭不处于冷静期")
 	}
 	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	return familyDetail(family, link.FamilyRole), nil
+}
+
+func (s *familyService) RestoreDissolution(ctx context.Context, userID uint64, familyID uint64, audit AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError) {
+	allowed, err := s.permissions.CanManageFamily(ctx, userID, familyID)
+	if err != nil || !allowed {
+		return nil, familyError(CodeFamilyDissolutionFinalizeDenied, "无权恢复家庭")
+	}
+	link, err := s.permissions.GetActiveLink(ctx, userID, familyID)
+	if err != nil || link.FamilyRole != string(enums.FamilyRoleFounder) {
+		return nil, familyError(CodeFamilyDissolutionFinalizeDenied, "只有创建者可以恢复家庭")
+	}
+	now := time.Now()
+	var family *familymodel.Family
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		txRepo := s.repo.WithTx(tx)
+		value, err := txRepo.FindFamilyByIDForUpdate(ctx, familyID)
+		if err != nil {
+			return err
+		}
+		if value.Status != familyStatusDissolutionCooldown {
+			return errDissolutionFamilyStatus
+		}
+		if s.quota != nil {
+			if err := s.quota.AssertCanRestoreFamily(ctx, tx, familyID); err != nil {
+				return err
+			}
+		}
+		if err := txRepo.UpdateFamily(ctx, familyID, map[string]any{
+			"status":                     familyStatusNormal,
+			"public_display_status":      string(enums.StatusPrivate),
+			"public_display_enabled":     false,
+			"searchable":                 true,
+			"dissolution_cooldown_until": nil,
+			"dissolution_cooldown_days":  0,
+			"dissolution_hidden_at":      nil,
+			"dissolution_completed_at":   nil,
+			"restored_at":                now,
+		}); err != nil {
+			return err
+		}
+		if err := operationlog.NewGormService(tx).WriteSuccess(ctx, userOperationLog(
+			userID, "RESTORE_FAMILY_DURING_COOLDOWN", "FAMILY", familyID, familyID, &link.MemberID, audit,
+		)); err != nil {
+			return err
+		}
+		value.Status = familyStatusNormal
+		value.PublicDisplayStatus = string(enums.StatusPrivate)
+		value.PublicDisplayEnabled = false
+		value.Searchable = true
+		value.DissolutionCooldownUntil = nil
+		value.DissolutionCooldownDays = 0
+		value.DissolutionHiddenAt = nil
+		value.DissolutionCompletedAt = nil
+		family = value
+		return nil
+	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, familyError(CodeFamilyNotFound, "家庭不存在")
+	}
+	if errors.Is(err, errDissolutionFamilyStatus) {
+		return nil, familyError(CodeFamilyDissolutionStatusDenied, "当前家庭不处于冷静期")
+	}
+	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return nil, businessErr
+			}
+		}
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
 	return familyDetail(family, link.FamilyRole), nil

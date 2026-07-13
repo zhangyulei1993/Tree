@@ -123,6 +123,23 @@ func (deniedFamilyPermission) CanManageFamily(context.Context, uint64, uint64) (
 	return false, nil
 }
 
+type founderFamilyPermission struct {
+	permission.FamilyPermissionService
+	memberID uint64
+}
+
+func (p founderFamilyPermission) CanManageFamily(context.Context, uint64, uint64) (bool, error) {
+	return true, nil
+}
+
+func (p founderFamilyPermission) GetActiveLink(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error) {
+	return &rolemodel.FamilyMemberUserLink{
+		MemberID: p.memberID,
+		FamilyRole: string(enums.FamilyRoleFounder),
+		LinkStatus: string(enums.StatusActive),
+	}, nil
+}
+
 func TestNonFounderCannotCreateDissolutionRequest(t *testing.T) {
 	service := NewFamilyService(nil, nil, deniedFamilyPermission{}, nil, contentsafety.AlwaysPass())
 	result, businessErr := service.CreateDissolutionRequest(
@@ -205,5 +222,43 @@ func TestFounderMustTransferBeforeLeave(t *testing.T) {
 	_, businessErr = service.Leave(ctx, user.ID, created.ID, dto.LeaveFamilyRequest{}, AuditInput{})
 	if businessErr == nil || businessErr.Code != CodeFamilyLeaveForbidden {
 		t.Fatalf("expected founder leave rejection, got %#v", businessErr)
+	}
+}
+
+func TestFounderCanRestoreFamilyDuringCooldown(t *testing.T) {
+	ctx := context.Background()
+	tx := transactionalTestDB(t)
+	user := &usermodel.User{PhoneVerified: true, AccountOrigin: "P0_TEST", RegisterClient: "P0_TEST", Status: string(enums.StatusActive)}
+	if err := tx.WithContext(ctx).Create(user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	baseService := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil, contentsafety.AlwaysPass())
+	created, businessErr := baseService.Create(ctx, user.ID, dto.CreateFamilyRequest{Surname: "复"}, AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("create family: %v", businessErr)
+	}
+	now := time.Now()
+	if err := tx.WithContext(ctx).Model(&familymodel.Family{}).Where("id = ?", created.ID).Updates(map[string]any{
+		"status":                     string(enums.StatusDissolutionCooldown),
+		"dissolution_cooldown_until": now.AddDate(0, 0, 7),
+		"dissolution_cooldown_days":  7,
+		"dissolution_hidden_at":      now,
+	}).Error; err != nil {
+		t.Fatalf("seed cooldown status: %v", err)
+	}
+	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), founderFamilyPermission{memberID: *created.CurrentFounderMemberID}, nil, contentsafety.AlwaysPass())
+	result, businessErr := service.RestoreDissolution(ctx, user.ID, created.ID, AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("RestoreDissolution: %v", businessErr)
+	}
+	if result.Status != string(enums.StatusNormal) || result.PublicDisplayStatus != string(enums.StatusPrivate) || !result.Searchable {
+		t.Fatalf("unexpected restored family: %#v", result)
+	}
+	var family familymodel.Family
+	if err := tx.WithContext(ctx).First(&family, created.ID).Error; err != nil {
+		t.Fatalf("reload family: %v", err)
+	}
+	if family.Status != string(enums.StatusNormal) || family.DissolutionCooldownUntil != nil || family.DissolutionCompletedAt != nil {
+		t.Fatalf("family not restored correctly: %#v", family)
 	}
 }

@@ -207,6 +207,17 @@ func (h *FamilyHandler) FinalizeDissolution(ctx *gin.Context) {
 	})
 }
 
+func (h *FamilyHandler) RestoreDissolution(ctx *gin.Context) {
+	h.withFamilyID(ctx, func(familyID uint64) {
+		userID, ok := currentUser(ctx)
+		if !ok {
+			return
+		}
+		result, businessErr := h.service.RestoreDissolution(ctx.Request.Context(), userID, familyID, audit(ctx))
+		writeResult(ctx, result, businessErr)
+	})
+}
+
 func (h *FamilyHandler) withFamilyID(ctx *gin.Context, fn func(uint64)) {
 	familyID, err := strconv.ParseUint(ctx.Param("familyId"), 10, 64)
 	if err != nil || familyID == 0 {

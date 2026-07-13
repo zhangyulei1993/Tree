@@ -57,6 +57,13 @@
             <MiniButton
               v-if="family.role === 'FOUNDER'"
               class="settings-action"
+              @click="confirmRestoreFromCooldown"
+            >
+              恢复家庭
+            </MiniButton>
+            <MiniButton
+              v-if="family.role === 'FOUNDER'"
+              class="settings-action"
               variant="secondary"
               @click="confirmFinalizeDissolution"
             >
@@ -320,7 +327,8 @@ import {
   cancelDissolution,
   createDissolution,
   finalizeDissolution,
-  getCurrentDissolution
+  getCurrentDissolution,
+  restoreDissolution
 } from '@/api/dissolutions'
 import { setFamilyAdmin, unsetFamilyAdmin } from '@/api/familyRoles'
 import { getFamilyDetail, updateFamily } from '@/api/families'
@@ -719,6 +727,25 @@ function confirmFinalizeDissolution() {
         uni.showToast({ title: '已完成解散', icon: 'success' })
       } catch (error) {
         operationError.value = apiErrorMessage(error, '完成解散失败，请稍后重试。')
+      }
+    }
+  })
+}
+
+function confirmRestoreFromCooldown() {
+  if (!family.value || family.value.role !== 'FOUNDER') return
+  uni.showModal({
+    title: '恢复家庭',
+    content: '恢复后家庭将重新回到正常状态，并恢复到家庭列表。公开展示会重置为私有。确认恢复吗？',
+    confirmColor: '#163353',
+    success: async (result) => {
+      if (!result.confirm) return
+      try {
+        family.value = await restoreDissolution(familyId.value)
+        currentDissolution.value = null
+        uni.showToast({ title: '家庭已恢复', icon: 'success' })
+      } catch (error) {
+        operationError.value = apiErrorMessage(error, '恢复家庭失败，请稍后重试。')
       }
     }
   })

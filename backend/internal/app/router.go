@@ -258,6 +258,7 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.GET("/:familyId/dissolution-requests/current", handler.CurrentDissolutionRequest)
 	families.POST("/:familyId/dissolution-requests/:requestId/cancel", handler.CancelDissolutionRequest)
 	families.POST("/:familyId/dissolution/finalize", handler.FinalizeDissolution)
+	families.POST("/:familyId/dissolution/restore", handler.RestoreDissolution)
 	families.POST("/:familyId/members", memberHandler.Create)
 	families.GET("/:familyId/members", memberHandler.List)
 	families.GET("/:familyId/members/:memberId", memberHandler.Detail)

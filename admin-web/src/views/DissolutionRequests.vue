@@ -275,6 +275,7 @@ function formatTime(value?: string) {
 function familyStatusText(status?: string) {
   if (status === 'NORMAL') return '正常'
   if (status === 'DISSOLUTION_PENDING') return '解散待审核'
+  if (status === 'DISSOLUTION_COOLDOWN') return '恢复冷静期'
   if (status === 'DISSOLVED') return '已解散'
   if (status === 'DISABLED') return '已停用'
   return '未知状态'

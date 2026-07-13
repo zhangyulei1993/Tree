@@ -20,6 +20,7 @@ const labelMap: Record<string, string> = {
   DELETED: '已删除',
   DISSOLVED: '已解散',
   DISSOLUTION_PENDING: '解散待审',
+  DISSOLUTION_COOLDOWN: '恢复冷静期',
   TAKEN_DOWN: '已下架',
   PRIVATE: '私有',
   MERGED: '已合并',
@@ -33,7 +34,7 @@ const labelMap: Record<string, string> = {
 const label = computed(() => labelMap[props.status] || '未知状态')
 const type = computed(() => {
   if (['ACTIVE', 'NORMAL', 'APPROVED', 'ACCEPTED', 'PUBLISHED', 'SUCCESS'].includes(props.status)) return 'success'
-  if (['PENDING', 'DISSOLUTION_PENDING', 'DRAFT'].includes(props.status)) return 'warning'
+  if (['PENDING', 'DISSOLUTION_PENDING', 'DISSOLUTION_COOLDOWN', 'DRAFT'].includes(props.status)) return 'warning'
   if (['REJECTED', 'DISABLED', 'DELETED', 'DISSOLVED', 'TAKEN_DOWN', 'FAILED'].includes(props.status)) return 'danger'
   return 'info'
 })
