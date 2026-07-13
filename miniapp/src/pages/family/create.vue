@@ -62,7 +62,12 @@
         <textarea v-model.trim="form.description" class="tree-textarea" maxlength="500" placeholder="可选" />
 
         <text v-if="errorMessage" class="tree-field-error">{{ errorMessage }}</text>
-        <MiniButton class="create-action" :loading="submitting" :disabled="submitting" @click="submit">
+        <MiniButton
+          class="create-action"
+          :loading="submitting || quotaChecking"
+          :disabled="submitting || quotaChecking || quotaBlocked"
+          @click="submit"
+        >
           创建家庭
         </MiniButton>
       </view>
@@ -75,6 +80,7 @@ import { onShow } from '@dcloudio/uni-app'
 import { computed, reactive, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
+import { fetchCapabilities } from '@/api/capabilities'
 import { createFamily } from '@/api/families'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
@@ -88,6 +94,8 @@ const session = useSessionStore()
 const authChecked = ref(false)
 const submitting = ref(false)
 const errorMessage = ref('')
+const quotaChecking = ref(false)
+const quotaBlocked = ref(false)
 const genderIndex = ref(0)
 const genders: Gender[] = ['MALE', 'FEMALE']
 const genderLabels = ['男', '女']
@@ -125,6 +133,10 @@ function onGenderChange(event: { detail: { value: number | string } }) {
 }
 
 async function submit() {
+  if (quotaBlocked.value) {
+    showQuotaBlockedModal()
+    return
+  }
   const validationMessage = validateTextFields([
     { value: form.surname, label: '家庭姓氏', kind: 'surname', required: true, maxLength: 20 },
     { value: form.familyName, label: '家庭名称', kind: 'name', maxLength: 100 },
@@ -155,8 +167,43 @@ async function submit() {
   }
 }
 
-onShow(() => {
+async function checkCreateQuota() {
+  quotaChecking.value = true
+  quotaBlocked.value = false
+  errorMessage.value = ''
+  try {
+    const capabilities = await fetchCapabilities()
+    quotaBlocked.value = capabilities.usage.ownedFamilies >= capabilities.limits.maxOwnedFamilies
+    if (quotaBlocked.value) {
+      errorMessage.value = `当前账号可创建家庭 ${capabilities.usage.ownedFamilies}/${capabilities.limits.maxOwnedFamilies}，暂不能继续创建。`
+      showQuotaBlockedModal(capabilities.usage.ownedFamilies, capabilities.limits.maxOwnedFamilies)
+    }
+  } catch (error) {
+    errorMessage.value = apiErrorMessage(error, '无法确认创建资格，请稍后重试。')
+    quotaBlocked.value = true
+  } finally {
+    quotaChecking.value = false
+  }
+}
+
+function showQuotaBlockedModal(ownedFamilies?: number, maxOwnedFamilies?: number) {
+  const usageText =
+    typeof ownedFamilies === 'number' && typeof maxOwnedFamilies === 'number'
+      ? `当前账号可创建家庭 ${ownedFamilies}/${maxOwnedFamilies}。`
+      : '当前账号已达到可创建家庭数量上限。'
+  uni.showModal({
+    title: '暂不能创建家庭',
+    content: `${usageText}冷静期家庭仍会占用创建名额，完成解散后才会释放。`,
+    confirmText: '知道了',
+    showCancel: false
+  })
+}
+
+onShow(async () => {
   authChecked.value = session.requireProfileComplete('/pages/family/create')
+  if (authChecked.value) {
+    await checkCreateQuota()
+  }
 })
 </script>
 

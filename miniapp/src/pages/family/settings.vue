@@ -72,9 +72,29 @@
           </view>
         </template>
 
-        <MiniNotice v-else-if="family.status === 'DISSOLUTION_PENDING'" tone="warm" title="家庭解散申请审核中">
-          审核完成或取消申请前，家庭资料、公开展示、角色和创建者转让暂不可调整。
-        </MiniNotice>
+        <template v-else-if="family.status === 'DISSOLUTION_PENDING'">
+          <MiniNotice tone="warm" title="家庭解散申请审核中">
+            审核完成或取消申请前，家庭资料、公开展示、角色和创建者转让暂不可调整。
+          </MiniNotice>
+          <view class="archive-form-panel">
+            <view class="archive-section-head">
+              <text class="archive-section-title">待审核申请</text>
+              <text class="archive-section-subtitle">创建者可在审核前撤销</text>
+            </view>
+            <text class="settings-muted">
+              {{ currentDissolution?.requestReason || '后台正在审核该申请。' }}
+            </text>
+            <MiniButton
+              v-if="family.role === 'FOUNDER'"
+              class="settings-action"
+              variant="secondary"
+              :disabled="!currentDissolution"
+              @click="confirmCancelDissolution"
+            >
+              撤销解散申请
+            </MiniButton>
+          </view>
+        </template>
 
         <template v-if="familyOperational">
           <view class="archive-segment-tabs">

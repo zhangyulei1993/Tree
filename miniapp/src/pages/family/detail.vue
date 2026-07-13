@@ -41,6 +41,54 @@
         <text class="archive-chip">{{ publicStatusText(family.publicDisplayStatus) }}</text>
       </view>
 
+      <view v-if="family.status === 'DISSOLUTION_COOLDOWN'" class="cooldown-panel archive-form-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">恢复冷静期</text>
+          <text class="archive-section-subtitle">
+            {{ cooldownUntilText }}
+          </text>
+        </view>
+        <MiniNotice tone="warm" title="冷静期家庭仍保留">
+          冷静期内家庭可查看但暂不可编辑。创建者可在此直接恢复家庭，或完成解散。
+        </MiniNotice>
+        <view v-if="family.role === 'FOUNDER'" class="cooldown-actions">
+          <MiniButton :loading="cooldownSubmitting" :disabled="cooldownSubmitting" @click="confirmRestoreFromCooldown">
+            恢复家庭
+          </MiniButton>
+          <MiniButton
+            variant="secondary"
+            :loading="cooldownSubmitting"
+            :disabled="cooldownSubmitting"
+            @click="confirmFinalizeDissolution"
+          >
+            跳过冷静期并完成解散
+          </MiniButton>
+        </view>
+        <MiniNotice v-else tone="security" title="只读状态">
+          只有家庭创建者可以恢复家庭或完成解散。
+        </MiniNotice>
+      </view>
+
+      <view v-else-if="family.status === 'DISSOLUTION_PENDING'" class="cooldown-panel archive-form-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">解散申请待审核</text>
+          <text class="archive-section-subtitle">后台审核前可以撤销申请</text>
+        </view>
+        <MiniNotice tone="warm" title="申请处理中">
+          {{ currentDissolution?.requestReason || '家庭解散申请正在等待后台审核。' }}
+        </MiniNotice>
+        <view v-if="family.role === 'FOUNDER'" class="cooldown-actions">
+          <MiniButton
+            variant="secondary"
+            :loading="dissolutionSubmitting"
+            :disabled="dissolutionSubmitting || !currentDissolution"
+            @click="confirmCancelDissolution"
+          >
+            撤销解散申请
+          </MiniButton>
+        </view>
+      </view>
+
       <view class="detail-directory archive-list">
         <view class="archive-row" @click="openProfile">
           <view class="archive-row-main">
@@ -50,14 +98,14 @@
           <text class="archive-row-meta">档案</text>
           <text class="archive-arrow">›</text>
         </view>
-        <navigator class="archive-row" :url="familyTreeUrl" hover-class="none">
+        <view class="archive-row" @click="openFamilyTree">
           <view class="archive-row-main">
             <text class="archive-row-title">家庭树</text>
             <text class="archive-row-desc">在家庭树与成员表之间切换查看</text>
           </view>
           <text class="archive-row-meta">家庭树 / 成员表</text>
           <text class="archive-arrow">›</text>
-        </navigator>
+        </view>
         <view v-if="canManageFamily" class="archive-row" @click="openManageCenter">
           <view class="archive-row-main">
             <text class="archive-row-title">家庭管理</text>
@@ -76,6 +124,7 @@ import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
+import { cancelDissolution, finalizeDissolution, getCurrentDissolution, restoreDissolution } from '@/api/dissolutions'
 import { getFamilyDetail } from '@/api/families'
 import { listFamilyMembers } from '@/api/members'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
@@ -83,7 +132,7 @@ import MiniButton from '@/components/base/MiniButton.vue'
 import MiniFamilyPageSkeleton from '@/components/base/MiniFamilyPageSkeleton.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import { useSessionStore } from '@/stores/session'
-import type { FamilyDetail, FamilyMember } from '@/types/api'
+import type { DissolutionRequest, FamilyDetail, FamilyMember } from '@/types/api'
 
 const session = useSessionStore()
 const familyId = ref('')
@@ -92,6 +141,9 @@ const members = ref<FamilyMember[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
 const navigating = ref(false)
+const cooldownSubmitting = ref(false)
+const dissolutionSubmitting = ref(false)
+const currentDissolution = ref<DissolutionRequest | null>(null)
 
 const canManageFamily = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
@@ -100,6 +152,10 @@ const familyTreeUrl = computed(() =>
   `/pages/family/private-tree?familyId=${encodeURIComponent(familyId.value)}`
 )
 const lastMemberUpdatedAtText = computed(() => formatLatestMemberUpdate(members.value))
+const cooldownUntilText = computed(() => {
+  const value = family.value?.dissolutionCooldownUntil
+  return value ? `冷静期截止 ${formatDateTime(value)}` : '冷静期中'
+})
 
 const dossierItems = computed(() => {
   const currentFamily = family.value
@@ -134,6 +190,9 @@ async function loadFamily() {
     ])
     family.value = familyDetail
     members.value = familyMembers
+    currentDissolution.value = familyDetail.status === 'DISSOLUTION_PENDING'
+      ? await getCurrentDissolution(familyId.value)
+      : null
   } catch (error) {
     errorMessage.value = apiErrorMessage(error, '家庭详情加载失败。')
   } finally {
@@ -146,6 +205,7 @@ function resetPageData() {
   errorMessage.value = ''
   family.value = null
   members.value = []
+  currentDissolution.value = null
 }
 
 function navigateOnce(url: string) {
@@ -163,8 +223,77 @@ function openProfile() {
   navigateOnce(`/pages/family/profile?familyId=${encodeURIComponent(familyId.value)}`)
 }
 
+function openFamilyTree() {
+  navigateOnce(familyTreeUrl.value)
+}
+
 function openManageCenter() {
   navigateOnce(`/pages/family/manage-center?familyId=${encodeURIComponent(familyId.value)}`)
+}
+
+function confirmRestoreFromCooldown() {
+  if (!family.value || family.value.role !== 'FOUNDER' || cooldownSubmitting.value) return
+  uni.showModal({
+    title: '恢复家庭',
+    content: '恢复后家庭将重新回到正常状态，并恢复到家庭列表。公开展示会重置为私有。确认恢复吗？',
+    confirmColor: '#163353',
+    success: async (result) => {
+      if (!result.confirm) return
+      cooldownSubmitting.value = true
+      try {
+        family.value = await restoreDissolution(familyId.value)
+        uni.showToast({ title: '家庭已恢复', icon: 'success' })
+        await loadFamily()
+      } catch (error) {
+        errorMessage.value = apiErrorMessage(error, '恢复家庭失败，请稍后重试。')
+      } finally {
+        cooldownSubmitting.value = false
+      }
+    }
+  })
+}
+
+function confirmFinalizeDissolution() {
+  if (!family.value || family.value.role !== 'FOUNDER' || cooldownSubmitting.value) return
+  uni.showModal({
+    title: '跳过冷静期',
+    content: '跳过后家庭将完成解散，并从用户端家庭列表隐藏。此后如需恢复，请联系后台处理。确认继续吗？',
+    confirmColor: '#A83B2D',
+    success: async (result) => {
+      if (!result.confirm) return
+      cooldownSubmitting.value = true
+      try {
+        await finalizeDissolution(familyId.value)
+        uni.showToast({ title: '已完成解散', icon: 'success' })
+        uni.switchTab({ url: '/pages/family/my' })
+      } catch (error) {
+        errorMessage.value = apiErrorMessage(error, '完成解散失败，请稍后重试。')
+      } finally {
+        cooldownSubmitting.value = false
+      }
+    }
+  })
+}
+
+function confirmCancelDissolution() {
+  if (!family.value || family.value.role !== 'FOUNDER' || !currentDissolution.value || dissolutionSubmitting.value) return
+  uni.showModal({
+    title: '撤销解散申请',
+    content: '确定撤销当前待审核的家庭解散申请吗？撤销后家庭会恢复正常状态。',
+    success: async (result) => {
+      if (!result.confirm || !currentDissolution.value) return
+      dissolutionSubmitting.value = true
+      try {
+        await cancelDissolution(familyId.value, currentDissolution.value.requestId, '创建者主动撤销')
+        uni.showToast({ title: '已撤销申请', icon: 'success' })
+        await loadFamily()
+      } catch (error) {
+        errorMessage.value = apiErrorMessage(error, '撤销解散申请失败，请稍后重试。')
+      } finally {
+        dissolutionSubmitting.value = false
+      }
+    }
+  })
 }
 
 function familyStatusText(status: string) {
@@ -201,6 +330,19 @@ function formatLatestMemberUpdate(memberList: FamilyMember[]) {
     .sort((a, b) => b - a)[0]
   if (!latestTime) return '暂无记录'
   return new Date(latestTime).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  })
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('zh-CN', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -355,5 +497,20 @@ onUnload(resetPageData)
 
 .detail-directory {
   margin-top: 8rpx;
+}
+
+.cooldown-panel {
+  margin-bottom: 26rpx;
+}
+
+.cooldown-panel :deep(.mini-notice) {
+  margin-bottom: 18rpx;
+}
+
+.cooldown-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16rpx;
 }
 </style>

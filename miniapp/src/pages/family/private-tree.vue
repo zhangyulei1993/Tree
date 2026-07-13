@@ -32,6 +32,17 @@
         </view>
       </view>
 
+      <view v-if="tree.nodes.length > 0" class="viewer-panel archive-form-panel">
+        <view class="viewer-copy">
+          <text class="viewer-label">当前视角</text>
+          <text class="viewer-name">{{ currentViewerName }}</text>
+          <text class="viewer-hint">仅用于查看称谓，不影响家庭树关系。</text>
+        </view>
+        <picker :range="viewerPickerLabels" :value="viewerPickerIndex" @change="changeViewer">
+          <view class="viewer-action">更换</view>
+        </picker>
+      </view>
+
       <view v-if="canManageFamily" class="genealogy-tools">
         <button class="genealogy-tool-link" @click="openManage">关系管理</button>
       </view>
@@ -144,12 +155,28 @@ const loading = ref(false)
 const errorMessage = ref('')
 const viewMode = ref<FamilyTreeViewMode>('structure')
 const viewerMemberId = ref<number | null>(null)
+const currentUserMemberId = ref<number | null>(null)
 
 const edgeCount = computed(() => (tree.value ? countVisibleEdges(tree.value) : 0))
 const relationSentences = computed(() => (tree.value ? buildRelationSentences(tree.value) : []))
 const canManageFamily = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
 )
+const viewerNodes = computed(() => tree.value?.nodes || [])
+const currentViewerNode = computed(() =>
+  viewerNodes.value.find((node) => node.memberId === viewerMemberId.value) || null
+)
+const currentViewerName = computed(() => currentViewerNode.value?.displayName || '未选择')
+const viewerPickerLabels = computed(() =>
+  viewerNodes.value.map((node) => {
+    const suffix = node.memberId === currentUserMemberId.value ? '（我）' : ''
+    return `${node.displayName || '未命名成员'}${suffix}`
+  })
+)
+const viewerPickerIndex = computed(() => {
+  const index = viewerNodes.value.findIndex((node) => node.memberId === viewerMemberId.value)
+  return index >= 0 ? index : 0
+})
 
 function resetPageData() {
   loading.value = false
@@ -157,6 +184,7 @@ function resetPageData() {
   tree.value = null
   family.value = null
   viewerMemberId.value = null
+  currentUserMemberId.value = null
 }
 
 async function loadTree() {
@@ -181,16 +209,19 @@ async function loadTree() {
     ])
     family.value = familyResult
     tree.value = treeResult
+    let resolvedViewerId = currentUserMemberId.value
     if (session.user?.id) {
       try {
         const memberList = await listFamilyMembers(familyId.value)
-        viewerMemberId.value = resolveCurrentMemberId(session.user.id, memberList)
+        resolvedViewerId = resolveCurrentMemberId(session.user.id, memberList)
+        currentUserMemberId.value = resolvedViewerId
       } catch {
         // Tree nodes lack userId; members list is the supported way to locate "me".
       }
     }
-    if (!viewerMemberId.value) {
-      viewerMemberId.value = treeResult.nodes[0]?.memberId ?? null
+    const hasCurrentViewer = treeResult.nodes.some((node) => node.memberId === viewerMemberId.value)
+    if (!hasCurrentViewer) {
+      viewerMemberId.value = resolvedViewerId || treeResult.nodes[0]?.memberId || null
     }
   } catch (error) {
     errorMessage.value = apiErrorMessage(error, '家庭树加载失败。')
@@ -211,6 +242,14 @@ function openManage() {
   uni.navigateTo({
     url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}`
   })
+}
+
+function changeViewer(event: { detail: { value: number | string } }) {
+  const index = Number(event.detail.value)
+  const node = viewerNodes.value[index]
+  if (!node) return
+  viewerMemberId.value = node.memberId
+  viewMode.value = 'structure'
 }
 
 function openNodeActions(node: TreeNode) {
@@ -265,7 +304,7 @@ function openMemberEdit(node: TreeNode) {
 
 function openInviteMember(node: TreeNode) {
   uni.navigateTo({
-    url: `/pages/invite/sent?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(String(node.memberId))}&memberName=${encodeURIComponent(node.displayName || '')}`
+    url: `/pages/invite/sent?familyId=${encodeURIComponent(familyId.value)}&mode=node&memberId=${encodeURIComponent(String(node.memberId))}&memberName=${encodeURIComponent(node.displayName || '')}`
   })
 }
 
@@ -354,6 +393,56 @@ onUnload(resetPageData)
 
 .family-tree-tabs {
   margin-bottom: 20rpx;
+}
+
+.viewer-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 20rpx;
+  padding: 18rpx 0;
+  border-left: 0;
+  border-right: 0;
+}
+
+.viewer-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5rpx;
+}
+
+.viewer-label {
+  color: var(--archive-cinnabar);
+  font-size: 20rpx;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.viewer-name {
+  color: var(--archive-blue);
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 31rpx;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.viewer-hint {
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.45;
+}
+
+.viewer-action {
+  min-width: 96rpx;
+  border: 1rpx solid rgba(168, 59, 45, 0.62);
+  color: var(--archive-cinnabar);
+  padding: 12rpx 18rpx;
+  text-align: center;
+  font-size: 23rpx;
+  font-weight: 700;
 }
 
 .genealogy-tools {

@@ -143,7 +143,7 @@ func (r *GormRepository) FindRowByID(ctx context.Context, id uint64) (*Invitatio
 	err := r.db.WithContext(ctx).Table("family_invitations AS i").
 		Select(invitationRowSelect).
 		Joins("JOIN families AS f ON f.id = i.family_id").
-		Joins("JOIN family_members AS m ON m.id = i.target_member_id").
+		Joins("LEFT JOIN family_members AS m ON m.id = i.target_member_id").
 		Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").
 		Where("i.id = ?", id).First(&value).Error
 	return &value, err
@@ -154,7 +154,7 @@ func (r *GormRepository) FindByTokenHash(ctx context.Context, hash string) (*Inv
 	err := r.db.WithContext(ctx).Table("family_invitations AS i").
 		Select(invitationRowSelect).
 		Joins("JOIN families AS f ON f.id = i.family_id").
-		Joins("JOIN family_members AS m ON m.id = i.target_member_id").
+		Joins("LEFT JOIN family_members AS m ON m.id = i.target_member_id").
 		Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").
 		Where("i.invite_token = ?", hash).First(&value).Error
 	return &value, err
@@ -165,7 +165,7 @@ func (r *GormRepository) ListForUser(ctx context.Context, userID uint64) ([]Invi
 	err := r.db.WithContext(ctx).Table("family_invitations AS i").
 		Select(invitationRowSelect).
 		Joins("JOIN families AS f ON f.id = i.family_id").
-		Joins("JOIN family_members AS m ON m.id = i.target_member_id").
+		Joins("LEFT JOIN family_members AS m ON m.id = i.target_member_id").
 		Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").
 		Where("i.target_user_id = ?", userID).Order("i.id DESC").Scan(&values).Error
 	return values, err
@@ -176,7 +176,7 @@ func (r *GormRepository) ListForFamily(ctx context.Context, familyID uint64) ([]
 	err := r.db.WithContext(ctx).Table("family_invitations AS i").
 		Select(invitationRowSelect).
 		Joins("JOIN families AS f ON f.id = i.family_id").
-		Joins("JOIN family_members AS m ON m.id = i.target_member_id").
+		Joins("LEFT JOIN family_members AS m ON m.id = i.target_member_id").
 		Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").
 		Where("i.family_id = ?", familyID).Order("i.id DESC").Scan(&values).Error
 	return values, err
@@ -185,7 +185,7 @@ func (r *GormRepository) ListForFamily(ctx context.Context, familyID uint64) ([]
 const invitationRowSelect = `
 	i.*,
 	f.family_name,
-	m.display_name AS target_member_name,
+	COALESCE(NULLIF(m.display_name, ''), NULLIF(i.pending_member_label, ''), '待确认成员') AS target_member_name,
 	COALESCE(NULLIF(inviter.nickname, ''), NULLIF(inviter.real_name, ''), '家庭管理员') AS inviter_display_name
 `
 

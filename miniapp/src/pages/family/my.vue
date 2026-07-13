@@ -23,7 +23,7 @@
       </view>
 
       <view class="my-toolbar">
-        <text class="archive-chip">正常 {{ activeFamilies.length }} · 冷静期 {{ cooldownFamilies.length }}</text>
+        <text class="archive-chip">创建 {{ ownedFamilies.length }} · 加入 {{ joinedFamilies.length }}</text>
         <text class="archive-thin-button" @click="openCreateFamily">创建家庭</text>
       </view>
 
@@ -37,14 +37,14 @@
       </view>
 
       <view v-else class="my-family-groups">
-        <view v-if="activeFamilies.length > 0" class="archive-form-panel">
+        <view v-if="ownedFamilies.length > 0" class="archive-form-panel">
           <view class="archive-section-head">
-            <text class="archive-section-title">正常家庭</text>
-            <text class="archive-section-subtitle">可继续查看与管理</text>
+            <text class="archive-section-title">我创建的家庭</text>
+            <text class="archive-section-subtitle">共 {{ ownedFamilies.length }} 个</text>
           </view>
           <view class="my-family-list archive-list">
             <view
-              v-for="family in activeFamilies"
+              v-for="family in ownedFamilies"
               :key="family.id"
               class="archive-row"
               @click="openFamily(family.id)"
@@ -52,35 +52,36 @@
               <text class="archive-surname-stamp">{{ family.familySurname.slice(0, 1) }}</text>
               <view class="archive-row-main">
                 <text class="archive-row-title">{{ family.familyName }}</text>
-                <text class="archive-row-desc">{{ familyRegionLabel(family) }}</text>
+                <text class="archive-row-desc">{{ familyDesc(family) }}</text>
               </view>
-              <text class="archive-row-meta">进入</text>
+              <text class="archive-row-meta" :class="{ 'is-cooldown': family.status === 'DISSOLUTION_COOLDOWN' }">
+                {{ familyRowStatus(family) }}
+              </text>
               <text class="archive-arrow">›</text>
             </view>
           </view>
         </view>
 
-        <view v-if="cooldownFamilies.length > 0" class="archive-form-panel">
+        <view v-if="joinedFamilies.length > 0" class="archive-form-panel">
           <view class="archive-section-head">
-            <text class="archive-section-title">恢复冷静期</text>
-            <text class="archive-section-subtitle">仍占用账号权益，可查看、可恢复、可完成解散</text>
+            <text class="archive-section-title">我加入的家庭</text>
+            <text class="archive-section-subtitle">共 {{ joinedFamilies.length }} 个</text>
           </view>
-          <MiniNotice tone="warm" title="冷静期家庭不会丢失">
-            冷静期内家庭仍保留在列表中。进入后，创建者可恢复家庭，或直接完成解散。
-          </MiniNotice>
           <view class="my-family-list archive-list">
             <view
-              v-for="family in cooldownFamilies"
+              v-for="family in joinedFamilies"
               :key="family.id"
-              class="archive-row archive-row-cooldown"
+              class="archive-row"
               @click="openFamily(family.id)"
             >
               <text class="archive-surname-stamp">{{ family.familySurname.slice(0, 1) }}</text>
               <view class="archive-row-main">
                 <text class="archive-row-title">{{ family.familyName }}</text>
-                <text class="archive-row-desc">{{ cooldownDesc(family) }}</text>
+                <text class="archive-row-desc">{{ familyDesc(family) }}</text>
               </view>
-              <text class="archive-row-meta">冷静期</text>
+              <text class="archive-row-meta" :class="{ 'is-cooldown': family.status === 'DISSOLUTION_COOLDOWN' }">
+                {{ familyRowStatus(family) }}
+              </text>
               <text class="archive-arrow">›</text>
             </view>
           </view>
@@ -171,6 +172,7 @@ import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 
 import { apiErrorMessage } from '@/api/client'
+import { fetchCapabilities } from '@/api/capabilities'
 import { listMyFamilies, listPublicFamilyShowcase } from '@/api/families'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
@@ -195,8 +197,8 @@ const showcasePageSize = 20
 const hasMyFamilies = computed(() => myFamiliesLoaded.value && families.value.length > 0)
 const isResolvingMyFamilyMode = computed(() => loadingMyFamilies.value && !myFamiliesLoaded.value)
 const showcaseHasMore = computed(() => showcaseItems.value.length < showcaseTotal.value)
-const activeFamilies = computed(() => families.value.filter((family) => family.status !== 'DISSOLUTION_COOLDOWN'))
-const cooldownFamilies = computed(() => families.value.filter((family) => family.status === 'DISSOLUTION_COOLDOWN'))
+const ownedFamilies = computed(() => families.value.filter((family) => family.role === 'FOUNDER'))
+const joinedFamilies = computed(() => families.value.filter((family) => family.role !== 'FOUNDER'))
 const createFamilyActionText = computed(() => (session.isLoggedIn ? '创建家庭' : '登录后创建'))
 const createFamilyHint = computed(() =>
   session.isLoggedIn
@@ -282,8 +284,23 @@ function openInvitations() {
   uni.navigateTo({ url: '/pages/me/family-affairs?tab=invitations' })
 }
 
-function openCreateFamily() {
+async function openCreateFamily() {
   if (!session.requireProfileComplete('/pages/family/create')) return
+  try {
+    const capabilities = await fetchCapabilities()
+    if (capabilities.usage.ownedFamilies >= capabilities.limits.maxOwnedFamilies) {
+      uni.showModal({
+        title: '暂不能创建家庭',
+        content: `当前账号可创建家庭 ${capabilities.usage.ownedFamilies}/${capabilities.limits.maxOwnedFamilies}。冷静期家庭仍会占用创建名额，完成解散后才会释放。`,
+        confirmText: '知道了',
+        showCancel: false
+      })
+      return
+    }
+  } catch (error) {
+    uni.showToast({ title: apiErrorMessage(error, '无法确认创建资格'), icon: 'none' })
+    return
+  }
   uni.navigateTo({ url: '/pages/family/create' })
 }
 
@@ -291,10 +308,17 @@ function familyRegionLabel(family: FamilySummary) {
   return family.regionText || family.nativePlace || '暂未填写地区'
 }
 
-function cooldownDesc(family: FamilySummary) {
+function familyDesc(family: FamilySummary) {
   const region = familyRegionLabel(family)
-  if (!family.dissolutionCooldownUntil) return `${region} · 恢复冷静期中`
+  if (family.status !== 'DISSOLUTION_COOLDOWN') return region
+  if (!family.dissolutionCooldownUntil) return `${region} · 冷静期中`
   return `${region} · 截止 ${formatCooldown(family.dissolutionCooldownUntil)}`
+}
+
+function familyRowStatus(family: FamilySummary) {
+  if (family.status === 'DISSOLUTION_COOLDOWN') return '冷静期'
+  if (family.status === 'DISSOLUTION_PENDING') return '待审核'
+  return '进入'
 }
 
 function formatCooldown(value: string) {
@@ -425,7 +449,7 @@ onShow(refreshPage)
   gap: 24rpx;
 }
 
-.archive-row-cooldown .archive-row-meta {
+.archive-row-meta.is-cooldown {
   color: var(--archive-cinnabar);
 }
 

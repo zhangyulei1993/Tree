@@ -97,8 +97,8 @@ func (s *service) CreateFamily(ctx context.Context, actorID, familyID uint64, re
 		return nil, inviteError(CodeMemberNotInvitable, "分享邀请不能指定站内用户")
 	}
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
-		UserID:   actorID,
-		Scene:    contentsafety.SceneSocial,
+		UserID: actorID,
+		Scene:  contentsafety.SceneSocial,
 		Fields: contentsafety.MergeFields(
 			contentsafety.OptionalField("invite_message", req.InviteMessage),
 			contentsafety.StringField("pending_member_label", *label),
@@ -121,15 +121,6 @@ func (s *service) CreateFamily(ctx context.Context, actorID, familyID uint64, re
 	actorType := inviteenum.ActorFamilyAdmin
 	if link, err := s.permissions.GetActiveLink(ctx, actorID, familyID); err == nil && link.FamilyRole == string(enums.FamilyRoleFounder) {
 		actorType = inviteenum.ActorFamilyFounder
-	}
-	member := &membermodel.FamilyMember{
-		FamilyID:          familyID,
-		MemberType:        "LINEAGE_MEMBER",
-		DisplayName:       *label,
-		Gender:            string(enums.GenderUnknown),
-		UserBindingPolicy: string(enums.UserBindingOptional),
-		Status:            string(enums.StatusPending),
-		CreatedByUserID:   &actorID,
 	}
 	invitation := &invitationmodel.FamilyInvitation{
 		FamilyID: familyID, InviterUserID: &actorID,
@@ -160,24 +151,11 @@ func (s *service) CreateFamily(ctx context.Context, actorID, familyID uint64, re
 			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), actorID); err != nil {
 				return err
 			}
-			if err := s.quota.AssertCanAddMember(ctx, repo.DB(), familyID, 1); err != nil {
-				return err
-			}
 		}
-		if err := repo.CreateMember(ctx, member); err != nil {
-			return err
-		}
-		if err := repo.IncrementGraphVersion(ctx, familyID); err != nil {
-			return err
-		}
-		invitation.TargetMemberID = member.ID
 		if err := repo.Create(ctx, invitation); err != nil {
 			return err
 		}
-		if err := writePendingMemberLog(ctx, repo, actorID, familyID, member.ID, audit); err != nil {
-			return err
-		}
-		return writeLog(ctx, repo, actorID, familyID, member.ID, invitation.ID, "CREATE_FAMILY_INVITATION", audit)
+		return writeLog(ctx, repo, actorID, familyID, 0, invitation.ID, "CREATE_FAMILY_INVITATION", audit)
 	})
 	if err != nil {
 		if s.quota != nil {
@@ -352,22 +330,51 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 		if invitation.InviteChannel == inviteenum.ChannelInApp && (invitation.TargetUserID == nil || *invitation.TargetUserID != actorID) {
 			return errTargetMismatch
 		}
-		member, err := repo.FindMemberAnyStatus(ctx, invitation.FamilyID, invitation.TargetMemberID, true)
-		if err != nil || member.UserBindingPolicy == string(enums.UserBindingNotRequired) {
-			return errMemberUnavailable
-		}
-		if invitation.InviteType == inviteenum.TypeJoinFamilyPendingMember {
-			if member.Status != string(enums.StatusPending) && member.Status != string(enums.StatusActive) {
+		var targetMemberID = invitation.TargetMemberID
+		if invitation.InviteType == inviteenum.TypeJoinFamilyPendingMember && targetMemberID == 0 {
+			if s.quota != nil {
+				if err := s.quota.AssertCanAddMember(ctx, repo.DB(), invitation.FamilyID, 1); err != nil {
+					return err
+				}
+			}
+			member := &membermodel.FamilyMember{
+				FamilyID:          invitation.FamilyID,
+				MemberType:        "LINEAGE_MEMBER",
+				DisplayName:       pendingMemberDisplayName(invitation),
+				Gender:            string(enums.GenderUnknown),
+				UserBindingPolicy: string(enums.UserBindingOptional),
+				Status:            string(enums.StatusActive),
+				CreatedByUserID:   &actorID,
+			}
+			if err := repo.CreateMember(ctx, member); err != nil {
+				return err
+			}
+			targetMemberID = member.ID
+			invitation.TargetMemberID = targetMemberID
+			if err := repo.IncrementGraphVersion(ctx, invitation.FamilyID); err != nil {
+				return err
+			}
+			if err := writePendingMemberLog(ctx, repo, actorID, invitation.FamilyID, targetMemberID, audit); err != nil {
+				return err
+			}
+		} else {
+			member, err := repo.FindMemberAnyStatus(ctx, invitation.FamilyID, targetMemberID, true)
+			if err != nil || member.UserBindingPolicy == string(enums.UserBindingNotRequired) {
 				return errMemberUnavailable
 			}
-		} else if member.Status != string(enums.StatusActive) {
-			return errMemberUnavailable
+			if invitation.InviteType == inviteenum.TypeJoinFamilyPendingMember {
+				if member.Status != string(enums.StatusPending) && member.Status != string(enums.StatusActive) {
+					return errMemberUnavailable
+				}
+			} else if member.Status != string(enums.StatusActive) {
+				return errMemberUnavailable
+			}
 		}
 		user, err := repo.FindUser(ctx, actorID, true)
 		if err != nil || user.Status != string(enums.StatusActive) {
 			return errUserUnavailable
 		}
-		linked, err := linkExists(repo.FindActiveLinkByMember(ctx, invitation.FamilyID, invitation.TargetMemberID))
+		linked, err := linkExists(repo.FindActiveLinkByMember(ctx, invitation.FamilyID, targetMemberID))
 		if err != nil {
 			return err
 		}
@@ -389,16 +396,22 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 				return err
 			}
 		}
-		if invitation.InviteType == inviteenum.TypeJoinFamilyPendingMember && member.Status == string(enums.StatusPending) {
-			if err := repo.UpdateMember(ctx, invitation.FamilyID, invitation.TargetMemberID, map[string]any{
-				"status":     string(enums.StatusActive),
-				"updated_at": now,
-			}); err != nil {
-				return err
+		if invitation.InviteType == inviteenum.TypeJoinFamilyPendingMember && invitation.TargetMemberID == targetMemberID && targetMemberID != 0 {
+			member, err := repo.FindMemberAnyStatus(ctx, invitation.FamilyID, targetMemberID, true)
+			if err != nil {
+				return errMemberUnavailable
+			}
+			if member.Status == string(enums.StatusPending) {
+				if err := repo.UpdateMember(ctx, invitation.FamilyID, targetMemberID, map[string]any{
+					"status":     string(enums.StatusActive),
+					"updated_at": now,
+				}); err != nil {
+					return err
+				}
 			}
 		}
 		link := &rolemodel.FamilyMemberUserLink{
-			FamilyID: invitation.FamilyID, MemberID: invitation.TargetMemberID, UserID: actorID,
+			FamilyID: invitation.FamilyID, MemberID: targetMemberID, UserID: actorID,
 			LinkStatus: string(enums.StatusActive), LinkSource: "INVITATION_ACCEPTED",
 			FamilyRole: string(enums.FamilyRoleMember), InvitationID: &invitation.ID, RoleGrantedAt: &now,
 		}
@@ -407,6 +420,7 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 		}
 		if err := repo.UpdateStatus(ctx, invitation.ID, inviteenum.StatusPending, map[string]any{
 			"status": inviteenum.StatusAccepted, "accepted_by_user_id": actorID, "accepted_at": now,
+			"target_member_id": targetMemberID,
 		}); err != nil {
 			return err
 		}
@@ -419,7 +433,7 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 				return err
 			}
 		}
-		return writeLog(ctx, repo, actorID, invitation.FamilyID, invitation.TargetMemberID, invitation.ID, "ACCEPT_INVITATION", audit)
+		return writeLog(ctx, repo, actorID, invitation.FamilyID, targetMemberID, invitation.ID, "ACCEPT_INVITATION", audit)
 	})
 	if txErr != nil {
 		if s.quota != nil {
@@ -641,14 +655,25 @@ func invitationVO(row *inviterepo.InvitationRow) vo.Invitation {
 	}
 }
 
+func pendingMemberDisplayName(invitation *invitationmodel.FamilyInvitation) string {
+	if invitation != nil && invitation.PendingMemberLabel != nil && strings.TrimSpace(*invitation.PendingMemberLabel) != "" {
+		return strings.TrimSpace(*invitation.PendingMemberLabel)
+	}
+	return "待确认成员"
+}
+
 func writeLog(ctx context.Context, repo inviterepo.Repository, actorID, familyID, memberID, invitationID uint64, action string, audit AuditInput) error {
 	targetType := "FAMILY_INVITATION"
-	return repo.WriteLog(ctx, operationlog.WriteInput{
+	input := operationlog.WriteInput{
 		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
 		Module: "FAMILY_INVITATION", Action: action, TargetType: &targetType,
-		TargetID: &invitationID, FamilyID: &familyID, MemberID: &memberID,
+		TargetID: &invitationID, FamilyID: &familyID,
 		IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
-	})
+	}
+	if memberID != 0 {
+		input.MemberID = &memberID
+	}
+	return repo.WriteLog(ctx, input)
 }
 
 func writePendingMemberLog(ctx context.Context, repo inviterepo.Repository, actorID, familyID, memberID uint64, audit AuditInput) error {

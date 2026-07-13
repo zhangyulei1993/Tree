@@ -5,8 +5,8 @@
     <view v-if="familyName" class="sent-head archive-page-head">
       <view>
         <text class="archive-kicker">Sent Invitations</text>
-        <text class="archive-title">发出的家庭邀请</text>
-        <text class="archive-subtitle">{{ familyName }} · 管理加入家庭与账号绑定邀请</text>
+        <text class="archive-title">{{ pageTitle }}</text>
+        <text class="archive-subtitle">{{ pageSubtitle }}</text>
       </view>
       <view class="archive-seal">{{ familySealLetter }}</view>
     </view>
@@ -98,7 +98,7 @@
         </MiniButton>
       </view>
 
-      <view v-if="familyName" class="family-invite-panel archive-form-panel">
+      <view v-if="familyName && !isNodeInviteMode" class="family-invite-panel archive-form-panel">
         <view class="archive-section-head">
           <text class="archive-section-title">邀请加入家庭</text>
           <text class="archive-section-subtitle">适合确认对方属于本家庭，但成员节点还需要之后再确认</text>
@@ -247,6 +247,7 @@ const familyId = ref('')
 const familyName = ref('')
 const familySurname = ref('')
 const familyRole = ref('')
+const inviteMode = ref('')
 const memberId = ref('')
 const memberName = ref('')
 const invitations = ref<Invitation[]>([])
@@ -261,6 +262,13 @@ const memberInviteMessage = ref('')
 const pendingMemberLabel = ref('')
 const familyRoleLabel = computed(() => (familyRole.value === 'FOUNDER' ? '创建者' : '管理员'))
 const familySealLetter = computed(() => familySurname.value.slice(0, 1) || familyName.value.slice(0, 1) || '邀')
+const isNodeInviteMode = computed(() => inviteMode.value === 'node' && Boolean(memberId.value))
+const pageTitle = computed(() => (isNodeInviteMode.value ? '邀请绑定节点' : '发出的家庭邀请'))
+const pageSubtitle = computed(() =>
+  isNodeInviteMode.value
+    ? `${familyName.value} · 邀请对方确认并绑定指定成员`
+    : `${familyName.value} · 管理加入家庭与账号绑定邀请`
+)
 const pendingCount = computed(() =>
   invitations.value.filter((item) => displayStatus(item) === 'PENDING').length
 )
@@ -282,6 +290,7 @@ const invitationGroups = computed(() => {
 
 function currentRoute() {
   const query = [`familyId=${encodeURIComponent(familyId.value)}`]
+  if (inviteMode.value) query.push(`mode=${encodeURIComponent(inviteMode.value)}`)
   if (memberId.value) query.push(`memberId=${encodeURIComponent(memberId.value)}`)
   if (memberName.value) query.push(`memberName=${encodeURIComponent(memberName.value)}`)
   return `/pages/invite/sent?${query.join('&')}`
@@ -337,6 +346,7 @@ function resetPageData() {
   familyName.value = ''
   familySurname.value = ''
   familyRole.value = ''
+  inviteMode.value = ''
   memberId.value = ''
   memberName.value = ''
   invitations.value = []
@@ -523,6 +533,16 @@ function clearShareResult() {
   shareResult.value = null
 }
 
+function safeDecodeRouteParam(value: unknown) {
+  const text = String(value || '')
+  if (!text) return ''
+  try {
+    return decodeURIComponent(text)
+  } catch {
+    return text
+  }
+}
+
 onShareAppMessage(() => {
   const invitation = shareResult.value?.invitation
   if (shareResult.value && invitation) {
@@ -538,8 +558,9 @@ onShareAppMessage(() => {
 
 onLoad((options) => {
   familyId.value = String(options?.familyId || '')
+  inviteMode.value = String(options?.mode || '')
   memberId.value = String(options?.memberId || '')
-  memberName.value = String(options?.memberName || '')
+  memberName.value = safeDecodeRouteParam(options?.memberName)
   session.restoreSession()
   if (session.isLoggedIn && familyId.value) {
     loading.value = true
