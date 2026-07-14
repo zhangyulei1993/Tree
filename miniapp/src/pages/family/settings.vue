@@ -13,8 +13,8 @@
     <template v-else-if="family">
       <view class="settings-head archive-page-head">
         <view>
-          <text class="archive-kicker">Family Permissions</text>
-          <text class="archive-title">公开展示与权限</text>
+          <text class="archive-kicker">Family Settings</text>
+          <text class="archive-title">家庭设置</text>
           <text class="archive-subtitle">
             {{ family.familyName }} · 管理公开信息、家庭角色与操作记录
           </text>

@@ -54,11 +54,19 @@
         >
           <text>暂存转化</text>
         </view>
+        <view
+          class="archive-segment-tab"
+          :class="{ active: manageSection === 'relations' }"
+          @click="manageSection = 'relations'"
+        >
+          <text>调关系</text>
+        </view>
       </view>
       <view class="manage-flow-note archive-panel">
         <text>添加节点：关系已确认，直接接入家庭树。</text>
         <text>添加暂存：只记录成员档案，暂不进入关系图。</text>
         <text>暂存转化：确认分支后，把暂存成员接入家庭树。</text>
+        <text>调关系：删除或修正已有父母、子女、配偶关系。</text>
       </view>
 
       <view v-if="manageSection === 'node'" class="archive-form-panel">

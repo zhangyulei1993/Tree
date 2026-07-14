@@ -65,7 +65,7 @@
           <input v-model.trim="profileForm.regionText" class="tree-input" maxlength="120" placeholder="地区" />
           <textarea v-model.trim="profileForm.description" class="tree-textarea" maxlength="1000" placeholder="家庭简介" />
           <MiniNotice tone="security" title="资料范围">
-            主姓氏创建后不可在此修改；公开联系方式、搜索开关和公开审核在“公开展示与权限”中管理。
+            主姓氏创建后不可在此修改；公开联系方式、搜索开关和公开审核在“家庭设置”中管理。
           </MiniNotice>
           <text v-if="profileError" class="tree-field-error">{{ profileError }}</text>
           <MiniButton class="profile-action" :loading="savingProfile" :disabled="savingProfile" @click="saveProfile">
@@ -103,7 +103,7 @@
       <view v-if="!editingProfile" class="archive-form-panel">
         <view class="archive-section-head">
           <text class="archive-section-title">公开展示摘要</text>
-          <text class="archive-section-subtitle">公开状态与联系方式在“公开展示与权限”中维护</text>
+          <text class="archive-section-subtitle">公开状态与联系方式在“家庭设置”中维护</text>
         </view>
         <view class="tree-info-row">
           <text class="tree-info-label">公开状态</text>

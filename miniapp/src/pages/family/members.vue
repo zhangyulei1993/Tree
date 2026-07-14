@@ -33,9 +33,6 @@
           placeholder-class="members-search-placeholder"
         />
       </view>
-      <view class="members-filter archive-paper-tag">
-        <text>筛选</text>
-      </view>
     </view>
 
     <view v-if="family" class="members-context">
@@ -756,12 +753,6 @@ onUnload(resetPageData)
 
 .members-search-placeholder {
   color: rgba(101, 112, 128, 0.58);
-}
-
-.members-filter {
-  width: 76rpx;
-  height: 72rpx;
-  flex-shrink: 0;
 }
 
 .members-context {

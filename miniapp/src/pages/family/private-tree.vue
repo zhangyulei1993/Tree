@@ -43,10 +43,7 @@
         </picker>
       </view>
 
-      <view class="genealogy-tools">
-        <button class="genealogy-tool-link" :disabled="!tree?.nodes.length" @click="showExportComingSoon">
-          生成图片
-        </button>
+      <view v-if="canManageFamily" class="genealogy-tools">
         <button v-if="canManageFamily" class="genealogy-tool-link" @click="openManage">关系管理</button>
       </view>
 
@@ -282,15 +279,8 @@ function openNodeActions(node: TreeNode) {
   if (!canManageFamily.value) return
   const items = ['编辑成员资料']
   if (node.userBindingState === 'UNBOUND') items.push('邀请本人绑定')
-  if (!isSpouseMember(node) && !isExternalMember(node)) items.push('添加关系', '调整关系')
-  if (node.isLiving === true) {
-    items.push('标记为已故')
-  } else if (node.isLiving === false) {
-    items.push('标记为健在')
-  } else {
-    items.push('标记为健在', '标记为已故')
-  }
-  items.push('删除成员')
+  if (!isSpouseMember(node) && !isExternalMember(node)) items.push('关系操作')
+  items.push('健在状态', '删除成员（谨慎）')
   uni.showActionSheet({
     itemList: items,
     success: (result) => {
@@ -303,21 +293,45 @@ function openNodeActions(node: TreeNode) {
         openInviteMember(node)
         return
       }
-      if (action === '添加关系') {
-        openAddRelation(node)
+      if (action === '关系操作') {
+        openRelationActions(node)
         return
       }
-      if (action === '调整关系') {
-        openAdjustRelation(node)
+      if (action === '健在状态') {
+        openLivingStateActions(node)
         return
       }
-      if (action === '标记为健在' || action === '标记为已故') {
-        updateLivingState(node, action === '标记为健在')
-        return
-      }
-      if (action === '删除成员') {
+      if (action === '删除成员（谨慎）') {
         confirmDeleteMember(node)
       }
+    }
+  })
+}
+
+function openRelationActions(node: TreeNode) {
+  const items = ['添加关系', '调整关系']
+  uni.showActionSheet({
+    itemList: items,
+    success: (result) => {
+      const action = items[result.tapIndex]
+      if (action === '添加关系') openAddRelation(node)
+      if (action === '调整关系') openAdjustRelation(node)
+    }
+  })
+}
+
+function openLivingStateActions(node: TreeNode) {
+  const items =
+    node.isLiving === true
+      ? ['标记为已故']
+      : node.isLiving === false
+        ? ['标记为健在']
+        : ['标记为健在', '标记为已故']
+  uni.showActionSheet({
+    itemList: items,
+    success: (result) => {
+      const action = items[result.tapIndex]
+      updateLivingState(node, action === '标记为健在')
     }
   })
 }
@@ -382,14 +396,6 @@ async function deleteMember(node: TreeNode) {
       showCancel: false
     })
   }
-}
-
-function showExportComingSoon() {
-  uni.showModal({
-    title: '暂未开放',
-    content: '家庭树生成图片功能暂未开放，当前可先使用系统截图保存。',
-    showCancel: false
-  })
 }
 
 onLoad((options) => {
@@ -480,8 +486,7 @@ onUnload(resetPageData)
 }
 
 .genealogy-tools {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
   gap: 14rpx;
   margin-bottom: 22rpx;
   border-top: 1rpx solid var(--archive-line);
@@ -491,7 +496,7 @@ onUnload(resetPageData)
 
 .genealogy-tool-link {
   display: block;
-  width: 100%;
+  min-width: 180rpx;
   min-height: 62rpx;
   margin: 0;
   border: 1rpx solid var(--archive-line-strong);

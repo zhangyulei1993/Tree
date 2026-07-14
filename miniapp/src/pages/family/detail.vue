@@ -92,7 +92,7 @@
       <view class="detail-directory archive-list">
         <view class="archive-row" @click="openProfile">
           <view class="archive-row-main">
-            <text class="archive-row-title">家族简介 / 家庭档案</text>
+            <text class="archive-row-title">家庭档案</text>
             <text class="archive-row-desc">姓氏、地区、简介与公开状态</text>
           </view>
           <text class="archive-row-meta">档案</text>
@@ -109,7 +109,7 @@
         <view v-if="canManageFamily" class="archive-row" @click="openManageCenter">
           <view class="archive-row-main">
             <text class="archive-row-title">家庭管理</text>
-            <text class="archive-row-desc">加入申请、邀请与公开展示权限</text>
+            <text class="archive-row-desc">邀请、加入审核、家庭设置与操作记录</text>
           </view>
           <text class="archive-row-meta">管理</text>
           <text class="archive-arrow">›</text>

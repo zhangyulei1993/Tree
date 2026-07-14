@@ -78,24 +78,8 @@
             </view>
 
             <view v-if="item.requestStatus === 'PENDING'" class="review-actions">
-              <MiniButton
-                size="sm"
-                variant="secondary"
-                :disabled="isActing(item)"
-                @click="openResolvePanel(item, 'bind')"
-              >
-                绑定已有成员
-              </MiniButton>
-              <MiniButton size="sm" :disabled="isActing(item)" @click="openResolvePanel(item, 'locate')">
-                创建并定位
-              </MiniButton>
-              <MiniButton
-                size="sm"
-                variant="secondary"
-                :disabled="isActing(item)"
-                @click="openResolvePanel(item, 'standalone')"
-              >
-                暂存未定位
+              <MiniButton size="sm" :disabled="isActing(item)" @click="openResolvePanel(item, resolveMode)">
+                处理申请
               </MiniButton>
               <MiniButton
                 size="sm"
@@ -112,6 +96,30 @@
               v-if="activeRequestId === item.requestId && item.requestStatus === 'PENDING'"
               class="resolve-panel archive-form-panel"
             >
+              <view class="archive-segment-tabs resolve-tabs">
+                <view
+                  class="archive-segment-tab"
+                  :class="{ active: resolveMode === 'bind' }"
+                  @click="openResolvePanel(item, 'bind')"
+                >
+                  <text>绑定已有</text>
+                </view>
+                <view
+                  class="archive-segment-tab"
+                  :class="{ active: resolveMode === 'locate' }"
+                  @click="openResolvePanel(item, 'locate')"
+                >
+                  <text>接入新成员</text>
+                </view>
+                <view
+                  class="archive-segment-tab"
+                  :class="{ active: resolveMode === 'standalone' }"
+                  @click="openResolvePanel(item, 'standalone')"
+                >
+                  <text>暂存成员</text>
+                </view>
+              </view>
+
               <template v-if="resolveMode === 'bind'">
                 <view class="archive-section-head">
                   <text class="archive-section-title">绑定到已有成员</text>
@@ -894,6 +902,10 @@ onUnload(resetPageData)
   margin-top: 18rpx;
   padding-top: 18rpx;
   border-top: 1rpx dashed var(--archive-line);
+}
+
+.resolve-tabs {
+  margin-bottom: 18rpx;
 }
 
 .resolve-panel :deep(.mini-notice) {

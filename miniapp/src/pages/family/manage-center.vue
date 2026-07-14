@@ -50,10 +50,10 @@
         </view>
         <view class="archive-row" @click="openSettings">
           <view class="archive-row-main">
-            <text class="archive-row-title">公开展示与权限</text>
+            <text class="archive-row-title">家庭设置</text>
             <text class="archive-row-desc">公开信息、管理员与高风险操作</text>
           </view>
-          <text class="archive-row-meta">权限</text>
+          <text class="archive-row-meta">设置</text>
           <text class="archive-arrow">›</text>
         </view>
       </view>
