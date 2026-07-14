@@ -43,8 +43,11 @@
         </picker>
       </view>
 
-      <view v-if="canManageFamily" class="genealogy-tools">
-        <button class="genealogy-tool-link" @click="openManage">关系管理</button>
+      <view class="genealogy-tools">
+        <button class="genealogy-tool-link" :disabled="!tree?.nodes.length" @click="showExportComingSoon">
+          生成图片
+        </button>
+        <button v-if="canManageFamily" class="genealogy-tool-link" @click="openManage">关系管理</button>
       </view>
 
       <view class="tree-mode-line">
@@ -122,6 +125,7 @@
           <text>配偶</text>
         </view>
       </view>
+
     </template>
   </view>
 </template>
@@ -143,7 +147,7 @@ import RelationSentenceList from '@/components/family/RelationSentenceList.vue'
 import { resolveCurrentMemberId } from '@/features/family-tree/resolveCurrentMember'
 import { buildRelationSentences, countVisibleEdges } from '@/features/family-tree/relationSentences'
 import type { FamilyTreeViewMode } from '@/features/family-tree/types'
-import { isSpouseMember, isExternalMember } from '@/features/family-tree/graph'
+import { isLineageMember, isSpouseMember, isExternalMember } from '@/features/family-tree/graph'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyDetail, FamilyTreeResult, TreeNode } from '@/types/api'
 
@@ -156,7 +160,6 @@ const errorMessage = ref('')
 const viewMode = ref<FamilyTreeViewMode>('structure')
 const viewerMemberId = ref<number | null>(null)
 const currentUserMemberId = ref<number | null>(null)
-
 const edgeCount = computed(() => (tree.value ? countVisibleEdges(tree.value) : 0))
 const relationSentences = computed(() => (tree.value ? buildRelationSentences(tree.value) : []))
 const canManageFamily = computed(() =>
@@ -177,6 +180,27 @@ const viewerPickerIndex = computed(() => {
   const index = viewerNodes.value.findIndex((node) => node.memberId === viewerMemberId.value)
   return index >= 0 ? index : 0
 })
+
+function normalizeViewerMemberId(memberId: number | null | undefined): number | null {
+  if (memberId == null || !tree.value) return memberId ?? null
+  const node = tree.value.nodes.find((item) => item.memberId === memberId)
+  if (!isSpouseMember(node)) return memberId
+
+  for (const edge of tree.value.edges) {
+    if (edge.relationshipType !== 'SPOUSE') continue
+    const spouseId =
+      edge.fromMemberId === memberId
+        ? edge.toMemberId
+        : edge.toMemberId === memberId
+          ? edge.fromMemberId
+          : null
+    if (spouseId == null) continue
+    const spouseNode = tree.value.nodes.find((item) => item.memberId === spouseId)
+    if (isLineageMember(spouseNode)) return spouseId
+  }
+
+  return memberId
+}
 
 function resetPageData() {
   loading.value = false
@@ -221,7 +245,9 @@ async function loadTree() {
     }
     const hasCurrentViewer = treeResult.nodes.some((node) => node.memberId === viewerMemberId.value)
     if (!hasCurrentViewer) {
-      viewerMemberId.value = resolvedViewerId || treeResult.nodes[0]?.memberId || null
+      viewerMemberId.value = normalizeViewerMemberId(resolvedViewerId || treeResult.nodes[0]?.memberId || null)
+    } else {
+      viewerMemberId.value = normalizeViewerMemberId(viewerMemberId.value)
     }
   } catch (error) {
     errorMessage.value = apiErrorMessage(error, '家庭树加载失败。')
@@ -248,7 +274,7 @@ function changeViewer(event: { detail: { value: number | string } }) {
   const index = Number(event.detail.value)
   const node = viewerNodes.value[index]
   if (!node) return
-  viewerMemberId.value = node.memberId
+  viewerMemberId.value = normalizeViewerMemberId(node.memberId)
   viewMode.value = 'structure'
 }
 
@@ -358,6 +384,14 @@ async function deleteMember(node: TreeNode) {
   }
 }
 
+function showExportComingSoon() {
+  uni.showModal({
+    title: '暂未开放',
+    content: '家庭树生成图片功能暂未开放，当前可先使用系统截图保存。',
+    showCancel: false
+  })
+}
+
 onLoad((options) => {
   familyId.value = String(options?.familyId || '')
 })
@@ -446,6 +480,9 @@ onUnload(resetPageData)
 }
 
 .genealogy-tools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
   margin-bottom: 22rpx;
   border-top: 1rpx solid var(--archive-line);
   border-bottom: 1rpx solid var(--archive-line);
@@ -470,6 +507,11 @@ onUnload(resetPageData)
 .genealogy-tool-link::after {
   border: 0;
 }
+
+.genealogy-tool-link[disabled] {
+  opacity: 0.58;
+}
+
 
 .tree-mode-line {
   display: flex;

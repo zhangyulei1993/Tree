@@ -50,6 +50,16 @@ export function memberTypeOf(graph: RelGraph, memberId: number): string {
   return graph.nodeMap.get(memberId)?.memberType || ''
 }
 
+export function resolveLineageViewerId(graph: RelGraph, memberId: number): number {
+  if (memberTypeOf(graph, memberId).toUpperCase() !== 'SPOUSE') return memberId
+
+  for (const spouseId of spousesOf(graph, memberId)) {
+    if (memberTypeOf(graph, spouseId).toUpperCase() === 'LINEAGE_MEMBER') return spouseId
+  }
+
+  return memberId
+}
+
 export function parentsOf(graph: RelGraph, memberId: number): number[] {
   return graph.parents.get(memberId) || []
 }

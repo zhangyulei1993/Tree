@@ -65,7 +65,7 @@
                 </view>
                 <FamilyTreePersonCard
                   :node="parent"
-                  :is-self="parent.memberId === viewerMemberId"
+                  :is-self="parent.memberId === effectiveViewerMemberId"
                   :show-binding="showBinding"
                   :kinship-title="kinshipTitles[parent.memberId]"
                   :family-surname="familySurname"
@@ -81,7 +81,7 @@
       <view class="tree-footnote">
         <text class="footnote">
           共 {{ layout.memberCount }} 位成员，树中展示 {{ layout.renderedCount }} 位
-          <text v-if="viewerMemberId"> · 深蓝纸签为当前中心视角</text>
+          <text v-if="effectiveViewerMemberId"> · 深蓝纸签为当前中心视角</text>
         </text>
       </view>
 
@@ -91,17 +91,22 @@
           <text class="unlocated-desc">以下成员暂未接入当前关系图，可在「定位成员」中挂接。</text>
         </view>
         <view class="unlocated-list">
-          <FamilyTreePersonCard
+          <view
             v-for="node in layout.unlocatedMembers"
             :key="node.memberId"
-            :node="node"
-            :is-self="node.memberId === viewerMemberId"
-            :show-binding="showBinding"
-            :kinship-title="kinshipTitles[node.memberId]"
-            :family-surname="familySurname"
-            :interactive="interactive"
-            @select="emit('select', $event)"
-          />
+            class="unlocated-card-hit"
+            :class="{ interactive }"
+            @tap.stop="handleUnlocatedSelect(node)"
+          >
+            <FamilyTreePersonCard
+              :node="node"
+              :is-self="node.memberId === effectiveViewerMemberId"
+              :show-binding="showBinding"
+              :kinship-title="kinshipTitles[node.memberId]"
+              :family-surname="familySurname"
+              :interactive="false"
+            />
+          </view>
         </view>
       </view>
     </template>
@@ -114,6 +119,7 @@ import { computed, ref, watch } from 'vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import FamilyTreePersonCard from '@/components/family/FamilyTreePersonCard.vue'
 import { layoutFamilyTree } from '@/features/family-tree/layoutFamilyTree'
+import { buildRelGraph, resolveLineageViewerId } from '@/features/family-tree/relativeGraph'
 import { buildKinshipTitleMap } from '@/features/family-tree/relativeTitle'
 import type { FamilyTreeResult } from '@/types/api'
 
@@ -128,19 +134,30 @@ const emit = defineEmits<{
   select: [node: FamilyTreeResult['nodes'][number]]
 }>()
 
+function handleUnlocatedSelect(node: FamilyTreeResult['nodes'][number]) {
+  if (!props.interactive) return
+  emit('select', node)
+}
+
+const effectiveViewerMemberId = computed(() => {
+  if (props.viewerMemberId == null) return props.viewerMemberId
+  const graph = buildRelGraph(props.tree?.nodes ?? [], props.tree?.edges ?? [])
+  return resolveLineageViewerId(graph, props.viewerMemberId)
+})
+
 const layout = computed(() =>
   layoutFamilyTree({
     nodes: props.tree?.nodes || [],
     edges: props.tree?.edges || [],
     tree: props.tree?.tree || [],
-    viewerMemberId: props.viewerMemberId
+    viewerMemberId: effectiveViewerMemberId.value
   })
 )
 
 /** 视角相关称谓：viewerMemberId 或 graphVersion 变化时全量重算 */
 const kinshipTitles = computed(() =>
   buildKinshipTitleMap({
-    viewerMemberId: props.viewerMemberId,
+    viewerMemberId: effectiveViewerMemberId.value,
     nodes: props.tree?.nodes ?? [],
     edges: props.tree?.edges ?? [],
     graphVersion: props.tree?.graphVersion ?? 0
@@ -188,6 +205,7 @@ watch(
   },
   { immediate: true }
 )
+
 </script>
 
 <style scoped>
@@ -290,5 +308,31 @@ watch(
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
+}
+.unlocated-card-hit {
+  position: relative;
+  display: block;
+}
+.unlocated-card-hit.interactive::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 3;
+  width: 34rpx;
+  height: 34rpx;
+  border-radius: 0 0 0 16rpx;
+  background: var(--archive-cinnabar, #a83b2d);
+}
+.unlocated-card-hit.interactive::after {
+  content: '管';
+  position: absolute;
+  top: 2rpx;
+  right: 6rpx;
+  z-index: 4;
+  color: #fff;
+  font-size: 16rpx;
+  font-weight: 700;
+  line-height: 1;
 }
 </style>

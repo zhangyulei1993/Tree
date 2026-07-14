@@ -163,6 +163,14 @@ function isPatrilinealDescendantPath(graph: RelGraph, path: number[]): boolean {
   return true
 }
 
+function isLineageDescendantPath(graph: RelGraph, path: number[]): boolean {
+  if (path.length < 2) return false
+  for (let i = 1; i < path.length; i += 1) {
+    if (memberTypeOf(graph, path[i]!).toUpperCase() !== 'LINEAGE_MEMBER') return false
+  }
+  return true
+}
+
 function titleFromDescendantPath(graph: RelGraph, path: number[]): string {
   const depth = path.length - 1
   const targetId = path[path.length - 1]
@@ -186,7 +194,8 @@ function titleFromDescendantPath(graph: RelGraph, path: number[]): string {
   if (depth === 3) {
     const via = genderOf(graph, path[1])
     if (via === 'MALE') {
-      if (!isPatrilinealDescendantPath(graph, path)) return ''
+      if (!isLineageDescendantPath(graph, path)) return ''
+      if (!isPatrilinealDescendantPath(graph, path)) return isMale ? '外曾孙' : isFemale ? '外曾孙女' : ''
       return isMale ? '曾孙' : isFemale ? '曾孙女' : ''
     }
     if (via === 'FEMALE') return isMale ? '外曾孙' : isFemale ? '外曾孙女' : ''
@@ -293,11 +302,41 @@ function grandparentSiblingTitle(
 }
 
 function spouseTitleOfCollateral(title: string): string {
+  if (title === '父亲') return '母亲'
+  if (title === '母亲') return '父亲'
+  if (title === '祖父') return '祖母'
+  if (title === '祖母') return '祖父'
+  if (title === '外祖父') return '外祖母'
+  if (title === '外祖母') return '外祖父'
   if (title.endsWith('伯祖父')) return title.replace(/伯祖父$/, '伯祖母')
   if (title.endsWith('叔祖父')) return title.replace(/叔祖父$/, '叔祖母')
   if (title.endsWith('姑祖母')) return title.replace(/姑祖母$/, '姑祖父')
   if (title.endsWith('舅祖父')) return title.replace(/舅祖父$/, '舅祖母')
   if (title.endsWith('姨祖母')) return title.replace(/姨祖母$/, '姨祖父')
+  if (title === '伯父') return '伯母'
+  if (title === '叔父') return '婶母'
+  if (title === '叔伯') return '伯叔母'
+  if (title === '姑母') return '姑父'
+  if (title === '舅父') return '舅母'
+  if (title === '姨母') return '姨父'
+  if (title === '兄长') return '嫂子'
+  if (title === '弟弟') return '弟媳'
+  if (title === '姐姐') return '姐夫'
+  if (title === '妹妹') return '妹夫'
+  return ''
+}
+
+function ancestorSpouseTitleFromViewer(
+  graph: RelGraph,
+  meId: number,
+  targetId: number
+): string {
+  for (const spouseId of spousesOf(graph, targetId)) {
+    const ancestorPath = findBloodAncestorPath(graph, meId, spouseId)
+    if (!ancestorPath) continue
+    const title = spouseTitleOfCollateral(titleFromAncestorPath(graph, ancestorPath))
+    if (title) return title
+  }
   return ''
 }
 
@@ -532,6 +571,46 @@ function nephewDescendantTitle(
   return ''
 }
 
+function nephewDescendantSpouseTitle(
+  graph: RelGraph,
+  siblingId: number,
+  bloodId: number,
+  targetId: number,
+  path: number[]
+): string {
+  const depth = path.length - 1
+  const siblingGender = genderOf(graph, siblingId)
+  const viaGender = depth >= 2 ? genderOf(graph, path[1]) : ''
+  const bloodGender = genderOf(graph, bloodId)
+  const targetGender = genderOf(graph, targetId)
+
+  const byTargetGender = (maleSpouseTitle: string, femaleSpouseTitle: string, fallback: string) => {
+    if (targetGender === 'MALE') return maleSpouseTitle
+    if (targetGender === 'FEMALE') return femaleSpouseTitle
+    if (bloodGender === 'FEMALE') return maleSpouseTitle
+    if (bloodGender === 'MALE') return femaleSpouseTitle
+    return fallback
+  }
+
+  if (depth === 1) {
+    if (siblingGender === 'MALE') return byTargetGender('侄女婿', '侄媳', '侄辈配偶')
+    if (siblingGender === 'FEMALE') return byTargetGender('外甥女婿', '外甥媳', '外甥辈配偶')
+  }
+
+  if (depth === 2) {
+    if (siblingGender === 'MALE') {
+      if (viaGender === 'MALE') return byTargetGender('侄孙女婿', '侄孙媳', '侄孙辈配偶')
+      if (viaGender === 'FEMALE') return byTargetGender('侄外孙女婿', '侄外孙媳', '侄外孙辈配偶')
+    }
+    if (siblingGender === 'FEMALE') {
+      if (viaGender === 'MALE') return byTargetGender('外甥孙女婿', '外甥孙媳', '外甥孙辈配偶')
+      if (viaGender === 'FEMALE') return byTargetGender('外甥外孙女婿', '外甥外孙媳', '外甥外孙辈配偶')
+    }
+  }
+
+  return ''
+}
+
 function cousinChildTitle(
   graph: RelGraph,
   parentId: number,
@@ -564,6 +643,25 @@ function cousinGrandchildTitle(
   return ''
 }
 
+function cousinChildSpouseTitle(
+  graph: RelGraph,
+  parentId: number,
+  uncleId: number,
+  bloodId: number,
+  targetId: number
+): string {
+  const kind = cousinKind(genderOf(graph, parentId), genderOf(graph, uncleId))
+  const prefix = kind === 'tang' ? '堂' : '表'
+  const targetGender = genderOf(graph, targetId)
+  const bloodGender = genderOf(graph, bloodId)
+
+  if (targetGender === 'FEMALE') return `${prefix}侄媳`
+  if (targetGender === 'MALE') return `${prefix}侄女婿`
+  if (bloodGender === 'MALE') return `${prefix}侄媳`
+  if (bloodGender === 'FEMALE') return `${prefix}侄女婿`
+  return ''
+}
+
 function bloodDescendantSpouseTitleByDepth(depth: number, bloodGender: string): string {
   if (depth === 1) {
     if (bloodGender === 'MALE') return '儿媳'
@@ -588,6 +686,19 @@ function bloodDescendantSpouseTitleByDepth(depth: number, bloodGender: string): 
   return ''
 }
 
+function bloodDescendantSpouseTitleByPath(graph: RelGraph, path: number[]): string {
+  const depth = path.length - 1
+  const bloodId = path[path.length - 1]
+  const bloodGender = genderOf(graph, bloodId)
+  if (!isLineageDescendantPath(graph, path)) return ''
+  if (depth === 3 && !isPatrilinealDescendantPath(graph, path)) {
+    if (bloodGender === 'FEMALE') return '外曾孙女婿'
+    return ''
+  }
+  if (depth >= 3 && !isPatrilinealDescendantPath(graph, path)) return ''
+  return bloodDescendantSpouseTitleByDepth(depth, bloodGender)
+}
+
 function bloodDescendantSpouseTitleFromViewer(
   graph: RelGraph,
   meId: number,
@@ -603,9 +714,8 @@ function bloodDescendantSpouseTitleFromViewer(
 
     const depth = bloodPath.length - 1
     if (depth < 1 || depth > 5) continue
-    if (depth >= 3 && !isPatrilinealDescendantPath(graph, bloodPath)) continue
 
-    const title = bloodDescendantSpouseTitleByDepth(depth, genderOf(graph, bloodId))
+    const title = bloodDescendantSpouseTitleByPath(graph, bloodPath)
     if (title) return title
   }
 
@@ -633,6 +743,9 @@ export function resolveRelativeTitle(graph: RelGraph, meId: number, targetId: nu
 
   const ancestorPath = findBloodAncestorPath(graph, meId, targetId)
   if (ancestorPath) return titleFromAncestorPath(graph, ancestorPath)
+
+  const ancestorSpouseTitle = ancestorSpouseTitleFromViewer(graph, meId, targetId)
+  if (ancestorSpouseTitle) return ancestorSpouseTitle
 
   const descendantPath = findBloodDescendantPath(graph, meId, targetId)
   if (descendantPath) return titleFromDescendantPath(graph, descendantPath)
@@ -710,6 +823,11 @@ export function resolveRelativeTitle(graph: RelGraph, meId: number, targetId: nu
         }
         for (const parentCousinId of childrenOf(graph, grandUncleId)) {
           if (isSpouseOf(graph, parentCousinId, targetId)) return ''
+          for (const collateralChildId of childrenOf(graph, parentCousinId)) {
+            if (!isSpouseOf(graph, collateralChildId, targetId)) continue
+            const gap = bloodGenerationGap(graph, meId, collateralChildId)
+            if (gap === 0) return cousinSpouseTitle(graph, meId, collateralChildId, parentId, parentCousinId)
+          }
           const subPath = findBloodDescendantPath(graph, parentCousinId, targetId, 4)
           if (!subPath) continue
           const gap = bloodGenerationGap(graph, meId, targetId)
@@ -741,6 +859,11 @@ export function resolveRelativeTitle(graph: RelGraph, meId: number, targetId: nu
   for (const parentId of parentsOf(graph, meId)) {
     for (const uncleId of siblingsOf(graph, parentId)) {
       for (const cousinId of childrenOf(graph, uncleId)) {
+        for (const cousinChildId of childrenOf(graph, cousinId)) {
+          if (isSpouseOf(graph, cousinChildId, targetId)) {
+            return cousinChildSpouseTitle(graph, parentId, uncleId, cousinChildId, targetId)
+          }
+        }
         const subPath = findBloodDescendantPath(graph, cousinId, targetId, 4)
         if (!subPath) continue
         const gap = bloodGenerationGap(graph, meId, targetId)
@@ -756,6 +879,12 @@ export function resolveRelativeTitle(graph: RelGraph, meId: number, targetId: nu
   }
 
   for (const siblingId of siblingsOf(graph, meId)) {
+    for (const bloodId of spousesOf(graph, targetId)) {
+      const spousePath = findBloodDescendantPath(graph, siblingId, bloodId, 6)
+      if (!spousePath) continue
+      const spouseTitle = nephewDescendantSpouseTitle(graph, siblingId, bloodId, targetId, spousePath)
+      if (spouseTitle) return spouseTitle
+    }
     const subPath = findBloodDescendantPath(graph, siblingId, targetId, 6)
     if (!subPath) continue
     const gap = bloodGenerationGap(graph, meId, targetId)

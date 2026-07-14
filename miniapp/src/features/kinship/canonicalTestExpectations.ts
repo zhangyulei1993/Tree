@@ -45,7 +45,6 @@ const NON_CANONICAL_EXPECTED = new Set([
   '姑妹夫',
   '侄媳妇',
   '外甥媳妇',
-  '外甥女婿',
   '外孙媳',
   '外孙女婿',
   '妻侄媳妇',
@@ -55,9 +54,7 @@ const NON_CANONICAL_EXPECTED = new Set([
   '夫侄女婿',
   '夫外甥女婿',
   '亲属关系路径已记录',
-  '侄重孙媳',
-  '堂侄孙媳',
-  '表侄孙媳'
+  '侄重孙媳'
 ])
 
 const FORBIDDEN_BARE = new Set([

@@ -10,6 +10,7 @@ import {
   isSiblingOf,
   isSpouseOf,
   parentsOf,
+  resolveLineageViewerId,
   siblingsOf,
   type RelGraph
 } from './relativeGraph'
@@ -175,7 +176,11 @@ function collateralDescendantLabel(prefix: '堂' | '表', gap: number, gender: s
 }
 
 function collateralDescendantSpouseLabel(prefix: '堂' | '表', gap: number, bloodGender: string): string {
-  if (gap === 0) return `${prefix}亲配偶`
+  if (gap === 0) {
+    if (bloodGender === 'MALE') return `${prefix}兄弟配偶`
+    if (bloodGender === 'FEMALE') return `${prefix}姐妹配偶`
+    return `${prefix}亲配偶`
+  }
   if (gap === 1) {
     if (bloodGender === 'MALE') return `${prefix}侄媳`
     if (bloodGender === 'FEMALE') return `${prefix}侄女婿`
@@ -251,6 +256,18 @@ function kinshipFallbackLabel(
   viewerMemberId: number,
   targetMemberId: number
 ): string {
+  const isIsolated = (memberId: number) =>
+    parentsOf(graph, memberId).length === 0 &&
+    childrenOf(graph, memberId).length === 0 &&
+    (graph.spouses.get(memberId) || []).length === 0
+
+  if (
+    isIsolated(viewerMemberId) ||
+    isIsolated(targetMemberId)
+  ) {
+    return '暂未定位'
+  }
+
   return (
     siblingFallbackLabel(graph, viewerMemberId, targetMemberId) ||
     parentSiblingFallbackLabel(graph, viewerMemberId, targetMemberId) ||
@@ -296,7 +313,8 @@ export function getRelativeTitle(
   graph: RelGraph
 ): string | undefined {
   if (viewerMemberId == null) return undefined
-  const entry = resolveKinshipTitleEntry(graph, viewerMemberId, targetMemberId)
+  const effectiveViewerMemberId = resolveLineageViewerId(graph, viewerMemberId)
+  const entry = resolveKinshipTitleEntry(graph, effectiveViewerMemberId, targetMemberId)
   return entry.displayLabel
 }
 
@@ -321,12 +339,13 @@ export function buildKinshipTitleMap(input: BuildKinshipTitleMapInput): Record<n
 
   const graphVersion = input.graphVersion ?? 0
   const graph = buildRelGraph(nodes, edges)
-  const titles: Record<number, string> = { [viewerMemberId]: '我' }
+  const effectiveViewerMemberId = resolveLineageViewerId(graph, viewerMemberId)
+  const titles: Record<number, string> = { [effectiveViewerMemberId]: '我' }
 
   for (const node of nodes) {
-    if (node.memberId === viewerMemberId) continue
+    if (node.memberId === effectiveViewerMemberId) continue
     titles[node.memberId] = getRelativeTitleCached(
-      viewerMemberId,
+      effectiveViewerMemberId,
       node.memberId,
       graph,
       graphVersion
