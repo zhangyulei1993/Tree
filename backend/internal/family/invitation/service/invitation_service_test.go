@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -54,6 +55,21 @@ func (p fakePermission) GetActiveLink(context.Context, uint64, uint64) (*rolemod
 type logRecord struct {
 	input  operationlog.WriteInput
 	result string
+}
+
+type invitationTreeCache struct {
+	deleted []string
+}
+
+func (c *invitationTreeCache) Get(context.Context, string) ([]byte, error) {
+	return nil, errors.New("cache miss")
+}
+func (c *invitationTreeCache) Set(context.Context, string, []byte, time.Duration) error {
+	return nil
+}
+func (c *invitationTreeCache) Delete(_ context.Context, key string) error {
+	c.deleted = append(c.deleted, key)
+	return nil
 }
 
 type fakeRepo struct {
@@ -306,7 +322,17 @@ func (u fakeUOW) WithinTransaction(ctx context.Context, fn func(inviterepo.Repos
 }
 
 func testService(repo *fakeRepo, allowed bool, now time.Time) *service {
-	s := NewService(repo, fakeUOW{repo}, fakePermission{allowed: allowed, link: rolemodel.FamilyMemberUserLink{FamilyRole: "FOUNDER"}}, nil, contentsafety.AlwaysPass()).(*service)
+	return testServiceWithCache(repo, allowed, now, nil)
+}
+
+func testServiceWithCache(repo *fakeRepo, allowed bool, now time.Time, cache *invitationTreeCache) *service {
+	var serviceValue Service
+	if cache == nil {
+		serviceValue = NewService(repo, fakeUOW{repo}, fakePermission{allowed: allowed, link: rolemodel.FamilyMemberUserLink{FamilyRole: "FOUNDER"}}, nil, contentsafety.AlwaysPass())
+	} else {
+		serviceValue = NewService(repo, fakeUOW{repo}, fakePermission{allowed: allowed, link: rolemodel.FamilyMemberUserLink{FamilyRole: "FOUNDER"}}, nil, contentsafety.AlwaysPass(), cache)
+	}
+	s := serviceValue.(*service)
 	s.now = func() time.Time { return now }
 	s.token = func() (string, error) { return "raw-secret-invite-token", nil }
 	return s
@@ -431,10 +457,11 @@ func TestInvitationMutations(t *testing.T) {
 	})
 	t.Run("accept creates link without graph change", func(t *testing.T) {
 		repo := newFakeRepo()
+		cache := &invitationTreeCache{}
 		repo.pendingJoinRequests = 1
 		makeInvite(repo, "SHARE_LINK", "PENDING", nil, now.Add(time.Hour))
 		before := repo.family.GraphVersion
-		result, err := testService(repo, true, now).Accept(context.Background(), 9, 1, AuditInput{})
+		result, err := testServiceWithCache(repo, true, now, cache).Accept(context.Background(), 9, 1, AuditInput{})
 		if err != nil || result.Status != "ACCEPTED" || len(repo.links) != 1 {
 			t.Fatalf("unexpected %#v %#v", result, err)
 		}
@@ -444,6 +471,9 @@ func TestInvitationMutations(t *testing.T) {
 		}
 		if repo.family.GraphVersion != before {
 			t.Fatal("accept must not increment graph version")
+		}
+		if len(cache.deleted) != 1 || cache.deleted[0] != "family:2:tree:v14" {
+			t.Fatalf("accepted binding must invalidate current tree cache, got %#v", cache.deleted)
 		}
 		if repo.pendingJoinRequests != 0 {
 			t.Fatal("accept must resolve the user's pending join request")
@@ -485,6 +515,7 @@ func TestInvitationMutations(t *testing.T) {
 	})
 	t.Run("accept pending family invite creates member after confirmation", func(t *testing.T) {
 		repo := newFakeRepo()
+		cache := &invitationTreeCache{}
 		beforeGraphVersion := repo.family.GraphVersion
 		repo.invitations[1] = &invitationmodel.FamilyInvitation{
 			ID: 1, FamilyID: 2, TargetMemberID: 0, InviterUserID: uint64Ptr(8),
@@ -492,7 +523,7 @@ func TestInvitationMutations(t *testing.T) {
 			FamilyRoleAfterAccept: "MEMBER", Status: "PENDING", ExpiredAt: now.Add(time.Hour),
 			PendingMemberLabel: stringPtr("二房长子（待确认）"),
 		}
-		result, err := testService(repo, true, now).Accept(context.Background(), 9, 1, AuditInput{})
+		result, err := testServiceWithCache(repo, true, now, cache).Accept(context.Background(), 9, 1, AuditInput{})
 		if err != nil || result.Status != "ACCEPTED" {
 			t.Fatalf("unexpected %#v %#v", result, err)
 		}
@@ -508,6 +539,9 @@ func TestInvitationMutations(t *testing.T) {
 		}
 		if repo.family.GraphVersion != beforeGraphVersion+1 {
 			t.Fatalf("graph version should increment when member is created, got %d", repo.family.GraphVersion)
+		}
+		if len(cache.deleted) != 1 || cache.deleted[0] != "family:2:tree:v15" {
+			t.Fatalf("new pending member must invalidate updated tree cache, got %#v", cache.deleted)
 		}
 	})
 	t.Run("expired and non-pending rejected", func(t *testing.T) {

@@ -19,6 +19,7 @@ import (
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
+	commonredis "tree/backend/internal/common/redis"
 	"tree/backend/internal/family/invitation/dto"
 	inviteenum "tree/backend/internal/family/invitation/enum"
 	invitationmodel "tree/backend/internal/family/invitation/model"
@@ -66,15 +67,20 @@ type service struct {
 	permissions   permission.FamilyPermissionService
 	quota         quotaservice.Service
 	contentSafety contentsafety.Service
+	treeCache     commonredis.TreeCache
 	now           func() time.Time
 	token         func() (string, error)
 }
 
-func NewService(repo inviterepo.Repository, uow inviterepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service) Service {
+func NewService(repo inviterepo.Repository, uow inviterepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service, treeCaches ...commonredis.TreeCache) Service {
 	if contentSafety == nil {
 		contentSafety = contentsafety.FailClosed()
 	}
-	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, contentSafety: contentSafety, now: time.Now, token: randomToken}
+	treeCache := commonredis.TreeCache(commonredis.NoopTreeCache{})
+	if len(treeCaches) > 0 && treeCaches[0] != nil {
+		treeCache = treeCaches[0]
+	}
+	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, contentSafety: contentSafety, treeCache: treeCache, now: time.Now, token: randomToken}
 }
 
 func (s *service) CreateFamily(ctx context.Context, actorID, familyID uint64, req dto.CreateInvitationRequest, audit AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError) {
@@ -308,11 +314,15 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
+	var cacheFamilyID uint64
+	var cacheGraphVersion int64
 	txErr := s.uow.WithinTransaction(ctx, func(repo inviterepo.Repository) error {
 		family, err := repo.FindFamily(ctx, current.FamilyID, true)
 		if err != nil || family.Status != string(enums.StatusNormal) {
 			return errMemberUnavailable
 		}
+		cacheFamilyID = family.ID
+		cacheGraphVersion = family.GraphVersion
 		invitation, err := repo.FindByID(ctx, invitationID, true)
 		if err != nil {
 			return errInvitationMissing
@@ -354,6 +364,7 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 			if err := repo.IncrementGraphVersion(ctx, invitation.FamilyID); err != nil {
 				return err
 			}
+			cacheGraphVersion++
 			if err := writePendingMemberLog(ctx, repo, actorID, invitation.FamilyID, targetMemberID, audit); err != nil {
 				return err
 			}
@@ -446,6 +457,9 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 	if businessErr := mapError(txErr); businessErr != nil {
 		s.writeAcceptFailureLog(ctx, actorID, current, invitationID, current.TargetMemberID, businessErr, audit)
 		return nil, businessErr
+	}
+	if cacheFamilyID != 0 {
+		_ = s.treeCache.Delete(ctx, fmt.Sprintf("family:%d:tree:v%d", cacheFamilyID, cacheGraphVersion))
 	}
 	return s.resultByID(ctx, invitationID)
 }

@@ -13,6 +13,7 @@ var ErrCacheMiss = errors.New("tree cache miss")
 type TreeCache interface {
 	Get(context.Context, string) ([]byte, error)
 	Set(context.Context, string, []byte, time.Duration) error
+	Delete(context.Context, string) error
 }
 
 type RedisTreeCache struct {
@@ -35,6 +36,10 @@ func (c *RedisTreeCache) Set(ctx context.Context, key string, value []byte, ttl 
 	return c.client.Set(ctx, key, value, ttl).Err()
 }
 
+func (c *RedisTreeCache) Delete(ctx context.Context, key string) error {
+	return c.client.Del(ctx, key).Err()
+}
+
 type NoopTreeCache struct{}
 
 func (NoopTreeCache) Get(context.Context, string) ([]byte, error) {
@@ -42,5 +47,9 @@ func (NoopTreeCache) Get(context.Context, string) ([]byte, error) {
 }
 
 func (NoopTreeCache) Set(context.Context, string, []byte, time.Duration) error {
+	return nil
+}
+
+func (NoopTreeCache) Delete(context.Context, string) error {
 	return nil
 }

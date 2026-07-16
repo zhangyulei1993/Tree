@@ -56,6 +56,7 @@ type fakeCache struct {
 	setErr  error
 	getKeys []string
 	setKeys []string
+	delKeys []string
 }
 
 func newFakeCache() *fakeCache {
@@ -80,6 +81,12 @@ func (c *fakeCache) Set(_ context.Context, key string, value []byte, _ time.Dura
 		return c.setErr
 	}
 	c.values[key] = value
+	return nil
+}
+
+func (c *fakeCache) Delete(_ context.Context, key string) error {
+	c.delKeys = append(c.delKeys, key)
+	delete(c.values, key)
 	return nil
 }
 

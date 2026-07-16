@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
+	commonredis "tree/backend/internal/common/redis"
 	"tree/backend/internal/family/member/dto"
 	membermodel "tree/backend/internal/family/member/model"
 	memberrepo "tree/backend/internal/family/member/repository"
@@ -73,13 +75,18 @@ type memberService struct {
 	permissions   permission.FamilyPermissionService
 	quota         quotaservice.Service
 	contentSafety contentsafety.Service
+	treeCache     commonredis.TreeCache
 }
 
-func NewMemberService(db *gorm.DB, repo memberrepo.MemberRepository, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service) MemberService {
+func NewMemberService(db *gorm.DB, repo memberrepo.MemberRepository, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service, treeCaches ...commonredis.TreeCache) MemberService {
 	if contentSafety == nil {
 		contentSafety = contentsafety.FailClosed()
 	}
-	return &memberService{db: db, repo: repo, permissions: permissions, quota: quota, contentSafety: contentSafety}
+	treeCache := commonredis.TreeCache(commonredis.NoopTreeCache{})
+	if len(treeCaches) > 0 && treeCaches[0] != nil {
+		treeCache = treeCaches[0]
+	}
+	return &memberService{db: db, repo: repo, permissions: permissions, quota: quota, contentSafety: contentSafety, treeCache: treeCache}
 }
 
 func (s *memberService) Create(ctx context.Context, actorID uint64, familyID uint64, req dto.CreateMemberRequest, audit AuditInput) (*vo.Member, *apperrors.BusinessError) {
@@ -374,6 +381,7 @@ func (s *memberService) BindUser(ctx context.Context, actorID uint64, familyID u
 	if allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !allowed {
 		return nil, memberError(CodeMemberEditForbidden, "无权绑定成员用户")
 	}
+	var cacheGraphVersion int64
 	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
 		family, err := txRepo.LockFamily(ctx, familyID)
@@ -383,6 +391,7 @@ func (s *memberService) BindUser(ctx context.Context, actorID uint64, familyID u
 		if family.Status != string(enums.StatusNormal) {
 			return errFamilyUnavailable
 		}
+		cacheGraphVersion = family.GraphVersion
 		member, err := txRepo.FindForUpdate(ctx, familyID, memberID)
 		if err != nil {
 			return err
@@ -435,6 +444,7 @@ func (s *memberService) BindUser(ctx context.Context, actorID uint64, familyID u
 	case err != nil:
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
+	_ = s.treeCache.Delete(ctx, fmt.Sprintf("family:%d:tree:v%d", familyID, cacheGraphVersion))
 	return s.Detail(ctx, actorID, familyID, memberID)
 }
 
@@ -449,6 +459,7 @@ func (s *memberService) UnbindUser(ctx context.Context, actorID uint64, familyID
 	}); businessErr != nil {
 		return nil, businessErr
 	}
+	var cacheGraphVersion int64
 	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
 		txRepo := s.repo.WithTx(tx)
 		family, err := txRepo.LockFamily(ctx, familyID)
@@ -458,6 +469,7 @@ func (s *memberService) UnbindUser(ctx context.Context, actorID uint64, familyID
 		if family.Status != string(enums.StatusNormal) {
 			return errFamilyUnavailable
 		}
+		cacheGraphVersion = family.GraphVersion
 		if _, err := txRepo.FindForUpdate(ctx, familyID, memberID); err != nil {
 			return err
 		}
@@ -488,6 +500,7 @@ func (s *memberService) UnbindUser(ctx context.Context, actorID uint64, familyID
 	case err != nil:
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
+	_ = s.treeCache.Delete(ctx, fmt.Sprintf("family:%d:tree:v%d", familyID, cacheGraphVersion))
 	return s.Detail(ctx, actorID, familyID, memberID)
 }
 

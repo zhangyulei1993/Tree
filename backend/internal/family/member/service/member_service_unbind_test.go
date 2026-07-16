@@ -48,6 +48,7 @@ func (p memberPermFake) GetActiveLink(context.Context, uint64, uint64) (*rolemod
 type memberRepoFake struct {
 	family           coremodel.Family
 	member           membermodel.FamilyMember
+	user             *usermodel.User
 	links            []rolemodel.FamilyMemberUserLink
 	blockingChildCnt int64
 	relationsDeleted bool
@@ -102,8 +103,12 @@ func (r *memberRepoFake) SoftDeleteDeletableRelationships(context.Context, uint6
 	return 1, nil
 }
 
-func (r *memberRepoFake) FindUserForUpdate(context.Context, uint64) (*usermodel.User, error) {
-	return nil, gorm.ErrRecordNotFound
+func (r *memberRepoFake) FindUserForUpdate(_ context.Context, userID uint64) (*usermodel.User, error) {
+	if r.user == nil || r.user.ID != userID {
+		return nil, gorm.ErrRecordNotFound
+	}
+	value := *r.user
+	return &value, nil
 }
 
 func (r *memberRepoFake) FindActiveLinkByMember(_ context.Context, familyID, memberID uint64) (*rolemodel.FamilyMemberUserLink, error) {
@@ -137,6 +142,21 @@ func (r *memberRepoFake) UnbindLink(_ context.Context, linkID, _ uint64, _ *stri
 
 func testMemberService(repo *memberRepoFake, canManage bool) MemberService {
 	return NewMemberService(nil, repo, memberPermFake{canManage: canManage}, nil, contentsafety.AlwaysPass())
+}
+
+type memberTreeCache struct {
+	deleted []string
+}
+
+func (c *memberTreeCache) Get(context.Context, string) ([]byte, error) {
+	return nil, gorm.ErrRecordNotFound
+}
+func (c *memberTreeCache) Set(context.Context, string, []byte, time.Duration) error {
+	return nil
+}
+func (c *memberTreeCache) Delete(_ context.Context, key string) error {
+	c.deleted = append(c.deleted, key)
+	return nil
 }
 
 func TestUnbindUserRules(t *testing.T) {
@@ -191,7 +211,9 @@ func TestUnbindUserRules(t *testing.T) {
 			},
 		}
 		beforeGV := repo.family.GraphVersion
-		result, err := testMemberService(repo, true).UnbindUser(context.Background(), 8, 22, 6, dto.UnbindUserRequest{}, AuditInput{})
+		cache := &memberTreeCache{}
+		service := NewMemberService(nil, repo, memberPermFake{canManage: true}, nil, contentsafety.AlwaysPass(), cache)
+		result, err := service.UnbindUser(context.Background(), 8, 22, 6, dto.UnbindUserRequest{}, AuditInput{})
 		if err != nil || result == nil {
 			t.Fatalf("unexpected %#v %#v", result, err)
 		}
@@ -207,7 +229,36 @@ func TestUnbindUserRules(t *testing.T) {
 		if repo.family.GraphVersion != beforeGV {
 			t.Fatal("unbind must not increment graph version")
 		}
+		if len(cache.deleted) != 1 || cache.deleted[0] != "family:22:tree:v10" {
+			t.Fatalf("unbind must invalidate current tree cache, got %#v", cache.deleted)
+		}
 	})
+}
+
+func TestBindUserInvalidatesTreeCacheWithoutGraphVersionChange(t *testing.T) {
+	originalTx := runMemberTransaction
+	runMemberTransaction = func(_ context.Context, _ *gorm.DB, fn func(tx *gorm.DB) error) error {
+		return fn(nil)
+	}
+	t.Cleanup(func() { runMemberTransaction = originalTx })
+
+	repo := &memberRepoFake{
+		family: coremodel.Family{ID: 22, Status: "NORMAL", GraphVersion: 10},
+		member: membermodel.FamilyMember{ID: 6, FamilyID: 22, Status: "ACTIVE", UserBindingPolicy: "OPTIONAL"},
+		user:   &usermodel.User{ID: 9, Status: "ACTIVE"},
+	}
+	cache := &memberTreeCache{}
+	service := NewMemberService(nil, repo, memberPermFake{canManage: true}, nil, contentsafety.AlwaysPass(), cache)
+	result, err := service.BindUser(context.Background(), 8, 22, 6, dto.BindUserRequest{UserID: 9}, AuditInput{})
+	if err != nil || result == nil {
+		t.Fatalf("unexpected %#v %#v", result, err)
+	}
+	if repo.family.GraphVersion != 10 {
+		t.Fatal("manual binding must not increment graph version")
+	}
+	if len(cache.deleted) != 1 || cache.deleted[0] != "family:22:tree:v10" {
+		t.Fatalf("bind must invalidate current tree cache, got %#v", cache.deleted)
+	}
 }
 
 func TestDeleteMemberRelationshipRules(t *testing.T) {
