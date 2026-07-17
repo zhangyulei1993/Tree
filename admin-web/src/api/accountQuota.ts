@@ -12,7 +12,7 @@ const mockConfigs: AccountQuotaConfig[] = [
     maxOwnedFamilies: 1,
     maxMembersPerOwnedFamily: 10,
     maxJoinedFamilies: 1,
-    supportsGenerationNaming: false,
+    supportsFeaturePreview: false,
     updatedAt: '2026-06-01T10:00:00+08:00'
   },
   {
@@ -20,13 +20,13 @@ const mockConfigs: AccountQuotaConfig[] = [
     maxOwnedFamilies: 1,
     maxMembersPerOwnedFamily: 20,
     maxJoinedFamilies: 5,
-    supportsGenerationNaming: true,
+    supportsFeaturePreview: true,
     updatedAt: '2026-06-01T10:00:00+08:00'
   }
 ]
 
-let mockGenerationNamingOverrides: AccountFeatureOverrideItem[] = []
-let mockGenerationNamingOverrideId = 1
+let mockFeaturePreviewOverrides: AccountFeatureOverrideItem[] = []
+let mockFeaturePreviewOverrideId = 1
 
 export async function listAccountQuotaConfigs() {
   if (apiMode === 'mock') {
@@ -67,7 +67,7 @@ export async function updateAccountQuotaConfig(tier: string, input: UpdateAccoun
 
 export async function listAccountFeatureOverrides(featureKey: string) {
   if (apiMode === 'mock') {
-    return mockGenerationNamingOverrides
+    return mockFeaturePreviewOverrides
   }
   const response = await apiClient.get(`/admin/account-feature-overrides/${featureKey}`)
   return unwrapData<AccountFeatureOverrideItem[]>(response)
@@ -79,13 +79,13 @@ function maskPhone(phone: string) {
 
 export async function updateAccountFeatureOverrides(featureKey: string, phones: string[]) {
   if (apiMode === 'mock') {
-    mockGenerationNamingOverrides = phones.map((phone) => ({
-      id: mockGenerationNamingOverrideId++,
+    mockFeaturePreviewOverrides = phones.map((phone) => ({
+      id: mockFeaturePreviewOverrideId++,
       featureKey,
       phoneMask: maskPhone(phone),
       updatedAt: new Date().toISOString()
     }))
-    return mockGenerationNamingOverrides
+    return mockFeaturePreviewOverrides
   }
   const response = await apiClient.put(`/admin/account-feature-overrides/${featureKey}`, { phones })
   return unwrapData<AccountFeatureOverrideItem[]>(response)
@@ -93,8 +93,8 @@ export async function updateAccountFeatureOverrides(featureKey: string, phones: 
 
 export async function deleteAccountFeatureOverride(featureKey: string, overrideId: number) {
   if (apiMode === 'mock') {
-    mockGenerationNamingOverrides = mockGenerationNamingOverrides.filter((item) => item.id !== overrideId)
-    return mockGenerationNamingOverrides
+    mockFeaturePreviewOverrides = mockFeaturePreviewOverrides.filter((item) => item.id !== overrideId)
+    return mockFeaturePreviewOverrides
   }
   const response = await apiClient.delete(`/admin/account-feature-overrides/${featureKey}/${overrideId}`)
   return unwrapData<AccountFeatureOverrideItem[]>(response)

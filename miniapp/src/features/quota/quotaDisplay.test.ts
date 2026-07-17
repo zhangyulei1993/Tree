@@ -66,12 +66,12 @@ test('buildCapabilitiesSummary formats dynamic admin limits', () => {
       maxOwnedFamilies: 2,
       maxMembersPerOwnedFamily: 6,
       maxJoinedFamilies: 2,
-      supportsGenerationNaming: true
+      supportsFeaturePreview: true
     },
     usage: { ownedFamilies: 1, joinedFamilies: 0, membersPerOwnedFamily: { '1': 3 } }
   })
   assert.equal(lines[0], '可创建家庭：1/2')
   assert.equal(lines[1], '可加入家庭：0/2')
   assert.equal(lines[2], '每个家庭成员上限：6')
-  assert.equal(lines[3], '字辈体系：已开放')
+  assert.equal(lines[3], '特色功能：已开放')
 })

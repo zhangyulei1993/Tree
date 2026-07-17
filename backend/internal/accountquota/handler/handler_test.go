@@ -28,7 +28,7 @@ type mockQuotaService struct {
 
 func (m *mockQuotaService) UpdateConfig(_ context.Context, _ uint64, _ string, _ string, values quotadto.ConfigValues, _ quotaservice.AuditInput) (*quotavo.ConfigItem, *apperrors.BusinessError) {
 	m.updateValues = values
-	return &quotavo.ConfigItem{TrustTier: "WECHAT_ONLY", MaxOwnedFamilies: values.MaxOwnedFamilies, SupportsGenerationNaming: values.SupportsGenerationNaming}, nil
+	return &quotavo.ConfigItem{TrustTier: "WECHAT_ONLY", MaxOwnedFamilies: values.MaxOwnedFamilies, SupportsFeaturePreview: values.SupportsFeaturePreview}, nil
 }
 
 func (m *mockQuotaService) PreviewImpact(_ context.Context, _ string, _ string, values quotadto.ConfigValues) (*quotavo.ImpactPreview, *apperrors.BusinessError) {
@@ -41,7 +41,7 @@ func TestUpdateConfigAcceptsExplicitZeroValues(t *testing.T) {
 	mock := &mockQuotaService{}
 	handler := quotahandler.NewHandler(mock)
 
-	body := `{"maxOwnedFamilies":0,"maxMembersPerOwnedFamily":1,"maxJoinedFamilies":0,"supportsGenerationNaming":false}`
+	body := `{"maxOwnedFamilies":0,"maxMembersPerOwnedFamily":1,"maxJoinedFamilies":0,"supportsFeaturePreview":false}`
 	recorder := httptest.NewRecorder()
 	ctx, engine := gin.CreateTestContext(recorder)
 	engine.POST("/api/admin/account-quota-configs/:tier", func(c *gin.Context) {
@@ -56,7 +56,7 @@ func TestUpdateConfigAcceptsExplicitZeroValues(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if mock.updateValues.MaxOwnedFamilies != 0 || mock.updateValues.MaxMembersPerOwnedFamily != 1 || mock.updateValues.MaxJoinedFamilies != 0 || mock.updateValues.SupportsGenerationNaming {
+	if mock.updateValues.MaxOwnedFamilies != 0 || mock.updateValues.MaxMembersPerOwnedFamily != 1 || mock.updateValues.MaxJoinedFamilies != 0 || mock.updateValues.SupportsFeaturePreview {
 		t.Fatalf("unexpected parsed values: %#v", mock.updateValues)
 	}
 }
@@ -65,7 +65,7 @@ func TestUpdateConfigRejectsMissingField(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	handler := quotahandler.NewHandler(&mockQuotaService{})
 
-	body := `{"maxOwnedFamilies":1,"maxJoinedFamilies":1,"supportsGenerationNaming":false}`
+	body := `{"maxOwnedFamilies":1,"maxJoinedFamilies":1,"supportsFeaturePreview":false}`
 	recorder := httptest.NewRecorder()
 	ctx, engine := gin.CreateTestContext(recorder)
 	engine.POST("/api/admin/account-quota-configs/:tier", func(c *gin.Context) {
@@ -84,7 +84,7 @@ func TestUpdateConfigRejectsMissingField(t *testing.T) {
 
 func TestImpactPreviewRequestParseExplicitZero(t *testing.T) {
 	var req quotadto.ImpactPreviewRequest
-	if err := json.Unmarshal([]byte(`{"maxOwnedFamilies":0,"maxMembersPerOwnedFamily":10,"maxJoinedFamilies":0,"supportsGenerationNaming":false}`), &req); err != nil {
+	if err := json.Unmarshal([]byte(`{"maxOwnedFamilies":0,"maxMembersPerOwnedFamily":10,"maxJoinedFamilies":0,"supportsFeaturePreview":false}`), &req); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	values, err := req.Parse()
@@ -119,7 +119,7 @@ func TestDeleteFeatureOverrideParsesID(t *testing.T) {
 		c.Set("currentAdminRole", "ROOT_ADMIN")
 		handler.DeleteFeatureOverride(c)
 	})
-	ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/admin/account-feature-overrides/GENERATION_NAMING/42", nil)
+	ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/admin/account-feature-overrides/FEATURE_PREVIEW/42", nil)
 	engine.ServeHTTP(recorder, ctx.Request)
 
 	if recorder.Code != http.StatusOK {
@@ -142,7 +142,7 @@ func (m *mockQuotaService) ListFeatureOverrides(context.Context, string, string)
 }
 func (m *mockQuotaService) UpdateFeatureOverrides(_ context.Context, _ uint64, _ string, _ string, phones []string, _ quotaservice.AuditInput) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError) {
 	m.overridePhones = phones
-	return []quotavo.FeatureOverrideItem{{ID: 42, FeatureKey: quotaservice.FeatureGenerationNaming, PhoneMask: "138****5678"}}, nil
+	return []quotavo.FeatureOverrideItem{{ID: 42, FeatureKey: quotaservice.FeaturePreview, PhoneMask: "138****5678"}}, nil
 }
 func (m *mockQuotaService) DeleteFeatureOverride(_ context.Context, _ uint64, _ string, _ string, overrideID uint64, _ quotaservice.AuditInput) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError) {
 	m.deletedID = overrideID

@@ -11,21 +11,21 @@ type UpdateConfigRequest struct {
 	MaxOwnedFamilies         *int  `json:"maxOwnedFamilies"`
 	MaxMembersPerOwnedFamily *int  `json:"maxMembersPerOwnedFamily"`
 	MaxJoinedFamilies        *int  `json:"maxJoinedFamilies"`
-	SupportsGenerationNaming *bool `json:"supportsGenerationNaming"`
+	SupportsFeaturePreview   *bool `json:"supportsFeaturePreview"`
 }
 
 type ImpactPreviewRequest struct {
 	MaxOwnedFamilies         *int  `json:"maxOwnedFamilies"`
 	MaxMembersPerOwnedFamily *int  `json:"maxMembersPerOwnedFamily"`
 	MaxJoinedFamilies        *int  `json:"maxJoinedFamilies"`
-	SupportsGenerationNaming *bool `json:"supportsGenerationNaming"`
+	SupportsFeaturePreview   *bool `json:"supportsFeaturePreview"`
 }
 
 type ConfigValues struct {
 	MaxOwnedFamilies         int
 	MaxMembersPerOwnedFamily int
 	MaxJoinedFamilies        int
-	SupportsGenerationNaming bool
+	SupportsFeaturePreview   bool
 }
 
 type UpdateFeatureOverridesRequest struct {
@@ -33,14 +33,14 @@ type UpdateFeatureOverridesRequest struct {
 }
 
 func (r UpdateConfigRequest) Parse() (ConfigValues, error) {
-	return parseConfigValues(r.MaxOwnedFamilies, r.MaxMembersPerOwnedFamily, r.MaxJoinedFamilies, r.SupportsGenerationNaming)
+	return parseConfigValues(r.MaxOwnedFamilies, r.MaxMembersPerOwnedFamily, r.MaxJoinedFamilies, r.SupportsFeaturePreview)
 }
 
 func (r ImpactPreviewRequest) Parse() (ConfigValues, error) {
-	return parseConfigValues(r.MaxOwnedFamilies, r.MaxMembersPerOwnedFamily, r.MaxJoinedFamilies, r.SupportsGenerationNaming)
+	return parseConfigValues(r.MaxOwnedFamilies, r.MaxMembersPerOwnedFamily, r.MaxJoinedFamilies, r.SupportsFeaturePreview)
 }
 
-func parseConfigValues(owned, members, joined *int, generationNaming *bool) (ConfigValues, error) {
+func parseConfigValues(owned, members, joined *int, featurePreview *bool) (ConfigValues, error) {
 	if owned == nil {
 		return ConfigValues{}, fmt.Errorf("%w: maxOwnedFamilies", ErrMissingConfigField)
 	}
@@ -50,13 +50,13 @@ func parseConfigValues(owned, members, joined *int, generationNaming *bool) (Con
 	if joined == nil {
 		return ConfigValues{}, fmt.Errorf("%w: maxJoinedFamilies", ErrMissingConfigField)
 	}
-	if generationNaming == nil {
-		return ConfigValues{}, fmt.Errorf("%w: supportsGenerationNaming", ErrMissingConfigField)
+	if featurePreview == nil {
+		return ConfigValues{}, fmt.Errorf("%w: supportsFeaturePreview", ErrMissingConfigField)
 	}
 	return ConfigValues{
 		MaxOwnedFamilies:         *owned,
 		MaxMembersPerOwnedFamily: *members,
 		MaxJoinedFamilies:        *joined,
-		SupportsGenerationNaming: *generationNaming,
+		SupportsFeaturePreview:   *featurePreview,
 	}, nil
 }

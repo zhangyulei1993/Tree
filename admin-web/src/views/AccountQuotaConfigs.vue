@@ -27,10 +27,10 @@
           <el-form-item label="可加入家庭数">
             <el-input-number v-model="item.maxJoinedFamilies" :min="0" :max="99" />
           </el-form-item>
-          <el-divider content-position="left">字辈权益</el-divider>
-          <el-form-item label="支持字辈体系">
+          <el-divider content-position="left">特色功能体验</el-divider>
+          <el-form-item label="开放特色功能体验">
             <el-switch
-              v-model="item.supportsGenerationNaming"
+              v-model="item.supportsFeaturePreview"
               active-text="开启"
               inactive-text="关闭"
             />
@@ -55,15 +55,15 @@
     <el-card class="feature-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <strong>字辈功能灰度体验</strong>
-          <span class="muted">指定手机号可提前体验字辈体系；不改变账号等级权益配置。</span>
+          <strong>特色功能特权体验</strong>
+          <span class="muted">指定手机号可提前体验特色功能；不改变账号等级权益配置。</span>
         </div>
       </template>
 
       <el-form label-width="180px">
         <el-form-item label="体验手机号">
           <el-input
-            v-model="generationNamingPhonesInput"
+            v-model="featurePreviewPhonesInput"
             type="textarea"
             :rows="4"
             placeholder="输入完整手机号，多个号码可换行、逗号或空格分隔"
@@ -74,27 +74,27 @@
       <div class="override-list">
         <span class="muted">当前名单：</span>
         <el-tag
-          v-for="item in generationNamingOverrides"
+          v-for="item in featurePreviewOverrides"
           :key="item.id"
           type="info"
           closable
           :disable-transitions="true"
-          @close="removeGenerationNamingOverride(item)"
+          @close="removeFeaturePreviewOverride(item)"
         >
           {{ item.phoneMask }}
         </el-tag>
-        <span v-if="generationNamingOverrides.length === 0" class="muted">暂无</span>
+        <span v-if="featurePreviewOverrides.length === 0" class="muted">暂无</span>
       </div>
 
       <div class="card-actions">
-        <el-button :loading="overrideLoading" @click="loadGenerationNamingOverrides">刷新名单</el-button>
-        <el-button type="primary" :loading="overrideSaving" @click="saveGenerationNamingOverrides">保存体验名单</el-button>
+        <el-button :loading="overrideLoading" @click="loadFeaturePreviewOverrides">刷新名单</el-button>
+        <el-button type="primary" :loading="overrideSaving" @click="saveFeaturePreviewOverrides">保存体验名单</el-button>
         <el-button
           type="danger"
           plain
-          :disabled="generationNamingOverrides.length === 0"
+          :disabled="featurePreviewOverrides.length === 0"
           :loading="overrideSaving"
-          @click="clearGenerationNamingOverrides"
+          @click="clearFeaturePreviewOverrides"
         >
           清空名单
         </el-button>
@@ -129,11 +129,11 @@ const loading = ref(false)
 const loadError = ref('')
 const operationError = ref('')
 const forms = reactive<QuotaForm[]>([])
-const generationNamingPhonesInput = ref('')
-const generationNamingOverrides = ref<AccountFeatureOverrideItem[]>([])
+const featurePreviewPhonesInput = ref('')
+const featurePreviewOverrides = ref<AccountFeatureOverrideItem[]>([])
 const overrideLoading = ref(false)
 const overrideSaving = ref(false)
-const GENERATION_NAMING_FEATURE = 'GENERATION_NAMING'
+const FEATURE_PREVIEW_FEATURE = 'FEATURE_PREVIEW'
 
 function tierLabel(tier: string) {
   return tier === 'PHONE_BOUND' ? '备用登录已开启' : '仅微信登录'
@@ -158,7 +158,7 @@ function isLowering(current: AccountQuotaConfig, next: QuotaForm) {
     next.maxOwnedFamilies < current.maxOwnedFamilies ||
     next.maxMembersPerOwnedFamily < current.maxMembersPerOwnedFamily ||
     next.maxJoinedFamilies < current.maxJoinedFamilies ||
-    (current.supportsGenerationNaming && !next.supportsGenerationNaming)
+    (current.supportsFeaturePreview && !next.supportsFeaturePreview)
   )
 }
 
@@ -175,11 +175,11 @@ async function loadConfigs() {
   }
 }
 
-async function loadGenerationNamingOverrides() {
+async function loadFeaturePreviewOverrides() {
   overrideLoading.value = true
   operationError.value = ''
   try {
-    generationNamingOverrides.value = await listAccountFeatureOverrides(GENERATION_NAMING_FEATURE)
+    featurePreviewOverrides.value = await listAccountFeatureOverrides(FEATURE_PREVIEW_FEATURE)
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
   } finally {
@@ -194,11 +194,11 @@ function parsePhonesInput(value: string) {
     .filter(Boolean)
 }
 
-async function saveGenerationNamingOverrides() {
-  const phones = parsePhonesInput(generationNamingPhonesInput.value)
+async function saveFeaturePreviewOverrides() {
+  const phones = parsePhonesInput(featurePreviewPhonesInput.value)
   try {
     await ElMessageBox.confirm(
-      `保存后将用这 ${phones.length} 个手机号替换当前字辈体验名单。确认保存？`,
+      `保存后将用这 ${phones.length} 个手机号替换当前特权用户名单。确认保存？`,
       '确认保存体验名单',
       { type: 'warning', confirmButtonText: '确认保存', cancelButtonText: '取消' }
     )
@@ -208,8 +208,8 @@ async function saveGenerationNamingOverrides() {
   overrideSaving.value = true
   operationError.value = ''
   try {
-    generationNamingOverrides.value = await updateAccountFeatureOverrides(GENERATION_NAMING_FEATURE, phones)
-    generationNamingPhonesInput.value = ''
+    featurePreviewOverrides.value = await updateAccountFeatureOverrides(FEATURE_PREVIEW_FEATURE, phones)
+    featurePreviewPhonesInput.value = ''
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
   } finally {
@@ -217,13 +217,13 @@ async function saveGenerationNamingOverrides() {
   }
 }
 
-async function clearGenerationNamingOverrides() {
-  if (generationNamingOverrides.value.length === 0) {
+async function clearFeaturePreviewOverrides() {
+  if (featurePreviewOverrides.value.length === 0) {
     return
   }
   try {
     await ElMessageBox.confirm(
-      '清空后，当前灰度手机号将全部移出字辈体验名单。确认清空？',
+      '清空后，当前灰度手机号将全部移出特权用户名单。确认清空？',
       '确认清空体验名单',
       { type: 'warning', confirmButtonText: '确认清空', cancelButtonText: '取消' }
     )
@@ -233,8 +233,8 @@ async function clearGenerationNamingOverrides() {
   overrideSaving.value = true
   operationError.value = ''
   try {
-    generationNamingOverrides.value = await updateAccountFeatureOverrides(GENERATION_NAMING_FEATURE, [])
-    generationNamingPhonesInput.value = ''
+    featurePreviewOverrides.value = await updateAccountFeatureOverrides(FEATURE_PREVIEW_FEATURE, [])
+    featurePreviewPhonesInput.value = ''
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
   } finally {
@@ -242,10 +242,10 @@ async function clearGenerationNamingOverrides() {
   }
 }
 
-async function removeGenerationNamingOverride(item: AccountFeatureOverrideItem) {
+async function removeFeaturePreviewOverride(item: AccountFeatureOverrideItem) {
   try {
     await ElMessageBox.confirm(
-      `确认将 ${item.phoneMask} 移出字辈体验名单？`,
+      `确认将 ${item.phoneMask} 移出特权用户名单？`,
       '确认删除体验手机号',
       { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }
     )
@@ -255,7 +255,7 @@ async function removeGenerationNamingOverride(item: AccountFeatureOverrideItem) 
   overrideSaving.value = true
   operationError.value = ''
   try {
-    generationNamingOverrides.value = await deleteAccountFeatureOverride(GENERATION_NAMING_FEATURE, item.id)
+    featurePreviewOverrides.value = await deleteAccountFeatureOverride(FEATURE_PREVIEW_FEATURE, item.id)
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
   } finally {
@@ -271,7 +271,7 @@ async function preview(item: QuotaForm): Promise<boolean> {
       maxOwnedFamilies: item.maxOwnedFamilies,
       maxMembersPerOwnedFamily: item.maxMembersPerOwnedFamily,
       maxJoinedFamilies: item.maxJoinedFamilies,
-      supportsGenerationNaming: item.supportsGenerationNaming
+      supportsFeaturePreview: item.supportsFeaturePreview
     })
     return true
   } catch (error) {
@@ -312,7 +312,7 @@ async function save(item: QuotaForm) {
       maxOwnedFamilies: item.maxOwnedFamilies,
       maxMembersPerOwnedFamily: item.maxMembersPerOwnedFamily,
       maxJoinedFamilies: item.maxJoinedFamilies,
-      supportsGenerationNaming: item.supportsGenerationNaming
+      supportsFeaturePreview: item.supportsFeaturePreview
     })
     Object.assign(item, snapshot(saved))
   } catch (error) {
@@ -324,7 +324,7 @@ async function save(item: QuotaForm) {
 
 onMounted(() => {
   loadConfigs()
-  loadGenerationNamingOverrides()
+  loadFeaturePreviewOverrides()
 })
 </script>
 

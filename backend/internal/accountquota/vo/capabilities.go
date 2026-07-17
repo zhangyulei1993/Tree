@@ -4,7 +4,7 @@ type Limits struct {
 	MaxOwnedFamilies         int  `json:"maxOwnedFamilies"`
 	MaxMembersPerOwnedFamily int  `json:"maxMembersPerOwnedFamily"`
 	MaxJoinedFamilies        int  `json:"maxJoinedFamilies"`
-	SupportsGenerationNaming bool `json:"supportsGenerationNaming"`
+	SupportsFeaturePreview   bool `json:"supportsFeaturePreview"`
 }
 
 type Usage struct {
@@ -24,7 +24,7 @@ type ConfigItem struct {
 	MaxOwnedFamilies         int     `json:"maxOwnedFamilies"`
 	MaxMembersPerOwnedFamily int     `json:"maxMembersPerOwnedFamily"`
 	MaxJoinedFamilies        int     `json:"maxJoinedFamilies"`
-	SupportsGenerationNaming bool    `json:"supportsGenerationNaming"`
+	SupportsFeaturePreview   bool    `json:"supportsFeaturePreview"`
 	UpdatedByAdminID         *uint64 `json:"updatedByAdminId,omitempty"`
 	UpdatedAt                string  `json:"updatedAt"`
 }
@@ -36,7 +36,7 @@ type ImpactPreview struct {
 	MaxOwnedFamilies         int    `json:"maxOwnedFamilies"`
 	MaxMembersPerOwnedFamily int    `json:"maxMembersPerOwnedFamily"`
 	MaxJoinedFamilies        int    `json:"maxJoinedFamilies"`
-	SupportsGenerationNaming bool   `json:"supportsGenerationNaming"`
+	SupportsFeaturePreview   bool   `json:"supportsFeaturePreview"`
 }
 
 type FeatureOverrideItem struct {

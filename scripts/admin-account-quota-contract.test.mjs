@@ -30,14 +30,14 @@ test('admin quota page confirms lowering limits', () => {
   assert.match(adminView, /确认降低额度/)
 })
 
-test('admin quota page manages generation naming feature overrides', () => {
-  assert.match(adminView, /字辈功能灰度体验/)
-  assert.match(adminView, /GENERATION_NAMING/)
+test('admin quota page manages feature preview privileged users', () => {
+  assert.match(adminView, /特色功能特权体验/)
+  assert.match(adminView, /FEATURE_PREVIEW/)
   assert.match(adminView, /listAccountFeatureOverrides/)
   assert.match(adminView, /updateAccountFeatureOverrides/)
-  assert.match(adminView, /removeGenerationNamingOverride/)
+  assert.match(adminView, /removeFeaturePreviewOverride/)
   assert.match(adminView, /closable/)
-  assert.match(adminView, /clearGenerationNamingOverrides/)
+  assert.match(adminView, /clearFeaturePreviewOverrides/)
   assert.match(adminView, /清空名单/)
   assert.match(adminApi, /\/admin\/account-feature-overrides\/\$\{featureKey\}/)
   assert.match(adminApi, /apiClient\.delete\(`\/admin\/account-feature-overrides\/\$\{featureKey\}\/\$\{overrideId\}`/)

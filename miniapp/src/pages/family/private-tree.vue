@@ -82,7 +82,7 @@
           :viewer-member-id="viewerMemberId"
           show-binding
           :interactive="canManageFamily"
-          selectable-deceased
+          :selectable-deceased="featurePreviewAvailable"
           @select="openNodeActions"
         />
       </template>
@@ -165,6 +165,7 @@ import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
+import { fetchCapabilities } from '@/api/capabilities'
 import { getFamilyDetail } from '@/api/families'
 import { listFamilyInvitations } from '@/api/invitations'
 import { deleteFamilyMember, getFamilyMember, listFamilyMembers, updateFamilyMember } from '@/api/members'
@@ -194,6 +195,7 @@ const viewerMemberId = ref<number | null>(null)
 const currentUserMemberId = ref<number | null>(null)
 const memorialMember = ref<FamilyMember | null>(null)
 const memorialNode = ref<TreeNode | null>(null)
+const featurePreviewAvailable = ref(false)
 const edgeCount = computed(() => (tree.value ? countVisibleEdges(tree.value) : 0))
 const relationSentences = computed(() => (tree.value ? buildRelationSentences(tree.value) : []))
 const canManageFamily = computed(() =>
@@ -266,6 +268,7 @@ function resetPageData() {
   currentUserMemberId.value = null
   memorialMember.value = null
   memorialNode.value = null
+  featurePreviewAvailable.value = false
 }
 
 async function loadTree() {
@@ -286,13 +289,15 @@ async function loadTree() {
   try {
     const familyResult = await getFamilyDetail(familyId.value)
     const canManage = familyResult.role === 'FOUNDER' || familyResult.role === 'FAMILY_ADMIN'
-    const [treeResult, invitationResult] = await Promise.all([
+    const [treeResult, invitationResult, capabilitiesResult] = await Promise.all([
       getPrivateTree(familyId.value),
-      canManage ? listFamilyInvitations(familyId.value) : Promise.resolve([])
+      canManage ? listFamilyInvitations(familyId.value) : Promise.resolve([]),
+      fetchCapabilities().catch(() => null)
     ])
     family.value = familyResult
     tree.value = treeResult
     invitations.value = invitationResult
+    featurePreviewAvailable.value = Boolean(capabilitiesResult?.limits.supportsFeaturePreview)
     let resolvedViewerId = currentUserMemberId.value
     if (session.user?.id) {
       try {
@@ -339,7 +344,7 @@ function changeViewer(event: { detail: { value: number | string } }) {
 }
 
 function openNodeActions(node: TreeNode) {
-  if (node.isLiving === false) {
+  if (node.isLiving === false && featurePreviewAvailable.value) {
     showMemorial(node)
     return
   }

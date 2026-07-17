@@ -136,10 +136,11 @@ test('private tree loads family invitations only for managers', () => {
   assert.ok(canManageIndex < invitationIndex)
 })
 
-test('private tree lets deceased member memorial open without manager permission', () => {
+test('private tree gates deceased memorial by feature preview entitlement', () => {
   const privateTree = read(join(miniappSrc, 'pages', 'family', 'private-tree.vue'))
-  assert.match(privateTree, /selectable-deceased/)
-  assert.match(privateTree, /if \(node\.isLiving === false\) \{\s*showMemorial\(node\)\s*return/)
+  assert.match(privateTree, /:selectable-deceased="featurePreviewAvailable"/)
+  assert.match(privateTree, /fetchCapabilities/)
+  assert.match(privateTree, /if \(node\.isLiving === false && featurePreviewAvailable\.value\) \{\s*showMemorial\(node\)\s*return/)
   assert.match(privateTree, /getFamilyMember\(familyId\.value, node\.memberId\)/)
   assert.match(privateTree, /亲人简介/)
 })
