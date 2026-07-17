@@ -82,6 +82,15 @@
       <div class="card-actions">
         <el-button :loading="overrideLoading" @click="loadGenerationNamingOverrides">刷新名单</el-button>
         <el-button type="primary" :loading="overrideSaving" @click="saveGenerationNamingOverrides">保存体验名单</el-button>
+        <el-button
+          type="danger"
+          plain
+          :disabled="generationNamingOverrides.length === 0"
+          :loading="overrideSaving"
+          @click="clearGenerationNamingOverrides"
+        >
+          清空名单
+        </el-button>
       </div>
     </el-card>
   </div>
@@ -192,6 +201,31 @@ async function saveGenerationNamingOverrides() {
   operationError.value = ''
   try {
     generationNamingOverrides.value = await updateAccountFeatureOverrides(GENERATION_NAMING_FEATURE, phones)
+    generationNamingPhonesInput.value = ''
+  } catch (error) {
+    operationError.value = getApiErrorMessage(error)
+  } finally {
+    overrideSaving.value = false
+  }
+}
+
+async function clearGenerationNamingOverrides() {
+  if (generationNamingOverrides.value.length === 0) {
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      '清空后，当前灰度手机号将全部移出字辈体验名单。确认清空？',
+      '确认清空体验名单',
+      { type: 'warning', confirmButtonText: '确认清空', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  overrideSaving.value = true
+  operationError.value = ''
+  try {
+    generationNamingOverrides.value = await updateAccountFeatureOverrides(GENERATION_NAMING_FEATURE, [])
     generationNamingPhonesInput.value = ''
   } catch (error) {
     operationError.value = getApiErrorMessage(error)

@@ -35,6 +35,8 @@ test('admin quota page manages generation naming feature overrides', () => {
   assert.match(adminView, /GENERATION_NAMING/)
   assert.match(adminView, /listAccountFeatureOverrides/)
   assert.match(adminView, /updateAccountFeatureOverrides/)
+  assert.match(adminView, /clearGenerationNamingOverrides/)
+  assert.match(adminView, /清空名单/)
   assert.match(adminApi, /\/admin\/account-feature-overrides\/\$\{featureKey\}/)
 })
 
