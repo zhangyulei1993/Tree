@@ -35,9 +35,12 @@ test('admin quota page manages generation naming feature overrides', () => {
   assert.match(adminView, /GENERATION_NAMING/)
   assert.match(adminView, /listAccountFeatureOverrides/)
   assert.match(adminView, /updateAccountFeatureOverrides/)
+  assert.match(adminView, /removeGenerationNamingOverride/)
+  assert.match(adminView, /closable/)
   assert.match(adminView, /clearGenerationNamingOverrides/)
   assert.match(adminView, /清空名单/)
   assert.match(adminApi, /\/admin\/account-feature-overrides\/\$\{featureKey\}/)
+  assert.match(adminApi, /apiClient\.delete\(`\/admin\/account-feature-overrides\/\$\{featureKey\}\/\$\{overrideId\}`/)
 })
 
 test('admin sidebar restricts quota config to root and super admins', () => {

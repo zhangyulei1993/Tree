@@ -30,6 +30,7 @@ type Repository interface {
 	UpdateConfig(ctx context.Context, tier string, values map[string]any) error
 	ListFeatureOverrides(ctx context.Context, featureKey string) ([]quotamodel.AccountFeatureOverride, error)
 	ReplaceFeatureOverrides(ctx context.Context, featureKey string, rows []quotamodel.AccountFeatureOverride) error
+	DeleteFeatureOverride(ctx context.Context, featureKey string, id uint64) (int64, error)
 	HasFeatureOverride(ctx context.Context, featureKey string, phoneHash string) (bool, error)
 	LockUser(ctx context.Context, userID uint64) (*usermodel.User, error)
 	ResolveTrustTier(user *usermodel.User) string
@@ -118,6 +119,13 @@ func (r *GormRepository) ReplaceFeatureOverrides(ctx context.Context, featureKey
 		return nil
 	}
 	return r.db.WithContext(ctx).Create(&rows).Error
+}
+
+func (r *GormRepository) DeleteFeatureOverride(ctx context.Context, featureKey string, id uint64) (int64, error) {
+	result := r.db.WithContext(ctx).
+		Where("id = ? AND feature_key = ?", id, featureKey).
+		Delete(&quotamodel.AccountFeatureOverride{})
+	return result.RowsAffected, result.Error
 }
 
 func (r *GormRepository) HasFeatureOverride(ctx context.Context, featureKey string, phoneHash string) (bool, error) {

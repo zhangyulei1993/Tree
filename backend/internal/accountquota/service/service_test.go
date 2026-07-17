@@ -406,8 +406,38 @@ func TestGenerationNamingFeatureOverrideEnablesWechatOnlyUser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list feature overrides: %v", err)
 	}
-	if len(items) != 1 || items[0].PhoneMask != "138****5678" {
+	if len(items) != 1 || items[0].ID == 0 || items[0].PhoneMask != "138****5678" {
 		t.Fatalf("expected masked override, got %#v", items)
+	}
+}
+
+func TestDeleteGenerationNamingFeatureOverride(t *testing.T) {
+	ctx := context.Background()
+	tx := quotaTestDB(t)
+	svc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
+	user := createQuotaUser(t, tx, false, "删除灰度")
+	phone := "13912345678"
+	phoneHash := security.PhoneHash(phone)
+	if err := tx.Model(user).Updates(map[string]any{"phone": phone, "phone_hash": phoneHash}).Error; err != nil {
+		t.Fatalf("bind test phone: %v", err)
+	}
+	items, err := svc.UpdateFeatureOverrides(ctx, 1, string(enums.AdminRoleRootAdmin), quotaservice.FeatureGenerationNaming, []string{phone}, quotaservice.AuditInput{})
+	if err != nil || len(items) != 1 || items[0].ID == 0 {
+		t.Fatalf("update feature overrides: %#v %#v", items, err)
+	}
+	items, err = svc.DeleteFeatureOverride(ctx, 1, string(enums.AdminRoleRootAdmin), quotaservice.FeatureGenerationNaming, items[0].ID, quotaservice.AuditInput{})
+	if err != nil {
+		t.Fatalf("delete feature override: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expected empty overrides after delete, got %#v", items)
+	}
+	caps, err := svc.GetCapabilities(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("capabilities: %v", err)
+	}
+	if caps.Limits.SupportsGenerationNaming {
+		t.Fatalf("expected feature override to be removed, got %#v", caps.Limits)
 	}
 }
 

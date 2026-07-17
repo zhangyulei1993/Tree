@@ -23,6 +23,7 @@ type mockQuotaService struct {
 	updateValues   quotadto.ConfigValues
 	previewValues  quotadto.ConfigValues
 	overridePhones []string
+	deletedID      uint64
 }
 
 func (m *mockQuotaService) UpdateConfig(_ context.Context, _ uint64, _ string, _ string, values quotadto.ConfigValues, _ quotaservice.AuditInput) (*quotavo.ConfigItem, *apperrors.BusinessError) {
@@ -106,6 +107,29 @@ func TestUpdateConfigRequestParseMissingField(t *testing.T) {
 	}
 }
 
+func TestDeleteFeatureOverrideParsesID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	mock := &mockQuotaService{}
+	handler := quotahandler.NewHandler(mock)
+
+	recorder := httptest.NewRecorder()
+	ctx, engine := gin.CreateTestContext(recorder)
+	engine.DELETE("/api/admin/account-feature-overrides/:featureKey/:overrideId", func(c *gin.Context) {
+		c.Set("currentAdminID", uint64(1))
+		c.Set("currentAdminRole", "ROOT_ADMIN")
+		handler.DeleteFeatureOverride(c)
+	})
+	ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/admin/account-feature-overrides/GENERATION_NAMING/42", nil)
+	engine.ServeHTTP(recorder, ctx.Request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if mock.deletedID != 42 {
+		t.Fatalf("expected deleted id 42, got %d", mock.deletedID)
+	}
+}
+
 // satisfy interface for unused methods
 func (m *mockQuotaService) GetCapabilities(context.Context, uint64) (*quotavo.Capabilities, *apperrors.BusinessError) {
 	return nil, nil
@@ -118,7 +142,11 @@ func (m *mockQuotaService) ListFeatureOverrides(context.Context, string, string)
 }
 func (m *mockQuotaService) UpdateFeatureOverrides(_ context.Context, _ uint64, _ string, _ string, phones []string, _ quotaservice.AuditInput) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError) {
 	m.overridePhones = phones
-	return []quotavo.FeatureOverrideItem{{FeatureKey: quotaservice.FeatureGenerationNaming, PhoneMask: "138****5678"}}, nil
+	return []quotavo.FeatureOverrideItem{{ID: 42, FeatureKey: quotaservice.FeatureGenerationNaming, PhoneMask: "138****5678"}}, nil
+}
+func (m *mockQuotaService) DeleteFeatureOverride(_ context.Context, _ uint64, _ string, _ string, overrideID uint64, _ quotaservice.AuditInput) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError) {
+	m.deletedID = overrideID
+	return []quotavo.FeatureOverrideItem{}, nil
 }
 func (m *mockQuotaService) AssertProfileComplete(context.Context, *gorm.DB, uint64) error { return nil }
 func (m *mockQuotaService) AssertCanCreateFamily(context.Context, *gorm.DB, uint64) error { return nil }

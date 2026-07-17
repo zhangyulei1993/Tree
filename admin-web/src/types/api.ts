@@ -319,6 +319,7 @@ export interface AccountQuotaImpactPreview extends UpdateAccountQuotaInput {
 }
 
 export interface AccountFeatureOverrideItem {
+  id: number
   featureKey: string
   phoneMask: string
   updatedAt: string

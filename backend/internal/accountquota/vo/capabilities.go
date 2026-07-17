@@ -40,6 +40,7 @@ type ImpactPreview struct {
 }
 
 type FeatureOverrideItem struct {
+	ID         uint64 `json:"id"`
 	FeatureKey string `json:"featureKey"`
 	PhoneMask  string `json:"phoneMask"`
 	UpdatedAt  string `json:"updatedAt"`

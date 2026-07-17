@@ -38,6 +38,7 @@ type Service interface {
 	PreviewImpact(ctx context.Context, role string, tier string, values quotadto.ConfigValues) (*quotavo.ImpactPreview, *apperrors.BusinessError)
 	ListFeatureOverrides(ctx context.Context, role string, featureKey string) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError)
 	UpdateFeatureOverrides(ctx context.Context, adminID uint64, role string, featureKey string, phones []string, audit AuditInput) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError)
+	DeleteFeatureOverride(ctx context.Context, adminID uint64, role string, featureKey string, overrideID uint64, audit AuditInput) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError)
 
 	AssertProfileComplete(ctx context.Context, db *gorm.DB, userID uint64) error
 	AssertCanCreateFamily(ctx context.Context, db *gorm.DB, userID uint64) error
@@ -305,6 +306,48 @@ func (s *quotaService) UpdateFeatureOverrides(ctx context.Context, adminID uint6
 		result = append(result, featureOverrideVO(row))
 	}
 	return result, nil
+}
+
+func (s *quotaService) DeleteFeatureOverride(ctx context.Context, adminID uint64, role string, featureKey string, overrideID uint64, audit AuditInput) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError) {
+	if !canManageConfig(role) {
+		return nil, quotaConfigError(apperrors.CodeQuotaConfigForbidden, "无权修改账号权益配置")
+	}
+	if overrideID == 0 {
+		return nil, quotaConfigError(apperrors.CodeQuotaConfigInvalid, "灰度名单记录不合法")
+	}
+	featureKey, businessErr := normalizeFeatureKey(featureKey)
+	if businessErr != nil {
+		return nil, businessErr
+	}
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		txRepo := s.repoFor(tx)
+		rowsAffected, err := txRepo.DeleteFeatureOverride(ctx, featureKey, overrideID)
+		if err != nil {
+			return err
+		}
+		if rowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		targetType := "ACCOUNT_FEATURE_OVERRIDE"
+		detail, _ := json.Marshal(map[string]any{
+			"featureKey": featureKey,
+			"overrideId": overrideID,
+		})
+		return operationlog.NewGormService(tx).WriteSuccess(ctx, operationlog.WriteInput{
+			OperatorType: string(enums.OperatorTypeAdmin), OperatorAdminID: &adminID, OperatorRole: &role,
+			Module: "ACCOUNT_QUOTA", Action: "DELETE_ACCOUNT_FEATURE_OVERRIDE", TargetType: &targetType,
+			TargetID:   &overrideID,
+			DetailJSON: detail,
+			IP:         stringPtr(audit.IP), UserAgent: stringPtr(audit.UserAgent),
+		})
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, apperrors.New(apperrors.CodeResourceNotFound)
+		}
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	return s.ListFeatureOverrides(ctx, role, featureKey)
 }
 
 func (s *quotaService) AssertProfileComplete(ctx context.Context, db *gorm.DB, userID uint64) error {
@@ -700,6 +743,7 @@ func configItemVO(row quotamodel.AccountQuotaConfig) quotavo.ConfigItem {
 
 func featureOverrideVO(row quotamodel.AccountFeatureOverride) quotavo.FeatureOverrideItem {
 	return quotavo.FeatureOverrideItem{
+		ID:         row.ID,
 		FeatureKey: row.FeatureKey,
 		PhoneMask:  row.PhoneMask,
 		UpdatedAt:  row.UpdatedAt.Format(time.RFC3339),

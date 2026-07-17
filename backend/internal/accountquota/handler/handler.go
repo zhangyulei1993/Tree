@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -142,6 +143,31 @@ func (h *Handler) UpdateFeatureOverrides(ctx *gin.Context) {
 		return
 	}
 	result, businessErr := h.service.UpdateFeatureOverrides(ctx.Request.Context(), adminID, role, featureKey, req.Phones, audit(ctx))
+	write(ctx, result, businessErr)
+}
+
+func (h *Handler) DeleteFeatureOverride(ctx *gin.Context) {
+	adminID, err := middleware.CurrentAdminID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	role, err := middleware.CurrentAdminRole(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	featureKey := strings.ToUpper(strings.TrimSpace(ctx.Param("featureKey")))
+	if featureKey == "" {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	overrideID, parseErr := strconv.ParseUint(strings.TrimSpace(ctx.Param("overrideId")), 10, 64)
+	if parseErr != nil || overrideID == 0 {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	result, businessErr := h.service.DeleteFeatureOverride(ctx.Request.Context(), adminID, role, featureKey, overrideID, audit(ctx))
 	write(ctx, result, businessErr)
 }
 

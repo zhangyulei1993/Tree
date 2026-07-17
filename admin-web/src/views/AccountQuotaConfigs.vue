@@ -73,7 +73,14 @@
 
       <div class="override-list">
         <span class="muted">当前名单：</span>
-        <el-tag v-for="item in generationNamingOverrides" :key="item.phoneMask" type="info">
+        <el-tag
+          v-for="item in generationNamingOverrides"
+          :key="item.id"
+          type="info"
+          closable
+          :disable-transitions="true"
+          @close="removeGenerationNamingOverride(item)"
+        >
           {{ item.phoneMask }}
         </el-tag>
         <span v-if="generationNamingOverrides.length === 0" class="muted">暂无</span>
@@ -102,6 +109,7 @@ import { ElMessageBox } from 'element-plus'
 
 import { getApiErrorMessage } from '@/api/client'
 import {
+  deleteAccountFeatureOverride,
   listAccountFeatureOverrides,
   listAccountQuotaConfigs,
   previewAccountQuotaImpact,
@@ -227,6 +235,27 @@ async function clearGenerationNamingOverrides() {
   try {
     generationNamingOverrides.value = await updateAccountFeatureOverrides(GENERATION_NAMING_FEATURE, [])
     generationNamingPhonesInput.value = ''
+  } catch (error) {
+    operationError.value = getApiErrorMessage(error)
+  } finally {
+    overrideSaving.value = false
+  }
+}
+
+async function removeGenerationNamingOverride(item: AccountFeatureOverrideItem) {
+  try {
+    await ElMessageBox.confirm(
+      `确认将 ${item.phoneMask} 移出字辈体验名单？`,
+      '确认删除体验手机号',
+      { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  overrideSaving.value = true
+  operationError.value = ''
+  try {
+    generationNamingOverrides.value = await deleteAccountFeatureOverride(GENERATION_NAMING_FEATURE, item.id)
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
   } finally {
