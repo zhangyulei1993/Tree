@@ -20,6 +20,7 @@ type TierConfig struct {
 	MaxOwnedFamilies         int
 	MaxMembersPerOwnedFamily int
 	MaxJoinedFamilies        int
+	SupportsGenerationNaming bool
 }
 
 // ConfigMap is keyed by trust tier.
@@ -29,10 +30,10 @@ type ConfigMap map[string]TierConfig
 func MigrationDefaults() ConfigMap {
 	return ConfigMap{
 		quotaenum.TrustTierWechatOnly: {
-			MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1,
+			MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1, SupportsGenerationNaming: false,
 		},
 		quotaenum.TrustTierPhoneBound: {
-			MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5,
+			MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5, SupportsGenerationNaming: true,
 		},
 	}
 }
@@ -45,12 +46,14 @@ func migrationSeedRows() []quotamodel.AccountQuotaConfig {
 			MaxOwnedFamilies:         defaults[quotaenum.TrustTierWechatOnly].MaxOwnedFamilies,
 			MaxMembersPerOwnedFamily: defaults[quotaenum.TrustTierWechatOnly].MaxMembersPerOwnedFamily,
 			MaxJoinedFamilies:        defaults[quotaenum.TrustTierWechatOnly].MaxJoinedFamilies,
+			SupportsGenerationNaming: defaults[quotaenum.TrustTierWechatOnly].SupportsGenerationNaming,
 		},
 		{
 			TrustTier:                quotaenum.TrustTierPhoneBound,
 			MaxOwnedFamilies:         defaults[quotaenum.TrustTierPhoneBound].MaxOwnedFamilies,
 			MaxMembersPerOwnedFamily: defaults[quotaenum.TrustTierPhoneBound].MaxMembersPerOwnedFamily,
 			MaxJoinedFamilies:        defaults[quotaenum.TrustTierPhoneBound].MaxJoinedFamilies,
+			SupportsGenerationNaming: defaults[quotaenum.TrustTierPhoneBound].SupportsGenerationNaming,
 		},
 	}
 }
@@ -66,7 +69,7 @@ func SnapshotConfigs(t *testing.T, db *gorm.DB) ConfigMap {
 	for _, row := range rows {
 		snapshot[row.TrustTier] = TierConfig{
 			MaxOwnedFamilies: row.MaxOwnedFamilies, MaxMembersPerOwnedFamily: row.MaxMembersPerOwnedFamily,
-			MaxJoinedFamilies: row.MaxJoinedFamilies,
+			MaxJoinedFamilies: row.MaxJoinedFamilies, SupportsGenerationNaming: row.SupportsGenerationNaming,
 		}
 	}
 	return snapshot
@@ -101,7 +104,7 @@ func restoreConfigsStaged(svc quotaservice.Service, adminID uint64, role string,
 	for _, item := range current {
 		currentMap[item.TrustTier] = TierConfig{
 			MaxOwnedFamilies: item.MaxOwnedFamilies, MaxMembersPerOwnedFamily: item.MaxMembersPerOwnedFamily,
-			MaxJoinedFamilies: item.MaxJoinedFamilies,
+			MaxJoinedFamilies: item.MaxJoinedFamilies, SupportsGenerationNaming: item.SupportsGenerationNaming,
 		}
 	}
 	phoneNow := currentMap[quotaenum.TrustTierPhoneBound]
@@ -113,6 +116,7 @@ func restoreConfigsStaged(svc quotaservice.Service, adminID uint64, role string,
 		MaxOwnedFamilies:         minInt(wechatWant.MaxOwnedFamilies, phoneWant.MaxOwnedFamilies, currentMap[quotaenum.TrustTierWechatOnly].MaxOwnedFamilies),
 		MaxMembersPerOwnedFamily: interimMembers,
 		MaxJoinedFamilies:        minInt(wechatWant.MaxJoinedFamilies, phoneWant.MaxJoinedFamilies, currentMap[quotaenum.TrustTierWechatOnly].MaxJoinedFamilies),
+		SupportsGenerationNaming: false,
 	}
 	if _, businessErr = svc.UpdateConfig(ctx, adminID, role, quotaenum.TrustTierWechatOnly, toDTOValues(interim), audit); businessErr != nil {
 		return businessErr
@@ -146,7 +150,7 @@ func ListTierConfigs(t *testing.T, svc quotaservice.Service, adminRole string) C
 	for _, item := range items {
 		result[item.TrustTier] = TierConfig{
 			MaxOwnedFamilies: item.MaxOwnedFamilies, MaxMembersPerOwnedFamily: item.MaxMembersPerOwnedFamily,
-			MaxJoinedFamilies: item.MaxJoinedFamilies,
+			MaxJoinedFamilies: item.MaxJoinedFamilies, SupportsGenerationNaming: item.SupportsGenerationNaming,
 		}
 	}
 	return result
@@ -184,7 +188,8 @@ func AssertCapabilitiesLimits(t *testing.T, caps *quotavo.Capabilities, expected
 	}
 	if caps.Limits.MaxOwnedFamilies != expected.MaxOwnedFamilies ||
 		caps.Limits.MaxMembersPerOwnedFamily != expected.MaxMembersPerOwnedFamily ||
-		caps.Limits.MaxJoinedFamilies != expected.MaxJoinedFamilies {
+		caps.Limits.MaxJoinedFamilies != expected.MaxJoinedFamilies ||
+		caps.Limits.SupportsGenerationNaming != expected.SupportsGenerationNaming {
 		t.Fatalf("capabilities limits %#v != admin config %#v", caps.Limits, expected)
 	}
 }
@@ -192,17 +197,17 @@ func AssertCapabilitiesLimits(t *testing.T, caps *quotavo.Capabilities, expected
 func toDTOValues(cfg TierConfig) quotadto.ConfigValues {
 	return quotadto.ConfigValues{
 		MaxOwnedFamilies: cfg.MaxOwnedFamilies, MaxMembersPerOwnedFamily: cfg.MaxMembersPerOwnedFamily,
-		MaxJoinedFamilies: cfg.MaxJoinedFamilies,
+		MaxJoinedFamilies: cfg.MaxJoinedFamilies, SupportsGenerationNaming: cfg.SupportsGenerationNaming,
 	}
 }
 
 // DynamicTestConfigs are non-default values used to prove limits are not hard-coded.
 var DynamicTestConfigs = ConfigMap{
 	quotaenum.TrustTierWechatOnly: {
-		MaxOwnedFamilies: 2, MaxMembersPerOwnedFamily: 6, MaxJoinedFamilies: 2,
+		MaxOwnedFamilies: 2, MaxMembersPerOwnedFamily: 6, MaxJoinedFamilies: 2, SupportsGenerationNaming: false,
 	},
 	quotaenum.TrustTierPhoneBound: {
-		MaxOwnedFamilies: 3, MaxMembersPerOwnedFamily: 8, MaxJoinedFamilies: 4,
+		MaxOwnedFamilies: 3, MaxMembersPerOwnedFamily: 8, MaxJoinedFamilies: 4, SupportsGenerationNaming: true,
 	},
 }
 
@@ -213,6 +218,7 @@ func ApplyDynamicTestConfigs(t *testing.T, svc quotaservice.Service, adminID uin
 	phoneTarget := DynamicTestConfigs[quotaenum.TrustTierPhoneBound]
 	UpdateTierConfig(t, svc, adminID, string(enums.AdminRoleRootAdmin), quotaenum.TrustTierWechatOnly, TierConfig{
 		MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: wechatTarget.MaxMembersPerOwnedFamily, MaxJoinedFamilies: 1,
+		SupportsGenerationNaming: false,
 	})
 	UpdateTierConfig(t, svc, adminID, string(enums.AdminRoleSuperAdmin), quotaenum.TrustTierPhoneBound, phoneTarget)
 	UpdateTierConfig(t, svc, adminID, string(enums.AdminRoleRootAdmin), quotaenum.TrustTierWechatOnly, wechatTarget)

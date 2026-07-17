@@ -12,17 +12,16 @@
     <template v-else-if="family">
       <view class="manage-head archive-page-head">
         <view>
-          <text class="archive-kicker">Family Admin</text>
-          <text class="archive-title">家庭管理</text>
+          <text class="archive-kicker">Family Affairs</text>
+          <text class="archive-title">家庭事务</text>
           <text class="archive-subtitle">
-            {{ family.familyName }} · 申请、邀请与公开展示权限
+            {{ family.familyName }} · 处理邀请、加入审核与家庭设置
           </text>
         </view>
         <view class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
       </view>
 
       <view class="manage-context">
-        <text class="archive-chip">{{ roleText(family.role) }}</text>
         <text class="context-back" @click="openFamilyDetail">返回详情</text>
       </view>
 
@@ -42,8 +41,8 @@
         </view>
         <view class="archive-row" @click="openSentInvitations">
           <view class="archive-row-main">
-            <text class="archive-row-title">发出的成员邀请</text>
-            <text class="archive-row-desc">查看、取消或重新生成成员邀请</text>
+            <text class="archive-row-title">邀请加入家庭</text>
+            <text class="archive-row-desc">生成家庭邀请，并查看、取消或重新生成邀请</text>
           </view>
           <text class="archive-row-meta">邀请</text>
           <text class="archive-arrow">›</text>
@@ -51,7 +50,7 @@
         <view class="archive-row" @click="openSettings">
           <view class="archive-row-main">
             <text class="archive-row-title">家庭设置</text>
-            <text class="archive-row-desc">公开信息、管理员与高风险操作</text>
+            <text class="archive-row-desc">公开信息、权限角色、转让、解散与操作记录</text>
           </view>
           <text class="archive-row-meta">设置</text>
           <text class="archive-arrow">›</text>
@@ -132,10 +131,6 @@ function openSentInvitations() {
 
 function openSettings() {
   uni.navigateTo({ url: `/pages/family/settings?familyId=${encodeURIComponent(familyId.value)}` })
-}
-
-function roleText(role: string) {
-  return ({ FOUNDER: '创建者', FAMILY_ADMIN: '家庭管理员', MEMBER: '普通成员' } as Record<string, string>)[role] || '成员'
 }
 
 onLoad((options) => {

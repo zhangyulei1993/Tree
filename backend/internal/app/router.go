@@ -126,6 +126,8 @@ func (s *Server) registerAdminRoutes(api *gin.RouterGroup) {
 	protected.GET("/account-quota-configs", quotaHandler.ListConfigs)
 	protected.PUT("/account-quota-configs/:tier", quotaHandler.UpdateConfig)
 	protected.POST("/account-quota-configs/:tier/impact-preview", quotaHandler.PreviewImpact)
+	protected.GET("/account-feature-overrides/:featureKey", quotaHandler.ListFeatureOverrides)
+	protected.PUT("/account-feature-overrides/:featureKey", quotaHandler.UpdateFeatureOverrides)
 }
 
 func (s *Server) buildAdminAuth() (*adminhandler.AuthHandler, gin.HandlerFunc) {

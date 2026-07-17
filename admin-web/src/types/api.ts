@@ -300,6 +300,7 @@ export interface AccountQuotaConfig {
   maxOwnedFamilies: number
   maxMembersPerOwnedFamily: number
   maxJoinedFamilies: number
+  supportsGenerationNaming: boolean
   updatedByAdminId?: number | null
   updatedAt: string
 }
@@ -308,10 +309,17 @@ export interface UpdateAccountQuotaInput {
   maxOwnedFamilies: number
   maxMembersPerOwnedFamily: number
   maxJoinedFamilies: number
+  supportsGenerationNaming: boolean
 }
 
 export interface AccountQuotaImpactPreview extends UpdateAccountQuotaInput {
   trustTier: string
   affectedUsers: number
   affectedFamilies: number
+}
+
+export interface AccountFeatureOverrideItem {
+  featureKey: string
+  phoneMask: string
+  updatedAt: string
 }

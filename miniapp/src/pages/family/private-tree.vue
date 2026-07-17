@@ -44,7 +44,7 @@
       </view>
 
       <view v-if="canManageFamily" class="genealogy-tools">
-        <button v-if="canManageFamily" class="genealogy-tool-link" @click="openManage">关系管理</button>
+        <button v-if="canManageFamily" class="genealogy-tool-link" @click="openManage">添加与调整</button>
       </view>
 
       <view class="tree-mode-line">
@@ -78,10 +78,11 @@
         <FamilyTreeStructureView
           v-else
           class="archive-tree-structure"
-          :tree="tree"
+          :tree="displayTree || tree"
           :viewer-member-id="viewerMemberId"
           show-binding
           :interactive="canManageFamily"
+          selectable-deceased
           @select="openNodeActions"
         />
       </template>
@@ -124,6 +125,38 @@
       </view>
 
     </template>
+
+    <view v-if="memorialMember" class="memorial-mask" @click="closeMemorial">
+      <view class="memorial-sheet" @click.stop>
+        <view class="memorial-sheet-head">
+          <view>
+            <text class="memorial-kicker">IN MEMORY</text>
+            <text class="memorial-name">{{ memorialMember.name || memorialNode?.displayName || '亲人' }}</text>
+          </view>
+          <view class="memorial-seal">念</view>
+        </view>
+
+        <view class="memorial-time">
+          <text class="memorial-time-label">离世时间</text>
+          <text class="memorial-time-value">{{ formatDeathTime(memorialMember) }}</text>
+        </view>
+
+        <view class="memorial-content">
+          <text class="memorial-content-label">亲人简介</text>
+          <text class="memorial-content-value">
+            {{ memorialDescription || '暂未记录亲人简介。' }}
+          </text>
+        </view>
+
+        <view class="memorial-foot">
+          <text class="memorial-footnote">愿这段记述，留存于家庭的记忆中。</text>
+          <view class="memorial-actions">
+            <view class="memorial-action secondary" @click="closeMemorial">关闭</view>
+            <view v-if="canManageFamily" class="memorial-action primary" @click="editMemorial">编辑资料</view>
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -133,7 +166,8 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
-import { deleteFamilyMember, listFamilyMembers, updateFamilyMember } from '@/api/members'
+import { listFamilyInvitations } from '@/api/invitations'
+import { deleteFamilyMember, getFamilyMember, listFamilyMembers, updateFamilyMember } from '@/api/members'
 import { getPrivateTree } from '@/api/tree'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
@@ -146,23 +180,46 @@ import { buildRelationSentences, countVisibleEdges } from '@/features/family-tre
 import type { FamilyTreeViewMode } from '@/features/family-tree/types'
 import { isLineageMember, isSpouseMember, isExternalMember } from '@/features/family-tree/graph'
 import { useSessionStore } from '@/stores/session'
-import type { FamilyDetail, FamilyTreeResult, TreeNode } from '@/types/api'
+import type { FamilyDetail, FamilyMember, FamilyTreeResult, Invitation, TreeNode } from '@/types/api'
 
 const session = useSessionStore()
 const familyId = ref('')
 const family = ref<FamilyDetail | null>(null)
 const tree = ref<FamilyTreeResult | null>(null)
+const invitations = ref<Invitation[]>([])
 const loading = ref(false)
 const errorMessage = ref('')
 const viewMode = ref<FamilyTreeViewMode>('structure')
 const viewerMemberId = ref<number | null>(null)
 const currentUserMemberId = ref<number | null>(null)
+const memorialMember = ref<FamilyMember | null>(null)
+const memorialNode = ref<TreeNode | null>(null)
 const edgeCount = computed(() => (tree.value ? countVisibleEdges(tree.value) : 0))
 const relationSentences = computed(() => (tree.value ? buildRelationSentences(tree.value) : []))
 const canManageFamily = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
 )
 const viewerNodes = computed(() => tree.value?.nodes || [])
+const pendingInviteMemberIds = computed(() => {
+  const now = Date.now()
+  return new Set(
+    invitations.value
+      .filter((item) => item.status === 'PENDING' && Date.parse(item.expiredAt) > now)
+      .map((item) => Number(item.targetMemberId))
+      .filter((memberId) => Number.isFinite(memberId))
+  )
+})
+const displayTree = computed<FamilyTreeResult | null>(() => {
+  if (!tree.value || pendingInviteMemberIds.value.size === 0) return tree.value
+  return {
+    ...tree.value,
+    nodes: tree.value.nodes.map((node) =>
+      pendingInviteMemberIds.value.has(node.memberId) && node.userBindingState === 'UNBOUND'
+        ? { ...node, userBindingState: 'INVITING' }
+        : node
+    )
+  }
+})
 const currentViewerNode = computed(() =>
   viewerNodes.value.find((node) => node.memberId === viewerMemberId.value) || null
 )
@@ -203,9 +260,12 @@ function resetPageData() {
   loading.value = false
   errorMessage.value = ''
   tree.value = null
+  invitations.value = []
   family.value = null
   viewerMemberId.value = null
   currentUserMemberId.value = null
+  memorialMember.value = null
+  memorialNode.value = null
 }
 
 async function loadTree() {
@@ -224,12 +284,15 @@ async function loadTree() {
   loading.value = isInitialLoad
   errorMessage.value = ''
   try {
-    const [familyResult, treeResult] = await Promise.all([
-      getFamilyDetail(familyId.value),
-      getPrivateTree(familyId.value)
+    const familyResult = await getFamilyDetail(familyId.value)
+    const canManage = familyResult.role === 'FOUNDER' || familyResult.role === 'FAMILY_ADMIN'
+    const [treeResult, invitationResult] = await Promise.all([
+      getPrivateTree(familyId.value),
+      canManage ? listFamilyInvitations(familyId.value) : Promise.resolve([])
     ])
     family.value = familyResult
     tree.value = treeResult
+    invitations.value = invitationResult
     let resolvedViewerId = currentUserMemberId.value
     if (session.user?.id) {
       try {
@@ -276,16 +339,25 @@ function changeViewer(event: { detail: { value: number | string } }) {
 }
 
 function openNodeActions(node: TreeNode) {
-  if (!canManageFamily.value) return
-  const items = ['编辑成员资料']
+  if (node.isLiving === false) {
+    showMemorial(node)
+    return
+  }
+  if (!canManageFamily.value) {
+    return
+  }
+  const items = ['编辑资料']
   if (node.userBindingState === 'UNBOUND') items.push('邀请本人绑定')
-  if (!isSpouseMember(node) && !isExternalMember(node)) items.push('关系操作')
-  items.push('健在状态', '删除成员（谨慎）')
+  if (!isSpouseMember(node) && !isExternalMember(node)) items.push('添加或调整关系')
+  if (node.isLiving === true) items.push('标记为已故')
+  else if (node.isLiving === false) items.push('标记为健在')
+  else items.push('更新健在状态')
+  items.push('删除成员')
   uni.showActionSheet({
     itemList: items,
     success: (result) => {
       const action = items[result.tapIndex]
-      if (action === '编辑成员资料') {
+      if (action === '编辑资料') {
         openMemberEdit(node)
         return
       }
@@ -293,29 +365,70 @@ function openNodeActions(node: TreeNode) {
         openInviteMember(node)
         return
       }
-      if (action === '关系操作') {
+      if (action === '添加或调整关系') {
         openRelationActions(node)
         return
       }
-      if (action === '健在状态') {
+      if (action === '标记为已故') {
+        updateLivingState(node, false)
+        return
+      }
+      if (action === '标记为健在') {
+        updateLivingState(node, true)
+        return
+      }
+      if (action === '更新健在状态') {
         openLivingStateActions(node)
         return
       }
-      if (action === '删除成员（谨慎）') {
+      if (action === '删除成员') {
         confirmDeleteMember(node)
       }
     }
   })
 }
 
+function formatDeathTime(member: { deathDate?: string | null; deathYear?: number | null }) {
+  if (member.deathDate) return member.deathDate.slice(0, 10)
+  if (member.deathYear) return `${member.deathYear} 年`
+  return '未记录'
+}
+
+async function showMemorial(node: TreeNode) {
+  try {
+    const member = await getFamilyMember(familyId.value, node.memberId)
+    memorialNode.value = node
+    memorialMember.value = member
+  } catch (error) {
+    uni.showModal({
+      title: '读取失败',
+      content: apiErrorMessage(error, '亲人简介读取失败。'),
+      showCancel: false
+    })
+  }
+}
+
+const memorialDescription = computed(() => memorialMember.value?.description?.trim() || '')
+
+function closeMemorial() {
+  memorialMember.value = null
+  memorialNode.value = null
+}
+
+function editMemorial() {
+  const node = memorialNode.value
+  closeMemorial()
+  if (node) openMemberEdit(node)
+}
+
 function openRelationActions(node: TreeNode) {
-  const items = ['添加关系', '调整关系']
+  const items = ['添加亲属（以此人为基准）', '调整已有关系']
   uni.showActionSheet({
     itemList: items,
     success: (result) => {
       const action = items[result.tapIndex]
-      if (action === '添加关系') openAddRelation(node)
-      if (action === '调整关系') openAdjustRelation(node)
+      if (action === '添加亲属（以此人为基准）') openAddRelation(node)
+      if (action === '调整已有关系') openAdjustRelation(node)
     }
   })
 }
@@ -609,5 +722,152 @@ onUnload(resetPageData)
 .legend-tag.current {
   border-color: var(--archive-blue);
   background: var(--archive-blue);
+}
+
+.memorial-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(27, 42, 57, 0.42);
+}
+
+.memorial-sheet {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 560rpx;
+  border-top: 1rpx solid rgba(31, 55, 79, 0.32);
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(153, 122, 73, 0.045) 0,
+      rgba(153, 122, 73, 0.045) 1rpx,
+      transparent 1rpx,
+      transparent 42rpx
+    ),
+    var(--archive-paper);
+  padding: 46rpx 42rpx calc(42rpx + env(safe-area-inset-bottom));
+  box-shadow: 0 -16rpx 38rpx rgba(27, 42, 57, 0.16);
+}
+
+.memorial-sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24rpx;
+  border-bottom: 1rpx solid var(--archive-line);
+  padding-bottom: 26rpx;
+}
+
+.memorial-kicker,
+.memorial-name,
+.memorial-time-label,
+.memorial-time-value,
+.memorial-content-label,
+.memorial-content-value,
+.memorial-footnote {
+  display: block;
+}
+
+.memorial-kicker {
+  color: var(--archive-cinnabar);
+  font-size: 19rpx;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+}
+
+.memorial-name {
+  margin-top: 8rpx;
+  color: var(--archive-ink);
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 43rpx;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.memorial-seal {
+  display: flex;
+  width: 54rpx;
+  height: 54rpx;
+  align-items: center;
+  justify-content: center;
+  border: 2rpx solid rgba(168, 59, 45, 0.68);
+  color: var(--archive-cinnabar);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 30rpx;
+  transform: rotate(-5deg);
+}
+
+.memorial-time {
+  display: flex;
+  align-items: baseline;
+  gap: 20rpx;
+  border-bottom: 1rpx solid var(--archive-line);
+  padding: 22rpx 0;
+}
+
+.memorial-time-label,
+.memorial-content-label {
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
+  letter-spacing: 0.08em;
+}
+
+.memorial-time-value {
+  color: var(--archive-blue);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.memorial-content {
+  padding: 28rpx 0 34rpx;
+}
+
+.memorial-content-value {
+  min-height: 132rpx;
+  margin-top: 14rpx;
+  color: var(--archive-ink);
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 27rpx;
+  line-height: 1.9;
+  white-space: pre-wrap;
+}
+
+.memorial-foot {
+  border-top: 1rpx solid var(--archive-line);
+  padding-top: 22rpx;
+}
+
+.memorial-footnote {
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.55;
+}
+
+.memorial-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16rpx;
+  margin-top: 28rpx;
+}
+
+.memorial-action {
+  min-width: 126rpx;
+  border: 1rpx solid var(--archive-line-strong);
+  padding: 14rpx 18rpx;
+  text-align: center;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.memorial-action.secondary {
+  color: var(--archive-ink-soft);
+}
+
+.memorial-action.primary {
+  border-color: var(--archive-cinnabar);
+  color: var(--archive-cinnabar);
 }
 </style>

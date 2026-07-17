@@ -8,6 +8,7 @@ type AccountQuotaConfig struct {
 	MaxOwnedFamilies         int       `gorm:"column:max_owned_families;not null"`
 	MaxMembersPerOwnedFamily int       `gorm:"column:max_members_per_owned_family;not null"`
 	MaxJoinedFamilies        int       `gorm:"column:max_joined_families;not null"`
+	SupportsGenerationNaming bool      `gorm:"column:supports_generation_naming;not null"`
 	UpdatedByAdminID         *uint64   `gorm:"column:updated_by_admin_id"`
 	CreatedAt                time.Time `gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt                time.Time `gorm:"column:updated_at;autoUpdateTime"`

@@ -88,6 +88,7 @@ export interface UserCapabilities {
     maxOwnedFamilies: number
     maxMembersPerOwnedFamily: number
     maxJoinedFamilies: number
+    supportsGenerationNaming: boolean
   }
   usage: {
     ownedFamilies: number

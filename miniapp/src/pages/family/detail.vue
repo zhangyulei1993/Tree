@@ -41,6 +41,18 @@
         <text class="archive-chip">{{ publicStatusText(family.publicDisplayStatus) }}</text>
       </view>
 
+      <view v-if="showTreeStarter" class="tree-starter archive-form-panel">
+        <view class="archive-section-head">
+          <text class="archive-section-title">开始搭建家庭树</text>
+          <text class="archive-section-subtitle">当前只有创建者节点，建议先添加父母、配偶、子女或兄弟姐妹。</text>
+        </view>
+        <view class="tree-starter-actions">
+          <MiniButton size="sm" @click="openAddFirstParent">添加父母</MiniButton>
+          <MiniButton size="sm" variant="secondary" @click="openAddFirstRelative('ADD_SPOUSE')">添加配偶</MiniButton>
+          <MiniButton size="sm" variant="secondary" @click="openAddFirstRelative('ADD_CHILD')">添加子女</MiniButton>
+        </view>
+      </view>
+
       <view v-if="family.status === 'DISSOLUTION_COOLDOWN'" class="cooldown-panel archive-form-panel">
         <view class="archive-section-head">
           <text class="archive-section-title">恢复冷静期</text>
@@ -108,10 +120,10 @@
         </view>
         <view v-if="canManageFamily" class="archive-row" @click="openManageCenter">
           <view class="archive-row-main">
-            <text class="archive-row-title">家庭管理</text>
+            <text class="archive-row-title">家庭事务</text>
             <text class="archive-row-desc">邀请、加入审核、家庭设置与操作记录</text>
           </view>
-          <text class="archive-row-meta">管理</text>
+          <text class="archive-row-meta">事务</text>
           <text class="archive-arrow">›</text>
         </view>
       </view>
@@ -132,7 +144,7 @@ import MiniButton from '@/components/base/MiniButton.vue'
 import MiniFamilyPageSkeleton from '@/components/base/MiniFamilyPageSkeleton.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import { useSessionStore } from '@/stores/session'
-import type { DissolutionRequest, FamilyDetail, FamilyMember } from '@/types/api'
+import type { DissolutionRequest, FamilyDetail, FamilyMember, RelationshipAddType } from '@/types/api'
 
 const session = useSessionStore()
 const familyId = ref('')
@@ -147,6 +159,9 @@ const currentDissolution = ref<DissolutionRequest | null>(null)
 
 const canManageFamily = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
+)
+const showTreeStarter = computed(() =>
+  canManageFamily.value && family.value?.status === 'NORMAL' && members.value.length <= 1
 )
 const familyTreeUrl = computed(() =>
   `/pages/family/private-tree?familyId=${encodeURIComponent(familyId.value)}`
@@ -229,6 +244,26 @@ function openFamilyTree() {
 
 function openManageCenter() {
   navigateOnce(`/pages/family/manage-center?familyId=${encodeURIComponent(familyId.value)}`)
+}
+
+function openAddFirstParent() {
+  uni.showActionSheet({
+    itemList: ['添加父亲', '添加母亲'],
+    success: (result) => {
+      openAddFirstRelative(result.tapIndex === 0 ? 'ADD_FATHER' : 'ADD_MOTHER')
+    }
+  })
+}
+
+function openAddFirstRelative(addType: RelationshipAddType) {
+  const baseMemberId = members.value[0]?.memberId
+  const query = [
+    `familyId=${encodeURIComponent(familyId.value)}`,
+    'section=node',
+    `addType=${encodeURIComponent(addType)}`,
+    baseMemberId ? `baseMemberId=${encodeURIComponent(String(baseMemberId))}` : ''
+  ].filter(Boolean).join('&')
+  navigateOnce(`/pages/family/manage?${query}`)
 }
 
 function confirmRestoreFromCooldown() {
@@ -497,6 +532,16 @@ onUnload(resetPageData)
 
 .detail-directory {
   margin-top: 8rpx;
+}
+
+.tree-starter {
+  margin-bottom: 26rpx;
+}
+
+.tree-starter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
 }
 
 .cooldown-panel {

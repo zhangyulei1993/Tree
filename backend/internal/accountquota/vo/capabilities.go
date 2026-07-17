@@ -1,9 +1,10 @@
 package vo
 
 type Limits struct {
-	MaxOwnedFamilies         int `json:"maxOwnedFamilies"`
-	MaxMembersPerOwnedFamily int `json:"maxMembersPerOwnedFamily"`
-	MaxJoinedFamilies        int `json:"maxJoinedFamilies"`
+	MaxOwnedFamilies         int  `json:"maxOwnedFamilies"`
+	MaxMembersPerOwnedFamily int  `json:"maxMembersPerOwnedFamily"`
+	MaxJoinedFamilies        int  `json:"maxJoinedFamilies"`
+	SupportsGenerationNaming bool `json:"supportsGenerationNaming"`
 }
 
 type Usage struct {
@@ -23,6 +24,7 @@ type ConfigItem struct {
 	MaxOwnedFamilies         int     `json:"maxOwnedFamilies"`
 	MaxMembersPerOwnedFamily int     `json:"maxMembersPerOwnedFamily"`
 	MaxJoinedFamilies        int     `json:"maxJoinedFamilies"`
+	SupportsGenerationNaming bool    `json:"supportsGenerationNaming"`
 	UpdatedByAdminID         *uint64 `json:"updatedByAdminId,omitempty"`
 	UpdatedAt                string  `json:"updatedAt"`
 }
@@ -34,4 +36,11 @@ type ImpactPreview struct {
 	MaxOwnedFamilies         int    `json:"maxOwnedFamilies"`
 	MaxMembersPerOwnedFamily int    `json:"maxMembersPerOwnedFamily"`
 	MaxJoinedFamilies        int    `json:"maxJoinedFamilies"`
+	SupportsGenerationNaming bool   `json:"supportsGenerationNaming"`
+}
+
+type FeatureOverrideItem struct {
+	FeatureKey string `json:"featureKey"`
+	PhoneMask  string `json:"phoneMask"`
+	UpdatedAt  string `json:"updatedAt"`
 }

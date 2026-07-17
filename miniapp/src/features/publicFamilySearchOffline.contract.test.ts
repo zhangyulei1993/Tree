@@ -123,6 +123,40 @@ test('family management pages guard missing familyId before API loading', () => 
   }
 })
 
+test('private tree loads family invitations only for managers', () => {
+  const privateTree = read(join(miniappSrc, 'pages', 'family', 'private-tree.vue'))
+  const familyIndex = privateTree.indexOf('const familyResult = await getFamilyDetail(familyId.value)')
+  const canManageIndex = privateTree.indexOf("const canManage = familyResult.role === 'FOUNDER' || familyResult.role === 'FAMILY_ADMIN'")
+  const invitationIndex = privateTree.indexOf('canManage ? listFamilyInvitations(familyId.value) : Promise.resolve([])')
+
+  assert.notEqual(familyIndex, -1)
+  assert.notEqual(canManageIndex, -1)
+  assert.notEqual(invitationIndex, -1)
+  assert.ok(familyIndex < canManageIndex)
+  assert.ok(canManageIndex < invitationIndex)
+})
+
+test('private tree lets deceased member memorial open without manager permission', () => {
+  const privateTree = read(join(miniappSrc, 'pages', 'family', 'private-tree.vue'))
+  assert.match(privateTree, /selectable-deceased/)
+  assert.match(privateTree, /if \(node\.isLiving === false\) \{\s*showMemorial\(node\)\s*return/)
+  assert.match(privateTree, /getFamilyMember\(familyId\.value, node\.memberId\)/)
+  assert.match(privateTree, /亲人简介/)
+})
+
+test('private tree forwards deceased selection through located and unlocated cards', () => {
+  const treeGraph = read(join(miniappSrc, 'components', 'family', 'FamilyTreeGraph.vue'))
+  assert.match(treeGraph, /:selectable="isNodeSelectable\(parent\)"/)
+  assert.match(treeGraph, /:selectable="isNodeSelectable\(node\)"/)
+})
+
+test('private tree deceased node action sheet stays within WeChat item limit', () => {
+  const privateTree = read(join(miniappSrc, 'pages', 'family', 'private-tree.vue'))
+  assert.equal(privateTree.includes('编辑亲人简介'), false)
+  assert.equal(privateTree.includes("'查看亲人简介'"), false)
+  assert.match(privateTree, /if \(node\.userBindingState === 'UNBOUND'\) items\.push\('邀请本人绑定'\)/)
+})
+
 test('showcase page has no search box, filters or search button', () => {
   const showcase = read(join(miniappSrc, 'pages', 'family', 'showcase.vue'))
   const forbidden = [

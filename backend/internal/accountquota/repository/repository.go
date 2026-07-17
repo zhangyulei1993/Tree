@@ -16,6 +16,7 @@ type Limits struct {
 	MaxOwnedFamilies         int
 	MaxMembersPerOwnedFamily int
 	MaxJoinedFamilies        int
+	SupportsGenerationNaming bool
 }
 
 var ErrFounderNotFound = errors.New("family founder not found")
@@ -27,6 +28,9 @@ type Repository interface {
 	LockConfigByTier(ctx context.Context, tier string) (*quotamodel.AccountQuotaConfig, error)
 	LockAllConfigsInOrder(ctx context.Context) (wechat quotamodel.AccountQuotaConfig, phone quotamodel.AccountQuotaConfig, err error)
 	UpdateConfig(ctx context.Context, tier string, values map[string]any) error
+	ListFeatureOverrides(ctx context.Context, featureKey string) ([]quotamodel.AccountFeatureOverride, error)
+	ReplaceFeatureOverrides(ctx context.Context, featureKey string, rows []quotamodel.AccountFeatureOverride) error
+	HasFeatureOverride(ctx context.Context, featureKey string, phoneHash string) (bool, error)
 	LockUser(ctx context.Context, userID uint64) (*usermodel.User, error)
 	ResolveTrustTier(user *usermodel.User) string
 	GetLimitsForTier(ctx context.Context, tier string) (Limits, error)
@@ -97,6 +101,37 @@ func (r *GormRepository) UpdateConfig(ctx context.Context, tier string, values m
 	return r.db.WithContext(ctx).Model(&quotamodel.AccountQuotaConfig{}).Where("trust_tier = ?", tier).Updates(values).Error
 }
 
+func (r *GormRepository) ListFeatureOverrides(ctx context.Context, featureKey string) ([]quotamodel.AccountFeatureOverride, error) {
+	var rows []quotamodel.AccountFeatureOverride
+	err := r.db.WithContext(ctx).
+		Where("feature_key = ?", featureKey).
+		Order("id").
+		Find(&rows).Error
+	return rows, err
+}
+
+func (r *GormRepository) ReplaceFeatureOverrides(ctx context.Context, featureKey string, rows []quotamodel.AccountFeatureOverride) error {
+	if err := r.db.WithContext(ctx).Where("feature_key = ?", featureKey).Delete(&quotamodel.AccountFeatureOverride{}).Error; err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).Create(&rows).Error
+}
+
+func (r *GormRepository) HasFeatureOverride(ctx context.Context, featureKey string, phoneHash string) (bool, error) {
+	if phoneHash == "" {
+		return false, nil
+	}
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&quotamodel.AccountFeatureOverride{}).
+		Where("feature_key = ? AND phone_hash = ?", featureKey, phoneHash).
+		Count(&count).Error
+	return count > 0, err
+}
+
 func (r *GormRepository) LockUser(ctx context.Context, userID uint64) (*usermodel.User, error) {
 	var user usermodel.User
 	err := r.db.WithContext(ctx).
@@ -119,9 +154,9 @@ func (r *GormRepository) ResolveTrustTier(user *usermodel.User) string {
 func defaultLimits(tier string) Limits {
 	switch tier {
 	case quotaenum.TrustTierPhoneBound:
-		return Limits{MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5}
+		return Limits{MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5, SupportsGenerationNaming: true}
 	default:
-		return Limits{MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1}
+		return Limits{MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1, SupportsGenerationNaming: false}
 	}
 }
 
@@ -137,6 +172,7 @@ func (r *GormRepository) GetLimitsForTier(ctx context.Context, tier string) (Lim
 		MaxOwnedFamilies:         row.MaxOwnedFamilies,
 		MaxMembersPerOwnedFamily: row.MaxMembersPerOwnedFamily,
 		MaxJoinedFamilies:        row.MaxJoinedFamilies,
+		SupportsGenerationNaming: row.SupportsGenerationNaming,
 	}, nil
 }
 

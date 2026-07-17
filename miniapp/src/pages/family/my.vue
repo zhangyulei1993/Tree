@@ -93,8 +93,8 @@
       <view class="my-head archive-page-head">
         <view>
           <text class="archive-kicker">Public Archive</text>
-          <text class="archive-title">展示家庭</text>
-          <text class="archive-subtitle">浏览经平台审核的公开家庭主页</text>
+          <text class="archive-title">我的家庭</text>
+          <text class="archive-subtitle">你还没有家庭，可创建家庭或浏览展示家庭</text>
         </view>
         <view class="archive-seal">展</view>
       </view>

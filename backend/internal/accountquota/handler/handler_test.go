@@ -20,13 +20,14 @@ import (
 )
 
 type mockQuotaService struct {
-	updateValues  quotadto.ConfigValues
-	previewValues quotadto.ConfigValues
+	updateValues   quotadto.ConfigValues
+	previewValues  quotadto.ConfigValues
+	overridePhones []string
 }
 
 func (m *mockQuotaService) UpdateConfig(_ context.Context, _ uint64, _ string, _ string, values quotadto.ConfigValues, _ quotaservice.AuditInput) (*quotavo.ConfigItem, *apperrors.BusinessError) {
 	m.updateValues = values
-	return &quotavo.ConfigItem{TrustTier: "WECHAT_ONLY", MaxOwnedFamilies: values.MaxOwnedFamilies}, nil
+	return &quotavo.ConfigItem{TrustTier: "WECHAT_ONLY", MaxOwnedFamilies: values.MaxOwnedFamilies, SupportsGenerationNaming: values.SupportsGenerationNaming}, nil
 }
 
 func (m *mockQuotaService) PreviewImpact(_ context.Context, _ string, _ string, values quotadto.ConfigValues) (*quotavo.ImpactPreview, *apperrors.BusinessError) {
@@ -39,7 +40,7 @@ func TestUpdateConfigAcceptsExplicitZeroValues(t *testing.T) {
 	mock := &mockQuotaService{}
 	handler := quotahandler.NewHandler(mock)
 
-	body := `{"maxOwnedFamilies":0,"maxMembersPerOwnedFamily":1,"maxJoinedFamilies":0}`
+	body := `{"maxOwnedFamilies":0,"maxMembersPerOwnedFamily":1,"maxJoinedFamilies":0,"supportsGenerationNaming":false}`
 	recorder := httptest.NewRecorder()
 	ctx, engine := gin.CreateTestContext(recorder)
 	engine.POST("/api/admin/account-quota-configs/:tier", func(c *gin.Context) {
@@ -54,7 +55,7 @@ func TestUpdateConfigAcceptsExplicitZeroValues(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", recorder.Code, recorder.Body.String())
 	}
-	if mock.updateValues.MaxOwnedFamilies != 0 || mock.updateValues.MaxMembersPerOwnedFamily != 1 || mock.updateValues.MaxJoinedFamilies != 0 {
+	if mock.updateValues.MaxOwnedFamilies != 0 || mock.updateValues.MaxMembersPerOwnedFamily != 1 || mock.updateValues.MaxJoinedFamilies != 0 || mock.updateValues.SupportsGenerationNaming {
 		t.Fatalf("unexpected parsed values: %#v", mock.updateValues)
 	}
 }
@@ -63,7 +64,7 @@ func TestUpdateConfigRejectsMissingField(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	handler := quotahandler.NewHandler(&mockQuotaService{})
 
-	body := `{"maxOwnedFamilies":1,"maxJoinedFamilies":1}`
+	body := `{"maxOwnedFamilies":1,"maxJoinedFamilies":1,"supportsGenerationNaming":false}`
 	recorder := httptest.NewRecorder()
 	ctx, engine := gin.CreateTestContext(recorder)
 	engine.POST("/api/admin/account-quota-configs/:tier", func(c *gin.Context) {
@@ -82,7 +83,7 @@ func TestUpdateConfigRejectsMissingField(t *testing.T) {
 
 func TestImpactPreviewRequestParseExplicitZero(t *testing.T) {
 	var req quotadto.ImpactPreviewRequest
-	if err := json.Unmarshal([]byte(`{"maxOwnedFamilies":0,"maxMembersPerOwnedFamily":10,"maxJoinedFamilies":0}`), &req); err != nil {
+	if err := json.Unmarshal([]byte(`{"maxOwnedFamilies":0,"maxMembersPerOwnedFamily":10,"maxJoinedFamilies":0,"supportsGenerationNaming":false}`), &req); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	values, err := req.Parse()
@@ -111,6 +112,13 @@ func (m *mockQuotaService) GetCapabilities(context.Context, uint64) (*quotavo.Ca
 }
 func (m *mockQuotaService) ListConfigs(context.Context, string) ([]quotavo.ConfigItem, *apperrors.BusinessError) {
 	return nil, nil
+}
+func (m *mockQuotaService) ListFeatureOverrides(context.Context, string, string) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError) {
+	return nil, nil
+}
+func (m *mockQuotaService) UpdateFeatureOverrides(_ context.Context, _ uint64, _ string, _ string, phones []string, _ quotaservice.AuditInput) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError) {
+	m.overridePhones = phones
+	return []quotavo.FeatureOverrideItem{{FeatureKey: quotaservice.FeatureGenerationNaming, PhoneMask: "138****5678"}}, nil
 }
 func (m *mockQuotaService) AssertProfileComplete(context.Context, *gorm.DB, uint64) error { return nil }
 func (m *mockQuotaService) AssertCanCreateFamily(context.Context, *gorm.DB, uint64) error { return nil }

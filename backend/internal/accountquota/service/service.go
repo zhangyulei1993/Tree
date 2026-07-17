@@ -18,9 +18,13 @@ import (
 	quotavo "tree/backend/internal/accountquota/vo"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
+	commonmask "tree/backend/internal/common/mask"
+	"tree/backend/internal/common/security"
 	operationlog "tree/backend/internal/operationlog/service"
 	usermodel "tree/backend/internal/user/model"
 )
+
+const FeatureGenerationNaming = "GENERATION_NAMING"
 
 type AuditInput struct {
 	IP        string
@@ -32,6 +36,8 @@ type Service interface {
 	ListConfigs(ctx context.Context, role string) ([]quotavo.ConfigItem, *apperrors.BusinessError)
 	UpdateConfig(ctx context.Context, adminID uint64, role string, tier string, values quotadto.ConfigValues, audit AuditInput) (*quotavo.ConfigItem, *apperrors.BusinessError)
 	PreviewImpact(ctx context.Context, role string, tier string, values quotadto.ConfigValues) (*quotavo.ImpactPreview, *apperrors.BusinessError)
+	ListFeatureOverrides(ctx context.Context, role string, featureKey string) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError)
+	UpdateFeatureOverrides(ctx context.Context, adminID uint64, role string, featureKey string, phones []string, audit AuditInput) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError)
 
 	AssertProfileComplete(ctx context.Context, db *gorm.DB, userID uint64) error
 	AssertCanCreateFamily(ctx context.Context, db *gorm.DB, userID uint64) error
@@ -81,6 +87,15 @@ func (s *quotaService) capabilitiesForUser(ctx context.Context, repo quotarepo.R
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
+	if !limits.SupportsGenerationNaming && user.PhoneHash != nil {
+		enabled, overrideErr := repo.HasFeatureOverride(ctx, FeatureGenerationNaming, *user.PhoneHash)
+		if overrideErr != nil {
+			return nil, apperrors.New(apperrors.CodeSystemError)
+		}
+		if enabled {
+			limits.SupportsGenerationNaming = true
+		}
+	}
 	owned, err := repo.CountOwnedFamilies(ctx, user.ID)
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
@@ -107,6 +122,7 @@ func (s *quotaService) capabilitiesForUser(ctx context.Context, repo quotarepo.R
 			MaxOwnedFamilies:         limits.MaxOwnedFamilies,
 			MaxMembersPerOwnedFamily: limits.MaxMembersPerOwnedFamily,
 			MaxJoinedFamilies:        limits.MaxJoinedFamilies,
+			SupportsGenerationNaming: limits.SupportsGenerationNaming,
 		},
 		Usage: quotavo.Usage{
 			OwnedFamilies:         owned,
@@ -161,6 +177,7 @@ func (s *quotaService) UpdateConfig(ctx context.Context, adminID uint64, role st
 			"max_owned_families":           values.MaxOwnedFamilies,
 			"max_members_per_owned_family": values.MaxMembersPerOwnedFamily,
 			"max_joined_families":          values.MaxJoinedFamilies,
+			"supports_generation_naming":   values.SupportsGenerationNaming,
 			"updated_by_admin_id":          adminID,
 		}); err != nil {
 			return err
@@ -171,6 +188,7 @@ func (s *quotaService) UpdateConfig(ctx context.Context, adminID uint64, role st
 			"maxOwnedFamilies":         values.MaxOwnedFamilies,
 			"maxMembersPerOwnedFamily": values.MaxMembersPerOwnedFamily,
 			"maxJoinedFamilies":        values.MaxJoinedFamilies,
+			"supportsGenerationNaming": values.SupportsGenerationNaming,
 		})
 		return operationlog.NewGormService(tx).WriteSuccess(ctx, operationlog.WriteInput{
 			OperatorType: string(enums.OperatorTypeAdmin), OperatorAdminID: &adminID, OperatorRole: &role,
@@ -222,7 +240,71 @@ func (s *quotaService) PreviewImpact(ctx context.Context, role string, tier stri
 		MaxOwnedFamilies:         values.MaxOwnedFamilies,
 		MaxMembersPerOwnedFamily: values.MaxMembersPerOwnedFamily,
 		MaxJoinedFamilies:        values.MaxJoinedFamilies,
+		SupportsGenerationNaming: values.SupportsGenerationNaming,
 	}, nil
+}
+
+func (s *quotaService) ListFeatureOverrides(ctx context.Context, role string, featureKey string) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError) {
+	if !canManageConfig(role) {
+		return nil, quotaConfigError(apperrors.CodeQuotaConfigForbidden, "无权查看账号权益配置")
+	}
+	featureKey, businessErr := normalizeFeatureKey(featureKey)
+	if businessErr != nil {
+		return nil, businessErr
+	}
+	rows, err := s.repo.ListFeatureOverrides(ctx, featureKey)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	result := make([]quotavo.FeatureOverrideItem, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, featureOverrideVO(row))
+	}
+	return result, nil
+}
+
+func (s *quotaService) UpdateFeatureOverrides(ctx context.Context, adminID uint64, role string, featureKey string, phones []string, audit AuditInput) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError) {
+	if !canManageConfig(role) {
+		return nil, quotaConfigError(apperrors.CodeQuotaConfigForbidden, "无权修改账号权益配置")
+	}
+	featureKey, businessErr := normalizeFeatureKey(featureKey)
+	if businessErr != nil {
+		return nil, businessErr
+	}
+	rows, businessErr := buildFeatureOverrideRows(featureKey, phones, adminID)
+	if businessErr != nil {
+		return nil, businessErr
+	}
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		txRepo := s.repoFor(tx)
+		if err := txRepo.ReplaceFeatureOverrides(ctx, featureKey, rows); err != nil {
+			return err
+		}
+		targetType := "ACCOUNT_FEATURE_OVERRIDE"
+		masks := make([]string, 0, len(rows))
+		for _, row := range rows {
+			masks = append(masks, row.PhoneMask)
+		}
+		detail, _ := json.Marshal(map[string]any{
+			"featureKey": featureKey,
+			"phoneMasks": masks,
+			"count":      len(rows),
+		})
+		return operationlog.NewGormService(tx).WriteSuccess(ctx, operationlog.WriteInput{
+			OperatorType: string(enums.OperatorTypeAdmin), OperatorAdminID: &adminID, OperatorRole: &role,
+			Module: "ACCOUNT_QUOTA", Action: "UPDATE_ACCOUNT_FEATURE_OVERRIDES", TargetType: &targetType,
+			DetailJSON: detail,
+			IP:         stringPtr(audit.IP), UserAgent: stringPtr(audit.UserAgent),
+		})
+	})
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	result := make([]quotavo.FeatureOverrideItem, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, featureOverrideVO(row))
+	}
+	return result, nil
 }
 
 func (s *quotaService) AssertProfileComplete(ctx context.Context, db *gorm.DB, userID uint64) error {
@@ -464,19 +546,56 @@ func validateConfigValues(values quotadto.ConfigValues) *apperrors.BusinessError
 	return nil
 }
 
+func normalizeFeatureKey(featureKey string) (string, *apperrors.BusinessError) {
+	featureKey = strings.ToUpper(strings.TrimSpace(featureKey))
+	if featureKey != FeatureGenerationNaming {
+		return "", quotaConfigError(apperrors.CodeQuotaConfigInvalid, "权益功能不合法")
+	}
+	return featureKey, nil
+}
+
+func buildFeatureOverrideRows(featureKey string, phones []string, adminID uint64) ([]quotamodel.AccountFeatureOverride, *apperrors.BusinessError) {
+	rows := make([]quotamodel.AccountFeatureOverride, 0, len(phones))
+	seen := make(map[string]struct{}, len(phones))
+	for _, phone := range phones {
+		phone = strings.TrimSpace(phone)
+		if phone == "" {
+			continue
+		}
+		if !security.ValidPhone(phone) {
+			return nil, quotaConfigError(apperrors.CodeQuotaConfigInvalid, "手机号格式不合法")
+		}
+		phoneHash := security.PhoneHash(phone)
+		if _, ok := seen[phoneHash]; ok {
+			continue
+		}
+		seen[phoneHash] = struct{}{}
+		rows = append(rows, quotamodel.AccountFeatureOverride{
+			FeatureKey:       featureKey,
+			PhoneHash:        phoneHash,
+			PhoneMask:        commonmask.Phone(phone),
+			UpdatedByAdminID: &adminID,
+		})
+	}
+	return rows, nil
+}
+
 func validateTierOrdering(updatingTier string, values quotadto.ConfigValues, wechat, phone quotamodel.AccountQuotaConfig) error {
 	if updatingTier == quotaenum.TrustTierWechatOnly {
 		wechat.MaxOwnedFamilies = values.MaxOwnedFamilies
 		wechat.MaxMembersPerOwnedFamily = values.MaxMembersPerOwnedFamily
 		wechat.MaxJoinedFamilies = values.MaxJoinedFamilies
+		wechat.SupportsGenerationNaming = values.SupportsGenerationNaming
 	} else {
 		phone.MaxOwnedFamilies = values.MaxOwnedFamilies
 		phone.MaxMembersPerOwnedFamily = values.MaxMembersPerOwnedFamily
 		phone.MaxJoinedFamilies = values.MaxJoinedFamilies
+		phone.SupportsGenerationNaming = values.SupportsGenerationNaming
 	}
 	if phone.MaxOwnedFamilies < wechat.MaxOwnedFamilies ||
 		phone.MaxMembersPerOwnedFamily < wechat.MaxMembersPerOwnedFamily ||
-		phone.MaxJoinedFamilies < wechat.MaxJoinedFamilies {
+		phone.MaxJoinedFamilies < wechat.MaxJoinedFamilies ||
+		(wechat.SupportsGenerationNaming && !phone.SupportsGenerationNaming) {
 		return errTierOrder
 	}
 	return nil
@@ -573,16 +692,25 @@ func configItemVO(row quotamodel.AccountQuotaConfig) quotavo.ConfigItem {
 		MaxOwnedFamilies:         row.MaxOwnedFamilies,
 		MaxMembersPerOwnedFamily: row.MaxMembersPerOwnedFamily,
 		MaxJoinedFamilies:        row.MaxJoinedFamilies,
+		SupportsGenerationNaming: row.SupportsGenerationNaming,
 		UpdatedByAdminID:         row.UpdatedByAdminID,
 		UpdatedAt:                row.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func featureOverrideVO(row quotamodel.AccountFeatureOverride) quotavo.FeatureOverrideItem {
+	return quotavo.FeatureOverrideItem{
+		FeatureKey: row.FeatureKey,
+		PhoneMask:  row.PhoneMask,
+		UpdatedAt:  row.UpdatedAt.Format(time.RFC3339),
 	}
 }
 
 func defaultConfigItems() []quotavo.ConfigItem {
 	now := time.Now().Format(time.RFC3339)
 	return []quotavo.ConfigItem{
-		{TrustTier: quotaenum.TrustTierWechatOnly, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1, UpdatedAt: now},
-		{TrustTier: quotaenum.TrustTierPhoneBound, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5, UpdatedAt: now},
+		{TrustTier: quotaenum.TrustTierWechatOnly, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1, SupportsGenerationNaming: false, UpdatedAt: now},
+		{TrustTier: quotaenum.TrustTierPhoneBound, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5, SupportsGenerationNaming: true, UpdatedAt: now},
 	}
 }
 

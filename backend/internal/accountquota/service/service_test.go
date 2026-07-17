@@ -59,8 +59,8 @@ func seedQuotaConfigs(t *testing.T, tx *gorm.DB) {
 		t.Fatalf("clear quota configs: %v", err)
 	}
 	rows := []quotamodel.AccountQuotaConfig{
-		{TrustTier: quotaenum.TrustTierWechatOnly, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1},
-		{TrustTier: quotaenum.TrustTierPhoneBound, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5},
+		{TrustTier: quotaenum.TrustTierWechatOnly, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1, SupportsGenerationNaming: false},
+		{TrustTier: quotaenum.TrustTierPhoneBound, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5, SupportsGenerationNaming: true},
 	}
 	if err := tx.Create(&rows).Error; err != nil {
 		t.Fatalf("seed quota configs: %v", err)
@@ -208,6 +208,14 @@ func TestConcurrentCreateFamilyDoesNotExceedQuota(t *testing.T) {
 func quotaValues(owned, members, joined int) quotadto.ConfigValues {
 	return quotadto.ConfigValues{
 		MaxOwnedFamilies: owned, MaxMembersPerOwnedFamily: members, MaxJoinedFamilies: joined,
+		SupportsGenerationNaming: false,
+	}
+}
+
+func quotaValuesWithGenerationNaming(owned, members, joined int, enabled bool) quotadto.ConfigValues {
+	return quotadto.ConfigValues{
+		MaxOwnedFamilies: owned, MaxMembersPerOwnedFamily: members, MaxJoinedFamilies: joined,
+		SupportsGenerationNaming: enabled,
 	}
 }
 
@@ -344,6 +352,72 @@ func TestWechatOnlyConfigCannotExceedPhoneVerified(t *testing.T) {
 	_, err := svc.UpdateConfig(ctx, 1, string(enums.AdminRoleRootAdmin), quotaenum.TrustTierWechatOnly, quotaValues(2, 25, 6), quotaservice.AuditInput{})
 	if err == nil || err.Code != 41507 {
 		t.Fatalf("expected tier order error when raising wechat only above phone verified, got %#v", err)
+	}
+}
+
+func TestGenerationNamingConfigExposedInCapabilities(t *testing.T) {
+	ctx := context.Background()
+	tx := quotaTestDB(t)
+	svc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
+	user := createQuotaUser(t, tx, true, "字辈权益")
+	if _, err := svc.UpdateConfig(ctx, 1, string(enums.AdminRoleRootAdmin), quotaenum.TrustTierPhoneBound, quotaValuesWithGenerationNaming(1, 20, 5, true), quotaservice.AuditInput{}); err != nil {
+		t.Fatalf("update generation naming config: %v", err)
+	}
+	caps, err := svc.GetCapabilities(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("capabilities: %v", err)
+	}
+	if !caps.Limits.SupportsGenerationNaming {
+		t.Fatalf("expected generation naming capabilities, got %#v", caps.Limits)
+	}
+}
+
+func TestGenerationNamingTierOrder(t *testing.T) {
+	ctx := context.Background()
+	tx := quotaTestDB(t)
+	svc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
+	_, err := svc.UpdateConfig(ctx, 1, string(enums.AdminRoleRootAdmin), quotaenum.TrustTierWechatOnly, quotaValuesWithGenerationNaming(1, 10, 1, true), quotaservice.AuditInput{})
+	if err == nil || err.Code != 41507 {
+		t.Fatalf("expected tier order error for generation naming, got %#v", err)
+	}
+}
+
+func TestGenerationNamingFeatureOverrideEnablesWechatOnlyUser(t *testing.T) {
+	ctx := context.Background()
+	tx := quotaTestDB(t)
+	svc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
+	user := createQuotaUser(t, tx, false, "字辈灰度")
+	phone := "13812345678"
+	phoneHash := security.PhoneHash(phone)
+	if err := tx.Model(user).Updates(map[string]any{"phone": phone, "phone_hash": phoneHash}).Error; err != nil {
+		t.Fatalf("bind test phone: %v", err)
+	}
+	if _, err := svc.UpdateFeatureOverrides(ctx, 1, string(enums.AdminRoleRootAdmin), quotaservice.FeatureGenerationNaming, []string{phone}, quotaservice.AuditInput{}); err != nil {
+		t.Fatalf("update feature overrides: %v", err)
+	}
+	caps, err := svc.GetCapabilities(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("capabilities: %v", err)
+	}
+	if !caps.Limits.SupportsGenerationNaming {
+		t.Fatalf("expected feature override to enable generation naming, got %#v", caps.Limits)
+	}
+	items, err := svc.ListFeatureOverrides(ctx, string(enums.AdminRoleRootAdmin), quotaservice.FeatureGenerationNaming)
+	if err != nil {
+		t.Fatalf("list feature overrides: %v", err)
+	}
+	if len(items) != 1 || items[0].PhoneMask != "138****5678" {
+		t.Fatalf("expected masked override, got %#v", items)
+	}
+}
+
+func TestFeatureOverrideRejectsInvalidPhone(t *testing.T) {
+	ctx := context.Background()
+	tx := quotaTestDB(t)
+	svc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
+	_, err := svc.UpdateFeatureOverrides(ctx, 1, string(enums.AdminRoleRootAdmin), quotaservice.FeatureGenerationNaming, []string{"123"}, quotaservice.AuditInput{})
+	if err == nil || err.Code != apperrors.CodeQuotaConfigInvalid {
+		t.Fatalf("expected invalid phone error, got %#v", err)
 	}
 }
 
@@ -503,7 +577,8 @@ func TestConcurrentUpdateConfigPreservesTierOrdering(t *testing.T) {
 	}
 	if phone.MaxOwnedFamilies < wechat.MaxOwnedFamilies ||
 		phone.MaxMembersPerOwnedFamily < wechat.MaxMembersPerOwnedFamily ||
-		phone.MaxJoinedFamilies < wechat.MaxJoinedFamilies {
+		phone.MaxJoinedFamilies < wechat.MaxJoinedFamilies ||
+		(wechat.SupportsGenerationNaming && !phone.SupportsGenerationNaming) {
 		t.Fatalf("tier order violated after concurrent updates: wechat=%#v phone=%#v", wechat, phone)
 	}
 }

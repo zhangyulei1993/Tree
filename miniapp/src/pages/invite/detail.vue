@@ -107,6 +107,7 @@
             <text class="archive-section-subtitle">确认无误后可接受；如有疑问可先拒绝</text>
           </view>
           <textarea
+            v-if="showRejectReason"
             v-model.trim="rejectReason"
             class="tree-textarea invite-reject-input"
             maxlength="300"
@@ -191,6 +192,7 @@ const session = useSessionStore()
 const inviteToken = ref('')
 const invitation = ref<Invitation | null>(null)
 const rejectReason = ref('')
+const showRejectReason = ref(false)
 const loading = ref(false)
 const acting = ref<'' | 'accept' | 'reject'>('')
 const loadError = ref('')
@@ -266,6 +268,7 @@ async function loadInvitation() {
   loadError.value = ''
   actionError.value = ''
   result.value = ''
+  showRejectReason.value = false
   try {
     invitation.value = await getInvitationDetail(inviteToken.value)
   } catch (error) {
@@ -289,6 +292,11 @@ function confirmAccept() {
 
 function confirmReject() {
   if (!invitation.value) return
+  if (!showRejectReason.value) {
+    showRejectReason.value = true
+    actionError.value = ''
+    return
+  }
   const validationMessage = validateRejectReason()
   if (validationMessage) {
     actionError.value = validationMessage

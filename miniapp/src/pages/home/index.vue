@@ -113,7 +113,13 @@ import { promptPrivacyConsentIfNeeded } from '@/features/legal/privacyConsent'
 import { openWechatOfficialArticle } from '@/features/content/wechatOfficialArticle'
 import { buildHomeSharePayload } from '@/features/share/wechatShare'
 import { useSessionStore } from '@/stores/session'
-import type { ContentArticleSummary, ContentCategory, FamilyMember, PublicFamilyShowcaseItem } from '@/types/api'
+import type {
+  ContentArticleSummary,
+  ContentCategory,
+  FamilyMember,
+  FamilySummary,
+  PublicFamilyShowcaseItem
+} from '@/types/api'
 
 interface ArchiveStat {
   label: string
@@ -125,6 +131,7 @@ const categories = ref<ContentCategory[]>([])
 const articles = ref<ContentArticleSummary[]>([])
 const showcaseFamilies = ref<PublicFamilyShowcaseItem[]>([])
 const showcaseTotal = ref(0)
+const myFamilies = ref<FamilySummary[]>([])
 const archiveStats = ref<ArchiveStat[]>([
   { label: '展示家庭', value: '—' },
   { label: '家庭故事', value: '—' },
@@ -135,11 +142,19 @@ const hasOwnFamilies = ref(false)
 const featuredRead = computed(() => articles.value.find((item) => item.isFeatured) || articles.value[0] || null)
 const shouldPromptCreateFamily = computed(() => !hasOwnFamilies.value && session.isLoggedIn)
 const primaryEntryTitle = computed(() =>
-  hasOwnFamilies.value ? '打开家庭树' : shouldPromptCreateFamily.value ? '创建我的家庭' : '浏览展示家庭'
+  hasOwnFamilies.value
+    ? myFamilies.value.length === 1
+      ? '打开家庭树'
+      : '进入我的家庭'
+    : shouldPromptCreateFamily.value
+      ? '创建我的家庭'
+      : '浏览展示家庭'
 )
 const primaryEntryDesc = computed(() =>
   hasOwnFamilies.value
-    ? '查看家庭成员与关系图'
+    ? myFamilies.value.length === 1
+      ? '查看家庭成员与关系图'
+      : '选择要查看的家庭树'
     : shouldPromptCreateFamily.value
       ? '填写姓氏，建立自己的家庭树'
       : '无需登录，先看公开展示册页'
@@ -197,15 +212,15 @@ async function loadArchiveStats() {
   session.restoreSession()
   if (session.isLoggedIn && session.isProfileComplete) {
     try {
-      const myFamilies = await listMyFamilies()
-      if (myFamilies.length > 0) {
+      myFamilies.value = await listMyFamilies()
+      if (myFamilies.value.length > 0) {
         hasOwnFamilies.value = true
-        const primary = myFamilies[0]
+        const primary = myFamilies.value[0]
         const members = await listFamilyMembers(primary.id)
         archiveStats.value = [
           { label: '成员人数', value: String(members.length) },
           { label: '最近更新', value: formatLatestMemberUpdate(members) },
-          { label: '我的家庭', value: String(myFamilies.length) }
+          { label: '我的家庭', value: String(myFamilies.value.length) }
         ]
         return
       }
@@ -214,6 +229,7 @@ async function loadArchiveStats() {
     }
   }
   hasOwnFamilies.value = false
+  myFamilies.value = []
   archiveStats.value = [
     { label: '展示家庭', value: showcaseTotal.value > 0 ? String(showcaseTotal.value) : '—' },
     { label: '家庭故事', value: articles.value.length > 0 ? String(articles.value.length) : '—' },
@@ -256,6 +272,12 @@ function openCreateFamily() {
 function openHomePrimaryEntry() {
   if (!hasOwnFamilies.value && session.isLoggedIn) {
     openCreateFamily()
+    return
+  }
+  if (hasOwnFamilies.value && myFamilies.value.length === 1) {
+    uni.navigateTo({
+      url: `/pages/family/private-tree?familyId=${encodeURIComponent(String(myFamilies.value[0].id))}`
+    })
     return
   }
   goMyFamilyTab()

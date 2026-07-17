@@ -54,8 +54,18 @@
           <switch :checked="form.isAlive" color="#163353" @change="onAliveChange" />
         </label>
 
-        <text class="tree-field-label">成员简介</text>
-        <textarea v-model.trim="form.description" class="tree-textarea" maxlength="500" placeholder="可选" />
+        <template v-if="!form.isAlive">
+          <text class="tree-field-label">离世年份</text>
+          <input v-model="deathYearInput" class="tree-input" type="number" placeholder="可选，如 2024" />
+        </template>
+
+        <text class="tree-field-label">{{ form.isAlive ? '成员简介' : '亲人简介 / 离世说明' }}</text>
+        <textarea
+          v-model.trim="form.description"
+          class="tree-textarea"
+          maxlength="500"
+          :placeholder="form.isAlive ? '可选' : '可记录离世原因、生平简述或家人纪念文字'"
+        />
 
         <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
         <MiniButton class="edit-action" :loading="saving" :disabled="saving" @click="saveMember">
@@ -111,6 +121,7 @@ const loadError = ref('')
 const actionError = ref('')
 const genderIndex = ref(2)
 const birthYearInput = ref('')
+const deathYearInput = ref('')
 const genderLabels = ['男', '女', '未知']
 const genderValues: Gender[] = ['MALE', 'FEMALE', 'UNKNOWN']
 
@@ -181,6 +192,7 @@ async function loadMember() {
     form.gender = (member.gender || 'UNKNOWN') as Gender
     genderIndex.value = Math.max(0, genderValues.indexOf(form.gender))
     birthYearInput.value = member.birthYear ? String(member.birthYear) : ''
+    deathYearInput.value = member.deathYear ? String(member.deathYear) : ''
     form.isAlive = member.isAlive !== false
     form.description = member.description || ''
   } catch (error) {
@@ -206,6 +218,7 @@ async function saveMember() {
       name: normalizeText(form.name),
       gender: form.gender,
       birthYear: yearValue(birthYearInput.value),
+      deathYear: form.isAlive ? undefined : yearValue(deathYearInput.value),
       isAlive: form.isAlive,
       description: optionalText(form.description)
     })

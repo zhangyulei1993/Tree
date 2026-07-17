@@ -73,8 +73,8 @@
     <template v-else>
       <view v-if="familyName && memberId" class="member-invite-panel archive-form-panel">
         <view class="archive-section-head">
-          <text class="archive-section-title">邀请绑定节点</text>
-          <text class="archive-section-subtitle">从家庭树节点直接发起，邀请对方确认并绑定此成员</text>
+          <text class="archive-section-title">邀请本人绑定节点</text>
+          <text class="archive-section-subtitle">对方接受后会加入家庭，并成为这个家庭树节点本人</text>
         </view>
         <view class="archive-list member-invite-summary">
           <view class="archive-row share-field-row">
@@ -82,6 +82,9 @@
             <text class="share-field-value">{{ memberName || '未命名成员' }}</text>
           </view>
         </view>
+        <MiniNotice tone="security" title="接受后的结果">
+          对方会绑定到“{{ memberName || '该成员' }}”节点；不会新增其他成员节点。
+        </MiniNotice>
         <textarea
           v-model.trim="memberInviteMessage"
           class="tree-textarea family-invite-message"
@@ -94,15 +97,18 @@
           :disabled="Boolean(actingId) || actingType === 'create-member'"
           @click="createMemberBindingInvitation"
         >
-          生成节点邀请
+          生成节点绑定邀请
         </MiniButton>
       </view>
 
       <view v-if="familyName && !isNodeInviteMode" class="family-invite-panel archive-form-panel">
         <view class="archive-section-head">
           <text class="archive-section-title">邀请加入家庭</text>
-          <text class="archive-section-subtitle">适合确认对方属于本家庭，但成员节点还需要之后再确认</text>
+          <text class="archive-section-subtitle">适合确认对方属于本家庭，但暂不确认具体家庭树节点</text>
         </view>
+        <MiniNotice tone="security" title="接受后的结果">
+          对方会加入家庭；接受前不会生成成员，接受后会按身份标签新增一位待接入成员，后续再确认分支。
+        </MiniNotice>
         <input
           v-model.trim="pendingMemberLabel"
           class="tree-input pending-member-label"
@@ -124,7 +130,7 @@
           :disabled="Boolean(actingId) || actingType === 'create-family'"
           @click="createPendingFamilyInvitation"
         >
-          生成家庭邀请
+          生成加入家庭邀请
         </MiniButton>
       </view>
 
@@ -146,8 +152,8 @@
         <MiniEmptyState
           symbol="邀"
           title="暂无发出的家庭邀请"
-          description="可直接邀请加入家庭，也可在成员列表中邀请绑定指定成员。"
-          action-text="前往成员列表"
+          description="此处用于邀请加入家庭；如需绑定指定家庭树节点，请前往成员表或点击未绑定节点。"
+          action-text="前往成员表绑定节点"
           @action="openMembers"
         />
       </view>
@@ -263,11 +269,11 @@ const pendingMemberLabel = ref('')
 const familyRoleLabel = computed(() => (familyRole.value === 'FOUNDER' ? '创建者' : '管理员'))
 const familySealLetter = computed(() => familySurname.value.slice(0, 1) || familyName.value.slice(0, 1) || '邀')
 const isNodeInviteMode = computed(() => inviteMode.value === 'node' && Boolean(memberId.value))
-const pageTitle = computed(() => (isNodeInviteMode.value ? '邀请绑定节点' : '发出的家庭邀请'))
+const pageTitle = computed(() => (isNodeInviteMode.value ? '邀请本人绑定节点' : '邀请加入家庭'))
 const pageSubtitle = computed(() =>
   isNodeInviteMode.value
-    ? `${familyName.value} · 邀请对方确认并绑定指定成员`
-    : `${familyName.value} · 管理加入家庭与账号绑定邀请`
+    ? `${familyName.value} · 接受后成为指定家庭树节点本人`
+    : `${familyName.value} · 接受后先加入家庭，节点身份可后续确认`
 )
 const pendingCount = computed(() =>
   invitations.value.filter((item) => displayStatus(item) === 'PENDING').length
@@ -276,8 +282,8 @@ const shareInvitationSubtitle = computed(() => {
   const invitation = shareResult.value?.invitation
   if (!invitation) return ''
   return isPendingMemberInvitation(invitation)
-    ? `邀请对方先加入家庭，身份标签：${inviteTargetText(invitation)}`
-    : `邀请 ${invitation.targetMemberName} 绑定账号`
+    ? `对方将先加入家庭，身份标签：${inviteTargetText(invitation)}`
+    : `对方将绑定“${invitation.targetMemberName}”节点`
 })
 const invitationGroups = computed(() => {
   const current = invitations.value.filter((item) => displayStatus(item) === 'PENDING')

@@ -27,6 +27,14 @@
           <el-form-item label="可加入家庭数">
             <el-input-number v-model="item.maxJoinedFamilies" :min="0" :max="99" />
           </el-form-item>
+          <el-divider content-position="left">字辈权益</el-divider>
+          <el-form-item label="支持字辈体系">
+            <el-switch
+              v-model="item.supportsGenerationNaming"
+              active-text="开启"
+              inactive-text="关闭"
+            />
+          </el-form-item>
         </el-form>
 
         <div class="impact-box" v-if="item.impact">
@@ -43,6 +51,39 @@
         </div>
       </el-card>
     </div>
+
+    <el-card class="feature-card" shadow="never">
+      <template #header>
+        <div class="card-header">
+          <strong>字辈功能灰度体验</strong>
+          <span class="muted">指定手机号可提前体验字辈体系；不改变账号等级权益配置。</span>
+        </div>
+      </template>
+
+      <el-form label-width="180px">
+        <el-form-item label="体验手机号">
+          <el-input
+            v-model="generationNamingPhonesInput"
+            type="textarea"
+            :rows="4"
+            placeholder="输入完整手机号，多个号码可换行、逗号或空格分隔"
+          />
+        </el-form-item>
+      </el-form>
+
+      <div class="override-list">
+        <span class="muted">当前名单：</span>
+        <el-tag v-for="item in generationNamingOverrides" :key="item.phoneMask" type="info">
+          {{ item.phoneMask }}
+        </el-tag>
+        <span v-if="generationNamingOverrides.length === 0" class="muted">暂无</span>
+      </div>
+
+      <div class="card-actions">
+        <el-button :loading="overrideLoading" @click="loadGenerationNamingOverrides">刷新名单</el-button>
+        <el-button type="primary" :loading="overrideSaving" @click="saveGenerationNamingOverrides">保存体验名单</el-button>
+      </div>
+    </el-card>
   </div>
 </template>
 
@@ -51,9 +92,15 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 
 import { getApiErrorMessage } from '@/api/client'
-import { listAccountQuotaConfigs, previewAccountQuotaImpact, updateAccountQuotaConfig } from '@/api/accountQuota'
+import {
+  listAccountFeatureOverrides,
+  listAccountQuotaConfigs,
+  previewAccountQuotaImpact,
+  updateAccountFeatureOverrides,
+  updateAccountQuotaConfig
+} from '@/api/accountQuota'
 import PageHeader from '@/components/PageHeader.vue'
-import type { AccountQuotaConfig, AccountQuotaImpactPreview } from '@/types/api'
+import type { AccountFeatureOverrideItem, AccountQuotaConfig, AccountQuotaImpactPreview } from '@/types/api'
 
 interface QuotaForm extends AccountQuotaConfig {
   saving: boolean
@@ -65,6 +112,11 @@ const loading = ref(false)
 const loadError = ref('')
 const operationError = ref('')
 const forms = reactive<QuotaForm[]>([])
+const generationNamingPhonesInput = ref('')
+const generationNamingOverrides = ref<AccountFeatureOverrideItem[]>([])
+const overrideLoading = ref(false)
+const overrideSaving = ref(false)
+const GENERATION_NAMING_FEATURE = 'GENERATION_NAMING'
 
 function tierLabel(tier: string) {
   return tier === 'PHONE_BOUND' ? '备用登录已开启' : '仅微信登录'
@@ -88,7 +140,8 @@ function isLowering(current: AccountQuotaConfig, next: QuotaForm) {
   return (
     next.maxOwnedFamilies < current.maxOwnedFamilies ||
     next.maxMembersPerOwnedFamily < current.maxMembersPerOwnedFamily ||
-    next.maxJoinedFamilies < current.maxJoinedFamilies
+    next.maxJoinedFamilies < current.maxJoinedFamilies ||
+    (current.supportsGenerationNaming && !next.supportsGenerationNaming)
   )
 }
 
@@ -105,6 +158,48 @@ async function loadConfigs() {
   }
 }
 
+async function loadGenerationNamingOverrides() {
+  overrideLoading.value = true
+  operationError.value = ''
+  try {
+    generationNamingOverrides.value = await listAccountFeatureOverrides(GENERATION_NAMING_FEATURE)
+  } catch (error) {
+    operationError.value = getApiErrorMessage(error)
+  } finally {
+    overrideLoading.value = false
+  }
+}
+
+function parsePhonesInput(value: string) {
+  return value
+    .split(/[\s,，;；]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+async function saveGenerationNamingOverrides() {
+  const phones = parsePhonesInput(generationNamingPhonesInput.value)
+  try {
+    await ElMessageBox.confirm(
+      `保存后将用这 ${phones.length} 个手机号替换当前字辈体验名单。确认保存？`,
+      '确认保存体验名单',
+      { type: 'warning', confirmButtonText: '确认保存', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  overrideSaving.value = true
+  operationError.value = ''
+  try {
+    generationNamingOverrides.value = await updateAccountFeatureOverrides(GENERATION_NAMING_FEATURE, phones)
+    generationNamingPhonesInput.value = ''
+  } catch (error) {
+    operationError.value = getApiErrorMessage(error)
+  } finally {
+    overrideSaving.value = false
+  }
+}
+
 async function preview(item: QuotaForm): Promise<boolean> {
   item.previewing = true
   operationError.value = ''
@@ -112,7 +207,8 @@ async function preview(item: QuotaForm): Promise<boolean> {
     item.impact = await previewAccountQuotaImpact(item.trustTier, {
       maxOwnedFamilies: item.maxOwnedFamilies,
       maxMembersPerOwnedFamily: item.maxMembersPerOwnedFamily,
-      maxJoinedFamilies: item.maxJoinedFamilies
+      maxJoinedFamilies: item.maxJoinedFamilies,
+      supportsGenerationNaming: item.supportsGenerationNaming
     })
     return true
   } catch (error) {
@@ -152,7 +248,8 @@ async function save(item: QuotaForm) {
     const saved = await updateAccountQuotaConfig(item.trustTier, {
       maxOwnedFamilies: item.maxOwnedFamilies,
       maxMembersPerOwnedFamily: item.maxMembersPerOwnedFamily,
-      maxJoinedFamilies: item.maxJoinedFamilies
+      maxJoinedFamilies: item.maxJoinedFamilies,
+      supportsGenerationNaming: item.supportsGenerationNaming
     })
     Object.assign(item, snapshot(saved))
   } catch (error) {
@@ -162,7 +259,10 @@ async function save(item: QuotaForm) {
   }
 }
 
-onMounted(loadConfigs)
+onMounted(() => {
+  loadConfigs()
+  loadGenerationNamingOverrides()
+})
 </script>
 
 <style scoped>
@@ -172,8 +272,13 @@ onMounted(loadConfigs)
   gap: 20px;
 }
 
-.quota-card {
+.quota-card,
+.feature-card {
   border-radius: 16px;
+}
+
+.feature-card {
+  margin-top: 20px;
 }
 
 .card-header {
@@ -203,5 +308,13 @@ onMounted(loadConfigs)
 .card-actions {
   display: flex;
   gap: 12px;
+}
+
+.override-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 16px;
+  align-items: center;
 }
 </style>

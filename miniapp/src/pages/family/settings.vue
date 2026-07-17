@@ -45,7 +45,7 @@
 
         <template v-else-if="family.status === 'DISSOLUTION_COOLDOWN'">
           <MiniNotice tone="warm" title="家庭处于恢复冷静期">
-            冷静期内家庭仅可查看、不可编辑，并会从普通家庭列表隐藏。创建者确认无误后，可直接跳过冷静期完成解散。
+            冷静期家庭会在“我的家庭”中标记为冷静期；当前仅可查看、不可编辑。创建者可恢复家庭，或跳过冷静期完成解散。
           </MiniNotice>
           <view class="archive-form-panel">
             <view class="archive-section-head">

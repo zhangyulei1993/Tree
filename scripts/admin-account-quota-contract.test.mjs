@@ -10,7 +10,7 @@ const adminApi = readFileSync(join(root, 'admin-web/src/api/accountQuota.ts'), '
 
 test('admin quota page loads configs from backend on mount', () => {
   assert.match(adminView, /listAccountQuotaConfigs/)
-  assert.match(adminView, /onMounted\(loadConfigs\)/)
+  assert.match(adminView, /loadConfigs\(\)/)
   assert.match(adminApi, /\/admin\/account-quota-configs/)
 })
 
@@ -28,6 +28,14 @@ test('admin quota page previews impact before save', () => {
 test('admin quota page confirms lowering limits', () => {
   assert.match(adminView, /isLowering/)
   assert.match(adminView, /确认降低额度/)
+})
+
+test('admin quota page manages generation naming feature overrides', () => {
+  assert.match(adminView, /字辈功能灰度体验/)
+  assert.match(adminView, /GENERATION_NAMING/)
+  assert.match(adminView, /listAccountFeatureOverrides/)
+  assert.match(adminView, /updateAccountFeatureOverrides/)
+  assert.match(adminApi, /\/admin\/account-feature-overrides\/\$\{featureKey\}/)
 })
 
 test('admin sidebar restricts quota config to root and super admins', () => {

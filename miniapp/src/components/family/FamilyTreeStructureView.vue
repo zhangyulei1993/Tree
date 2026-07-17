@@ -4,6 +4,7 @@
     :viewer-member-id="viewerMemberId"
     :show-binding="showBinding"
     :interactive="interactive"
+    :selectable-deceased="selectableDeceased"
     @select="emit('select', $event)"
   />
 </template>
@@ -17,6 +18,7 @@ defineProps<{
   viewerMemberId?: number | null
   showBinding?: boolean
   interactive?: boolean
+  selectableDeceased?: boolean
 }>()
 
 const emit = defineEmits<{

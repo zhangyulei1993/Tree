@@ -6,6 +6,7 @@
     :kinship-title="kinshipTitle"
     :family-surname="familySurname"
     :interactive="interactive"
+    :selectable="selectable"
     compact
     @select="emit('select', $event)"
   />
@@ -22,6 +23,7 @@ defineProps<{
   kinshipTitle?: string
   familySurname?: string
   interactive?: boolean
+  selectable?: boolean
 }>()
 
 const emit = defineEmits<{

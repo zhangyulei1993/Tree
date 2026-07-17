@@ -46,6 +46,7 @@ test('fresh quota session creates new user token and admin-aligned capabilities'
     assert.equal(session.capabilities.limits.maxOwnedFamilies, wechatConfig.maxOwnedFamilies)
     assert.equal(session.capabilities.limits.maxMembersPerOwnedFamily, wechatConfig.maxMembersPerOwnedFamily)
     assert.equal(session.capabilities.limits.maxJoinedFamilies, wechatConfig.maxJoinedFamilies)
+    assert.equal(session.capabilities.limits.supportsGenerationNaming, wechatConfig.supportsGenerationNaming)
     assert.equal(session.capabilities.usage.ownedFamilies, 0)
     assert.equal(session.capabilities.usage.joinedFamilies, 0)
   } finally {
@@ -72,7 +73,8 @@ test('account security page shows admin-driven quota lines in Playwright', { tim
       limits: {
         maxOwnedFamilies: wechatConfig.maxOwnedFamilies,
         maxMembersPerOwnedFamily: wechatConfig.maxMembersPerOwnedFamily,
-        maxJoinedFamilies: wechatConfig.maxJoinedFamilies
+        maxJoinedFamilies: wechatConfig.maxJoinedFamilies,
+        supportsGenerationNaming: wechatConfig.supportsGenerationNaming
       },
       usage: session.capabilities.usage
     })

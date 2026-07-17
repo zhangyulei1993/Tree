@@ -113,7 +113,7 @@
                   :disabled="deletingMemberId === String(member.memberId)"
                   @click="confirmDeleteMember(member)"
                 >
-                  删除节点
+                  删除成员
                 </MiniButton>
               </view>
               <MiniNotice
@@ -123,7 +123,7 @@
               >
                 {{
                   displayInvitationStatus(memberInvitation(member)!) === 'EXPIRED'
-                    ? `请前往“发出的成员邀请”重新生成 ${member.name} 的绑定链接。`
+                    ? `请前往“发出的家庭邀请”重新生成 ${member.name} 的绑定链接。`
                     : `${member.name} 这个成员节点已有待处理邀请，无需重复创建。`
                 }}
               </MiniNotice>
@@ -151,7 +151,7 @@
                 :disabled="unbindingMemberId === String(member.memberId)"
                 @click="confirmUnbindMember(member)"
               >
-                解除账号绑定
+                解除账号绑定（保留节点）
               </MiniButton>
             </view>
 

@@ -78,7 +78,7 @@
             </view>
 
             <view v-if="item.requestStatus === 'PENDING'" class="review-actions">
-              <MiniButton size="sm" :disabled="isActing(item)" @click="openResolvePanel(item, resolveMode)">
+              <MiniButton size="sm" :disabled="isActing(item)" @click="openResolvePanel(item, defaultResolveMode())">
                 处理申请
               </MiniButton>
               <MiniButton
@@ -158,7 +158,7 @@
                 <picker mode="selector" :range="genderLabels" :value="genderIndex" @change="onSelectGender">
                   <view class="field-picker">{{ genderLabels[genderIndex] }}</view>
                 </picker>
-                <text class="tree-field-label">基准成员</text>
+                <text class="tree-field-label">从谁开始</text>
                 <picker
                   v-if="members.length > 0"
                   mode="selector"
@@ -169,9 +169,9 @@
                   <view class="field-picker">{{ selectedBaseMemberLabel }}</view>
                 </picker>
                 <MiniNotice v-else tone="warm">
-                  当前家庭还没有可作为基准的成员，无法定位到家庭树。
+                  当前家庭还没有可作为起点的成员，无法定位到家庭树。
                 </MiniNotice>
-                <text class="tree-field-label">与基准成员的关系</text>
+                <text class="tree-field-label">申请人是 TA 的</text>
                 <picker mode="selector" :range="relationOptionLabels" :value="addTypeIndex" @change="onSelectAddType">
                   <view class="field-picker">{{ selectedAddTypeLabel }}</view>
                 </picker>
@@ -186,7 +186,7 @@
                   <view class="field-picker">{{ parentRoleLabels[parentRoleIndex] }}</view>
                 </picker>
                 <MiniNotice v-if="showParentRolePicker && selectedParentMemberType === 'SPOUSE'" tone="warm">
-                  选择「本家成员的配偶」时，基准成员必须已有相反性别的本家成员父母。
+                  选择「本家成员的配偶」时，起点成员必须已有相反性别的本家成员父母。
                 </MiniNotice>
                 <MiniNotice :tone="placementTone">
                   {{ selectedPlacement.message }}
@@ -319,7 +319,7 @@ const selectedExistingMemberLabel = computed(() =>
   bindableMemberLabels.value[selectedMemberIndex.value] || '请选择成员'
 )
 const selectedBaseMemberLabel = computed(() =>
-  memberLabels.value[baseMemberIndex.value] || '请选择基准成员'
+  memberLabels.value[baseMemberIndex.value] || '请选择成员'
 )
 const selectedBaseMember = computed(() => orderedMembers.value[baseMemberIndex.value])
 const relationOptions = computed(() => buildRelationOptions(resolveForm.gender, selectedBaseMember.value))
@@ -455,6 +455,12 @@ function genderText(value?: string | null) {
   return '未填写'
 }
 
+function defaultResolveMode(): 'bind' | 'locate' | 'standalone' {
+  if (bindableMembers.value.length > 0) return 'bind'
+  if (members.value.length > 0) return 'locate'
+  return 'standalone'
+}
+
 function openResolvePanel(item: JoinRequest, mode: 'bind' | 'locate' | 'standalone') {
   activeRequestId.value = item.requestId
   resolveMode.value = mode
@@ -516,22 +522,22 @@ function buildRelationOptions(gender: Gender, base?: FamilyMember): RelationOpti
 }
 
 function placementState(base: FamilyMember | undefined, addType: RelationshipAddType): PlacementState {
-  if (!base) return { blocked: true, message: '请先选择基准成员。' }
+  if (!base) return { blocked: true, message: '请先选择从谁开始。' }
   if (addType === 'ADD_FATHER') return parentPlacement(base, 'MALE', '父亲', '继父', 'STEP_FATHER')
   if (addType === 'ADD_MOTHER') return parentPlacement(base, 'FEMALE', '母亲', '继母', 'STEP_MOTHER')
   if (addType === 'ADD_SPOUSE') return spousePlacement(base)
   if (addType === 'ADD_CHILD') {
     if (base.gender !== 'MALE' && base.gender !== 'FEMALE') {
-      return { blocked: true, message: '请先完善基准成员性别，再添加子女。' }
+      return { blocked: true, message: '请先完善起点成员性别，再添加子女。' }
     }
     return { blocked: false, message: '将创建子女关系。', parentLinkType: 'PRIMARY' }
   }
   if (addType === 'ADD_SIBLING') {
     const parents = parentNodes(base.memberId)
     if (parents.length === 0) {
-      return { blocked: true, message: '该基准成员还没有父亲或母亲节点，请先创建父亲或母亲节点。' }
+      return { blocked: true, message: '该成员还没有父亲或母亲节点，请先创建父亲或母亲节点。' }
     }
-    return { blocked: false, message: '将沿用基准成员已有父母，创建兄弟姐妹关系。', parentLinkType: 'PRIMARY' }
+    return { blocked: false, message: '将沿用该成员已有父母，创建兄弟姐妹关系。', parentLinkType: 'PRIMARY' }
   }
   return { blocked: false, message: '' }
 }
@@ -555,7 +561,7 @@ function parentPlacement(base: FamilyMember, gender: Gender, label: string, step
 
 function spousePlacement(base: FamilyMember) {
   if (base.gender !== 'MALE' && base.gender !== 'FEMALE') {
-    return { blocked: true, message: '请先完善基准成员性别，再添加配偶。' }
+    return { blocked: true, message: '请先完善起点成员性别，再添加配偶。' }
   }
   const spouseGender: Gender = base.gender === 'MALE' ? 'FEMALE' : 'MALE'
   const label = spouseGender === 'MALE' ? '丈夫' : '妻子'
@@ -640,7 +646,7 @@ function confirmCreateLocated(item: JoinRequest) {
   if (!name) return
   const baseMember = members.value[baseMemberIndex.value]
   if (!baseMember) {
-    operationError.value = '请选择基准成员。'
+    operationError.value = '请选择从谁开始。'
     return
   }
   if (selectedPlacement.value.blocked) {

@@ -7,7 +7,8 @@
       {
         self: isSelf,
         compact,
-        interactive
+        interactive,
+        selectable
       }
     ]"
     @tap="handleSelect"
@@ -27,6 +28,7 @@
     <view v-if="isSelf || (showBinding && bindingText && !isDeceased)" class="chip-meta">
       <view v-if="isSelf" class="gender-dot" :class="genderDotClass" />
       <view v-if="showBinding && bindingText && !isDeceased" class="binding-dot" :class="bindingClass" />
+      <text v-if="showBinding && bindingText && !isDeceased" class="binding-label">{{ bindingText }}</text>
     </view>
   </view>
 </template>
@@ -45,6 +47,7 @@ const props = defineProps<{
   compact?: boolean
   familySurname?: string
   interactive?: boolean
+  selectable?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -52,7 +55,7 @@ const emit = defineEmits<{
 }>()
 
 function handleSelect() {
-  if (props.interactive) emit('select', props.node)
+  if (props.interactive || props.selectable) emit('select', props.node)
 }
 
 const displayName = computed(() => props.node.displayName.trim() || '未命名')
@@ -131,6 +134,9 @@ const bindingClass = computed(() => {
 .tree-member-chip.interactive {
   border-color: var(--archive-line-strong, rgba(92, 74, 48, 0.28));
   box-shadow: inset 0 0 0 2rpx rgba(255, 255, 255, 0.34);
+}
+.tree-member-chip.selectable {
+  border-color: rgba(168, 59, 45, 0.42);
 }
 .tree-member-chip.interactive::before {
   content: '';
@@ -381,6 +387,15 @@ const bindingClass = computed(() => {
   gap: 5rpx;
   width: 100%;
   margin-top: 5rpx;
+}
+.binding-label {
+  overflow: hidden;
+  max-width: 82rpx;
+  color: var(--archive-ink-soft, #657080);
+  font-size: 15rpx;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .meta {
   color: var(--archive-ink-soft, #657080);

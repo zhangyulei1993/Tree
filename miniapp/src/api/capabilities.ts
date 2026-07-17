@@ -6,7 +6,8 @@ const mockCapabilities: UserCapabilities = {
   limits: {
     maxOwnedFamilies: 1,
     maxMembersPerOwnedFamily: 10,
-    maxJoinedFamilies: 1
+    maxJoinedFamilies: 1,
+    supportsGenerationNaming: false
   },
   usage: {
     ownedFamilies: 0,

@@ -105,6 +105,46 @@ func (h *Handler) PreviewImpact(ctx *gin.Context) {
 	write(ctx, result, businessErr)
 }
 
+func (h *Handler) ListFeatureOverrides(ctx *gin.Context) {
+	role, err := middleware.CurrentAdminRole(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	featureKey := strings.ToUpper(strings.TrimSpace(ctx.Param("featureKey")))
+	if featureKey == "" {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	result, businessErr := h.service.ListFeatureOverrides(ctx.Request.Context(), role, featureKey)
+	write(ctx, result, businessErr)
+}
+
+func (h *Handler) UpdateFeatureOverrides(ctx *gin.Context) {
+	adminID, err := middleware.CurrentAdminID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	role, err := middleware.CurrentAdminRole(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	featureKey := strings.ToUpper(strings.TrimSpace(ctx.Param("featureKey")))
+	if featureKey == "" {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	var req quotadto.UpdateFeatureOverridesRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	result, businessErr := h.service.UpdateFeatureOverrides(ctx.Request.Context(), adminID, role, featureKey, req.Phones, audit(ctx))
+	write(ctx, result, businessErr)
+}
+
 func write(ctx *gin.Context, value any, businessErr *apperrors.BusinessError) {
 	if businessErr != nil {
 		status := http.StatusBadRequest

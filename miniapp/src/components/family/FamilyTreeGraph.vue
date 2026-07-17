@@ -70,6 +70,7 @@
                   :kinship-title="kinshipTitles[parent.memberId]"
                   :family-surname="familySurname"
                   :interactive="interactive"
+                  :selectable="isNodeSelectable(parent)"
                   @select="emit('select', $event)"
                 />
               </template>
@@ -95,7 +96,7 @@
             v-for="node in layout.unlocatedMembers"
             :key="node.memberId"
             class="unlocated-card-hit"
-            :class="{ interactive }"
+            :class="{ interactive, selectable: isNodeSelectable(node) }"
             @tap.stop="handleUnlocatedSelect(node)"
           >
             <FamilyTreePersonCard
@@ -105,6 +106,8 @@
               :kinship-title="kinshipTitles[node.memberId]"
               :family-surname="familySurname"
               :interactive="false"
+              :selectable="isNodeSelectable(node)"
+              @select="emit('select', $event)"
             />
           </view>
         </view>
@@ -128,6 +131,7 @@ const props = defineProps<{
   viewerMemberId?: number | null
   showBinding?: boolean
   interactive?: boolean
+  selectableDeceased?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -135,8 +139,12 @@ const emit = defineEmits<{
 }>()
 
 function handleUnlocatedSelect(node: FamilyTreeResult['nodes'][number]) {
-  if (!props.interactive) return
+  if (!isNodeSelectable(node)) return
   emit('select', node)
+}
+
+function isNodeSelectable(node: FamilyTreeResult['nodes'][number]) {
+  return Boolean(props.interactive || (props.selectableDeceased && node.isLiving === false))
 }
 
 const effectiveViewerMemberId = computed(() => {

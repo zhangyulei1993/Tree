@@ -13,22 +13,22 @@
     <template v-else>
       <view v-if="family" class="manage-head archive-page-head">
         <view>
-          <text class="archive-kicker">Genealogy Admin</text>
-          <text class="archive-title">关系管理</text>
+          <text class="archive-kicker">Family Tree Edit</text>
+          <text class="archive-title">添加与调整</text>
           <text class="archive-subtitle">
-            {{ family.familyName }} · 添加节点、暂存成员并接入家庭树
+            {{ family.familyName }} · 先确认关系，再选择添加、暂存或调整
           </text>
         </view>
         <view class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
       </view>
 
       <view v-if="family" class="manage-context">
-        <text class="context-back" @click="openPrivateTree">返回关系图</text>
+        <text class="context-back" @click="openPrivateTree">返回家庭树</text>
       </view>
 
       <view v-if="!canManage" class="manage-state archive-form-panel">
         <MiniNotice tone="warm" title="无管理权限">只有家庭创建者或家庭管理员可以维护成员和关系。</MiniNotice>
-        <MiniButton variant="secondary" @click="openPrivateTree">返回关系图</MiniButton>
+        <MiniButton variant="secondary" @click="openPrivateTree">返回家庭树</MiniButton>
       </view>
 
       <template v-else>
@@ -52,7 +52,7 @@
           :class="{ active: manageSection === 'place' }"
           @click="manageSection = 'place'"
         >
-          <text>暂存转化</text>
+          <text>接入暂存</text>
         </view>
         <view
           class="archive-segment-tab"
@@ -63,27 +63,26 @@
         </view>
       </view>
       <view class="manage-flow-note archive-panel">
-        <text>添加节点：关系已确认，直接接入家庭树。</text>
-        <text>添加暂存：只记录成员档案，暂不进入关系图。</text>
-        <text>暂存转化：确认分支后，把暂存成员接入家庭树。</text>
-        <text>调关系：删除或修正已有父母、子女、配偶关系。</text>
+        <text class="manage-flow-title">{{ sectionGuide.title }}</text>
+        <text>{{ sectionGuide.description }}</text>
       </view>
 
       <view v-if="manageSection === 'node'" class="archive-form-panel">
         <view class="archive-section-head">
           <text class="archive-section-title">添加节点</text>
-          <text class="archive-section-subtitle">已确认亲属关系时，以基准成员为起点创建并接入家庭树</text>
+          <text class="archive-section-subtitle">已确认亲属关系时，直接添加到家庭树</text>
         </view>
         <picker :range="memberLabels" :value="baseMemberIndex" @change="onBaseMemberChange">
           <view class="field-picker">
-            <text class="field-picker-prefix">基准成员：</text>{{ selectedBaseMember?.name || '选择基准成员' }}
+            <text class="field-picker-prefix">和谁有关：</text>{{ selectedBaseMember?.name || '选择成员' }}
           </view>
         </picker>
         <picker :range="relationLabels" :value="relationIndex" @change="onRelationChange">
           <view class="field-picker">
-            <text class="field-picker-prefix">要添加：</text>{{ relationLabels[relationIndex] }}
+            <text class="field-picker-prefix">准备添加：</text>{{ relationLabels[relationIndex] }}
           </view>
         </picker>
+        <MiniNotice tone="security" title="关系预览">{{ relativePreview }}</MiniNotice>
         <picker
           v-if="showParentRolePicker"
           :range="parentRoleLabels"
@@ -91,13 +90,13 @@
           @change="onParentRoleChange"
         >
           <view class="field-picker">
-            <text class="field-picker-prefix">新成员归属：</text>{{ parentRoleLabels[parentRoleIndex] }}
+            <text class="field-picker-prefix">父母身份（图示）：</text>{{ parentRoleLabels[parentRoleIndex] }}
           </view>
         </picker>
         <text v-if="showParentRolePicker" class="field-help">
-          用于决定关系图纸签样式；若已有另一位家庭成员父/母，可选择配偶，否则先用家庭成员建立父母关系。
+          仅影响关系图纸签样式，不改变亲属关系；已有另一位家庭成员父/母时，可选择“家庭成员的配偶”。
         </text>
-        <input v-model.trim="relativeName" class="tree-input" maxlength="80" placeholder="节点成员姓名" />
+        <input v-model.trim="relativeName" class="tree-input" maxlength="80" placeholder="新成员姓名" />
         <picker :range="genderLabels" :value="relativeGenderIndex" @change="onRelativeGenderChange">
           <view class="field-picker">性别：{{ genderLabels[relativeGenderIndex] }}</view>
         </picker>
@@ -147,8 +146,8 @@
 
       <view v-if="manageSection === 'place'" class="archive-form-panel">
         <view class="archive-section-head">
-          <text class="archive-section-title">暂存转化</text>
-          <text class="archive-section-subtitle">确认清楚后，将暂存成员连接到现有成员并进入关系图</text>
+          <text class="archive-section-title">接入暂存</text>
+          <text class="archive-section-subtitle">确认分支后，再把暂存成员接入家庭树</text>
         </view>
         <MiniEmptyState
           v-if="unlocatedMembers.length === 0"
@@ -161,21 +160,22 @@
             <view class="field-picker">待接入：{{ selectedPlaceMember?.name || '选择成员' }}</view>
           </picker>
           <picker :range="placementBaseLabels" :value="placeBaseIndex" @change="onPlaceBaseChange">
-            <view class="field-picker">基准成员：{{ selectedPlaceBase?.name || '选择基准成员' }}</view>
+            <view class="field-picker">和谁有关：{{ selectedPlaceBase?.name || '选择成员' }}</view>
           </picker>
           <picker :range="relationLabels" :value="placeRelationIndex" @change="onPlaceRelationChange">
-            <view class="field-picker">关系：{{ relationLabels[placeRelationIndex] }}</view>
+            <view class="field-picker">确认关系为：{{ relationLabels[placeRelationIndex] }}</view>
           </picker>
+          <MiniNotice tone="security" title="接入预览">{{ placementPreview }}</MiniNotice>
           <picker
             v-if="showPlaceParentRolePicker"
             :range="parentRoleLabels"
             :value="placeParentRoleIndex"
             @change="onPlaceParentRoleChange"
           >
-            <view class="field-picker">新成员归属：{{ parentRoleLabels[placeParentRoleIndex] }}</view>
+            <view class="field-picker">父母身份（图示）：{{ parentRoleLabels[placeParentRoleIndex] }}</view>
           </picker>
           <text v-if="showPlaceParentRolePicker" class="field-help">
-            用于决定关系图纸签样式；若已有另一位家庭成员父/母，可选择配偶，否则先用家庭成员建立父母关系。
+            仅影响关系图纸签样式，不改变亲属关系；已有另一位家庭成员父/母时，可选择“家庭成员的配偶”。
           </text>
           <MiniNotice v-if="unlocatedTypeAnomalies.length > 0" tone="warm" title="成员类型数据异常">
             以下暂存成员缺少 memberType，已从待接入列表排除：{{
@@ -183,7 +183,7 @@
             }}
           </MiniNotice>
           <MiniNotice tone="security" title="接入说明">
-            关系以“基准成员”为起点，例如选择“子女”表示待接入成员是基准成员的子女。
+            例如选择“子女”，表示这位暂存成员是所选成员的子女。
           </MiniNotice>
           <MiniButton class="manage-action" :loading="placingMember" :disabled="placingMember" @click="submitPlacement">
             接入家庭树
@@ -324,8 +324,30 @@ const selectedPlaceBaseMemberId = ref('')
 const canManage = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
 )
+const sectionGuide = computed(() => ({
+  node: {
+    title: '关系已确定',
+    description: '选择一位已有成员，再添加其父母、子女、配偶或兄弟姐妹。新成员会立即进入家庭树。'
+  },
+  pending: {
+    title: '关系暂未确认',
+    description: '先保存姓名和基础资料，不进入关系图；确认分支后再接入家庭树。'
+  },
+  place: {
+    title: '把暂存成员接入家庭树',
+    description: '选择待接入成员及其关系对象，确认后才会出现在对应分支。'
+  },
+  relations: {
+    title: '修正已有关系',
+    description: '删除或调整关系会立即影响家庭树位置和称谓，请确认后操作。'
+  }
+})[manageSection.value])
 const memberLabels = computed(() => members.value.map((member) => member.name))
 const selectedBaseMember = computed(() => members.value[baseMemberIndex.value])
+const relativePreview = computed(() => {
+  const baseName = selectedBaseMember.value?.name || '所选成员'
+  return `将为“${baseName}”添加一位${relationLabels[relationIndex.value]}。`
+})
 const relatedMemberIDs = computed(() => {
   const ids = new Set<number>()
   tree.value.edges.forEach((edge) => {
@@ -367,6 +389,11 @@ const selectedPlaceMember = computed(() => unlocatedMembers.value[placeMemberInd
 const placementBaseMembers = computed(() => members.value.filter((member) => member.memberId !== selectedPlaceMember.value?.memberId))
 const placementBaseLabels = computed(() => placementBaseMembers.value.map((member) => member.name))
 const selectedPlaceBase = computed(() => placementBaseMembers.value[placeBaseIndex.value])
+const placementPreview = computed(() => {
+  const memberName = selectedPlaceMember.value?.name || '该暂存成员'
+  const baseName = selectedPlaceBase.value?.name || '所选成员'
+  return `确认后，“${memberName}”将作为“${baseName}”的${relationLabels[placeRelationIndex.value]}接入家庭树。`
+})
 const relationScopeMember = computed(() =>
   members.value.find((member) => String(member.memberId) === initialBaseMemberId.value) || null
 )
@@ -567,7 +594,7 @@ function applyInitialSelection() {
 async function submitRelative() {
   const base = selectedBaseMember.value
   if (!base || !relativeName.value || submitting.value) {
-    operationError.value = base ? '请填写新亲属姓名。' : '请先选择基准成员。'
+    operationError.value = base ? '请填写新亲属姓名。' : '请先选择关联成员。'
     return
   }
   const validationMessage = validateTextFields([
@@ -599,7 +626,7 @@ async function submitRelative() {
     if (addType === 'ADD_FATHER' || addType === 'ADD_MOTHER') {
       newMember.memberType = parentRoleValues[parentRoleIndex.value]
     }
-    await createRelationship(familyId.value, {
+    const result = await createRelationship(familyId.value, {
       baseMemberId: base.memberId,
       addType,
       newMember,
@@ -612,8 +639,8 @@ async function submitRelative() {
     relativeBirthYear.value = ''
     relativeIsAlive.value = true
     relationNote.value = ''
-    uni.showToast({ title: '已创建并接入家庭树', icon: 'success' })
     await loadData()
+    showContinueAddModal(result.createdMember?.memberId, newMember.name)
   } catch (error) {
     operationError.value = apiErrorMessage(error, '创建亲属失败。')
   } finally {
@@ -644,8 +671,8 @@ async function submitUnlocated() {
     })
     unlocatedName.value = ''
     unlocatedIsAlive.value = true
-    uni.showToast({ title: '成员已暂存', icon: 'success' })
     await loadData()
+    showPlacePendingModal()
   } catch (error) {
     operationError.value = apiErrorMessage(error, '暂存成员失败。')
   } finally {
@@ -657,7 +684,7 @@ async function submitPlacement() {
   const member = selectedPlaceMember.value
   const base = selectedPlaceBase.value
   if (!member || !base || placingMember.value) {
-    operationError.value = '请选择待接入成员和基准成员。'
+    operationError.value = '请选择待接入成员和关联成员。'
     return
   }
   placingMember.value = true
@@ -682,15 +709,47 @@ async function submitPlacement() {
       payload.memberType = parentRoleValues[placeParentRoleIndex.value]
     }
     await placeExistingMember(familyId.value, payload)
-    uni.showToast({ title: '成员已接入家庭树', icon: 'success' })
     placeMemberIndex.value = 0
     placeBaseIndex.value = 0
     await loadData()
+    showContinueAddModal(member.memberId, member.name)
   } catch (error) {
     operationError.value = apiErrorMessage(error, '接入成员失败。')
   } finally {
     placingMember.value = false
   }
+}
+
+function showContinueAddModal(memberId: number | undefined, memberName: string) {
+  uni.showModal({
+    title: '已接入家庭树',
+    content: `“${memberName}”已在家庭树中。是否继续添加 TA 的亲属？`,
+    confirmText: '继续添加',
+    cancelText: '知道了',
+    success: (result) => {
+      if (!result.confirm || !memberId) return
+      manageSection.value = 'node'
+      syncCreateBaseSelection(String(memberId))
+      relationIndex.value = 0
+      parentRoleIndex.value = defaultParentRoleIndex(
+        relationValues[relationIndex.value],
+        selectedBaseMember.value?.memberId
+      )
+      applyRelationGenderDefault()
+    }
+  })
+}
+
+function showPlacePendingModal() {
+  uni.showModal({
+    title: '成员已暂存',
+    content: '该成员暂未进入关系图。确认身份后，可以把 TA 接入家庭树。',
+    confirmText: '去接入',
+    cancelText: '稍后',
+    success: (result) => {
+      if (result.confirm) manageSection.value = 'place'
+    }
+  })
 }
 
 function memberName(memberId: number) {

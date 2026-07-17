@@ -1,5 +1,10 @@
 import { apiClient, apiMode, unwrapData } from '@/api/client'
-import type { AccountQuotaConfig, AccountQuotaImpactPreview, UpdateAccountQuotaInput } from '@/types/api'
+import type {
+  AccountFeatureOverrideItem,
+  AccountQuotaConfig,
+  AccountQuotaImpactPreview,
+  UpdateAccountQuotaInput
+} from '@/types/api'
 
 const mockConfigs: AccountQuotaConfig[] = [
   {
@@ -7,6 +12,7 @@ const mockConfigs: AccountQuotaConfig[] = [
     maxOwnedFamilies: 1,
     maxMembersPerOwnedFamily: 10,
     maxJoinedFamilies: 1,
+    supportsGenerationNaming: false,
     updatedAt: '2026-06-01T10:00:00+08:00'
   },
   {
@@ -14,9 +20,12 @@ const mockConfigs: AccountQuotaConfig[] = [
     maxOwnedFamilies: 1,
     maxMembersPerOwnedFamily: 20,
     maxJoinedFamilies: 5,
+    supportsGenerationNaming: true,
     updatedAt: '2026-06-01T10:00:00+08:00'
   }
 ]
+
+let mockGenerationNamingOverrides: AccountFeatureOverrideItem[] = []
 
 export async function listAccountQuotaConfigs() {
   if (apiMode === 'mock') {
@@ -53,4 +62,29 @@ export async function updateAccountQuotaConfig(tier: string, input: UpdateAccoun
   }
   const response = await apiClient.put(`/admin/account-quota-configs/${tier}`, input)
   return unwrapData<AccountQuotaConfig>(response)
+}
+
+export async function listAccountFeatureOverrides(featureKey: string) {
+  if (apiMode === 'mock') {
+    return mockGenerationNamingOverrides
+  }
+  const response = await apiClient.get(`/admin/account-feature-overrides/${featureKey}`)
+  return unwrapData<AccountFeatureOverrideItem[]>(response)
+}
+
+function maskPhone(phone: string) {
+  return phone.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2')
+}
+
+export async function updateAccountFeatureOverrides(featureKey: string, phones: string[]) {
+  if (apiMode === 'mock') {
+    mockGenerationNamingOverrides = phones.map((phone) => ({
+      featureKey,
+      phoneMask: maskPhone(phone),
+      updatedAt: new Date().toISOString()
+    }))
+    return mockGenerationNamingOverrides
+  }
+  const response = await apiClient.put(`/admin/account-feature-overrides/${featureKey}`, { phones })
+  return unwrapData<AccountFeatureOverrideItem[]>(response)
 }
