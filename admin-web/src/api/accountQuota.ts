@@ -77,12 +77,20 @@ function maskPhone(phone: string) {
 
 export async function updateAccountFeatureOverrides(featureKey: string, phones: string[]) {
   if (apiMode === 'mock') {
-    mockGrayAccessOverrides = phones.map((phone) => ({
-      id: mockGrayAccessOverrideId++,
-      featureKey,
-      phoneMask: maskPhone(phone),
-      updatedAt: new Date().toISOString()
-    }))
+    const existingMasks = new Set(mockGrayAccessOverrides.map((item) => item.phoneMask))
+    const additions = phones
+      .map((phone) => ({
+        id: mockGrayAccessOverrideId++,
+        featureKey,
+        phoneMask: maskPhone(phone),
+        updatedAt: new Date().toISOString()
+      }))
+      .filter((item) => {
+        if (existingMasks.has(item.phoneMask)) return false
+        existingMasks.add(item.phoneMask)
+        return true
+      })
+    mockGrayAccessOverrides = [...mockGrayAccessOverrides, ...additions]
     return mockGrayAccessOverrides
   }
   const response = await apiClient.put(`/admin/account-feature-overrides/${featureKey}`, { phones })

@@ -28,7 +28,7 @@ type Repository interface {
 	LockAllConfigsInOrder(ctx context.Context) (wechat quotamodel.AccountQuotaConfig, phone quotamodel.AccountQuotaConfig, err error)
 	UpdateConfig(ctx context.Context, tier string, values map[string]any) error
 	ListFeatureOverrides(ctx context.Context, featureKey string) ([]quotamodel.AccountFeatureOverride, error)
-	ReplaceFeatureOverrides(ctx context.Context, featureKey string, rows []quotamodel.AccountFeatureOverride) error
+	AddFeatureOverrides(ctx context.Context, rows []quotamodel.AccountFeatureOverride) error
 	DeleteFeatureOverride(ctx context.Context, featureKey string, id uint64) (int64, error)
 	HasFeatureOverride(ctx context.Context, featureKey string, phoneHash string) (bool, error)
 	LockUser(ctx context.Context, userID uint64) (*usermodel.User, error)
@@ -110,14 +110,20 @@ func (r *GormRepository) ListFeatureOverrides(ctx context.Context, featureKey st
 	return rows, err
 }
 
-func (r *GormRepository) ReplaceFeatureOverrides(ctx context.Context, featureKey string, rows []quotamodel.AccountFeatureOverride) error {
-	if err := r.db.WithContext(ctx).Where("feature_key = ?", featureKey).Delete(&quotamodel.AccountFeatureOverride{}).Error; err != nil {
-		return err
-	}
+func (r *GormRepository) AddFeatureOverrides(ctx context.Context, rows []quotamodel.AccountFeatureOverride) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).Create(&rows).Error
+	return r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "feature_key"}, {Name: "phone_hash"}},
+			DoUpdates: clause.Assignments(map[string]any{
+				"phone_mask":          gorm.Expr("VALUES(phone_mask)"),
+				"updated_by_admin_id": gorm.Expr("VALUES(updated_by_admin_id)"),
+				"updated_at":          gorm.Expr("CURRENT_TIMESTAMP"),
+			}),
+		}).
+		Create(&rows).Error
 }
 
 func (r *GormRepository) DeleteFeatureOverride(ctx context.Context, featureKey string, id uint64) (int64, error) {

@@ -189,7 +189,7 @@ async function saveGrayAccessOverrides() {
   const phones = parsePhonesInput(grayAccessPhonesInput.value)
   try {
     await ElMessageBox.confirm(
-      `保存后将用这 ${phones.length} 个手机号替换当前灰度名单。确认保存？`,
+      `保存后会把这 ${phones.length} 个手机号追加到当前灰度名单，重复号码会自动去重。确认保存？`,
       '确认保存灰度名单',
       { type: 'warning', confirmButtonText: '确认保存', cancelButtonText: '取消' }
     )
@@ -224,7 +224,11 @@ async function clearGrayAccessOverrides() {
   overrideSaving.value = true
   operationError.value = ''
   try {
-    grayAccessOverrides.value = await updateAccountFeatureOverrides(GRAY_ACCESS_FEATURE, [])
+    let latest = grayAccessOverrides.value
+    for (const item of [...grayAccessOverrides.value]) {
+      latest = await deleteAccountFeatureOverride(GRAY_ACCESS_FEATURE, item.id)
+    }
+    grayAccessOverrides.value = latest
     grayAccessPhonesInput.value = ''
   } catch (error) {
     operationError.value = getApiErrorMessage(error)

@@ -35,6 +35,7 @@ test('admin quota page manages gray preview users', () => {
   assert.match(adminView, /GRAY_ACCESS/)
   assert.match(adminView, /listAccountFeatureOverrides/)
   assert.match(adminView, /updateAccountFeatureOverrides/)
+  assert.match(adminView, /追加到当前灰度名单/)
   assert.match(adminView, /removeGrayAccessOverride/)
   assert.match(adminView, /closable/)
   assert.match(adminView, /clearGrayAccessOverrides/)

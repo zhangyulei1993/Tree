@@ -376,6 +376,29 @@ func TestGrayAccessOverrideEnablesWechatOnlyUser(t *testing.T) {
 	}
 }
 
+func TestGrayAccessOverrideAppendsWithoutReplacing(t *testing.T) {
+	ctx := context.Background()
+	tx := quotaTestDB(t)
+	svc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
+	if _, err := svc.UpdateFeatureOverrides(ctx, 1, string(enums.AdminRoleRootAdmin), quotaservice.GrayAccess, []string{"13812345678"}, quotaservice.AuditInput{}); err != nil {
+		t.Fatalf("first update feature overrides: %v", err)
+	}
+	items, err := svc.UpdateFeatureOverrides(ctx, 1, string(enums.AdminRoleRootAdmin), quotaservice.GrayAccess, []string{"13912345678", "13812345678"}, quotaservice.AuditInput{})
+	if err != nil {
+		t.Fatalf("second update feature overrides: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected append with dedupe, got %#v", items)
+	}
+	masks := map[string]bool{}
+	for _, item := range items {
+		masks[item.PhoneMask] = true
+	}
+	if !masks["138****5678"] || !masks["139****5678"] {
+		t.Fatalf("expected both original and appended phone masks, got %#v", items)
+	}
+}
+
 func TestDeleteGrayAccessOverride(t *testing.T) {
 	ctx := context.Background()
 	tx := quotaTestDB(t)

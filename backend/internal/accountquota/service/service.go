@@ -272,9 +272,12 @@ func (s *quotaService) UpdateFeatureOverrides(ctx context.Context, adminID uint6
 	if businessErr != nil {
 		return nil, businessErr
 	}
+	if len(rows) == 0 {
+		return s.ListFeatureOverrides(ctx, role, featureKey)
+	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		txRepo := s.repoFor(tx)
-		if err := txRepo.ReplaceFeatureOverrides(ctx, featureKey, rows); err != nil {
+		if err := txRepo.AddFeatureOverrides(ctx, rows); err != nil {
 			return err
 		}
 		targetType := "ACCOUNT_FEATURE_OVERRIDE"
@@ -289,7 +292,7 @@ func (s *quotaService) UpdateFeatureOverrides(ctx context.Context, adminID uint6
 		})
 		return operationlog.NewGormService(tx).WriteSuccess(ctx, operationlog.WriteInput{
 			OperatorType: string(enums.OperatorTypeAdmin), OperatorAdminID: &adminID, OperatorRole: &role,
-			Module: "ACCOUNT_QUOTA", Action: "UPDATE_ACCOUNT_FEATURE_OVERRIDES", TargetType: &targetType,
+			Module: "ACCOUNT_QUOTA", Action: "ADD_ACCOUNT_FEATURE_OVERRIDES", TargetType: &targetType,
 			DetailJSON: detail,
 			IP:         stringPtr(audit.IP), UserAgent: stringPtr(audit.UserAgent),
 		})
@@ -297,11 +300,7 @@ func (s *quotaService) UpdateFeatureOverrides(ctx context.Context, adminID uint6
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	result := make([]quotavo.FeatureOverrideItem, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, featureOverrideVO(row))
-	}
-	return result, nil
+	return s.ListFeatureOverrides(ctx, role, featureKey)
 }
 
 func (s *quotaService) DeleteFeatureOverride(ctx context.Context, adminID uint64, role string, featureKey string, overrideID uint64, audit AuditInput) ([]quotavo.FeatureOverrideItem, *apperrors.BusinessError) {
