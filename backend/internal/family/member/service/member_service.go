@@ -97,7 +97,7 @@ func (s *memberService) Create(ctx context.Context, actorID uint64, familyID uin
 	if name == "" {
 		return nil, memberError(CodeMemberNameRequired, "成员姓名不能为空")
 	}
-	values, businessErr := memberValues(req.Gender, req.BirthDate, req.BirthYear, req.DeathDate, req.DeathYear, req.IsAlive, req.AvatarURL, req.Description, req.UserBindingPolicy)
+	values, businessErr := memberValues(req.Gender, req.BirthDate, req.BirthYear, req.DeathDate, req.DeathYear, req.IsAlive, req.AvatarURL, req.Description, req.MemorialVisible, req.UserBindingPolicy)
 	if businessErr != nil {
 		return nil, businessErr
 	}
@@ -169,7 +169,7 @@ func (s *memberService) Create(ctx context.Context, actorID uint64, familyID uin
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	result := memberVO(row)
+	result := memberVO(row, true)
 	return &result, nil
 }
 
@@ -177,13 +177,17 @@ func (s *memberService) List(ctx context.Context, actorID uint64, familyID uint6
 	if allowed, err := s.permissions.IsFamilyMember(ctx, actorID, familyID); err != nil || !allowed {
 		return nil, memberError(CodeMemberViewForbidden, "无权查看家庭成员")
 	}
+	canManage, err := s.permissions.CanManageFamily(ctx, actorID, familyID)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
 	rows, err := s.repo.List(ctx, familyID)
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
 	result := make([]vo.Member, 0, len(rows))
 	for i := range rows {
-		result = append(result, memberVO(&rows[i]))
+		result = append(result, memberVO(&rows[i], canManage))
 	}
 	return result, nil
 }
@@ -192,6 +196,10 @@ func (s *memberService) Detail(ctx context.Context, actorID uint64, familyID uin
 	if allowed, err := s.permissions.IsFamilyMember(ctx, actorID, familyID); err != nil || !allowed {
 		return nil, memberError(CodeMemberViewForbidden, "无权查看家庭成员")
 	}
+	canManage, err := s.permissions.CanManageFamily(ctx, actorID, familyID)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
 	row, err := s.repo.Find(ctx, familyID, memberID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, memberError(CodeMemberNotFound, "成员不存在")
@@ -199,7 +207,7 @@ func (s *memberService) Detail(ctx context.Context, actorID uint64, familyID uin
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	result := memberVO(row)
+	result := memberVO(row, canManage)
 	return &result, nil
 }
 
@@ -518,7 +526,7 @@ var (
 	errInvalidLifeDates   = errors.New("invalid member life dates")
 )
 
-func memberValues(gender *string, birthDate *string, birthYear *int, deathDate *string, deathYear *int, isAlive *bool, avatarURL *string, description *string, policy *string) (map[string]any, *apperrors.BusinessError) {
+func memberValues(gender *string, birthDate *string, birthYear *int, deathDate *string, deathYear *int, isAlive *bool, avatarURL *string, description *string, memorialVisible *bool, policy *string) (map[string]any, *apperrors.BusinessError) {
 	values := map[string]any{}
 	if gender != nil {
 		normalized := strings.ToUpper(strings.TrimSpace(*gender))
@@ -547,6 +555,9 @@ func memberValues(gender *string, birthDate *string, birthYear *int, deathDate *
 	if isAlive != nil {
 		values["is_living"] = *isAlive
 	}
+	if memorialVisible != nil {
+		values["memorial_visible"] = *memorialVisible
+	}
 	if policy != nil {
 		normalized := strings.ToUpper(strings.TrimSpace(*policy))
 		if normalized != string(enums.UserBindingOptional) && normalized != string(enums.UserBindingRequired) && normalized != string(enums.UserBindingNotRequired) {
@@ -566,7 +577,7 @@ func memberValues(gender *string, birthDate *string, birthYear *int, deathDate *
 }
 
 func updateMemberValues(req dto.UpdateMemberRequest) (map[string]any, *apperrors.BusinessError) {
-	values, businessErr := memberValues(req.Gender, req.BirthDate, req.BirthYear, req.DeathDate, req.DeathYear, req.IsAlive, nil, nil, req.UserBindingPolicy)
+	values, businessErr := memberValues(req.Gender, req.BirthDate, req.BirthYear, req.DeathDate, req.DeathYear, req.IsAlive, nil, nil, req.MemorialVisible, req.UserBindingPolicy)
 	if businessErr != nil {
 		return nil, businessErr
 	}
@@ -601,6 +612,9 @@ func applyMemberValues(member *membermodel.FamilyMember, values map[string]any) 
 	}
 	if value, ok := values["lineage_note_type"].(*string); ok {
 		member.LineageNoteType = value
+	}
+	if value, ok := values["memorial_visible"].(bool); ok {
+		member.MemorialVisible = value
 	}
 }
 
@@ -647,11 +661,15 @@ func decodeProfile(member *membermodel.FamilyMember) profileNote {
 	return profile
 }
 
-func memberVO(row *memberrepo.MemberRow) vo.Member {
+func memberVO(row *memberrepo.MemberRow, canManage bool) vo.Member {
 	profile := decodeProfile(&row.FamilyMember)
+	description := profile.Description
+	if hiddenMemorial(row.FamilyMember) && !canManage {
+		description = nil
+	}
 	result := vo.Member{
 		MemberID: row.ID, FamilyID: row.FamilyID, Name: row.DisplayName, Gender: row.Gender,
-		IsAlive: row.IsLiving, AvatarURL: profile.AvatarURL, Description: profile.Description,
+		IsAlive: row.IsLiving, AvatarURL: profile.AvatarURL, Description: description, MemorialVisible: row.MemorialVisible,
 		Status: row.Status, UserBindingPolicy: row.UserBindingPolicy,
 		BoundUserID: row.BoundUserID, BoundFamilyRole: row.BoundFamilyRole,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
@@ -667,6 +685,10 @@ func memberVO(row *memberrepo.MemberRow) vo.Member {
 		result.DeathDate, result.DeathYear = &value, &year
 	}
 	return result
+}
+
+func hiddenMemorial(member membermodel.FamilyMember) bool {
+	return member.IsLiving != nil && !*member.IsLiving && !member.MemorialVisible
 }
 
 func writeLog(ctx context.Context, tx *gorm.DB, actorID uint64, action string, memberID uint64, familyID uint64, audit AuditInput) error {

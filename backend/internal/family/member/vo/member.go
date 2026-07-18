@@ -14,6 +14,7 @@ type Member struct {
 	IsAlive           *bool     `json:"isAlive,omitempty"`
 	AvatarURL         *string   `json:"avatarUrl,omitempty"`
 	Description       *string   `json:"description,omitempty"`
+	MemorialVisible   bool      `json:"memorialVisible"`
 	Status            string    `json:"status"`
 	UserBindingPolicy string    `json:"userBindingPolicy"`
 	BoundUserID       *uint64   `json:"boundUserId,omitempty"`

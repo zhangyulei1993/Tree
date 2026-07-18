@@ -10,6 +10,7 @@ type CreateMemberRequest struct {
 	IsAlive           *bool   `json:"isAlive"`
 	AvatarURL         *string `json:"avatarUrl"`
 	Description       *string `json:"description"`
+	MemorialVisible   *bool   `json:"memorialVisible"`
 	UserBindingPolicy *string `json:"userBindingPolicy"`
 }
 
@@ -23,6 +24,7 @@ type UpdateMemberRequest struct {
 	IsAlive           *bool   `json:"isAlive"`
 	AvatarURL         *string `json:"avatarUrl"`
 	Description       *string `json:"description"`
+	MemorialVisible   *bool   `json:"memorialVisible"`
 	UserBindingPolicy *string `json:"userBindingPolicy"`
 }
 

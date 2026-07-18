@@ -67,6 +67,14 @@
           :placeholder="form.isAlive ? '可选' : '可记录离世原因、生平简述或家人纪念文字'"
         />
 
+        <label v-if="!form.isAlive" class="switch-row memorial-visibility-row">
+          <view>
+            <text>向家庭成员展示亲人简介</text>
+            <text class="switch-row-desc">关闭后，仅创建人和管理员可查看与编辑这段简介。</text>
+          </view>
+          <switch :checked="form.memorialVisible" color="#A83B2D" @change="onMemorialVisibleChange" />
+        </label>
+
         <text v-if="actionError" class="tree-field-error">{{ actionError }}</text>
         <MiniButton class="edit-action" :loading="saving" :disabled="saving" @click="saveMember">
           保存成员资料
@@ -129,7 +137,8 @@ const form = reactive({
   name: '',
   gender: 'UNKNOWN' as Gender,
   isAlive: true,
-  description: ''
+  description: '',
+  memorialVisible: true
 })
 
 const canManageFamily = computed(() =>
@@ -166,6 +175,14 @@ function onGenderChange(event: { detail: { value: number | string } }) {
 function onAliveChange(event: Event) {
   const detail = (event as Event & { detail?: { value?: boolean | string | number } }).detail
   form.isAlive = Boolean(detail?.value)
+  if (form.isAlive) {
+    form.memorialVisible = true
+  }
+}
+
+function onMemorialVisibleChange(event: Event) {
+  const detail = (event as Event & { detail?: { value?: boolean | string | number } }).detail
+  form.memorialVisible = Boolean(detail?.value)
 }
 
 function yearValue(value: string) {
@@ -195,6 +212,7 @@ async function loadMember() {
     deathYearInput.value = member.deathYear ? String(member.deathYear) : ''
     form.isAlive = member.isAlive !== false
     form.description = member.description || ''
+    form.memorialVisible = member.memorialVisible !== false
   } catch (error) {
     loadError.value = apiErrorMessage(error, '成员资料加载失败。')
   } finally {
@@ -220,7 +238,8 @@ async function saveMember() {
       birthYear: yearValue(birthYearInput.value),
       deathYear: form.isAlive ? undefined : yearValue(deathYearInput.value),
       isAlive: form.isAlive,
-      description: optionalText(form.description)
+      description: optionalText(form.description),
+      memorialVisible: form.isAlive ? true : form.memorialVisible
     })
     uni.showToast({ title: '成员资料已保存', icon: 'success' })
     setTimeout(() => {
@@ -298,5 +317,17 @@ onShow(() => {
 .edit-action {
   margin-top: 20rpx;
   align-self: flex-start;
+}
+
+.memorial-visibility-row {
+  align-items: flex-start;
+}
+
+.switch-row-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--archive-ink-soft);
+  font-size: 24rpx;
+  line-height: 1.7;
 }
 </style>

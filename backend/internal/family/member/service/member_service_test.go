@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	membermodel "tree/backend/internal/family/member/model"
+	memberrepo "tree/backend/internal/family/member/repository"
 )
 
 func TestParseDateOrYearUsesExplicitDate(t *testing.T) {
@@ -35,9 +36,35 @@ func TestMemberValuesRejectsDeathBeforeBirth(t *testing.T) {
 	birth := "2000-01-01"
 	death := "1999-12-31"
 
-	_, businessErr := memberValues(nil, &birth, nil, &death, nil, nil, nil, nil, nil)
+	_, businessErr := memberValues(nil, &birth, nil, &death, nil, nil, nil, nil, nil, nil)
 	if businessErr == nil || businessErr.Code != CodeMemberInvalidField {
 		t.Fatalf("expected CodeMemberInvalidField, got %#v", businessErr)
+	}
+}
+
+func TestMemberVOHidesHiddenMemorialDescriptionForRegularMember(t *testing.T) {
+	alive := false
+	description := "仅管理员可见"
+	note, noteType, err := encodeProfile(&description, nil)
+	if err != nil {
+		t.Fatalf("encodeProfile returned error: %v", err)
+	}
+	row := &memberrepo.MemberRow{FamilyMember: membermodel.FamilyMember{
+		ID: 1, FamilyID: 2, DisplayName: "亲人", IsLiving: &alive,
+		LineageNote: note, LineageNoteType: noteType, MemorialVisible: false,
+	}}
+
+	regular := memberVO(row, false)
+	if regular.Description != nil {
+		t.Fatalf("expected hidden description for regular member, got %#v", regular.Description)
+	}
+	if regular.MemorialVisible {
+		t.Fatalf("expected memorialVisible false")
+	}
+
+	manager := memberVO(row, true)
+	if manager.Description == nil || *manager.Description != description {
+		t.Fatalf("manager should still see description, got %#v", manager.Description)
 	}
 }
 

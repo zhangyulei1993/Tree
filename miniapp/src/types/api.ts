@@ -347,6 +347,7 @@ export interface FamilyMember {
   isAlive?: boolean | null
   avatarUrl?: string | null
   description?: string | null
+  memorialVisible?: boolean
   status: string
   userBindingPolicy: string
   boundUserId?: number | null
@@ -368,6 +369,7 @@ export interface CreateMemberInput {
   isAlive?: boolean
   avatarUrl?: string
   description?: string
+  memorialVisible?: boolean
   userBindingPolicy?: UserBindingPolicy
 }
 

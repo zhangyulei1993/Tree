@@ -144,12 +144,12 @@
         <view class="memorial-content">
           <text class="memorial-content-label">亲人简介</text>
           <text class="memorial-content-value">
-            {{ memorialDescription || '暂未记录亲人简介。' }}
+            {{ memorialDescriptionText }}
           </text>
         </view>
 
         <view class="memorial-foot">
-          <text class="memorial-footnote">愿这段记述，留存于家庭的记忆中。</text>
+          <text class="memorial-footnote">{{ memorialFootnote }}</text>
           <view class="memorial-actions">
             <view class="memorial-action secondary" @click="closeMemorial">关闭</view>
             <view v-if="canManageFamily" class="memorial-action primary" @click="editMemorial">编辑资料</view>
@@ -412,6 +412,16 @@ async function showMemorial(node: TreeNode) {
 }
 
 const memorialDescription = computed(() => memorialMember.value?.description?.trim() || '')
+const memorialDescriptionText = computed(() => {
+  if (memorialDescription.value) return memorialDescription.value
+  if (memorialMember.value?.memorialVisible === false) return '这位亲友的简介暂未向家庭成员展示。'
+  return '暂未记录亲人简介。'
+})
+const memorialFootnote = computed(() =>
+  memorialMember.value?.memorialVisible === false && !canManageFamily.value
+    ? '创建人或管理员可选择是否展示这段记述。'
+    : '愿这段记述，留存于家庭的记忆中。'
+)
 
 function closeMemorial() {
   memorialMember.value = null

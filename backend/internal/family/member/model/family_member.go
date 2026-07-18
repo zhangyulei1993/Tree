@@ -24,6 +24,7 @@ type FamilyMember struct {
 	ManualLineageOverride bool       `gorm:"column:manual_lineage_override;not null;default:0"`
 	LineageNoteType       *string    `gorm:"column:lineage_note_type;size:80"`
 	LineageNote           *string    `gorm:"column:lineage_note;size:500"`
+	MemorialVisible       bool       `gorm:"column:memorial_visible;not null;default:1"`
 	IsTerminalNode        bool       `gorm:"column:is_terminal_node;not null;default:0"`
 	TerminalReason        *string    `gorm:"column:terminal_reason;size:100"`
 	Status                string     `gorm:"column:status;size:40;not null;default:ACTIVE"`
