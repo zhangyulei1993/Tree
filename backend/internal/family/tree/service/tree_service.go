@@ -22,6 +22,7 @@ const (
 
 	treeModeListTree = "LIST_TREE"
 	treeCacheTTL     = 24 * time.Hour
+	grayAccessKey    = "GRAY_ACCESS"
 )
 
 type TreeService interface {
@@ -58,7 +59,16 @@ func (s *treeService) GetPrivateTree(ctx context.Context, actorID uint64, family
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	return s.loadTree(ctx, familyID, family.GraphVersion, false)
+	result, businessErr := s.loadTree(ctx, familyID, family.GraphVersion, false)
+	if businessErr != nil {
+		return nil, businessErr
+	}
+	enabled, err := s.repo.FamilyFounderHasFeatureOverride(ctx, familyID, grayAccessKey)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	result.GrayAccessEnabled = enabled
+	return result, nil
 }
 
 func (s *treeService) GetPublicTree(ctx context.Context, familyID uint64) (*vo.TreeResult, *apperrors.BusinessError) {

@@ -24,6 +24,7 @@ type Snapshot struct {
 type Repository interface {
 	FindFamily(context.Context, uint64) (*familymodel.Family, error)
 	LoadSnapshot(context.Context, uint64) (*Snapshot, error)
+	FamilyFounderHasFeatureOverride(context.Context, uint64, string) (bool, error)
 }
 
 type GormRepository struct {
@@ -65,4 +66,16 @@ func (r *GormRepository) LoadSnapshot(ctx context.Context, familyID uint64) (*Sn
 		return nil, err
 	}
 	return &snapshot, nil
+}
+
+func (r *GormRepository) FamilyFounderHasFeatureOverride(ctx context.Context, familyID uint64, featureKey string) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Table("family_member_user_links AS links").
+		Joins("JOIN users AS users ON users.id = links.user_id").
+		Joins("JOIN account_feature_overrides AS overrides ON overrides.phone_hash = users.phone_hash AND overrides.feature_key = ?", featureKey).
+		Where("links.family_id = ? AND links.link_status = ? AND links.family_role = ?", familyID, "ACTIVE", "FOUNDER").
+		Where("users.deleted_at IS NULL AND users.status = ?", "ACTIVE").
+		Count(&count).Error
+	return count > 0, err
 }

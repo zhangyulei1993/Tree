@@ -165,7 +165,6 @@ import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
-import { fetchCapabilities } from '@/api/capabilities'
 import { getFamilyDetail } from '@/api/families'
 import { listFamilyInvitations } from '@/api/invitations'
 import { deleteFamilyMember, getFamilyMember, listFamilyMembers, updateFamilyMember } from '@/api/members'
@@ -289,15 +288,14 @@ async function loadTree() {
   try {
     const familyResult = await getFamilyDetail(familyId.value)
     const canManage = familyResult.role === 'FOUNDER' || familyResult.role === 'FAMILY_ADMIN'
-    const [treeResult, invitationResult, capabilitiesResult] = await Promise.all([
+    const [treeResult, invitationResult] = await Promise.all([
       getPrivateTree(familyId.value),
-      canManage ? listFamilyInvitations(familyId.value) : Promise.resolve([]),
-      fetchCapabilities().catch(() => null)
+      canManage ? listFamilyInvitations(familyId.value) : Promise.resolve([])
     ])
     family.value = familyResult
     tree.value = treeResult
     invitations.value = invitationResult
-    grayAccessAvailable.value = Boolean(capabilitiesResult?.grayAccessEnabled)
+    grayAccessAvailable.value = Boolean(treeResult.grayAccessEnabled)
     let resolvedViewerId = currentUserMemberId.value
     if (session.user?.id) {
       try {

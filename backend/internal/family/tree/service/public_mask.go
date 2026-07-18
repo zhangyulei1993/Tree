@@ -10,6 +10,7 @@ func maskPublicTreeResult(result *vo.TreeResult) *vo.TreeResult {
 		return nil
 	}
 	masked := *result
+	masked.GrayAccessEnabled = false
 	masked.Nodes = make([]vo.Node, len(result.Nodes))
 	for i, node := range result.Nodes {
 		masked.Nodes[i] = node

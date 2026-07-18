@@ -567,6 +567,7 @@ export interface FamilyTreeResult {
   familyId: number
   treeMode: string
   graphVersion: number
+  grayAccessEnabled?: boolean
   nodes: TreeNode[]
   edges: TreeEdge[]
   tree: TreeItem[]

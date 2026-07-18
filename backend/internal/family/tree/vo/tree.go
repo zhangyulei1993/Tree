@@ -33,10 +33,11 @@ type TreeItem struct {
 }
 
 type TreeResult struct {
-	FamilyID     uint64     `json:"familyId"`
-	TreeMode     string     `json:"treeMode"`
-	GraphVersion int64      `json:"graphVersion"`
-	Nodes        []Node     `json:"nodes"`
-	Edges        []Edge     `json:"edges"`
-	Tree         []TreeItem `json:"tree"`
+	FamilyID          uint64     `json:"familyId"`
+	TreeMode          string     `json:"treeMode"`
+	GraphVersion      int64      `json:"graphVersion"`
+	GrayAccessEnabled bool       `json:"grayAccessEnabled,omitempty"`
+	Nodes             []Node     `json:"nodes"`
+	Edges             []Edge     `json:"edges"`
+	Tree              []TreeItem `json:"tree"`
 }

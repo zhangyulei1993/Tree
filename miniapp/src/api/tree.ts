@@ -32,6 +32,7 @@ export async function getPrivateTree(familyId: number | string): Promise<FamilyT
       familyId: Number(familyId) || 1,
       treeMode: 'LIST_TREE',
       graphVersion: 1,
+      grayAccessEnabled: false,
       nodes: treeNodes.map((node, index) => ({
         memberId: index + 1,
         displayName: node.name,

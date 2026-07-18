@@ -25,12 +25,17 @@ func (p fakePermission) IsFamilyMember(context.Context, uint64, uint64) (bool, e
 }
 
 type fakeRepository struct {
-	family        *familymodel.Family
-	snapshot      *treerepo.Snapshot
-	findErr       error
-	snapshotErr   error
-	findCalls     int
-	snapshotCalls int
+	family             *familymodel.Family
+	snapshot           *treerepo.Snapshot
+	findErr            error
+	snapshotErr        error
+	grayAccessEnabled  bool
+	grayAccessErr      error
+	findCalls          int
+	snapshotCalls      int
+	grayAccessCalls    int
+	grayAccessFamilyID uint64
+	grayAccessKey      string
 }
 
 func (r *fakeRepository) FindFamily(context.Context, uint64) (*familymodel.Family, error) {
@@ -48,6 +53,16 @@ func (r *fakeRepository) LoadSnapshot(context.Context, uint64) (*treerepo.Snapsh
 		return nil, r.snapshotErr
 	}
 	return r.snapshot, nil
+}
+
+func (r *fakeRepository) FamilyFounderHasFeatureOverride(_ context.Context, familyID uint64, featureKey string) (bool, error) {
+	r.grayAccessCalls++
+	r.grayAccessFamilyID = familyID
+	r.grayAccessKey = featureKey
+	if r.grayAccessErr != nil {
+		return false, r.grayAccessErr
+	}
+	return r.grayAccessEnabled, nil
 }
 
 type fakeCache struct {
@@ -216,6 +231,40 @@ func TestCacheMissBuildsAndWritesVersionedKey(t *testing.T) {
 	if result.GraphVersion != 14 || repo.snapshotCalls != 1 ||
 		len(cache.setKeys) != 1 || cache.setKeys[0] != expectedKey {
 		t.Fatalf("unexpected cache miss behavior: result=%#v keys=%#v", result, cache.setKeys)
+	}
+}
+
+func TestPrivateTreeGrayAccessUsesFamilyFounder(t *testing.T) {
+	repo := testRepository()
+	repo.grayAccessEnabled = true
+	service := NewTreeService(repo, newFakeCache(), fakePermission{allowed: true})
+
+	result, businessErr := service.GetPrivateTree(context.Background(), 8, 2)
+	if businessErr != nil {
+		t.Fatalf("GetPrivateTree returned error: %v", businessErr)
+	}
+	if !result.GrayAccessEnabled {
+		t.Fatalf("expected private tree gray access from founder override")
+	}
+	if repo.grayAccessCalls != 1 || repo.grayAccessFamilyID != 2 || repo.grayAccessKey != "GRAY_ACCESS" {
+		t.Fatalf("expected founder gray access lookup, calls=%d family=%d key=%q", repo.grayAccessCalls, repo.grayAccessFamilyID, repo.grayAccessKey)
+	}
+}
+
+func TestPublicTreeNeverReturnsGrayAccess(t *testing.T) {
+	repo := testRepository()
+	repo.grayAccessEnabled = true
+	service := NewTreeService(repo, newFakeCache(), fakePermission{})
+
+	result, businessErr := service.GetPublicTree(context.Background(), 2)
+	if businessErr != nil {
+		t.Fatalf("GetPublicTree returned error: %v", businessErr)
+	}
+	if result.GrayAccessEnabled {
+		t.Fatalf("public tree must not expose gray access")
+	}
+	if repo.grayAccessCalls != 0 {
+		t.Fatalf("public tree must not look up private gray access, got %d calls", repo.grayAccessCalls)
 	}
 }
 
