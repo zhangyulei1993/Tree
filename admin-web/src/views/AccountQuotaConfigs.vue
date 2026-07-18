@@ -27,14 +27,6 @@
           <el-form-item label="可加入家庭数">
             <el-input-number v-model="item.maxJoinedFamilies" :min="0" :max="99" />
           </el-form-item>
-          <el-divider content-position="left">特色功能体验</el-divider>
-          <el-form-item label="开放特色功能体验">
-            <el-switch
-              v-model="item.supportsFeaturePreview"
-              active-text="开启"
-              inactive-text="关闭"
-            />
-          </el-form-item>
         </el-form>
 
         <div class="impact-box" v-if="item.impact">
@@ -54,16 +46,16 @@
 
     <el-card class="feature-card" shadow="never">
       <template #header>
-        <div class="card-header">
-          <strong>特色功能特权体验</strong>
-          <span class="muted">指定手机号可提前体验特色功能；不改变账号等级权益配置。</span>
+          <div class="card-header">
+          <strong>灰度体验名单</strong>
+          <span class="muted">指定手机号可参与新能力测试；不改变账号等级权益配置。</span>
         </div>
       </template>
 
       <el-form label-width="180px">
         <el-form-item label="体验手机号">
           <el-input
-            v-model="featurePreviewPhonesInput"
+            v-model="grayAccessPhonesInput"
             type="textarea"
             :rows="4"
             placeholder="输入完整手机号，多个号码可换行、逗号或空格分隔"
@@ -74,27 +66,27 @@
       <div class="override-list">
         <span class="muted">当前名单：</span>
         <el-tag
-          v-for="item in featurePreviewOverrides"
+          v-for="item in grayAccessOverrides"
           :key="item.id"
           type="info"
           closable
           :disable-transitions="true"
-          @close="removeFeaturePreviewOverride(item)"
+          @close="removeGrayAccessOverride(item)"
         >
           {{ item.phoneMask }}
         </el-tag>
-        <span v-if="featurePreviewOverrides.length === 0" class="muted">暂无</span>
+        <span v-if="grayAccessOverrides.length === 0" class="muted">暂无</span>
       </div>
 
       <div class="card-actions">
-        <el-button :loading="overrideLoading" @click="loadFeaturePreviewOverrides">刷新名单</el-button>
-        <el-button type="primary" :loading="overrideSaving" @click="saveFeaturePreviewOverrides">保存体验名单</el-button>
+        <el-button :loading="overrideLoading" @click="loadGrayAccessOverrides">刷新名单</el-button>
+        <el-button type="primary" :loading="overrideSaving" @click="saveGrayAccessOverrides">保存灰度名单</el-button>
         <el-button
           type="danger"
           plain
-          :disabled="featurePreviewOverrides.length === 0"
+          :disabled="grayAccessOverrides.length === 0"
           :loading="overrideSaving"
-          @click="clearFeaturePreviewOverrides"
+          @click="clearGrayAccessOverrides"
         >
           清空名单
         </el-button>
@@ -129,11 +121,11 @@ const loading = ref(false)
 const loadError = ref('')
 const operationError = ref('')
 const forms = reactive<QuotaForm[]>([])
-const featurePreviewPhonesInput = ref('')
-const featurePreviewOverrides = ref<AccountFeatureOverrideItem[]>([])
+const grayAccessPhonesInput = ref('')
+const grayAccessOverrides = ref<AccountFeatureOverrideItem[]>([])
 const overrideLoading = ref(false)
 const overrideSaving = ref(false)
-const FEATURE_PREVIEW_FEATURE = 'FEATURE_PREVIEW'
+const GRAY_ACCESS_FEATURE = 'GRAY_ACCESS'
 
 function tierLabel(tier: string) {
   return tier === 'PHONE_BOUND' ? '备用登录已开启' : '仅微信登录'
@@ -157,8 +149,7 @@ function isLowering(current: AccountQuotaConfig, next: QuotaForm) {
   return (
     next.maxOwnedFamilies < current.maxOwnedFamilies ||
     next.maxMembersPerOwnedFamily < current.maxMembersPerOwnedFamily ||
-    next.maxJoinedFamilies < current.maxJoinedFamilies ||
-    (current.supportsFeaturePreview && !next.supportsFeaturePreview)
+    next.maxJoinedFamilies < current.maxJoinedFamilies
   )
 }
 
@@ -175,11 +166,11 @@ async function loadConfigs() {
   }
 }
 
-async function loadFeaturePreviewOverrides() {
+async function loadGrayAccessOverrides() {
   overrideLoading.value = true
   operationError.value = ''
   try {
-    featurePreviewOverrides.value = await listAccountFeatureOverrides(FEATURE_PREVIEW_FEATURE)
+    grayAccessOverrides.value = await listAccountFeatureOverrides(GRAY_ACCESS_FEATURE)
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
   } finally {
@@ -194,12 +185,12 @@ function parsePhonesInput(value: string) {
     .filter(Boolean)
 }
 
-async function saveFeaturePreviewOverrides() {
-  const phones = parsePhonesInput(featurePreviewPhonesInput.value)
+async function saveGrayAccessOverrides() {
+  const phones = parsePhonesInput(grayAccessPhonesInput.value)
   try {
     await ElMessageBox.confirm(
-      `保存后将用这 ${phones.length} 个手机号替换当前特权用户名单。确认保存？`,
-      '确认保存体验名单',
+      `保存后将用这 ${phones.length} 个手机号替换当前灰度名单。确认保存？`,
+      '确认保存灰度名单',
       { type: 'warning', confirmButtonText: '确认保存', cancelButtonText: '取消' }
     )
   } catch {
@@ -208,8 +199,8 @@ async function saveFeaturePreviewOverrides() {
   overrideSaving.value = true
   operationError.value = ''
   try {
-    featurePreviewOverrides.value = await updateAccountFeatureOverrides(FEATURE_PREVIEW_FEATURE, phones)
-    featurePreviewPhonesInput.value = ''
+    grayAccessOverrides.value = await updateAccountFeatureOverrides(GRAY_ACCESS_FEATURE, phones)
+    grayAccessPhonesInput.value = ''
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
   } finally {
@@ -217,13 +208,13 @@ async function saveFeaturePreviewOverrides() {
   }
 }
 
-async function clearFeaturePreviewOverrides() {
-  if (featurePreviewOverrides.value.length === 0) {
+async function clearGrayAccessOverrides() {
+  if (grayAccessOverrides.value.length === 0) {
     return
   }
   try {
     await ElMessageBox.confirm(
-      '清空后，当前灰度手机号将全部移出特权用户名单。确认清空？',
+      '清空后，当前灰度手机号将全部移出灰度名单。确认清空？',
       '确认清空体验名单',
       { type: 'warning', confirmButtonText: '确认清空', cancelButtonText: '取消' }
     )
@@ -233,8 +224,8 @@ async function clearFeaturePreviewOverrides() {
   overrideSaving.value = true
   operationError.value = ''
   try {
-    featurePreviewOverrides.value = await updateAccountFeatureOverrides(FEATURE_PREVIEW_FEATURE, [])
-    featurePreviewPhonesInput.value = ''
+    grayAccessOverrides.value = await updateAccountFeatureOverrides(GRAY_ACCESS_FEATURE, [])
+    grayAccessPhonesInput.value = ''
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
   } finally {
@@ -242,10 +233,10 @@ async function clearFeaturePreviewOverrides() {
   }
 }
 
-async function removeFeaturePreviewOverride(item: AccountFeatureOverrideItem) {
+async function removeGrayAccessOverride(item: AccountFeatureOverrideItem) {
   try {
     await ElMessageBox.confirm(
-      `确认将 ${item.phoneMask} 移出特权用户名单？`,
+      `确认将 ${item.phoneMask} 移出灰度名单？`,
       '确认删除体验手机号',
       { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' }
     )
@@ -255,7 +246,7 @@ async function removeFeaturePreviewOverride(item: AccountFeatureOverrideItem) {
   overrideSaving.value = true
   operationError.value = ''
   try {
-    featurePreviewOverrides.value = await deleteAccountFeatureOverride(FEATURE_PREVIEW_FEATURE, item.id)
+    grayAccessOverrides.value = await deleteAccountFeatureOverride(GRAY_ACCESS_FEATURE, item.id)
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
   } finally {
@@ -270,8 +261,7 @@ async function preview(item: QuotaForm): Promise<boolean> {
     item.impact = await previewAccountQuotaImpact(item.trustTier, {
       maxOwnedFamilies: item.maxOwnedFamilies,
       maxMembersPerOwnedFamily: item.maxMembersPerOwnedFamily,
-      maxJoinedFamilies: item.maxJoinedFamilies,
-      supportsFeaturePreview: item.supportsFeaturePreview
+      maxJoinedFamilies: item.maxJoinedFamilies
     })
     return true
   } catch (error) {
@@ -311,8 +301,7 @@ async function save(item: QuotaForm) {
     const saved = await updateAccountQuotaConfig(item.trustTier, {
       maxOwnedFamilies: item.maxOwnedFamilies,
       maxMembersPerOwnedFamily: item.maxMembersPerOwnedFamily,
-      maxJoinedFamilies: item.maxJoinedFamilies,
-      supportsFeaturePreview: item.supportsFeaturePreview
+      maxJoinedFamilies: item.maxJoinedFamilies
     })
     Object.assign(item, snapshot(saved))
   } catch (error) {
@@ -324,7 +313,7 @@ async function save(item: QuotaForm) {
 
 onMounted(() => {
   loadConfigs()
-  loadFeaturePreviewOverrides()
+  loadGrayAccessOverrides()
 })
 </script>
 

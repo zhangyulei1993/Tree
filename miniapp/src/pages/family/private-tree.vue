@@ -82,7 +82,7 @@
           :viewer-member-id="viewerMemberId"
           show-binding
           :interactive="canManageFamily"
-          :selectable-deceased="featurePreviewAvailable"
+          :selectable-deceased="grayAccessAvailable"
           @select="openNodeActions"
         />
       </template>
@@ -195,7 +195,7 @@ const viewerMemberId = ref<number | null>(null)
 const currentUserMemberId = ref<number | null>(null)
 const memorialMember = ref<FamilyMember | null>(null)
 const memorialNode = ref<TreeNode | null>(null)
-const featurePreviewAvailable = ref(false)
+const grayAccessAvailable = ref(false)
 const edgeCount = computed(() => (tree.value ? countVisibleEdges(tree.value) : 0))
 const relationSentences = computed(() => (tree.value ? buildRelationSentences(tree.value) : []))
 const canManageFamily = computed(() =>
@@ -268,7 +268,7 @@ function resetPageData() {
   currentUserMemberId.value = null
   memorialMember.value = null
   memorialNode.value = null
-  featurePreviewAvailable.value = false
+  grayAccessAvailable.value = false
 }
 
 async function loadTree() {
@@ -297,7 +297,7 @@ async function loadTree() {
     family.value = familyResult
     tree.value = treeResult
     invitations.value = invitationResult
-    featurePreviewAvailable.value = Boolean(capabilitiesResult?.limits.supportsFeaturePreview)
+    grayAccessAvailable.value = Boolean(capabilitiesResult?.grayAccessEnabled)
     let resolvedViewerId = currentUserMemberId.value
     if (session.user?.id) {
       try {
@@ -344,7 +344,7 @@ function changeViewer(event: { detail: { value: number | string } }) {
 }
 
 function openNodeActions(node: TreeNode) {
-  if (node.isLiving === false && featurePreviewAvailable.value) {
+  if (node.isLiving === false && grayAccessAvailable.value) {
     showMemorial(node)
     return
   }

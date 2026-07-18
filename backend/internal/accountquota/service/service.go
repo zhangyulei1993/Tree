@@ -24,7 +24,7 @@ import (
 	usermodel "tree/backend/internal/user/model"
 )
 
-const FeaturePreview = "FEATURE_PREVIEW"
+const GrayAccess = "GRAY_ACCESS"
 
 type AuditInput struct {
 	IP        string
@@ -88,14 +88,13 @@ func (s *quotaService) capabilitiesForUser(ctx context.Context, repo quotarepo.R
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	if !limits.SupportsFeaturePreview && user.PhoneHash != nil {
-		enabled, overrideErr := repo.HasFeatureOverride(ctx, FeaturePreview, *user.PhoneHash)
+	grayAccessEnabled := false
+	if user.PhoneHash != nil {
+		enabled, overrideErr := repo.HasFeatureOverride(ctx, GrayAccess, *user.PhoneHash)
 		if overrideErr != nil {
 			return nil, apperrors.New(apperrors.CodeSystemError)
 		}
-		if enabled {
-			limits.SupportsFeaturePreview = true
-		}
+		grayAccessEnabled = enabled
 	}
 	owned, err := repo.CountOwnedFamilies(ctx, user.ID)
 	if err != nil {
@@ -118,12 +117,12 @@ func (s *quotaService) capabilitiesForUser(ctx context.Context, repo quotarepo.R
 		membersByFamily[strconv.FormatUint(familyID, 10)] = count
 	}
 	return &quotavo.Capabilities{
-		TrustTier: tier,
+		TrustTier:         tier,
+		GrayAccessEnabled: grayAccessEnabled,
 		Limits: quotavo.Limits{
 			MaxOwnedFamilies:         limits.MaxOwnedFamilies,
 			MaxMembersPerOwnedFamily: limits.MaxMembersPerOwnedFamily,
 			MaxJoinedFamilies:        limits.MaxJoinedFamilies,
-			SupportsFeaturePreview:   limits.SupportsFeaturePreview,
 		},
 		Usage: quotavo.Usage{
 			OwnedFamilies:         owned,
@@ -178,7 +177,6 @@ func (s *quotaService) UpdateConfig(ctx context.Context, adminID uint64, role st
 			"max_owned_families":           values.MaxOwnedFamilies,
 			"max_members_per_owned_family": values.MaxMembersPerOwnedFamily,
 			"max_joined_families":          values.MaxJoinedFamilies,
-			"supports_feature_preview":     values.SupportsFeaturePreview,
 			"updated_by_admin_id":          adminID,
 		}); err != nil {
 			return err
@@ -189,7 +187,6 @@ func (s *quotaService) UpdateConfig(ctx context.Context, adminID uint64, role st
 			"maxOwnedFamilies":         values.MaxOwnedFamilies,
 			"maxMembersPerOwnedFamily": values.MaxMembersPerOwnedFamily,
 			"maxJoinedFamilies":        values.MaxJoinedFamilies,
-			"supportsFeaturePreview":   values.SupportsFeaturePreview,
 		})
 		return operationlog.NewGormService(tx).WriteSuccess(ctx, operationlog.WriteInput{
 			OperatorType: string(enums.OperatorTypeAdmin), OperatorAdminID: &adminID, OperatorRole: &role,
@@ -241,7 +238,6 @@ func (s *quotaService) PreviewImpact(ctx context.Context, role string, tier stri
 		MaxOwnedFamilies:         values.MaxOwnedFamilies,
 		MaxMembersPerOwnedFamily: values.MaxMembersPerOwnedFamily,
 		MaxJoinedFamilies:        values.MaxJoinedFamilies,
-		SupportsFeaturePreview:   values.SupportsFeaturePreview,
 	}, nil
 }
 
@@ -591,7 +587,7 @@ func validateConfigValues(values quotadto.ConfigValues) *apperrors.BusinessError
 
 func normalizeFeatureKey(featureKey string) (string, *apperrors.BusinessError) {
 	featureKey = strings.ToUpper(strings.TrimSpace(featureKey))
-	if featureKey != FeaturePreview {
+	if featureKey != GrayAccess {
 		return "", quotaConfigError(apperrors.CodeQuotaConfigInvalid, "权益功能不合法")
 	}
 	return featureKey, nil
@@ -628,17 +624,14 @@ func validateTierOrdering(updatingTier string, values quotadto.ConfigValues, wec
 		wechat.MaxOwnedFamilies = values.MaxOwnedFamilies
 		wechat.MaxMembersPerOwnedFamily = values.MaxMembersPerOwnedFamily
 		wechat.MaxJoinedFamilies = values.MaxJoinedFamilies
-		wechat.SupportsFeaturePreview = values.SupportsFeaturePreview
 	} else {
 		phone.MaxOwnedFamilies = values.MaxOwnedFamilies
 		phone.MaxMembersPerOwnedFamily = values.MaxMembersPerOwnedFamily
 		phone.MaxJoinedFamilies = values.MaxJoinedFamilies
-		phone.SupportsFeaturePreview = values.SupportsFeaturePreview
 	}
 	if phone.MaxOwnedFamilies < wechat.MaxOwnedFamilies ||
 		phone.MaxMembersPerOwnedFamily < wechat.MaxMembersPerOwnedFamily ||
-		phone.MaxJoinedFamilies < wechat.MaxJoinedFamilies ||
-		(wechat.SupportsFeaturePreview && !phone.SupportsFeaturePreview) {
+		phone.MaxJoinedFamilies < wechat.MaxJoinedFamilies {
 		return errTierOrder
 	}
 	return nil
@@ -735,7 +728,6 @@ func configItemVO(row quotamodel.AccountQuotaConfig) quotavo.ConfigItem {
 		MaxOwnedFamilies:         row.MaxOwnedFamilies,
 		MaxMembersPerOwnedFamily: row.MaxMembersPerOwnedFamily,
 		MaxJoinedFamilies:        row.MaxJoinedFamilies,
-		SupportsFeaturePreview:   row.SupportsFeaturePreview,
 		UpdatedByAdminID:         row.UpdatedByAdminID,
 		UpdatedAt:                row.UpdatedAt.Format(time.RFC3339),
 	}
@@ -753,8 +745,8 @@ func featureOverrideVO(row quotamodel.AccountFeatureOverride) quotavo.FeatureOve
 func defaultConfigItems() []quotavo.ConfigItem {
 	now := time.Now().Format(time.RFC3339)
 	return []quotavo.ConfigItem{
-		{TrustTier: quotaenum.TrustTierWechatOnly, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1, SupportsFeaturePreview: false, UpdatedAt: now},
-		{TrustTier: quotaenum.TrustTierPhoneBound, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5, SupportsFeaturePreview: true, UpdatedAt: now},
+		{TrustTier: quotaenum.TrustTierWechatOnly, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1, UpdatedAt: now},
+		{TrustTier: quotaenum.TrustTierPhoneBound, MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5, UpdatedAt: now},
 	}
 }
 

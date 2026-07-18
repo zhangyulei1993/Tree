@@ -16,7 +16,6 @@ type Limits struct {
 	MaxOwnedFamilies         int
 	MaxMembersPerOwnedFamily int
 	MaxJoinedFamilies        int
-	SupportsFeaturePreview   bool
 }
 
 var ErrFounderNotFound = errors.New("family founder not found")
@@ -162,9 +161,9 @@ func (r *GormRepository) ResolveTrustTier(user *usermodel.User) string {
 func defaultLimits(tier string) Limits {
 	switch tier {
 	case quotaenum.TrustTierPhoneBound:
-		return Limits{MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5, SupportsFeaturePreview: true}
+		return Limits{MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 20, MaxJoinedFamilies: 5}
 	default:
-		return Limits{MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1, SupportsFeaturePreview: false}
+		return Limits{MaxOwnedFamilies: 1, MaxMembersPerOwnedFamily: 10, MaxJoinedFamilies: 1}
 	}
 }
 
@@ -180,7 +179,6 @@ func (r *GormRepository) GetLimitsForTier(ctx context.Context, tier string) (Lim
 		MaxOwnedFamilies:         row.MaxOwnedFamilies,
 		MaxMembersPerOwnedFamily: row.MaxMembersPerOwnedFamily,
 		MaxJoinedFamilies:        row.MaxJoinedFamilies,
-		SupportsFeaturePreview:   row.SupportsFeaturePreview,
 	}, nil
 }
 

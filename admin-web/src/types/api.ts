@@ -300,7 +300,6 @@ export interface AccountQuotaConfig {
   maxOwnedFamilies: number
   maxMembersPerOwnedFamily: number
   maxJoinedFamilies: number
-  supportsFeaturePreview: boolean
   updatedByAdminId?: number | null
   updatedAt: string
 }
@@ -309,7 +308,6 @@ export interface UpdateAccountQuotaInput {
   maxOwnedFamilies: number
   maxMembersPerOwnedFamily: number
   maxJoinedFamilies: number
-  supportsFeaturePreview: boolean
 }
 
 export interface AccountQuotaImpactPreview extends UpdateAccountQuotaInput {

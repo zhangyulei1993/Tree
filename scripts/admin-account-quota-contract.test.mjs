@@ -30,15 +30,16 @@ test('admin quota page confirms lowering limits', () => {
   assert.match(adminView, /确认降低额度/)
 })
 
-test('admin quota page manages feature preview privileged users', () => {
-  assert.match(adminView, /特色功能特权体验/)
-  assert.match(adminView, /FEATURE_PREVIEW/)
+test('admin quota page manages gray preview users', () => {
+  assert.match(adminView, /灰度体验名单/)
+  assert.match(adminView, /GRAY_ACCESS/)
   assert.match(adminView, /listAccountFeatureOverrides/)
   assert.match(adminView, /updateAccountFeatureOverrides/)
-  assert.match(adminView, /removeFeaturePreviewOverride/)
+  assert.match(adminView, /removeGrayAccessOverride/)
   assert.match(adminView, /closable/)
-  assert.match(adminView, /clearFeaturePreviewOverrides/)
+  assert.match(adminView, /clearGrayAccessOverrides/)
   assert.match(adminView, /清空名单/)
+  assert.doesNotMatch(adminView, /supportsFeaturePreview/)
   assert.match(adminApi, /\/admin\/account-feature-overrides\/\$\{featureKey\}/)
   assert.match(adminApi, /apiClient\.delete\(`\/admin\/account-feature-overrides\/\$\{featureKey\}\/\$\{overrideId\}`/)
 })

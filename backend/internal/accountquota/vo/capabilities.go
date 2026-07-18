@@ -1,10 +1,9 @@
 package vo
 
 type Limits struct {
-	MaxOwnedFamilies         int  `json:"maxOwnedFamilies"`
-	MaxMembersPerOwnedFamily int  `json:"maxMembersPerOwnedFamily"`
-	MaxJoinedFamilies        int  `json:"maxJoinedFamilies"`
-	SupportsFeaturePreview   bool `json:"supportsFeaturePreview"`
+	MaxOwnedFamilies         int `json:"maxOwnedFamilies"`
+	MaxMembersPerOwnedFamily int `json:"maxMembersPerOwnedFamily"`
+	MaxJoinedFamilies        int `json:"maxJoinedFamilies"`
 }
 
 type Usage struct {
@@ -14,9 +13,10 @@ type Usage struct {
 }
 
 type Capabilities struct {
-	TrustTier string `json:"trustTier"`
-	Limits    Limits `json:"limits"`
-	Usage     Usage  `json:"usage"`
+	TrustTier         string `json:"trustTier"`
+	GrayAccessEnabled bool   `json:"grayAccessEnabled"`
+	Limits            Limits `json:"limits"`
+	Usage             Usage  `json:"usage"`
 }
 
 type ConfigItem struct {
@@ -24,7 +24,6 @@ type ConfigItem struct {
 	MaxOwnedFamilies         int     `json:"maxOwnedFamilies"`
 	MaxMembersPerOwnedFamily int     `json:"maxMembersPerOwnedFamily"`
 	MaxJoinedFamilies        int     `json:"maxJoinedFamilies"`
-	SupportsFeaturePreview   bool    `json:"supportsFeaturePreview"`
 	UpdatedByAdminID         *uint64 `json:"updatedByAdminId,omitempty"`
 	UpdatedAt                string  `json:"updatedAt"`
 }
@@ -36,7 +35,6 @@ type ImpactPreview struct {
 	MaxOwnedFamilies         int    `json:"maxOwnedFamilies"`
 	MaxMembersPerOwnedFamily int    `json:"maxMembersPerOwnedFamily"`
 	MaxJoinedFamilies        int    `json:"maxJoinedFamilies"`
-	SupportsFeaturePreview   bool   `json:"supportsFeaturePreview"`
 }
 
 type FeatureOverrideItem struct {

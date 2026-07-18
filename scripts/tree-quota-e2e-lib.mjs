@@ -92,10 +92,7 @@ export function buildCapabilityLines(capabilities) {
   return [
     `可创建家庭：${usage.ownedFamilies}/${limits.maxOwnedFamilies}`,
     `可加入家庭：${usage.joinedFamilies}/${limits.maxJoinedFamilies}`,
-    `每个家庭成员上限：${limits.maxMembersPerOwnedFamily}`,
-    limits.supportsFeaturePreview
-      ? '特色功能：已开放'
-      : '特色功能：当前账号暂未开放'
+    `每个家庭成员上限：${limits.maxMembersPerOwnedFamily}`
   ]
 }
 

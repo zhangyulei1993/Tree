@@ -88,8 +88,8 @@ export interface UserCapabilities {
     maxOwnedFamilies: number
     maxMembersPerOwnedFamily: number
     maxJoinedFamilies: number
-    supportsFeaturePreview: boolean
   }
+  grayAccessEnabled?: boolean
   usage: {
     ownedFamilies: number
     joinedFamilies: number
