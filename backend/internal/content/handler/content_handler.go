@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"path"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -168,6 +171,26 @@ func (h *Handler) DeleteArticle(ctx *gin.Context) {
 	write(ctx, http.StatusOK, map[string]bool{"deleted": err == nil}, err)
 }
 
+func (h *Handler) UploadImage(ctx *gin.Context) {
+	adminID, role, ok := adminAndRole(ctx)
+	if !ok {
+		return
+	}
+	file, err := ctx.FormFile("file")
+	if err != nil {
+		bad(ctx)
+		return
+	}
+	result, businessErr := h.service.UploadImage(ctx.Request.Context(), adminID, role, contentservice.UploadImageInput{File: file})
+	if businessErr != nil {
+		write(ctx, apperrors.StatusOr(businessErr.Code, http.StatusBadRequest), nil, businessErr)
+		return
+	}
+	result.URL = absolutePublicURL(ctx, result.Path)
+	result.Markdown = fmt.Sprintf("![%s](%s)", strings.TrimSuffix(result.Filename, path.Ext(result.Filename)), result.URL)
+	write(ctx, http.StatusCreated, result, nil)
+}
+
 func adminAndRole(ctx *gin.Context) (uint64, string, bool) {
 	adminID, err := middleware.CurrentAdminID(ctx)
 	if err != nil {
@@ -231,4 +254,33 @@ func write(ctx *gin.Context, status int, result any, err *apperrors.BusinessErro
 		httpStatus = http.StatusInternalServerError
 	}
 	response.Error(ctx, httpStatus, err)
+}
+
+func absolutePublicURL(ctx *gin.Context, rawPath string) string {
+	if strings.HasPrefix(rawPath, "https://") || strings.HasPrefix(rawPath, "http://") {
+		return rawPath
+	}
+	scheme := strings.TrimSpace(ctx.GetHeader("X-Forwarded-Proto"))
+	if scheme == "" {
+		if ctx.Request.TLS != nil {
+			scheme = "https"
+		} else if isLoopbackHost(ctx.Request.Host) {
+			scheme = "http"
+		} else {
+			scheme = "https"
+		}
+	}
+	host := strings.TrimSpace(ctx.GetHeader("X-Forwarded-Host"))
+	if host == "" {
+		host = ctx.Request.Host
+	}
+	if !strings.HasPrefix(rawPath, "/") {
+		rawPath = "/" + rawPath
+	}
+	return fmt.Sprintf("%s://%s%s", scheme, host, rawPath)
+}
+
+func isLoopbackHost(host string) bool {
+	host = strings.ToLower(strings.TrimSpace(host))
+	return strings.HasPrefix(host, "localhost") || strings.HasPrefix(host, "127.0.0.1") || strings.HasPrefix(host, "[::1]")
 }

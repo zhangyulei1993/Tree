@@ -690,7 +690,7 @@ onShareAppMessage(() => ({
     ? `${family.value?.familyName || '家庭'} 邀请你确认「${selectedInviteMember.value.name}」身份并加入家庭树`
     : 'Tree 家脉亲缘',
   path: invitePath(),
-  imageUrl: '/static/share/family-invitation.jpg'
+  imageUrl: 'static/share/family-invitation.jpg'
 }))
 onShow(loadMembers)
 onHide(resetTransientUI)

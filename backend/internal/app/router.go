@@ -333,6 +333,7 @@ func (s *Server) registerContentRoutes(api *gin.RouterGroup) {
 	content.GET("/categories", handler.PublicCategories)
 	content.GET("/articles", handler.PublicArticles)
 	content.GET("/articles/:articleId", handler.PublicArticleDetail)
+	api.Static("/static/content", contentservice.ContentImageStorageRoot())
 
 	admin := api.Group("/admin/content")
 	admin.Use(adminAuth)
@@ -340,6 +341,7 @@ func (s *Server) registerContentRoutes(api *gin.RouterGroup) {
 	admin.POST("/categories", handler.CreateCategory)
 	admin.PUT("/categories/:categoryId", handler.UpdateCategory)
 	admin.DELETE("/categories/:categoryId", handler.DeleteCategory)
+	admin.POST("/images", handler.UploadImage)
 	admin.GET("/articles", handler.AdminArticles)
 	admin.POST("/articles", handler.CreateArticle)
 	admin.GET("/articles/:articleId", handler.AdminArticleDetail)

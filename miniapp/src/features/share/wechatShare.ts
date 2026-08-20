@@ -4,9 +4,9 @@ export const MINI_PROGRAM_SHARE_TITLE = '家脉｜记录家族，连接亲人'
 
 export const HOME_SHARE_PATH = '/pages/home/index'
 
-export const DEFAULT_MINI_PROGRAM_SHARE_IMAGE = '/static/share/mini-program-default.jpg'
+export const DEFAULT_MINI_PROGRAM_SHARE_IMAGE = 'static/share/mini-program-default.jpg'
 
-export const INVITATION_SHARE_IMAGE = '/static/share/family-invitation.jpg'
+export const INVITATION_SHARE_IMAGE = 'static/share/family-invitation.jpg'
 
 export interface WechatSharePayload {
   title: string

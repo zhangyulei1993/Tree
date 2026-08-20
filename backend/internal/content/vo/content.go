@@ -45,3 +45,10 @@ type ListArticlesResult struct {
 	PageSize int              `json:"pageSize"`
 	Total    int64            `json:"total"`
 }
+
+type ImageUploadResult struct {
+	URL      string `json:"url"`
+	Path     string `json:"path"`
+	Filename string `json:"filename"`
+	Markdown string `json:"markdown"`
+}

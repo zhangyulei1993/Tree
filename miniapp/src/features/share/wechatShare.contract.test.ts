@@ -66,7 +66,7 @@ test('article share uses cover when https and falls back otherwise', () => {
     title: '家谱入门',
     coverUrl: 'http://insecure.example.com/cover.jpg'
   })
-  assert.match(withoutCover.imageUrl, /^\/static\/share\//)
+  assert.match(withoutCover.imageUrl, /^static\/share\//)
 })
 
 test('public family share returns to the approved public profile', () => {

@@ -36,11 +36,8 @@
         <view class="viewer-copy">
           <text class="viewer-label">当前视角</text>
           <text class="viewer-name">{{ currentViewerName }}</text>
-          <text class="viewer-hint">仅用于查看称谓，不影响家庭树关系。</text>
+          <text class="viewer-hint">点击成员纸签，可切换到对应视角查看称谓。</text>
         </view>
-        <picker :range="viewerPickerLabels" :value="viewerPickerIndex" @change="changeViewer">
-          <view class="viewer-action">更换</view>
-        </picker>
       </view>
 
       <view v-if="canManageFamily" class="genealogy-tools">
@@ -82,6 +79,7 @@
           :viewer-member-id="viewerMemberId"
           show-binding
           :interactive="canManageFamily"
+          selectable-all
           :selectable-deceased="grayAccessAvailable"
           @select="openNodeActions"
         />
@@ -152,7 +150,9 @@
           <text class="memorial-footnote">{{ memorialFootnote }}</text>
           <view class="memorial-actions">
             <view class="memorial-action secondary" @click="closeMemorial">关闭</view>
+            <view class="memorial-action secondary" @click="switchMemorialViewer">设为视角</view>
             <view v-if="canManageFamily" class="memorial-action primary" @click="editMemorial">编辑资料</view>
+            <view v-if="canManageFamily" class="memorial-action danger" @click="deleteMemorialMember">删除节点</view>
           </view>
         </view>
       </view>
@@ -225,16 +225,20 @@ const currentViewerNode = computed(() =>
   viewerNodes.value.find((node) => node.memberId === viewerMemberId.value) || null
 )
 const currentViewerName = computed(() => currentViewerNode.value?.displayName || '未选择')
-const viewerPickerLabels = computed(() =>
-  viewerNodes.value.map((node) => {
-    const suffix = node.memberId === currentUserMemberId.value ? '（我）' : ''
-    return `${node.displayName || '未命名成员'}${suffix}`
-  })
-)
-const viewerPickerIndex = computed(() => {
-  const index = viewerNodes.value.findIndex((node) => node.memberId === viewerMemberId.value)
-  return index >= 0 ? index : 0
+const locatedMemberIds = computed(() => {
+  const ids = new Set<number>()
+  for (const item of displayTree.value?.tree || []) {
+    ids.add(item.memberId)
+    for (const parentId of item.parentIds || []) ids.add(parentId)
+    for (const childId of item.childrenIds || []) ids.add(childId)
+    for (const spouseId of item.spouseIds || []) ids.add(spouseId)
+  }
+  return ids
 })
+
+function canSwitchViewer(node: TreeNode) {
+  return locatedMemberIds.value.has(node.memberId)
+}
 
 function normalizeViewerMemberId(memberId: number | null | undefined): number | null {
   if (memberId == null || !tree.value) return memberId ?? null
@@ -333,12 +337,14 @@ function openManage() {
   })
 }
 
-function changeViewer(event: { detail: { value: number | string } }) {
-  const index = Number(event.detail.value)
-  const node = viewerNodes.value[index]
-  if (!node) return
+function switchViewerToNode(node: TreeNode) {
+  if (!canSwitchViewer(node)) {
+    uni.showToast({ title: '暂未接入关系图', icon: 'none' })
+    return
+  }
   viewerMemberId.value = normalizeViewerMemberId(node.memberId)
   viewMode.value = 'structure'
+  uni.showToast({ title: '已切换视角', icon: 'success' })
 }
 
 function openNodeActions(node: TreeNode) {
@@ -346,20 +352,25 @@ function openNodeActions(node: TreeNode) {
     showMemorial(node)
     return
   }
-  if (!canManageFamily.value) {
-    return
+  const items = canSwitchViewer(node) ? ['切换到此视角'] : []
+  if (canManageFamily.value) {
+    items.push('编辑资料')
+    if (node.userBindingState === 'UNBOUND') items.push('邀请本人绑定')
+    if (!isSpouseMember(node) && !isExternalMember(node)) items.push('添加或调整关系')
+    if (node.isLiving === true) items.push('标记为已故')
+    else if (node.isLiving === false) items.push('标记为健在')
+    else items.push('更新健在状态')
+    items.push('删除节点')
   }
-  const items = ['编辑资料']
-  if (node.userBindingState === 'UNBOUND') items.push('邀请本人绑定')
-  if (!isSpouseMember(node) && !isExternalMember(node)) items.push('添加或调整关系')
-  if (node.isLiving === true) items.push('标记为已故')
-  else if (node.isLiving === false) items.push('标记为健在')
-  else items.push('更新健在状态')
-  items.push('删除成员')
+  if (items.length === 0) return
   uni.showActionSheet({
     itemList: items,
     success: (result) => {
       const action = items[result.tapIndex]
+      if (action === '切换到此视角') {
+        switchViewerToNode(node)
+        return
+      }
       if (action === '编辑资料') {
         openMemberEdit(node)
         return
@@ -384,7 +395,7 @@ function openNodeActions(node: TreeNode) {
         openLivingStateActions(node)
         return
       }
-      if (action === '删除成员') {
+      if (action === '删除节点') {
         confirmDeleteMember(node)
       }
     }
@@ -432,6 +443,18 @@ function editMemorial() {
   const node = memorialNode.value
   closeMemorial()
   if (node) openMemberEdit(node)
+}
+
+function switchMemorialViewer() {
+  const node = memorialNode.value
+  closeMemorial()
+  if (node) switchViewerToNode(node)
+}
+
+function deleteMemorialMember() {
+  const node = memorialNode.value
+  closeMemorial()
+  if (node) confirmDeleteMember(node)
 }
 
 function openRelationActions(node: TreeNode) {
@@ -502,7 +525,7 @@ async function updateLivingState(node: TreeNode, isAlive: boolean) {
 
 function confirmDeleteMember(node: TreeNode) {
   uni.showModal({
-    title: '删除成员',
+    title: '删除节点',
     content: `确定删除“${node.displayName || '该成员'}”吗？没有子女时会一并解除父母/配偶关系；已有子女时系统会拒绝。`,
     success: (result) => {
       if (result.confirm) deleteMember(node)
@@ -513,7 +536,7 @@ function confirmDeleteMember(node: TreeNode) {
 async function deleteMember(node: TreeNode) {
   try {
     await deleteFamilyMember(familyId.value, node.memberId, '小程序家庭树节点删除')
-    uni.showToast({ title: '成员已删除', icon: 'success' })
+    uni.showToast({ title: '节点已删除', icon: 'success' })
     await loadTree()
   } catch (error) {
     uni.showModal({
@@ -564,8 +587,6 @@ onUnload(resetPageData)
 .viewer-panel {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
   margin-bottom: 20rpx;
   padding: 18rpx 0;
   border-left: 0;
@@ -599,16 +620,6 @@ onUnload(resetPageData)
   color: var(--archive-ink-soft);
   font-size: 21rpx;
   line-height: 1.45;
-}
-
-.viewer-action {
-  min-width: 96rpx;
-  border: 1rpx solid rgba(168, 59, 45, 0.62);
-  color: var(--archive-cinnabar);
-  padding: 12rpx 18rpx;
-  text-align: center;
-  font-size: 23rpx;
-  font-weight: 700;
 }
 
 .genealogy-tools {
@@ -861,6 +872,7 @@ onUnload(resetPageData)
 
 .memorial-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 16rpx;
   margin-top: 28rpx;
@@ -881,6 +893,11 @@ onUnload(resetPageData)
 
 .memorial-action.primary {
   border-color: var(--archive-cinnabar);
+  color: var(--archive-cinnabar);
+}
+
+.memorial-action.danger {
+  border-color: rgba(168, 59, 45, 0.72);
   color: var(--archive-cinnabar);
 }
 </style>

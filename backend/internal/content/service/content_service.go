@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"mime/multipart"
 	"strings"
 	"time"
 
@@ -40,6 +41,11 @@ type Service interface {
 	PublishArticle(context.Context, uint64, string, uint64) (*vo.ArticleDetail, *apperrors.BusinessError)
 	UnpublishArticle(context.Context, uint64, string, uint64) (*vo.ArticleDetail, *apperrors.BusinessError)
 	DeleteArticle(context.Context, uint64, string, uint64) *apperrors.BusinessError
+	UploadImage(context.Context, uint64, string, UploadImageInput) (*vo.ImageUploadResult, *apperrors.BusinessError)
+}
+
+type UploadImageInput struct {
+	File *multipart.FileHeader
 }
 
 type service struct {

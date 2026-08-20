@@ -295,6 +295,13 @@ export interface ContentArticleInput {
   sortOrder?: number
 }
 
+export interface ContentImageUploadResult {
+  url: string
+  path: string
+  filename: string
+  markdown: string
+}
+
 export interface AccountQuotaConfig {
   trustTier: 'WECHAT_ONLY' | 'PHONE_BOUND'
   maxOwnedFamilies: number

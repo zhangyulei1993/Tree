@@ -2,6 +2,7 @@ import { apiClient, apiMode, unwrapData } from '@/api/client'
 import type {
   ContentArticleDetail,
   ContentArticleInput,
+  ContentImageUploadResult,
   ContentArticleSummary,
   ContentCategory,
   ContentCategoryInput,
@@ -279,4 +280,21 @@ export async function deleteContentArticle(id: number): Promise<{ deleted: boole
   }
   const response = await apiClient.delete(`/admin/content/articles/${id}`)
   return unwrapData<{ deleted: boolean }>(response)
+}
+
+export async function uploadContentImage(file: File): Promise<ContentImageUploadResult> {
+  if (apiMode === 'mock') {
+    const safeName = file.name.replace(/\.[^.]+$/, '') || 'content-image'
+    const url = `https://cdn.example.com/tree-content/${encodeURIComponent(file.name || 'content-image.jpg')}`
+    return {
+      url,
+      path: url,
+      filename: file.name || 'content-image.jpg',
+      markdown: `![${safeName}](${url})`
+    }
+  }
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await apiClient.post('/admin/content/images', formData)
+  return unwrapData<ContentImageUploadResult>(response)
 }

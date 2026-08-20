@@ -139,11 +139,21 @@
         </el-form-item>
         <el-form-item label="摘要"><el-input v-model="articleForm.summary" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="封面图片">
-          <el-input
-            v-model="articleForm.coverUrl"
-            placeholder="填写 HTTPS 图片地址或小程序静态资源路径"
-            clearable
-          />
+          <div class="image-url-field">
+            <el-input
+              v-model="articleForm.coverUrl"
+              placeholder="填写 HTTPS 图片地址或小程序静态资源路径"
+              clearable
+            />
+            <el-upload
+              accept="image/jpeg,image/png,image/webp"
+              :show-file-list="false"
+              :before-upload="beforeContentImageUpload"
+              :http-request="uploadCoverImage"
+            >
+              <el-button :loading="coverUploading">上传封面</el-button>
+            </el-upload>
+          </div>
         </el-form-item>
         <el-form-item v-if="articleForm.contentType === 'INTERNAL'" label="正文">
           <el-input
@@ -154,6 +164,17 @@
           />
           <div class="article-body-tip">
             正文图片需使用 HTTPS 地址或小程序静态资源路径，例如：![首页封面](/static/content-guide/guide-home.jpg)
+          </div>
+          <div class="article-body-actions">
+            <el-upload
+              accept="image/jpeg,image/png,image/webp"
+              :show-file-list="false"
+              :before-upload="beforeContentImageUpload"
+              :http-request="uploadBodyImage"
+            >
+              <el-button size="small" :loading="bodyImageUploading">上传并插入正文图片</el-button>
+            </el-upload>
+            <span>上传成功后自动插入 Markdown 图片行。</span>
           </div>
         </el-form-item>
         <template v-else>
@@ -211,6 +232,7 @@
 
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
+import type { UploadRequestOptions, UploadRawFile } from 'element-plus'
 import { onMounted, reactive, ref } from 'vue'
 
 import {
@@ -224,7 +246,8 @@ import {
   publishContentArticle,
   unpublishContentArticle,
   updateContentArticle,
-  updateContentCategory
+  updateContentCategory,
+  uploadContentImage
 } from '@/api/content'
 import { getApiErrorMessage } from '@/api/client'
 import DataTable from '@/components/DataTable.vue'
@@ -260,6 +283,8 @@ const articleLoading = ref(false)
 const articleLoadError = ref('')
 const articleDialogVisible = ref(false)
 const articleEditingId = ref<number | null>(null)
+const coverUploading = ref(false)
+const bodyImageUploading = ref(false)
 
 const articleForm = reactive<ContentArticleInput>({
   categoryKey: '',
@@ -428,6 +453,54 @@ function isWechatArticleUrl(value: string) {
   return /^https:\/\/mp\.weixin\.qq\.com\/s(?:\/[^?\s#]+|\?[^#\s]+)$/i.test(value.trim())
 }
 
+function beforeContentImageUpload(file: UploadRawFile) {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+  if (!allowedTypes.includes(file.type)) {
+    ElMessage.warning('仅支持 JPG、PNG、WEBP 图片')
+    return false
+  }
+  if (file.size <= 0 || file.size > 5 * 1024 * 1024) {
+    ElMessage.warning('图片大小需在 5MB 以内')
+    return false
+  }
+  return true
+}
+
+async function uploadCoverImage(options: UploadRequestOptions) {
+  coverUploading.value = true
+  try {
+    const result = await uploadContentImage(options.file)
+    articleForm.coverUrl = result.url
+    options.onSuccess?.(result)
+    ElMessage.success('封面图片已上传')
+  } catch (error) {
+    options.onError?.(error as any)
+    ElMessage.error(getApiErrorMessage(error))
+  } finally {
+    coverUploading.value = false
+  }
+}
+
+async function uploadBodyImage(options: UploadRequestOptions) {
+  bodyImageUploading.value = true
+  try {
+    const result = await uploadContentImage(options.file)
+    appendBodyImageMarkdown(result.markdown || `![${result.filename}](${result.url})`)
+    options.onSuccess?.(result)
+    ElMessage.success('正文图片已插入')
+  } catch (error) {
+    options.onError?.(error as any)
+    ElMessage.error(getApiErrorMessage(error))
+  } finally {
+    bodyImageUploading.value = false
+  }
+}
+
+function appendBodyImageMarkdown(markdown: string) {
+  const current = articleForm.body.trimEnd()
+  articleForm.body = current ? `${current}\n\n${markdown}\n` : `${markdown}\n`
+}
+
 async function publishArticle(id: number) {
   await runOperation(async () => {
     await publishContentArticle(id)
@@ -540,10 +613,29 @@ function formatTime(value?: string | null) {
   margin-left: 18px;
 }
 
+.image-url-field {
+  display: flex;
+  width: 100%;
+  gap: 10px;
+}
+
+.image-url-field .el-input {
+  flex: 1;
+}
+
 .article-body-tip {
   margin-top: 6px;
   color: #8c8c8c;
   font-size: 12px;
   line-height: 1.6;
+}
+
+.article-body-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  color: #8c8c8c;
+  font-size: 12px;
 }
 </style>
