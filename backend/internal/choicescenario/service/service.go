@@ -31,6 +31,19 @@ const (
 	ListLimit            = 30
 )
 
+type builtinChoiceScenario struct {
+	title   string
+	options []string
+}
+
+var builtinChoiceScenarios = []builtinChoiceScenario{
+	{title: "今天吃什么", options: []string{"家常菜", "火锅", "烧烤", "面食", "外卖"}},
+	{title: "下班去干什么", options: []string{"打篮球", "去健身房", "逛街", "看电影", "回家休息"}},
+	{title: "周末去哪儿", options: []string{"公园散步", "看电影", "逛街", "周边短途游", "在家休息"}},
+	{title: "今晚看什么", options: []string{"纪录片", "喜剧片", "电视剧", "综艺", "读书"}},
+	{title: "先做哪一件事", options: []string{"工作任务", "运动锻炼", "整理房间", "回复消息", "休息一下"}},
+}
+
 type AuditInput struct {
 	IP        string
 	UserAgent string
@@ -79,6 +92,9 @@ func (s *service) List(ctx context.Context, query choicedto.ListQuery) ([]vo.Cho
 		if err != nil {
 			continue
 		}
+		if isBuiltinChoiceScenario(item.Title, item.Options) {
+			continue
+		}
 		result = append(result, item)
 	}
 	return result, nil
@@ -87,6 +103,9 @@ func (s *service) List(ctx context.Context, query choicedto.ListQuery) ([]vo.Cho
 func (s *service) Create(ctx context.Context, userID uint64, req choicedto.CreateRequest, audit AuditInput) (*vo.ChoiceScenario, *apperrors.BusinessError) {
 	title, options, err := normalizeInput(req)
 	if err != nil {
+		return nil, apperrors.New(apperrors.CodeChoiceScenarioInvalidInput)
+	}
+	if isBuiltinChoiceScenario(title, options) {
 		return nil, apperrors.New(apperrors.CodeChoiceScenarioInvalidInput)
 	}
 	dayStart, _ := periodStart(s.now(), "today")
@@ -216,6 +235,25 @@ func toVO(row choicemodel.ChoiceScenario) (vo.ChoiceScenario, error) {
 		return vo.ChoiceScenario{}, err
 	}
 	return vo.ChoiceScenario{ID: row.ID, Title: row.Title, Options: options, UseCount: row.UseCount, CreatedAt: row.CreatedAt}, nil
+}
+
+func isBuiltinChoiceScenario(title string, options []string) bool {
+	for _, builtin := range builtinChoiceScenarios {
+		if builtin.title != title || len(builtin.options) != len(options) {
+			continue
+		}
+		matched := true
+		for index, option := range builtin.options {
+			if option != options[index] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
 }
 
 func detailJSON(title string, optionCount int) []byte {

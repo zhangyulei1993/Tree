@@ -35,3 +35,15 @@ func TestNormalizeInputRejectsUnsafeShape(t *testing.T) {
 		}
 	}
 }
+
+func TestBuiltinChoiceScenarioDetectionRequiresExactOptions(t *testing.T) {
+	if !isBuiltinChoiceScenario("今天吃什么", []string{"家常菜", "火锅", "烧烤", "面食", "外卖"}) {
+		t.Fatal("expected built-in scenario to be detected")
+	}
+	if isBuiltinChoiceScenario("今天吃什么", []string{"家常菜", "火锅"}) {
+		t.Fatal("expected incomplete options not to be detected as built-in")
+	}
+	if isBuiltinChoiceScenario("今天吃什么", []string{"家常菜", "烧烤", "火锅", "面食", "外卖"}) {
+		t.Fatal("expected reordered options not to be detected as built-in")
+	}
+}

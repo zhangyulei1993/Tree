@@ -323,7 +323,8 @@ function saveHistory(result: string) {
 async function loadSharedScenarios() {
   sharedScenarioMessage.value = ''
   try {
-    sharedScenarios.value = await listSharedChoiceScenarios(sharedPeriod.value)
+    const loadedScenarios = await listSharedChoiceScenarios(sharedPeriod.value)
+    sharedScenarios.value = loadedScenarios.filter((item) => !findBuiltinScenario(item.title, item.options))
   } catch {
     sharedScenarios.value = []
     sharedScenarioMessage.value = '共享场景暂时不可用，请稍后再试。'
