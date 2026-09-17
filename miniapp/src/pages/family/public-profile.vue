@@ -60,7 +60,13 @@
       <view class="public-actions">
         <MiniButton @click="openPublicTree">查看公开家庭树</MiniButton>
         <!-- #ifdef MP-WEIXIN -->
-        <button class="wechat-share-button" open-type="share">分享公开家庭</button>
+        <view class="public-share-note">
+          <view>
+            <text class="public-share-title">把这份家庭记录分享给家人</text>
+            <text class="public-share-desc">邀请亲人一起了解家庭关系</text>
+          </view>
+          <button class="wechat-share-button" open-type="share">分享</button>
+        </view>
         <!-- #endif -->
       </view>
 
@@ -88,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad, onShareAppMessage, onShareTimeline } from '@dcloudio/uni-app'
+import { onLoad, onShareAppMessage, onShareTimeline, onShow } from '@dcloudio/uni-app'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -99,7 +105,8 @@ import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import {
   buildPublicFamilySharePayload,
-  buildPublicFamilyTimelinePayload
+  buildPublicFamilyTimelinePayload,
+  loadShareConfigs
 } from '@/features/share/wechatShare'
 import type { PublicFamily } from '@/types/api'
 
@@ -114,6 +121,12 @@ const hasPublicContact = computed(() => Boolean(
   family.value?.publicContactPhone ||
   family.value?.publicContactWechat
 ))
+
+loadShareConfigs()
+
+onShow(() => {
+  void loadShareConfigs({ force: true })
+})
 
 const dossierItems = computed(() => {
   if (!family.value) return []
@@ -367,6 +380,34 @@ onUnmounted(() => {
   margin-bottom: 24rpx;
 }
 
+.public-share-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  border-top: 1rpx solid var(--archive-line);
+  padding-top: 18rpx;
+}
+
+.public-share-title,
+.public-share-desc {
+  display: block;
+}
+
+.public-share-title {
+  color: var(--archive-ink);
+  font-size: 25rpx;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.public-share-desc {
+  margin-top: 5rpx;
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.45;
+}
+
 .public-contact {
   margin-bottom: 16rpx;
 }
@@ -380,13 +421,16 @@ onUnmounted(() => {
 }
 
 .wechat-share-button {
+  flex-shrink: 0;
+  width: 148rpx;
   margin: 0;
-  border: 1rpx solid var(--archive-cinnabar);
-  border-radius: 0;
-  background: transparent;
-  color: var(--archive-cinnabar);
+  border: 0;
+  border-radius: 999rpx;
+  background: var(--archive-blue);
+  color: var(--archive-paper-light);
   font-size: 26rpx;
-  line-height: 2.2;
+  font-weight: 650;
+  line-height: 2.4;
 }
 
 .wechat-share-button::after {

@@ -17,6 +17,9 @@ import (
 	authhandler "tree/backend/internal/auth/handler"
 	authrepo "tree/backend/internal/auth/repository"
 	authservice "tree/backend/internal/auth/service"
+	choicescenariohandler "tree/backend/internal/choicescenario/handler"
+	choicescenariorepo "tree/backend/internal/choicescenario/repository"
+	choicescenarioservice "tree/backend/internal/choicescenario/service"
 	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/database"
 	commonjwt "tree/backend/internal/common/jwt"
@@ -60,17 +63,49 @@ import (
 	treerepo "tree/backend/internal/family/tree/repository"
 	treeservice "tree/backend/internal/family/tree/service"
 	operationlog "tree/backend/internal/operationlog/service"
+	shareconfighandler "tree/backend/internal/shareconfig/handler"
+	shareconfigrepo "tree/backend/internal/shareconfig/repository"
+	shareconfigservice "tree/backend/internal/shareconfig/service"
+	toolconfighandler "tree/backend/internal/toolconfig/handler"
+	toolconfigrepo "tree/backend/internal/toolconfig/repository"
+	toolconfigservice "tree/backend/internal/toolconfig/service"
 )
 
 func (s *Server) RegisterRoutes() {
 	api := s.engine.Group("/api")
 	api.GET("/health", s.health)
 	api.GET("/version", s.version)
+	s.registerShareConfigRoutes(api)
+	s.registerToolConfigRoutes(api)
 
 	s.registerAdminRoutes(api)
 	s.registerUserAuthRoutes(api)
+	s.registerChoiceScenarioRoutes(api)
 	s.registerFamilyRoutes(api)
 	s.registerContentRoutes(api)
+}
+
+func (s *Server) registerChoiceScenarioRoutes(api *gin.RouterGroup) {
+	db, err := database.Init(context.Background(), s.cfg.MySQL)
+	if err != nil {
+		s.logger.Error("init mysql for choice scenarios", zap.Error(err))
+		return
+	}
+	_, userAuth := s.buildUserAuth()
+	if userAuth == nil {
+		s.logger.Error("choice scenario routes disabled")
+		return
+	}
+	userRepo := authrepo.NewGormUserRepository(db)
+	logs := operationlog.NewGormService(db)
+	contentSafety := contentsafety.NewService(contentsafety.NewClient(s.cfg.Wechat), userRepo, logs, s.cfg.Wechat.MiniAppID)
+	service := choicescenarioservice.New(db, choicescenariorepo.NewRepository(db), contentSafety, logs)
+	handler := choicescenariohandler.New(service)
+	api.GET("/choice-scenarios", handler.List)
+	protected := api.Group("/choice-scenarios")
+	protected.Use(userAuth)
+	protected.POST("", handler.Create)
+	protected.POST("/:scenarioId/use", handler.Use)
 }
 
 func (s *Server) health(ctx response.Context) {
@@ -129,6 +164,39 @@ func (s *Server) registerAdminRoutes(api *gin.RouterGroup) {
 	protected.GET("/account-feature-overrides/:featureKey", quotaHandler.ListFeatureOverrides)
 	protected.PUT("/account-feature-overrides/:featureKey", quotaHandler.UpdateFeatureOverrides)
 	protected.DELETE("/account-feature-overrides/:featureKey/:overrideId", quotaHandler.DeleteFeatureOverride)
+	shareConfigHandler := s.buildShareConfigHandler(managementDB)
+	protected.GET("/share-configs", shareConfigHandler.AdminList)
+	protected.PUT("/share-configs/:configKey", shareConfigHandler.AdminUpdate)
+	toolConfigHandler := s.buildToolConfigHandler(managementDB)
+	protected.GET("/tool-configs", toolConfigHandler.AdminList)
+	protected.POST("/tool-configs", toolConfigHandler.AdminCreate)
+	protected.PUT("/tool-configs/:toolKey", toolConfigHandler.AdminUpdate)
+}
+
+func (s *Server) registerShareConfigRoutes(api *gin.RouterGroup) {
+	db, err := database.Init(context.Background(), s.cfg.MySQL)
+	if err != nil {
+		s.logger.Error("init mysql for share configs", zap.Error(err))
+		return
+	}
+	api.GET("/share-configs", s.buildShareConfigHandler(db).PublicList)
+}
+
+func (s *Server) buildShareConfigHandler(db *gorm.DB) *shareconfighandler.Handler {
+	return shareconfighandler.New(shareconfigservice.New(shareconfigrepo.New(db), operationlog.NewGormService(db)))
+}
+
+func (s *Server) registerToolConfigRoutes(api *gin.RouterGroup) {
+	db, err := database.Init(context.Background(), s.cfg.MySQL)
+	if err != nil {
+		s.logger.Error("init mysql for tool configs", zap.Error(err))
+		return
+	}
+	api.GET("/tool-configs", s.buildToolConfigHandler(db).PublicList)
+}
+
+func (s *Server) buildToolConfigHandler(db *gorm.DB) *toolconfighandler.Handler {
+	return toolconfighandler.New(toolconfigservice.New(toolconfigrepo.New(db), operationlog.NewGormService(db)))
 }
 
 func (s *Server) buildAdminAuth() (*adminhandler.AuthHandler, gin.HandlerFunc) {

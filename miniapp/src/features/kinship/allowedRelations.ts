@@ -11,10 +11,18 @@ import { getTerminalReason, isTerminalContext } from './terminalRules'
 
 const ALL_RELATIONS: KinshipRelation[] = ['parent', 'child', 'sibling', 'spouse']
 
+export const LAST_LAYER_GENDER_REQUIRED_REASON =
+  '当前末层可以暂不填写性别；继续添加下一层前，请先选择男或女。'
+
 export function canAppendRelation(
   context: KinshipContext,
   relation: KinshipRelation
 ): ValidationResult {
+  const lastStep = context.steps[context.steps.length - 1]
+  if (lastStep?.person.gender === 'unknown') {
+    return { valid: false, reason: LAST_LAYER_GENDER_REQUIRED_REASON }
+  }
+
   const pathGuard = validatePathGuard(context, relation)
   if (!pathGuard.valid) {
     return pathGuard

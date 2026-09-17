@@ -153,6 +153,32 @@ function buildDirectLineGraph(childDepth: number, lastGender: 'MALE' | 'FEMALE' 
   return buildChainGraph(descendants)
 }
 
+function buildDirectLineGraphFromGenders(genders: Array<'MALE' | 'FEMALE'>) {
+  return buildChainGraph(genders.map((gender) => ({ gender })))
+}
+
+const DIRECT_LINE_CASES: Array<{
+  name: string
+  genders: Array<'male' | 'female'>
+  expectedTitle: string
+}> = [
+  { name: '子女', genders: ['male'], expectedTitle: '儿子' },
+  { name: '女儿', genders: ['female'], expectedTitle: '女儿' },
+  { name: '孙子', genders: ['male', 'male'], expectedTitle: '孙子' },
+  { name: '孙女', genders: ['male', 'female'], expectedTitle: '孙女' },
+  { name: '外孙', genders: ['female', 'male'], expectedTitle: '外孙' },
+  { name: '外孙女', genders: ['female', 'female'], expectedTitle: '外孙女' },
+  { name: '曾孙', genders: ['male', 'male', 'male'], expectedTitle: '曾孙' },
+  { name: '女系转外曾孙', genders: ['male', 'female', 'male'], expectedTitle: '外曾孙' },
+  { name: '外曾孙女', genders: ['female', 'male', 'female'], expectedTitle: '外曾孙女' },
+  { name: '玄孙', genders: ['male', 'male', 'male', 'male'], expectedTitle: '玄孙' },
+  { name: '中途转外玄孙', genders: ['male', 'male', 'female', 'male'], expectedTitle: '外玄孙' },
+  { name: '外玄孙女', genders: ['female', 'female', 'male', 'female'], expectedTitle: '外玄孙女' },
+  { name: '来孙', genders: ['male', 'male', 'male', 'male', 'male'], expectedTitle: '来孙' },
+  { name: '中途转外来孙', genders: ['male', 'male', 'male', 'female', 'male'], expectedTitle: '外来孙' },
+  { name: '外来孙女', genders: ['female', 'male', 'male', 'male', 'female'], expectedTitle: '外来孙女' }
+]
+
 function assertUnsupportedPath(
   name: string,
   steps: KinshipStep[],
@@ -173,6 +199,20 @@ function assertUnsupportedPath(
       failures.push(`${name}: 不得返回「${forbidden}」`)
       return false
     }
+  }
+  return true
+}
+
+function assertResolvedPath(
+  name: string,
+  steps: KinshipStep[],
+  expectedTitle: string,
+  failures: string[]
+): boolean {
+  const result = resolveCanonicalKinship(createContext(steps))
+  if (result.unsupportedCanonicalTitle || result.canonicalTitle !== expectedTitle) {
+    failures.push(`${name}: 期望「${expectedTitle}」，实际「${result.canonicalTitle || result.pathDescription}」`)
+    return false
   }
   return true
 }
@@ -199,6 +239,22 @@ function assertUnsupportedGraph(
       failures.push(`${name}: 不得返回「${forbidden}」`)
       return false
     }
+  }
+  return true
+}
+
+function assertResolvedGraph(
+  name: string,
+  graph: RelGraph,
+  meId: number,
+  targetId: number,
+  expectedTitle: string,
+  failures: string[]
+): boolean {
+  const result = resolveCanonicalRelativeTitle(graph, meId, targetId)
+  if (result.unsupportedCanonicalTitle || result.canonicalTitle !== expectedTitle) {
+    failures.push(`${name}: 期望「${expectedTitle}」，实际「${result.canonicalTitle || result.pathDescription}」`)
+    return false
   }
   return true
 }
@@ -233,6 +289,23 @@ export function runDeepDirectDescendantKinshipTests(): {
       passed += 1
     }
     total += 1
+  }
+
+  for (const testCase of DIRECT_LINE_CASES) {
+    const steps = testCase.genders.map((gender) => childStep(gender))
+    countPass(assertResolvedPath(`查询 ${testCase.name}`, steps, testCase.expectedTitle, failures))
+
+    const graphCase = buildDirectLineGraphFromGenders(
+      testCase.genders.map((gender) => gender === 'male' ? 'MALE' : 'FEMALE')
+    )
+    countPass(assertResolvedGraph(
+      `家庭树 ${testCase.name}`,
+      graphCase.graph,
+      graphCase.meId,
+      graphCase.targetId,
+      testCase.expectedTitle,
+      failures
+    ))
   }
 
   countPass(canAppendRelation(createContext(childChain(5, 'male')), 'spouse').valid)
@@ -270,7 +343,7 @@ export function runDeepDirectDescendantKinshipTests(): {
     failures
   ))
 
-  countPass(assertUnsupportedPath(
+  countPass(assertResolvedPath(
     '外系 child×5 血亲',
     [
       childStep('female'),
@@ -279,11 +352,11 @@ export function runDeepDirectDescendantKinshipTests(): {
       childStep('male'),
       childStep('male')
     ],
-    ['来孙', '来孙女'],
+    '外来孙',
     failures
   ))
 
-  countPass(assertUnsupportedPath(
+  countPass(assertResolvedPath(
     '外系 child×5 末端配偶',
     [
       childStep('female'),
@@ -293,11 +366,11 @@ export function runDeepDirectDescendantKinshipTests(): {
       childStep('male'),
       spouseStep('female')
     ],
-    patrilinealForbidden,
+    '外来孙媳',
     failures
   ))
 
-  countPass(assertUnsupportedPath(
+  countPass(assertResolvedPath(
     '混合路径 child:male>child:female>child:male + spouse',
     [
       childStep('male'),
@@ -305,7 +378,7 @@ export function runDeepDirectDescendantKinshipTests(): {
       childStep('male'),
       spouseStep('female')
     ],
-    ['曾孙媳妇', '曾孙女婿', '曾孙媳'],
+    '外曾孙媳',
     failures
   ))
 
@@ -350,12 +423,12 @@ export function runDeepDirectDescendantKinshipTests(): {
     ],
     { spouse: { gender: 'FEMALE', memberType: 'SPOUSE' } }
   )
-  countPass(assertUnsupportedGraph(
+  countPass(assertResolvedGraph(
     'graph 外系 child×5 末端配偶',
     externalSpouseGraph.graph,
     1,
     externalSpouseGraph.targetId,
-    patrilinealForbidden,
+    '外来孙媳',
     failures
   ))
 
@@ -367,12 +440,12 @@ export function runDeepDirectDescendantKinshipTests(): {
     ],
     { spouse: { gender: 'FEMALE', memberType: 'SPOUSE' } }
   )
-  countPass(assertUnsupportedGraph(
+  countPass(assertResolvedGraph(
     'graph 混合路径 child:male>child:female>child:male + spouse',
     mixedSpouseGraph.graph,
     1,
     mixedSpouseGraph.targetId,
-    ['曾孙媳妇', '曾孙女婿', '曾孙媳'],
+    '外曾孙媳',
     failures
   ))
 

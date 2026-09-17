@@ -30,7 +30,7 @@ export function getGenderLabel(gender: Gender): string {
     case 'female':
       return '女'
     default:
-      return '未知'
+      return '暂不填写'
   }
 }
 
@@ -43,7 +43,7 @@ export function getRelativeAgeLabel(relativeAge: RelativeAge): string {
     case 'same':
       return '与上一位同龄'
     default:
-      return '长幼未知'
+      return '暂不判断长幼'
   }
 }
 

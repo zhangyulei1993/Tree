@@ -24,12 +24,27 @@
       </view>
 
       <view class="me-directory archive-list">
+        <view class="archive-row" @click="go('/pages/tools/index')">
+          <view class="directory-icon relationship-directory-icon" aria-hidden="true">
+            <view class="directory-icon-line line-one" />
+            <view class="directory-icon-line line-two" />
+            <view class="directory-icon-node node-top" />
+            <view class="directory-icon-node node-left" />
+            <view class="directory-icon-node node-right" />
+          </view>
+          <view class="archive-row-main">
+            <text class="archive-row-title">常用工具</text>
+            <text class="archive-row-desc">称谓查询等家庭实用工具</text>
+          </view>
+          <text class="archive-arrow">›</text>
+        </view>
         <view
           v-for="item in directoryItems"
           :key="item.title"
           class="archive-row"
           @click="go(item.url)"
         >
+          <view class="directory-icon text-directory-icon" aria-hidden="true">{{ item.icon }}</view>
           <view class="archive-row-main">
             <text class="archive-row-title">{{ item.title }}</text>
             <text class="archive-row-desc">{{ item.desc }}</text>
@@ -69,7 +84,22 @@
       </view>
 
       <view class="me-directory archive-list">
+        <view class="archive-row" @click="go('/pages/tools/index')">
+          <view class="directory-icon relationship-directory-icon" aria-hidden="true">
+            <view class="directory-icon-line line-one" />
+            <view class="directory-icon-line line-two" />
+            <view class="directory-icon-node node-top" />
+            <view class="directory-icon-node node-left" />
+            <view class="directory-icon-node node-right" />
+          </view>
+          <view class="archive-row-main">
+            <text class="archive-row-title">常用工具</text>
+            <text class="archive-row-desc">称谓查询等家庭实用工具</text>
+          </view>
+          <text class="archive-arrow">›</text>
+        </view>
         <view class="archive-row" @click="go('/pages/me/about')">
+          <view class="directory-icon text-directory-icon" aria-hidden="true">关</view>
           <view class="archive-row-main">
             <text class="archive-row-title">关于我们</text>
             <text class="archive-row-desc">协议、隐私与版本信息</text>
@@ -113,11 +143,11 @@ const accountStatusLabel = computed(() =>
 )
 
 const directoryItems = [
-  { title: '个人资料', desc: '昵称、头像与基础资料', count: '', url: '/pages/me/profile' },
-  { title: '家庭事务', desc: '家庭邀请、加入申请与成员身份', count: '', url: '/pages/me/family-affairs' },
-  { title: '设置', desc: '账号与安全、手机号登录', count: '', url: '/pages/me/account-security' },
-  { title: '帮助与反馈', desc: '使用说明与联系方式', count: '', url: '/pages/me/about' },
-  { title: '关于我们', desc: '协议、隐私与版本信息', count: '', url: '/pages/me/about' }
+  { title: '个人资料', icon: '人', desc: '昵称、头像与基础资料', count: '', url: '/pages/me/profile' },
+  { title: '家庭事务', icon: '事', desc: '家庭邀请、加入申请与成员身份', count: '', url: '/pages/me/family-affairs' },
+  { title: '设置', icon: '设', desc: '账号与安全、手机号登录', count: '', url: '/pages/me/account-security' },
+  { title: '帮助与反馈', icon: '问', desc: '使用说明与联系方式', count: '', url: '/pages/me/about' },
+  { title: '关于我们', icon: '关', desc: '协议、隐私与版本信息', count: '', url: '/pages/me/about' }
 ]
 
 function go(url: string) {
@@ -152,6 +182,72 @@ onShow(() => {
 </script>
 
 <style scoped>
+.directory-icon {
+  position: relative;
+  width: 62rpx;
+  height: 62rpx;
+  flex-shrink: 0;
+  margin-right: 22rpx;
+  border: 1rpx solid var(--archive-line-strong);
+  border-radius: 50%;
+  background: rgba(255, 252, 244, 0.72);
+}
+
+.text-directory-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--archive-blue);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 27rpx;
+  font-weight: 700;
+}
+
+.directory-icon-line {
+  position: absolute;
+  height: 2rpx;
+  background: var(--archive-cinnabar);
+  transform-origin: left center;
+}
+
+.line-one {
+  top: 28rpx;
+  left: 27rpx;
+  width: 17rpx;
+  transform: rotate(148deg);
+}
+
+.line-two {
+  top: 28rpx;
+  left: 27rpx;
+  width: 17rpx;
+  transform: rotate(32deg);
+}
+
+.directory-icon-node {
+  position: absolute;
+  width: 12rpx;
+  height: 12rpx;
+  border: 2rpx solid var(--archive-blue);
+  border-radius: 50%;
+  background: var(--archive-paper-light);
+}
+
+.node-top {
+  top: 8rpx;
+  left: 24rpx;
+}
+
+.node-left {
+  bottom: 9rpx;
+  left: 9rpx;
+}
+
+.node-right {
+  right: 9rpx;
+  bottom: 9rpx;
+}
+
 .me-page {
   padding-top: 38rpx;
 }

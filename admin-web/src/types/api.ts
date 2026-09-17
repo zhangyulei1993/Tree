@@ -329,3 +329,26 @@ export interface AccountFeatureOverrideItem {
   phoneMask: string
   updatedAt: string
 }
+
+export interface ShareConfig {
+  id: number
+  configKey: 'HOME' | 'PUBLIC_FAMILY' | 'INVITATION_NODE' | 'INVITATION_PENDING_MEMBER' | string
+  titleTemplate: string
+  imageUrl: string
+  imageUrls: string[]
+  description?: string | null
+  updatedAt: string
+}
+
+export interface ToolConfig {
+  id: number
+  toolKey: string
+  displayName: string
+  description: string
+  visible: boolean
+  enabled: boolean
+  pinned: boolean
+  highlighted: boolean
+  sortOrder: number
+  updatedAt: string
+}

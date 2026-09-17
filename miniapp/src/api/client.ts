@@ -1,6 +1,6 @@
 import type { ApiResponse } from '@/types/api'
 
-const environment = import.meta.env as ImportMetaEnv & {
+const environment = (import.meta.env || {}) as ImportMetaEnv & {
   VITE_API_MODE?: string
   VITE_API_BASE_URL?: string
 }

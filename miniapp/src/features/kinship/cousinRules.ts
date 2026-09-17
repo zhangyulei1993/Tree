@@ -86,7 +86,7 @@ function cousinPrefixFromPathKey(pathKey: string): '堂' | '表' | null {
 
 /**
  * 堂/表同辈称谓按「我 vs 堂表亲本人」出生先后判断，不按父母兄弟姐妹（伯父/叔父等）长幼。
- * 仅在 self 与堂表亲子女 step 均有可比较生日/年龄时生效。
+ * 优先使用用户提供的长幼关系；没有长幼信息时再尝试用生日/年龄推导。
  */
 export function matchCousinPeerSeniority(
   context: KinshipContext,
@@ -95,7 +95,7 @@ export function matchCousinPeerSeniority(
   if (buildRelationKey(context) !== 'parent>sibling>child') return null
 
   const childStep = context.steps[2]
-  const peerSeniority = inferRelativeAgeFromFacts(context.self, childStep.person, undefined)
+  const peerSeniority = inferRelativeAgeFromFacts(context.self, childStep.person, childStep.relativeAge)
   if (peerSeniority !== 'older' && peerSeniority !== 'younger') return null
 
   const prefix = cousinPrefixFromPathKey(pathKey)
@@ -125,6 +125,58 @@ function genderedTitle(gender: string | undefined, male: string, female: string,
     primaryTitle: neutral,
     candidates: [neutral, male, female],
     explanation: '需要补充性别以区分更具体的称谓。'
+  }
+}
+
+function matchParentGenerationCousinRule(context: KinshipContext): KinshipRuleMatch | null {
+  if (buildRelationKey(context) !== 'parent>parent>sibling>child') return null
+
+  const parentStep = context.steps[0]
+  const grandparentStep = context.steps[1]
+  const targetStep = context.steps[3]
+  const parentGender = parentStep.person.gender
+  const grandparentGender = grandparentStep.person.gender
+  const targetGender = targetStep.person.gender
+
+  if (targetGender === 'female') {
+    if (parentGender === 'male' && grandparentGender === 'male' && context.steps[2].person.gender === 'male') {
+      return { status: 'resolved', primaryTitle: '堂姑' }
+    }
+    if (parentGender === 'female') {
+      return { status: 'resolved', primaryTitle: '表姨' }
+    }
+    return { status: 'resolved', primaryTitle: '表姑' }
+  }
+
+  if (targetGender !== 'male') return null
+
+  const seniority = inferRelativeAgeFromFacts(parentStep.person, targetStep.person, targetStep.relativeAge)
+  if (parentGender === 'male' && grandparentGender === 'male' && context.steps[2].person.gender === 'male') {
+    if (seniority === 'older') return { status: 'resolved', primaryTitle: '堂伯' }
+    if (seniority === 'younger') return { status: 'resolved', primaryTitle: '堂叔' }
+    return {
+      status: 'ambiguous',
+      candidates: ['堂伯', '堂叔'],
+      explanation: '父亲的祖辈旁系男性需要补充与父亲的长幼关系。'
+    }
+  }
+
+  if (parentGender === 'female') {
+    if (seniority === 'older') return { status: 'resolved', primaryTitle: '表舅' }
+    if (seniority === 'younger') return { status: 'resolved', primaryTitle: '表叔' }
+    return {
+      status: 'ambiguous',
+      candidates: ['表舅', '表叔'],
+      explanation: '母亲的祖辈旁系男性需要补充与母亲的长幼关系。'
+    }
+  }
+
+  if (seniority === 'older') return { status: 'resolved', primaryTitle: '表伯' }
+  if (seniority === 'younger') return { status: 'resolved', primaryTitle: '表叔' }
+  return {
+    status: 'ambiguous',
+    candidates: ['表伯', '表叔'],
+    explanation: '父母的祖辈旁系男性需要补充长幼关系。'
   }
 }
 
@@ -168,6 +220,8 @@ function matchCousinDescendantRules(context: KinshipContext, pathKey: string): K
 export function matchCousinRules(context: KinshipContext, pathKey: string): KinshipRuleMatch | null {
   const peerMatch = matchCousinPeerSeniority(context, pathKey)
   if (peerMatch) return peerMatch
+  const parentGenerationMatch = matchParentGenerationCousinRule(context)
+  if (parentGenerationMatch) return parentGenerationMatch
   return COUSIN_RULES[pathKey] || matchCousinDescendantRules(context, pathKey)
 }
 

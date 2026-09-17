@@ -12,6 +12,10 @@ import {
 import { matchAffinityRules } from './affinityRules'
 import { matchAncestorRules } from './ancestorRules'
 import { matchCousinPeerSeniority, matchCousinRules } from './cousinRules'
+import {
+  resolveDirectDescendantSpouseTitle,
+  resolveDirectDescendantTitle
+} from './directDescendantRules'
 import { matchExactRules } from './exactRules'
 import { matchNephewRules } from './nephewRules'
 import { formatObjectivePathDescription, pathHasIncompleteInfo } from './objectivePath'
@@ -47,23 +51,11 @@ const FORBIDDEN_BARE_TITLES = new Set([
 ])
 
 const NON_CANONICAL_SPOUSE_INLAW = new Set([
-  '大舅子',
-  '小舅子',
-  '大姨子',
-  '小姨子',
-  '大伯子',
-  '小叔子',
-  '大伯哥',
-  '内兄',
-  '内弟',
-  '岳父',
-  '岳母',
-  '公公',
-  '婆婆',
   '丈人',
   '丈母娘',
-  '继女',
-  '继子'
+  '大伯哥',
+  '内兄',
+  '内弟'
 ])
 
 function normalizeTitle(title: string): string {
@@ -98,6 +90,24 @@ function fromLegacyMatch(
   return fromResolvedTitle(pathDescription, match.primaryTitle)
 }
 
+function matchDirectDescendantRules(context: KinshipContext): KinshipRuleMatch | null {
+  const steps = context.steps
+  if (steps.every((step) => step.relation === 'child')) {
+    const title = resolveDirectDescendantTitle(steps.map((step) => step.person.gender))
+    return title ? { status: 'resolved', primaryTitle: title } : null
+  }
+
+  if (steps.length < 2 || steps[steps.length - 1]?.relation !== 'spouse') return null
+  const bloodSteps = steps.slice(0, -1)
+  if (!bloodSteps.every((step) => step.relation === 'child')) return null
+
+  const title = resolveDirectDescendantSpouseTitle(
+    bloodSteps.map((step) => step.person.gender),
+    steps[steps.length - 1].person.gender
+  )
+  return title ? { status: 'resolved', primaryTitle: title } : null
+}
+
 export function resolveCanonicalKinship(context: KinshipContext): CanonicalKinshipResult {
   const pathDescription = formatObjectivePathDescription(context)
   const structure = validateContextStructure(context)
@@ -125,6 +135,12 @@ export function resolveCanonicalKinship(context: KinshipContext): CanonicalKinsh
     const peerResult = fromLegacyMatch(pathDescription, cousinPeerMatch)
     if (peerResult) return peerResult
   }
+
+  const directDescendantMatch = fromLegacyMatch(
+    pathDescription,
+    matchDirectDescendantRules(context)
+  )
+  if (directDescendantMatch) return directDescendantMatch
 
   const canonicalKey = lookupCanonicalKeyByPathKey(pathKey)
   if (canonicalKey) {

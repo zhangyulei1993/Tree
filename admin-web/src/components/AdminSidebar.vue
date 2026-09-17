@@ -49,6 +49,8 @@ const menus: MenuItem[] = [
   { path: '/admin/families', label: '家庭管理', icon: House },
   { path: '/admin/public-applications', label: '公开申请审核', icon: Document },
   { path: '/admin/content', label: '内容中心', icon: Files },
+  { path: '/admin/share-configs', label: '分享配置', icon: Connection },
+  { path: '/admin/tool-configs', label: '常用工具配置', icon: SetUp, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
   { path: '/admin/founder-transfer-requests', label: '创始人转让审核', icon: Connection, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
   { path: '/admin/dissolution-requests', label: '家庭解散审核', icon: MessageBox, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
   { path: '/admin/account-quota-configs', label: '账号权益配置', icon: SetUp, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },

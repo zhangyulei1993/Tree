@@ -114,6 +114,9 @@ const (
 	CodeContentSafetyRejected       Code = 49007
 	CodeContentSafetyUnavailable    Code = 49008
 	CodeContentSafetyWechatRequired Code = 49009
+	CodeChoiceScenarioInvalidInput  Code = 49401
+	CodeChoiceScenarioRateLimited   Code = 49402
+	CodeChoiceScenarioNotFound      Code = 49403
 )
 
 var messages = map[Code]string{
@@ -210,6 +213,9 @@ var messages = map[Code]string{
 	CodeContentSafetyRejected:                "内容可能不符合平台规范，请修改后重试",
 	CodeContentSafetyUnavailable:             "内容安全检测暂时不可用，请稍后重试",
 	CodeContentSafetyWechatRequired:          "请先使用微信小程序登录后再提交内容",
+	CodeChoiceScenarioInvalidInput:           "场景标题或选项格式不正确",
+	CodeChoiceScenarioRateLimited:            "今日发布次数已达上限，请明天再试",
+	CodeChoiceScenarioNotFound:               "共享场景不存在或已下架",
 }
 
 func Message(code Code) string {

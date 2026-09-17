@@ -6,7 +6,8 @@ import {
   DIRECT_DESCENDANT_DEPTH_DISABLED_REASON,
   COLLATERAL_DESCENDANT_DEPTH_DISABLED_REASON,
   COUSIN_DESCENDANT_DEPTH_DISABLED_REASON,
-  PARENT_CHILD_DISABLED_REASON
+  PARENT_CHILD_DISABLED_REASON,
+  LAST_LAYER_GENDER_REQUIRED_REASON
 } from './allowedRelations'
 import { inferRelativeAgeFromFacts, normalizePersonFacts } from './helpers'
 import { deriveCanonicalExpectation, isForbiddenCanonicalTitle } from './canonicalTestExpectations'
@@ -883,6 +884,28 @@ export const kinshipTestCases: KinshipTestCase[] = [
     expectedForbiddenTitles: ['表兄']
   },
   {
+    id: 'T222',
+    name: '近似长幼：堂亲子女比本人年长称堂兄',
+    context: createContext([
+      parentStep('male'),
+      siblingStep('male', 'older'),
+      { relation: 'child', person: { gender: 'male' }, relativeAge: 'older' }
+    ]),
+    expectedStatus: 'resolved',
+    expectedTitle: '堂兄'
+  },
+  {
+    id: 'T223',
+    name: '近似长幼：表亲子女比本人年幼称表弟',
+    context: createContext([
+      parentStep('female'),
+      siblingStep('male', 'older'),
+      { relation: 'child', person: { gender: 'male' }, relativeAge: 'younger' }
+    ]),
+    expectedStatus: 'resolved',
+    expectedTitle: '表弟'
+  },
+  {
     id: 'T090',
     name: '父亲 -> 姐姐 -> 儿子',
     context: createContext([
@@ -1147,14 +1170,14 @@ export const kinshipTestCases: KinshipTestCase[] = [
   },
   {
     id: 'T114',
-    name: '儿子 -> 女儿 -> 儿子 fallback 曾孙辈',
+    name: '儿子 -> 女儿 -> 儿子为外曾孙',
     context: createContext([
       childStep('male'),
       childStep('female'),
       childStep('male')
     ]),
-    expectedStatus: 'ambiguous',
-    expectedOneOfTitles: ['曾孙', '曾孙女', '曾孙辈']
+    expectedStatus: 'resolved',
+    expectedTitle: '外曾孙'
   },
   {
     id: 'T115',
@@ -2344,6 +2367,113 @@ export const kinshipTestCases: KinshipTestCase[] = [
     expectedStatus: 'ambiguous',
     expectedTitle: '父系外系五世祖母',
     expectedCandidatesIncludes: ['五世外祖母']
+  },
+  {
+    id: 'T220',
+    name: '末层未知性别仍可查看但不能继续追加',
+    context: createContext([childStep('unknown')]),
+    action: { relation: 'child' },
+    expectedCanAppend: false,
+    expectedDisabledRelation: 'child',
+    expectedDisabledReason: LAST_LAYER_GENDER_REQUIRED_REASON
+  },
+  {
+    id: 'T224',
+    name: '五层父系后禁止继续追加第六层',
+    context: createContext([
+      parentStep('male'),
+      parentStep('male'),
+      parentStep('male'),
+      parentStep('male'),
+      parentStep('male')
+    ]),
+    action: { relation: 'parent' },
+    expectedCanAppend: false
+  },
+  {
+    id: 'T225',
+    name: '五层直系后仍可追加末端配偶',
+    context: createContext([
+      childStep('male'),
+      childStep('male'),
+      childStep('male'),
+      childStep('male'),
+      childStep('male')
+    ]),
+    action: { relation: 'spouse' },
+    expectedCanAppend: true
+  },
+  {
+    id: 'T226',
+    name: '祖父姐姐的女儿为表姑',
+    context: createContext([
+      parentStep('male'),
+      parentStep('male'),
+      siblingStep('female', 'older'),
+      childStep('female')
+    ]),
+    expectedStatus: 'resolved',
+    expectedTitle: '表姑'
+  },
+  {
+    id: 'T227',
+    name: '祖父哥哥的女儿为堂姑',
+    context: createContext([
+      parentStep('male'),
+      parentStep('male'),
+      siblingStep('male', 'older'),
+      childStep('female')
+    ]),
+    expectedStatus: 'resolved',
+    expectedTitle: '堂姑'
+  },
+  {
+    id: 'T228',
+    name: '外祖父姐姐的女儿为表姨',
+    context: createContext([
+      parentStep('female'),
+      parentStep('male'),
+      siblingStep('female', 'older'),
+      childStep('female')
+    ]),
+    expectedStatus: 'resolved',
+    expectedTitle: '表姨'
+  },
+  {
+    id: 'T229',
+    name: '祖父哥哥的儿子且年长为堂伯',
+    context: createContext([
+      parentStep('male'),
+      parentStep('male'),
+      siblingStep('male', 'older'),
+      { relation: 'child', person: { gender: 'male' }, relativeAge: 'older' }
+    ]),
+    expectedStatus: 'resolved',
+    expectedTitle: '堂伯'
+  },
+  {
+    id: 'T230',
+    name: '祖父姐姐的儿子且年幼为表叔',
+    context: createContext([
+      parentStep('male'),
+      parentStep('male'),
+      siblingStep('female', 'older'),
+      { relation: 'child', person: { gender: 'male' }, relativeAge: 'younger' }
+    ]),
+    expectedStatus: 'resolved',
+    expectedTitle: '表叔'
+  },
+  {
+    id: 'T231',
+    name: '外祖父哥哥的儿子且年长为表舅',
+    context: createContext([
+      parentStep('female'),
+      parentStep('male'),
+      siblingStep('male', 'older'),
+      { relation: 'child', person: { gender: 'male' }, relativeAge: 'older' }
+    ]),
+    expectedStatus: 'resolved',
+    expectedTitle: '表舅'
   }
 ]
 
@@ -2457,8 +2587,13 @@ export function runKinshipSelfChecks(): KinshipSelfCheckResult {
       const husbandBrother = resolveCanonicalKinship(
         createContext([spouseStep('male'), siblingStep('male', 'older')])
       )
-      if (!wifeBrother.unsupportedCanonicalTitle || !husbandBrother.unsupportedCanonicalTitle) {
-        failures.push(`${testCase.id} ${testCase.name}: 配偶兄弟姐妹路径应无规范称谓`)
+      if (
+        wifeBrother.unsupportedCanonicalTitle
+        || wifeBrother.canonicalTitle !== '大舅子'
+        || husbandBrother.unsupportedCanonicalTitle
+        || husbandBrother.canonicalTitle !== '大伯子'
+      ) {
+        failures.push(`${testCase.id} ${testCase.name}: 配偶兄弟姐妹应按配偶性别返回明确称谓`)
       }
     }
   }

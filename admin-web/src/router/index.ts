@@ -34,6 +34,8 @@ export const routes: RouteRecordRaw[] = [
       { path: 'families/:familyId/members', name: 'FamilyMembers', component: () => import('@/views/FamilyMembers.vue'), meta: { title: '家庭成员管理' } },
       { path: 'public-applications', name: 'PublicApplications', component: () => import('@/views/PublicApplications.vue'), meta: { title: '公开申请审核' } },
       { path: 'content', name: 'ContentManagement', component: () => import('@/views/ContentManagement.vue'), meta: { title: '内容中心' } },
+      { path: 'share-configs', name: 'ShareConfigs', component: () => import('@/views/ShareConfigs.vue'), meta: { title: '分享配置' } },
+      { path: 'tool-configs', name: 'ToolConfigs', component: () => import('@/views/ToolConfigs.vue'), meta: { title: '常用工具配置', roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] } },
       {
         path: 'founder-transfer-requests',
         name: 'FounderTransferRequests',

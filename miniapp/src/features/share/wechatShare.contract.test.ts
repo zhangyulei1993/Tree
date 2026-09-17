@@ -66,7 +66,7 @@ test('article share uses cover when https and falls back otherwise', () => {
     title: '家谱入门',
     coverUrl: 'http://insecure.example.com/cover.jpg'
   })
-  assert.match(withoutCover.imageUrl, /^static\/share\//)
+  assert.match(withoutCover.imageUrl, /^https:\/\/tapi\.bigbigboy\.cn\/api\/static\/content\/share\//)
 })
 
 test('public family share returns to the approved public profile', () => {
@@ -128,7 +128,7 @@ test('home page wires mini program share entry and handler', () => {
   const source = readPage('pages/home/index.vue')
   assert.match(source, /onShareAppMessage/)
   assert.match(source, /buildHomeSharePayload/)
-  assert.match(source, /分享小程序/)
+  assert.match(source, /把家庭记录分享给家人/)
   assert.match(source, /#ifdef MP-WEIXIN/)
   assert.match(source, /open-type="share"/)
 })

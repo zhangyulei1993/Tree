@@ -10,6 +10,20 @@ export const CANONICAL_KINSHIP_TERMS: Record<CanonicalTermKey, CanonicalKinshipT
   DAUGHTER: { key: 'DAUGHTER', canonicalTitle: '女儿', pathKeys: ['child:female'], targetGender: 'female' },
   HUSBAND: { key: 'HUSBAND', canonicalTitle: '丈夫', pathKeys: ['spouse:male'], targetGender: 'male' },
   WIFE: { key: 'WIFE', canonicalTitle: '妻子', pathKeys: ['spouse:female'], targetGender: 'female' },
+  FATHER_IN_LAW_WIFE_SIDE: { key: 'FATHER_IN_LAW_WIFE_SIDE', canonicalTitle: '岳父', targetGender: 'male' },
+  MOTHER_IN_LAW_WIFE_SIDE: { key: 'MOTHER_IN_LAW_WIFE_SIDE', canonicalTitle: '岳母', targetGender: 'female' },
+  FATHER_IN_LAW_HUSBAND_SIDE: { key: 'FATHER_IN_LAW_HUSBAND_SIDE', canonicalTitle: '公公', targetGender: 'male' },
+  MOTHER_IN_LAW_HUSBAND_SIDE: { key: 'MOTHER_IN_LAW_HUSBAND_SIDE', canonicalTitle: '婆婆', targetGender: 'female' },
+  WIFE_OLDER_BROTHER: { key: 'WIFE_OLDER_BROTHER', canonicalTitle: '大舅子', targetGender: 'male', seniority: 'older' },
+  WIFE_YOUNGER_BROTHER: { key: 'WIFE_YOUNGER_BROTHER', canonicalTitle: '小舅子', targetGender: 'male', seniority: 'younger' },
+  WIFE_OLDER_SISTER: { key: 'WIFE_OLDER_SISTER', canonicalTitle: '大姨子', targetGender: 'female', seniority: 'older' },
+  WIFE_YOUNGER_SISTER: { key: 'WIFE_YOUNGER_SISTER', canonicalTitle: '小姨子', targetGender: 'female', seniority: 'younger' },
+  HUSBAND_OLDER_BROTHER: { key: 'HUSBAND_OLDER_BROTHER', canonicalTitle: '大伯子', targetGender: 'male', seniority: 'older' },
+  HUSBAND_YOUNGER_BROTHER: { key: 'HUSBAND_YOUNGER_BROTHER', canonicalTitle: '小叔子', targetGender: 'male', seniority: 'younger' },
+  HUSBAND_OLDER_SISTER: { key: 'HUSBAND_OLDER_SISTER', canonicalTitle: '大姑子', targetGender: 'female', seniority: 'older' },
+  HUSBAND_YOUNGER_SISTER: { key: 'HUSBAND_YOUNGER_SISTER', canonicalTitle: '小姑子', targetGender: 'female', seniority: 'younger' },
+  STEP_DAUGHTER: { key: 'STEP_DAUGHTER', canonicalTitle: '继女', targetGender: 'female' },
+  STEP_SON: { key: 'STEP_SON', canonicalTitle: '继子', targetGender: 'male' },
 
   ELDER_BROTHER: {
     key: 'ELDER_BROTHER',
@@ -634,6 +648,18 @@ export const CANONICAL_KINSHIP_TERMS: Record<CanonicalTermKey, CanonicalKinshipT
     canonicalTitle: '外玄孙女',
     targetGender: 'female'
   },
+  MATERNAL_LAISUN_GRANDSON: { key: 'MATERNAL_LAISUN_GRANDSON', canonicalTitle: '外来孙', targetGender: 'male' },
+  MATERNAL_LAISUN_GRANDDAUGHTER: {
+    key: 'MATERNAL_LAISUN_GRANDDAUGHTER',
+    canonicalTitle: '外来孙女',
+    targetGender: 'female'
+  },
+  MATERNAL_GRANDSON_WIFE: { key: 'MATERNAL_GRANDSON_WIFE', canonicalTitle: '外孙媳', targetGender: 'female' },
+  MATERNAL_GRANDDAUGHTER_HUSBAND: {
+    key: 'MATERNAL_GRANDDAUGHTER_HUSBAND',
+    canonicalTitle: '外孙女婿',
+    targetGender: 'male'
+  },
   LAISUN_GRANDSON: {
     key: 'LAISUN_GRANDSON',
     canonicalTitle: '来孙',
@@ -668,6 +694,26 @@ export const CANONICAL_KINSHIP_TERMS: Record<CanonicalTermKey, CanonicalKinshipT
     key: 'LAISUN_GRANDDAUGHTER_HUSBAND',
     canonicalTitle: '来孙女婿',
     pathKeys: ['child:male>child:male>child:male>child:male>child:female>spouse:male'],
+    targetGender: 'male'
+  },
+  MATERNAL_XUAN_GRANDSON_WIFE: {
+    key: 'MATERNAL_XUAN_GRANDSON_WIFE',
+    canonicalTitle: '外玄孙媳',
+    targetGender: 'female'
+  },
+  MATERNAL_XUAN_GRANDDAUGHTER_HUSBAND: {
+    key: 'MATERNAL_XUAN_GRANDDAUGHTER_HUSBAND',
+    canonicalTitle: '外玄孙女婿',
+    targetGender: 'male'
+  },
+  MATERNAL_LAISUN_GRANDSON_WIFE: {
+    key: 'MATERNAL_LAISUN_GRANDSON_WIFE',
+    canonicalTitle: '外来孙媳',
+    targetGender: 'female'
+  },
+  MATERNAL_LAISUN_GRANDDAUGHTER_HUSBAND: {
+    key: 'MATERNAL_LAISUN_GRANDDAUGHTER_HUSBAND',
+    canonicalTitle: '外来孙女婿',
     targetGender: 'male'
   },
   MATERNAL_HIGH_GRANDFATHER: {

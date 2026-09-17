@@ -18,6 +18,14 @@
 
     <template v-if="shareResult">
       <view class="share-panel archive-form-panel">
+        <view class="share-hero">
+          <view class="share-hero-seal">邀</view>
+          <view class="share-hero-copy">
+            <text class="share-hero-kicker">INVITATION READY</text>
+            <text class="share-hero-title">邀请已准备好</text>
+            <text class="share-hero-desc">确认信息无误后，发送给对应的家人。</text>
+          </view>
+        </view>
         <view class="share-panel-head">
           <view class="archive-section-head share-section-head">
             <text class="archive-section-title">待发送邀请</text>
@@ -238,7 +246,7 @@ import {
   listFamilyInvitations,
   regenerateInvitation
 } from '@/api/invitations'
-import { buildHomeSharePayload, buildInviteSharePayload } from '@/features/share/wechatShare'
+import { buildHomeSharePayload, buildInviteSharePayload, loadShareConfigs } from '@/features/share/wechatShare'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
@@ -293,6 +301,8 @@ const invitationGroups = computed(() => {
     { key: 'history', title: '历史邀请', subtitle: '已接受、拒绝、取消或过期的记录', items: history }
   ].filter((group) => group.items.length > 0)
 })
+
+loadShareConfigs()
 
 function currentRoute() {
   const query = [`familyId=${encodeURIComponent(familyId.value)}`]
@@ -572,7 +582,10 @@ onLoad((options) => {
     loading.value = true
   }
 })
-onShow(loadInvitations)
+onShow(() => {
+  void loadShareConfigs({ force: true })
+  loadInvitations()
+})
 onHide(resetTransientUI)
 onUnload(resetPageData)
 </script>
@@ -709,6 +722,61 @@ onUnload(resetPageData)
   align-items: flex-start;
   justify-content: space-between;
   gap: 16rpx;
+}
+
+.share-hero {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin: -4rpx 0 24rpx;
+  padding-bottom: 22rpx;
+  border-bottom: 1rpx solid var(--archive-line);
+}
+
+.share-hero-seal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 76rpx;
+  height: 76rpx;
+  border: 2rpx solid var(--archive-cinnabar);
+  color: var(--archive-cinnabar);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 36rpx;
+  font-weight: 700;
+  transform: rotate(-5deg);
+}
+
+.share-hero-copy {
+  min-width: 0;
+}
+
+.share-hero-kicker {
+  display: block;
+  color: var(--archive-cinnabar);
+  font-size: 18rpx;
+  font-weight: 650;
+  letter-spacing: 3rpx;
+  line-height: 1.3;
+}
+
+.share-hero-title {
+  display: block;
+  margin-top: 5rpx;
+  color: var(--archive-ink);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 34rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.share-hero-desc {
+  display: block;
+  margin-top: 5rpx;
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
+  line-height: 1.5;
 }
 
 .share-section-head {

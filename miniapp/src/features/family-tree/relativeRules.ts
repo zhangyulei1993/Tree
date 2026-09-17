@@ -3,6 +3,10 @@ import {
 } from '../kinship/canonicalKinshipTerms'
 import { validateRegistryRelativeTitle } from '../kinship/officialCanonicalTitles'
 import type { CanonicalKinshipResult } from '../kinship/canonicalTypes'
+import {
+  resolveDirectDescendantSpouseTitle,
+  resolveDirectDescendantTitle
+} from '../kinship/directDescendantRules'
 import { describeGraphObjectivePath } from './graphObjectivePath'
 import type { RelGraph } from './relativeGraph'
 import {
@@ -149,20 +153,6 @@ function distantAncestorSiblingSpouseTitle(
   return spouseTitleOfCollateral(distantAncestorSiblingTitle(graph, ancestorPath, grandSiblingId))
 }
 
-/** 父系深代称谓：path[1..末端] 均为 LINEAGE_MEMBER；末端前须全为男性，末端可男可女 */
-function isPatrilinealDescendantPath(graph: RelGraph, path: number[]): boolean {
-  if (path.length < 2) return false
-
-  const terminalIndex = path.length - 1
-  for (let i = 1; i <= terminalIndex; i += 1) {
-    if (memberTypeOf(graph, path[i]!).toUpperCase() !== 'LINEAGE_MEMBER') return false
-  }
-  for (let i = 1; i < terminalIndex; i += 1) {
-    if (genderOf(graph, path[i]!) !== 'MALE') return false
-  }
-  return true
-}
-
 function isLineageDescendantPath(graph: RelGraph, path: number[]): boolean {
   if (path.length < 2) return false
   for (let i = 1; i < path.length; i += 1) {
@@ -172,56 +162,14 @@ function isLineageDescendantPath(graph: RelGraph, path: number[]): boolean {
 }
 
 function titleFromDescendantPath(graph: RelGraph, path: number[]): string {
-  const depth = path.length - 1
-  const targetId = path[path.length - 1]
-  const targetGender = genderOf(graph, targetId)
-  const isMale = targetGender === 'MALE'
-  const isFemale = targetGender === 'FEMALE'
-
-  if (depth === 1) {
-    if (isMale) return '儿子'
-    if (isFemale) return '女儿'
-    return ''
-  }
-
-  if (depth === 2) {
-    const via = genderOf(graph, path[1])
-    if (via === 'MALE') return isMale ? '孙子' : isFemale ? '孙女' : ''
-    if (via === 'FEMALE') return isMale ? '外孙' : isFemale ? '外孙女' : ''
-    return ''
-  }
-
-  if (depth === 3) {
-    const via = genderOf(graph, path[1])
-    if (via === 'MALE') {
-      if (!isLineageDescendantPath(graph, path)) return ''
-      if (!isPatrilinealDescendantPath(graph, path)) return isMale ? '外曾孙' : isFemale ? '外曾孙女' : ''
-      return isMale ? '曾孙' : isFemale ? '曾孙女' : ''
-    }
-    if (via === 'FEMALE') return isMale ? '外曾孙' : isFemale ? '外曾孙女' : ''
-    return ''
-  }
-
-  if (depth === 4) {
-    const via = genderOf(graph, path[1])
-    if (via === 'MALE') {
-      if (!isPatrilinealDescendantPath(graph, path)) return ''
-      return isMale ? '玄孙' : isFemale ? '玄孙女' : ''
-    }
-    if (via === 'FEMALE') return isMale ? '外玄孙' : isFemale ? '外玄孙女' : ''
-    return ''
-  }
-
-  if (depth === 5) {
-    const via = genderOf(graph, path[1])
-    if (via === 'MALE') {
-      if (!isPatrilinealDescendantPath(graph, path)) return ''
-      return isMale ? '来孙' : isFemale ? '来孙女' : ''
-    }
-    return ''
-  }
-
-  return ''
+  if (!isLineageDescendantPath(graph, path)) return ''
+  const genders = path.slice(1).map((memberId) => {
+    const gender = genderOf(graph, memberId)
+    if (gender === 'MALE') return 'male' as const
+    if (gender === 'FEMALE') return 'female' as const
+    return 'unknown' as const
+  })
+  return resolveDirectDescendantTitle(genders) || ''
 }
 
 function resolveGrandparentLine(parentGender: string, gpGender: string): GrandparentLine | null {
@@ -662,41 +610,19 @@ function cousinChildSpouseTitle(
   return ''
 }
 
-function bloodDescendantSpouseTitleByDepth(depth: number, bloodGender: string): string {
-  if (depth === 1) {
-    if (bloodGender === 'MALE') return '儿媳'
-    if (bloodGender === 'FEMALE') return '女婿'
-  }
-  if (depth === 2) {
-    if (bloodGender === 'MALE') return '孙媳'
-    if (bloodGender === 'FEMALE') return '孙女婿'
-  }
-  if (depth === 3) {
-    if (bloodGender === 'MALE') return '曾孙媳妇'
-    if (bloodGender === 'FEMALE') return '曾孙女婿'
-  }
-  if (depth === 4) {
-    if (bloodGender === 'MALE') return '玄孙媳妇'
-    if (bloodGender === 'FEMALE') return '玄孙女婿'
-  }
-  if (depth === 5) {
-    if (bloodGender === 'MALE') return '来孙媳妇'
-    if (bloodGender === 'FEMALE') return '来孙女婿'
-  }
-  return ''
-}
-
-function bloodDescendantSpouseTitleByPath(graph: RelGraph, path: number[]): string {
-  const depth = path.length - 1
-  const bloodId = path[path.length - 1]
-  const bloodGender = genderOf(graph, bloodId)
+function bloodDescendantSpouseTitleByPath(
+  graph: RelGraph,
+  path: number[],
+  spouseGender: 'male' | 'female'
+): string {
   if (!isLineageDescendantPath(graph, path)) return ''
-  if (depth === 3 && !isPatrilinealDescendantPath(graph, path)) {
-    if (bloodGender === 'FEMALE') return '外曾孙女婿'
-    return ''
-  }
-  if (depth >= 3 && !isPatrilinealDescendantPath(graph, path)) return ''
-  return bloodDescendantSpouseTitleByDepth(depth, bloodGender)
+  const genders = path.slice(1).map((memberId) => {
+    const gender = genderOf(graph, memberId)
+    if (gender === 'MALE') return 'male' as const
+    if (gender === 'FEMALE') return 'female' as const
+    return 'unknown' as const
+  })
+  return resolveDirectDescendantSpouseTitle(genders, spouseGender) || ''
 }
 
 function bloodDescendantSpouseTitleFromViewer(
@@ -715,7 +641,13 @@ function bloodDescendantSpouseTitleFromViewer(
     const depth = bloodPath.length - 1
     if (depth < 1 || depth > 5) continue
 
-    const title = bloodDescendantSpouseTitleByPath(graph, bloodPath)
+    const targetGender = genderOf(graph, targetId)
+    const spouseGender = targetGender === 'MALE'
+      ? 'male' as const
+      : targetGender === 'FEMALE'
+        ? 'female' as const
+        : 'unknown' as const
+    const title = bloodDescendantSpouseTitleByPath(graph, bloodPath, spouseGender)
     if (title) return title
   }
 

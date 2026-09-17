@@ -4,7 +4,7 @@
       <view>
         <text class="archive-kicker">Tree Reading</text>
         <text class="archive-title">阅读</text>
-        <text class="archive-subtitle">故事、典故、教程与宗亲文章，帮助你整理家庭记忆。</text>
+        <text class="archive-subtitle">故事、典故与宗亲文章，帮助你整理家庭记忆。</text>
       </view>
       <view class="archive-seal">读</view>
     </view>
@@ -126,12 +126,16 @@ const spotlightArticle = ref<ContentArticleSummary | null>(null)
 const loading = ref(false)
 const error = ref('')
 
+const visibleCategories = computed(() => categories.value.filter((item) => item.key !== 'tutorial'))
+
 const categoryFilters = computed(() => [
   { key: 'all', title: '全部' },
-  ...categories.value.map((item) => ({ key: item.key, title: item.name }))
+  ...visibleCategories.value.map((item) => ({ key: item.key, title: item.name }))
 ])
 
-const displayArticles = computed(() => articles.value.filter((item) => item.id !== spotlightArticle.value?.id))
+const displayArticles = computed(() => articles.value.filter(
+  (item) => item.categoryKey !== 'tutorial' && item.id !== spotlightArticle.value?.id
+))
 
 const listTitle = computed(() => {
   if (activeCategory.value === 'all') return '精选内容'
@@ -164,7 +168,8 @@ async function loadArticles() {
       pageSize: 50
     })
     articles.value = result.items
-    spotlightArticle.value = result.items.find((item) => item.isFeatured) || result.items[0] || null
+    const visibleItems = result.items.filter((item) => item.categoryKey !== 'tutorial')
+    spotlightArticle.value = visibleItems.find((item) => item.isFeatured) || visibleItems[0] || null
   } catch (err) {
     error.value = apiErrorMessage(err)
     articles.value = []

@@ -206,7 +206,7 @@ test('home page has showcase section without search wording', () => {
   assert.match(home, /展示家庭/)
   assert.match(home, /查看更多展示家庭/)
   assert.match(home, /listPublicFamilyShowcase/)
-  assert.match(home, /阅读精选/)
+  assert.doesNotMatch(home, /阅读精选/)
   assert.match(home, /创建我的家庭/)
   assert.match(home, /openHomePrimaryEntry/)
   assert.match(home, /pages\/family\/create/)

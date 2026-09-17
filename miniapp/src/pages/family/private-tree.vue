@@ -44,7 +44,7 @@
         <button v-if="canManageFamily" class="genealogy-tool-link" @click="openManage">添加与调整</button>
       </view>
 
-      <view class="tree-mode-line">
+      <view class="tree-mode-line ui-simplified-hidden">
         <view
           class="tree-mode-item"
           :class="{ active: viewMode === 'structure' }"
@@ -61,7 +61,7 @@
         </view>
       </view>
 
-      <view class="tree-scroll-note">
+      <view class="tree-scroll-note ui-simplified-hidden">
         <text>关系图可左右滑动查看；配偶为浅纸签，不作为关系扩展入口。</text>
       </view>
 
@@ -95,7 +95,7 @@
         <RelationSentenceList v-else class="relation-list" :items="relationSentences" />
       </template>
 
-      <view class="tree-legend">
+      <view class="tree-legend ui-simplified-hidden">
         <view class="legend-item">
           <text class="legend-name male">名</text>
           <text>男 · 墨蓝姓名</text>
@@ -555,6 +555,10 @@ onUnload(resetPageData)
 </script>
 
 <style scoped>
+.ui-simplified-hidden {
+  display: none !important;
+}
+
 .private-tree-page {
   padding-top: 28rpx;
 }

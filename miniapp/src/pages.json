@@ -11,6 +11,7 @@
     {"path": "pages/family/my", "style": {"navigationBarTitleText": "我的家庭"}},
     {"path": "pages/family/create", "style": {"navigationBarTitleText": "创建家庭"}},
     {"path": "pages/family/detail", "style": {"navigationBarTitleText": "家庭详情"}},
+    {"path": "pages/family/stories", "style": {"navigationBarTitleText": "家庭事迹"}},
     {"path": "pages/family/profile", "style": {"navigationBarTitleText": "家庭档案"}},
     {"path": "pages/family/manage-center", "style": {"navigationBarTitleText": "家庭事务"}},
     {"path": "pages/family/members", "style": {"navigationBarTitleText": "家庭树"}},
@@ -32,7 +33,11 @@
     {"path": "pages/legal/user-agreement", "style": {"navigationBarTitleText": "用户协议"}},
     {"path": "pages/legal/privacy-policy", "style": {"navigationBarTitleText": "隐私政策"}},
     {"path": "pages/account/cancel", "style": {"navigationBarTitleText": "注销账号"}},
-    {"path": "pages/tools/kinship", "style": {"navigationBarTitleText": "亲属关系工具"}}
+    {"path": "pages/tools/index", "style": {"navigationBarTitleText": "常用工具"}},
+    {"path": "pages/tools/choose", "style": {"navigationBarTitleText": "该选什么"}},
+    {"path": "pages/tools/festivals", "style": {"navigationBarTitleText": "传统节日"}},
+    {"path": "pages/tools/solar-terms", "style": {"navigationBarTitleText": "农历节气"}},
+    {"path": "pages/tools/kinship", "style": {"navigationBarTitleText": "称谓查询"}}
   ],
   "subPackages": [],
   "globalStyle": {

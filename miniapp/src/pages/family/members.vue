@@ -249,6 +249,7 @@ import {
   formatMemberBindingNeed,
   formatMemberGender
 } from '@/utils/memberFormat'
+import { buildInviteSharePayload, INVITATION_SHARE_IMAGE, loadShareConfigs } from '@/features/share/wechatShare'
 
 type MemberGroup = {
   key: string
@@ -258,6 +259,7 @@ type MemberGroup = {
 
 const session = useSessionStore()
 session.restoreSession()
+loadShareConfigs()
 const familyId = ref('')
 const family = ref<FamilyDetail | null>(null)
 const members = ref<FamilyMember[]>([])
@@ -685,14 +687,17 @@ onLoad((options) => {
     loading.value = true
   }
 })
-onShareAppMessage(() => ({
-  title: selectedInviteMember.value
-    ? `${family.value?.familyName || '家庭'} 邀请你确认「${selectedInviteMember.value.name}」身份并加入家庭树`
-    : 'Tree 家脉亲缘',
-  path: invitePath(),
-  imageUrl: 'static/share/family-invitation.jpg'
-}))
-onShow(loadMembers)
+onShareAppMessage(() => selectedInviteMember.value
+  ? buildInviteSharePayload({
+      inviteToken: createdInvitation.value?.inviteToken || '',
+      familyName: family.value?.familyName || '家庭',
+      targetMemberName: selectedInviteMember.value.name
+    })
+  : { title: 'Tree 家脉亲缘', path: invitePath(), imageUrl: INVITATION_SHARE_IMAGE })
+onShow(() => {
+  void loadShareConfigs({ force: true })
+  loadMembers()
+})
 onHide(resetTransientUI)
 onUnload(resetPageData)
 </script>

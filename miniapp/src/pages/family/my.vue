@@ -23,7 +23,7 @@
       </view>
 
       <view class="my-toolbar">
-        <text class="archive-chip">创建 {{ ownedFamilies.length }} · 加入 {{ joinedFamilies.length }}</text>
+        <text class="archive-chip ui-simplified-hidden">创建 {{ ownedFamilies.length }} · 加入 {{ joinedFamilies.length }}</text>
         <text class="archive-thin-button" @click="openCreateFamily">创建家庭</text>
       </view>
 
@@ -99,7 +99,7 @@
         <view class="archive-seal">展</view>
       </view>
 
-      <view class="showcase-notice archive-panel">
+      <view class="showcase-notice archive-panel ui-simplified-hidden">
         <text class="showcase-notice-label">公开册页</text>
         <text class="showcase-notice-text">加入家庭请通过成员邀请，暂不提供公开搜索或申请加入。</text>
       </view>
@@ -339,6 +339,10 @@ onShow(refreshPage)
 </script>
 
 <style scoped>
+.ui-simplified-hidden {
+  display: none !important;
+}
+
 .my-family-page {
   padding-top: 28rpx;
 }

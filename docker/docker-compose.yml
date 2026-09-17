@@ -1,3 +1,5 @@
+name: tree
+
 services:
   dev:
     build:
@@ -8,13 +10,90 @@ services:
     volumes:
       - ..:/workspace
     ports:
-      - "8080:8080"
       - "5173:5173"
-      - "5174:5174"
     command: sleep infinity
     depends_on:
-      - mysql
-      - redis
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  migrate:
+    image: migrate/migrate:v4.18.3
+    container_name: tree-migrate
+    volumes:
+      - ../backend/migrations:/migrations:ro
+    command:
+      - -path=/migrations
+      - -database=mysql://tree_user:tree_pass@tcp(mysql:3306)/tree_platform?multiStatements=true
+      - up
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    container_name: tree-api
+    working_dir: /workspace/backend
+    environment:
+      APP_ENV: dev
+      APP_NAME: Tree
+      APP_PORT: 8080
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USER: tree_user
+      MYSQL_PASSWORD: tree_pass
+      MYSQL_DATABASE: tree_platform
+      MYSQL_CHARSET: utf8mb4
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+      JWT_USER_SECRET: change_me_user_secret
+      JWT_ADMIN_SECRET: change_me_admin_secret
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 120
+      JWT_REFRESH_TOKEN_EXPIRE_DAYS: 7
+      ADMIN_SECURITY_LOCK_MAX_FAILURES: 5
+      ADMIN_SECURITY_LOCK_MINUTES: 30
+      VERIFY_CODE_EXPIRE_SECONDS: 300
+      VERIFY_CODE_COOLDOWN_SECONDS: 60
+      WECHAT_MOCK_ENABLED: "true"
+      FAMILY_DISSOLUTION_COOLDOWN_DAYS: 7
+      FILE_STORAGE_TYPE: local
+      FILE_STORAGE_LOCAL_PATH: /workspace/backend/uploads
+      LOG_LEVEL: debug
+    volumes:
+      - ..:/workspace
+    ports:
+      - "8080:8080"
+    command: bash -lc "go run ./cmd/server"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  admin:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    container_name: tree-admin
+    working_dir: /workspace/admin-web
+    environment:
+      VITE_API_MODE: real
+      VITE_API_BASE_URL: /api
+      VITE_API_PROXY_TARGET: http://api:8080
+    volumes:
+      - ..:/workspace
+      - admin_node_modules:/workspace/admin-web/node_modules
+    ports:
+      - "5174:5174"
+    command: bash -lc "pnpm install --frozen-lockfile && pnpm dev"
+    depends_on:
+      api:
+        condition: service_started
 
   mysql:
     image: mysql:8.0
@@ -34,6 +113,11 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
       - --default-time-zone=+08:00
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-utree_user", "-ptree_pass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   redis:
     image: redis:7
@@ -44,3 +128,11 @@ services:
     volumes:
       - ./redis/data:/data
     command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  admin_node_modules:
