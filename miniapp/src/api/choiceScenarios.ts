@@ -10,22 +10,7 @@ export interface SharedChoiceScenario {
   createdAt: string
 }
 
-const mockScenarios: SharedChoiceScenario[] = [
-  {
-    id: 'mock_shared_1',
-    title: '周末去哪儿',
-    options: ['公园散步', '看电影', '逛街', '周边短途游', '在家休息'],
-    useCount: 12,
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'mock_shared_2',
-    title: '今晚吃什么',
-    options: ['家常菜', '火锅', '烧烤', '面食', '外卖'],
-    useCount: 8,
-    createdAt: new Date().toISOString()
-  }
-]
+const mockScenarios: SharedChoiceScenario[] = []
 
 export async function listSharedChoiceScenarios(period: ChoiceScenarioPeriod) {
   if (!isRealApiMode) return mockScenarios.map((item) => ({ ...item, options: [...item.options] }))

@@ -22,7 +22,7 @@
           v-for="scenario in scenarios"
           :key="scenario.name"
           class="scenario-chip"
-          :class="{ active: activeScenario === scenario.name }"
+          :class="{ active: activeScenarioId === scenario.id }"
           @click="applyScenario(scenario)"
         >
           {{ scenario.name }}
@@ -30,38 +30,43 @@
       </view>
       <view class="shared-scenario-block">
         <view class="shared-scenario-head">
-          <view>
+          <view class="shared-scenario-summary" @click="toggleSharedScenarios">
             <text class="tree-field-label">大家的场景</text>
             <text class="shared-scenario-hint">看看别人正在怎么选，也可以直接套用</text>
           </view>
-          <text class="shared-refresh" @click="loadSharedScenarios">刷新</text>
+          <text class="shared-toggle" @click="toggleSharedScenarios">{{ sharedExpanded ? '收起' : '展开' }}</text>
         </view>
-        <view class="period-list">
-          <text
-            v-for="period in sharedPeriods"
-            :key="period.value"
-            class="period-chip"
-            :class="{ active: sharedPeriod === period.value }"
-            @click="changeSharedPeriod(period.value)"
-          >
-            {{ period.label }}
-          </text>
-        </view>
-        <view v-if="sharedScenarios.length > 0" class="shared-scenario-list">
-          <view
-            v-for="item in sharedScenarios"
-            :key="item.id"
-            class="shared-scenario-item"
-            @click="applySharedScenario(item)"
-          >
-            <view class="shared-scenario-copy">
-              <text class="shared-scenario-title">{{ item.title }}</text>
-              <text class="shared-scenario-options">{{ item.options.join(' · ') }}</text>
+        <view v-if="sharedExpanded" class="shared-scenario-content">
+          <view class="shared-scenario-toolbar">
+            <view class="period-list">
+              <text
+                v-for="period in sharedPeriods"
+                :key="period.value"
+                class="period-chip"
+                :class="{ active: sharedPeriod === period.value }"
+                @click="changeSharedPeriod(period.value)"
+              >
+                {{ period.label }}
+              </text>
             </view>
-            <text class="shared-scenario-action">套用 ›</text>
+            <text class="shared-refresh" @click="loadSharedScenarios">刷新</text>
           </view>
+          <view v-if="sharedScenarios.length > 0" class="shared-scenario-list">
+            <view
+              v-for="item in sharedScenarios"
+              :key="item.id"
+              class="shared-scenario-item"
+              @click="applySharedScenario(item)"
+            >
+              <view class="shared-scenario-copy">
+                <text class="shared-scenario-title">{{ item.title }}</text>
+                <text class="shared-scenario-options">{{ item.options.join(' · ') }}</text>
+              </view>
+              <text class="shared-scenario-action">套用 ›</text>
+            </view>
+          </view>
+          <text v-else class="shared-empty">{{ sharedScenarioMessage || '这个时间段还没有共享场景' }}</text>
         </view>
-        <text v-else class="shared-empty">这个时间段还没有共享场景</text>
       </view>
       <text class="tree-field-label title-label">随机标题</text>
       <input
@@ -72,27 +77,31 @@
         placeholder-class="choice-placeholder"
         @input="handleTitleInput"
       />
-      <textarea
-        v-model="rawOptions"
-        class="choice-textarea"
-        maxlength="500"
-        auto-height
-        :disabled="isPicking"
-        placeholder="例如：\n火锅\n烧烤\n日料"
-        placeholder-class="choice-placeholder"
-        @input="handleOptionsInput"
-      />
+      <view class="choice-input-stage" :class="{ 'is-picking': isPicking, 'has-result': selectedOption }">
+        <textarea
+          v-model="rawOptions"
+          class="choice-textarea"
+          maxlength="500"
+          auto-height
+          :disabled="isPicking"
+          placeholder="例如：\n火锅\n烧烤\n日料"
+          placeholder-class="choice-placeholder"
+          @focus="handleOptionsFocus"
+          @input="handleOptionsInput"
+        />
+        <view v-if="isPicking || selectedOption" class="choice-random-overlay" aria-hidden="true">
+          <text class="draw-kicker">{{ isPicking ? '正在随机' : '这次就选' }}</text>
+          <text class="draw-option">{{ selectedOption }}</text>
+        </view>
+      </view>
       <view class="choice-meta">
         <text>{{ options.length }} / {{ MAX_CHOICE_OPTIONS }} 个选项</text>
         <text>单项不超过 30 字</text>
       </view>
       <text v-if="errorMessage" class="choice-error">{{ errorMessage }}</text>
-      <view class="choice-draw-box" :class="{ 'is-picking': isPicking, 'has-result': selectedOption }">
-        <text class="draw-kicker">{{ isPicking ? '正在随机' : selectedOption ? '这次就选' : '准备好了吗' }}</text>
-        <text class="draw-option">{{ selectedOption || '点击下方按钮开始' }}</text>
-      </view>
+      <text v-if="selectedOption && !isPicking" class="choice-edit-hint">点击输入框可继续修改选项</text>
       <MiniButton size="md" :loading="isPicking" @click="makeChoice">随机帮我选</MiniButton>
-      <text class="publish-scenario" @click="publishScenario">发布到大家的场景</text>
+      <text v-if="!activeScenarioId" class="publish-scenario" @click="publishScenario">分享这个场景</text>
     </view>
 
     <view class="choice-examples archive-panel">
@@ -145,6 +154,7 @@ import {
 import { useSessionStore } from '@/stores/session'
 
 interface ChoiceScenario {
+  id: string
   name: string
   options: string[]
 }
@@ -162,10 +172,12 @@ const rawOptions = ref('')
 const choiceTitle = ref('')
 const selectedOption = ref('')
 const errorMessage = ref('')
-const activeScenario = ref('')
+const activeScenarioId = ref('')
 const history = ref<ChoiceHistoryItem[]>([])
 const sharedScenarios = ref<SharedChoiceScenario[]>([])
+const sharedScenarioMessage = ref('')
 const sharedPeriod = ref<ChoiceScenarioPeriod>('today')
+const sharedExpanded = ref(false)
 const isPublishing = ref(false)
 const isPicking = ref(false)
 const session = useSessionStore()
@@ -177,11 +189,11 @@ const sharedPeriods: Array<{ label: string; value: ChoiceScenarioPeriod }> = [
   { label: '本月', value: 'month' }
 ]
 const scenarios: ChoiceScenario[] = [
-  { name: '今天吃什么', options: ['家常菜', '火锅', '烧烤', '面食', '外卖'] },
-  { name: '下班去干什么', options: ['打篮球', '去健身房', '逛街', '看电影', '回家休息'] },
-  { name: '周末去哪儿', options: ['公园散步', '看电影', '逛街', '周边短途游', '在家休息'] },
-  { name: '今晚看什么', options: ['纪录片', '喜剧片', '电视剧', '综艺', '读书'] },
-  { name: '先做哪一件事', options: ['工作任务', '运动锻炼', '整理房间', '回复消息', '休息一下'] }
+  { id: 'builtin_meal', name: '今天吃什么', options: ['家常菜', '火锅', '烧烤', '面食', '外卖'] },
+  { id: 'builtin_after_work', name: '下班去干什么', options: ['打篮球', '去健身房', '逛街', '看电影', '回家休息'] },
+  { id: 'builtin_weekend', name: '周末去哪儿', options: ['公园散步', '看电影', '逛街', '周边短途游', '在家休息'] },
+  { id: 'builtin_movie', name: '今晚看什么', options: ['纪录片', '喜剧片', '电视剧', '综艺', '读书'] },
+  { id: 'builtin_priority', name: '先做哪一件事', options: ['工作任务', '运动锻炼', '整理房间', '回复消息', '休息一下'] }
 ]
 
 onLoad(() => {
@@ -195,22 +207,27 @@ onUnload(() => {
 })
 
 function handleOptionsInput() {
-  const wasPresetScenario = Boolean(activeScenario.value)
+  const wasPresetScenario = Boolean(activeScenarioId.value)
   selectedOption.value = ''
   errorMessage.value = ''
-  activeScenario.value = ''
+  activeScenarioId.value = ''
   if (wasPresetScenario) choiceTitle.value = ''
+}
+
+function handleOptionsFocus() {
+  if (!isPicking.value) selectedOption.value = ''
 }
 
 function handleTitleInput() {
   selectedOption.value = ''
   errorMessage.value = ''
-  if (choiceTitle.value.trim() !== activeScenario.value) activeScenario.value = ''
+  const activeScenario = scenarios.find((item) => item.id === activeScenarioId.value)
+  if (!activeScenario || choiceTitle.value.trim() !== activeScenario.name) activeScenarioId.value = ''
 }
 
 function applyScenario(scenario: ChoiceScenario) {
   rawOptions.value = scenario.options.join('\n')
-  activeScenario.value = scenario.name
+  activeScenarioId.value = scenario.id
   choiceTitle.value = scenario.name
   selectedOption.value = ''
   errorMessage.value = ''
@@ -219,7 +236,8 @@ function applyScenario(scenario: ChoiceScenario) {
 function applySharedScenario(scenario: SharedChoiceScenario) {
   rawOptions.value = scenario.options.join('\n')
   choiceTitle.value = scenario.title
-  activeScenario.value = scenarios.some((item) => item.name === scenario.title) ? scenario.title : ''
+  const builtinScenario = findBuiltinScenario(scenario.title, scenario.options)
+  activeScenarioId.value = builtinScenario?.id || ''
   selectedOption.value = ''
   errorMessage.value = ''
   if (session.isLoggedIn) void recordSharedChoiceScenarioUse(scenario.id).catch(() => undefined)
@@ -254,6 +272,7 @@ function startPicking(choiceOptions: string[], previousOption: string) {
     if (ticks >= 10) {
       stopPicking()
       saveHistory(currentOption)
+      uni.showToast({ title: `已选：${currentOption}`, icon: 'none' })
     }
   }, 70)
 }
@@ -292,7 +311,7 @@ function loadHistory() {
 function saveHistory(result: string) {
   const item: ChoiceHistoryItem = {
     id: `${Date.now()}-${Math.floor(Math.random() * 10000)}`,
-    scenario: choiceTitle.value.trim() || activeScenario.value || '自定义选择',
+    scenario: choiceTitle.value.trim() || '自定义选择',
     result,
     options: [...options.value],
     createdAt: Date.now()
@@ -302,12 +321,17 @@ function saveHistory(result: string) {
 }
 
 async function loadSharedScenarios() {
+  sharedScenarioMessage.value = ''
   try {
     sharedScenarios.value = await listSharedChoiceScenarios(sharedPeriod.value)
-  } catch (error) {
+  } catch {
     sharedScenarios.value = []
-    errorMessage.value = apiErrorMessage(error, '共享场景加载失败，请稍后重试。')
+    sharedScenarioMessage.value = '共享场景暂时不可用，请稍后再试。'
   }
+}
+
+function toggleSharedScenarios() {
+  sharedExpanded.value = !sharedExpanded.value
 }
 
 async function changeSharedPeriod(period: ChoiceScenarioPeriod) {
@@ -320,6 +344,10 @@ async function publishScenario() {
   if (isPublishing.value) return
   errorMessage.value = ''
   if (!session.requireLogin('/pages/tools/choose')) return
+  if (activeScenarioId.value) {
+    uni.showToast({ title: '内置场景无需发布', icon: 'none' })
+    return
+  }
   const title = choiceTitle.value.trim()
   const optionTextLength = Array.from(rawOptions.value).length
   if (!title) {
@@ -351,7 +379,7 @@ async function publishScenario() {
   try {
     const created = await publishSharedChoiceScenario(title, [...options.value])
     sharedScenarios.value = [created, ...sharedScenarios.value.filter((item) => item.id !== created.id)].slice(0, 30)
-    uni.showToast({ title: '已发布到共享场景', icon: 'none' })
+    uni.showToast({ title: '已分享这个场景', icon: 'none' })
   } catch (error) {
     errorMessage.value = apiErrorMessage(error, '发布失败，请稍后重试。')
     uni.showToast({ title: errorMessage.value, icon: 'none' })
@@ -373,10 +401,20 @@ function reuseHistory(item: ChoiceHistoryItem) {
   if (isPicking.value) return
   rawOptions.value = item.options.join('\n')
   choiceTitle.value = item.scenario === '自定义选择' ? '' : item.scenario
-  activeScenario.value = scenarios.some((scenario) => scenario.name === choiceTitle.value) ? choiceTitle.value : ''
+  const builtinScenario = findBuiltinScenario(choiceTitle.value, item.options)
+  activeScenarioId.value = builtinScenario?.id || ''
   errorMessage.value = ''
   if (!choiceTitle.value) choiceTitle.value = '自定义选择'
   startPicking([...item.options], item.result)
+}
+
+function findBuiltinScenario(title: string, scenarioOptions: string[]) {
+  return scenarios.find(
+    (scenario) =>
+      scenario.name === title &&
+      scenario.options.length === scenarioOptions.length &&
+      scenario.options.every((option, index) => option === scenarioOptions[index])
+  )
 }
 
 function confirmClearHistory() {
@@ -466,6 +504,17 @@ function confirmClearHistory() {
   gap: 16rpx;
 }
 
+.shared-scenario-summary {
+  min-width: 0;
+  flex: 1;
+}
+
+.shared-toggle {
+  flex-shrink: 0;
+  color: var(--archive-blue);
+  font-size: 22rpx;
+}
+
 .shared-scenario-hint {
   display: block;
   margin-top: 5rpx;
@@ -477,6 +526,17 @@ function confirmClearHistory() {
 .publish-scenario {
   color: var(--archive-blue);
   font-size: 22rpx;
+}
+
+.shared-scenario-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.shared-scenario-toolbar .period-list {
+  margin-top: 12rpx;
 }
 
 .period-list {
@@ -551,11 +611,16 @@ function confirmClearHistory() {
   font-size: 20rpx;
 }
 
+.choice-input-stage {
+  position: relative;
+  margin-top: 16rpx;
+}
+
 .choice-textarea {
   width: 100%;
   min-height: 220rpx;
   box-sizing: border-box;
-  margin-top: 16rpx;
+  margin-top: 0;
   border: 1rpx solid var(--archive-line-strong);
   border-radius: 0;
   background: rgba(255, 249, 236, 0.48);
@@ -563,6 +628,28 @@ function confirmClearHistory() {
   padding: 18rpx;
   font-size: 27rpx;
   line-height: 1.7;
+}
+
+.choice-input-stage.is-picking .choice-textarea,
+.choice-input-stage.has-result .choice-textarea {
+  color: transparent;
+  text-shadow: 0 0 0 transparent;
+}
+
+.choice-random-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  pointer-events: none;
+  padding: 18rpx;
+  text-align: center;
+}
+
+.choice-input-stage.is-picking .choice-random-overlay {
+  animation: choice-picking 0.14s ease-in-out infinite alternate;
 }
 
 .choice-placeholder {
@@ -596,22 +683,18 @@ function confirmClearHistory() {
   font-size: 22rpx;
 }
 
+.choice-edit-hint {
+  display: block;
+  margin: -4rpx 0 12rpx;
+  color: var(--archive-ink-soft);
+  font-size: 20rpx;
+  text-align: center;
+}
+
 .publish-scenario {
   display: block;
   margin-top: 16rpx;
   text-align: center;
-}
-
-.choice-draw-box {
-  margin: 14rpx 0 18rpx;
-  border: 1rpx solid rgba(168, 59, 45, 0.34);
-  background: rgba(168, 59, 45, 0.06);
-  padding: 16rpx 12rpx;
-  text-align: center;
-}
-
-.choice-draw-box.is-picking {
-  animation: choice-picking 0.14s ease-in-out infinite alternate;
 }
 
 .draw-kicker,
@@ -636,14 +719,14 @@ function confirmClearHistory() {
   white-space: nowrap;
 }
 
-.choice-draw-box.has-result .draw-option {
+.choice-input-stage.has-result .draw-option {
   color: var(--archive-ink);
   font-size: 42rpx;
   line-height: 1.25;
   white-space: normal;
 }
 
-.choice-draw-box.is-picking .draw-option {
+.choice-input-stage.is-picking .draw-option {
   color: var(--archive-cinnabar);
 }
 
