@@ -35,6 +35,9 @@ func insertPublicSearchFamily(t *testing.T, tx *gorm.DB, family familymodel.Fami
 	if family.GraphVersion == 0 {
 		family.GraphVersion = 1
 	}
+	if family.PublicDisplayStatus == "APPROVED" {
+		family.PublicDisplayEnabled = true
+	}
 
 	wantContactVisible := family.PublicContactVisible
 	wantSearchable := family.Searchable

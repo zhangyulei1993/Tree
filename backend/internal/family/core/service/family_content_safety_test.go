@@ -87,6 +87,10 @@ func (allowAllFamilyPerm) GetActiveLink(context.Context, uint64, uint64) (*rolem
 func TestFamilyCreateContentSafetyRejected(t *testing.T) {
 	tx := transactionalTestDB(t)
 	ctx := context.Background()
+	var familiesBefore int64
+	if err := tx.Model(&familymodel.Family{}).Count(&familiesBefore).Error; err != nil {
+		t.Fatalf("count families before create: %v", err)
+	}
 	user := &usermodel.User{Status: string(enums.StatusActive), PhoneVerified: true}
 	if err := tx.WithContext(ctx).Create(user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
@@ -107,8 +111,8 @@ func TestFamilyCreateContentSafetyRejected(t *testing.T) {
 	if err := tx.Model(&familymodel.Family{}).Count(&count).Error; err != nil {
 		t.Fatalf("count families: %v", err)
 	}
-	if count != 0 {
-		t.Fatalf("family should not be created, count=%d", count)
+	if count != familiesBefore {
+		t.Fatalf("family should not be created, before=%d after=%d", familiesBefore, count)
 	}
 	assertCSFailedLog(t, logs, "违规家族描述", "oid")
 }
