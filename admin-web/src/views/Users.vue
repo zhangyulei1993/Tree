@@ -20,23 +20,23 @@
     <el-alert v-if="error" :title="error" type="error" show-icon />
     <DataTable>
       <el-table v-loading="loading" :data="items" stripe>
-        <el-table-column prop="id" label="用户 ID" width="100" />
-        <el-table-column label="手机号" width="140">
+        <el-table-column prop="id" label="用户 ID" width="100" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column label="手机号" width="140" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">{{ row.phone || '未绑定' }}</template>
         </el-table-column>
-        <el-table-column prop="nickname" label="昵称" />
-        <el-table-column prop="realName" label="姓名" />
-        <el-table-column prop="loginMethod" label="登录方式" width="130" />
-        <el-table-column label="信任等级" width="120">
+        <el-table-column prop="nickname" label="昵称" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="realName" label="姓名" width="100" show-overflow-tooltip align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="loginMethod" label="登录方式" width="130" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column label="信任等级" width="120" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">{{ trustTierLabel(row.trustTier) }}</template>
         </el-table-column>
-        <el-table-column prop="accountOrigin" label="来源" />
-        <el-table-column prop="registerClient" label="注册端" />
-        <el-table-column label="状态">
+        <el-table-column label="来源" width="110" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center"><template #default="{ row }">{{ accountOriginText(row.accountOrigin) }}</template></el-table-column>
+        <el-table-column label="注册端" width="108" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center"><template #default="{ row }">{{ registerClientText(row.registerClient) }}</template></el-table-column>
+        <el-table-column label="状态" width="96" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }"><StatusTag :status="row.status" /></template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" min-width="170" />
-        <el-table-column label="操作" width="90">
+        <el-table-column prop="createdAt" label="创建时间" min-width="170" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column label="操作" width="90" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">
             <el-button size="small" @click="$router.push(`/admin/users/${row.id}`)">详情</el-button>
           </template>
@@ -74,6 +74,14 @@ const error = ref('')
 
 function trustTierLabel(tier: string) {
   return tier === 'PHONE_BOUND' ? '备用登录已开启' : '仅微信'
+}
+
+function accountOriginText(origin: string) {
+  return ({ PHONE_REGISTER: '手机号注册', WECHAT_MINI: '微信小程序注册', WECHAT_MINI_PROGRAM: '微信小程序注册', WECHAT_MINI_PHONE: '微信授权手机号', WECHAT_MINI_PROGRAM_PHONE: '微信授权手机号' } as Record<string, string>)[origin] || origin || '未记录'
+}
+
+function registerClientText(client: string) {
+  return ({ WECHAT_MINI: '微信小程序', WECHAT_MINI_PROGRAM: '微信小程序', WEB: '网页端', H5: 'H5 页面' } as Record<string, string>)[client] || client || '未记录'
 }
 
 async function load() {

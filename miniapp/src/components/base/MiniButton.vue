@@ -51,9 +51,9 @@ function handleTap() {
   font-size: 28rpx;
 }
 .mini-button.sm {
-  min-height: 68rpx;
-  padding: 14rpx 22rpx;
-  font-size: 24rpx;
+  min-height: 80rpx;
+  padding: 16rpx 24rpx;
+  font-size: 26rpx;
 }
 .mini-button.primary {
   background: linear-gradient(135deg, var(--tree-primary, #1f3a5f) 0%, var(--tree-green, #2f6b57) 100%);

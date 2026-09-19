@@ -92,11 +92,11 @@
     <template v-else>
       <view class="my-head archive-page-head">
         <view>
-          <text class="archive-kicker">Public Archive</text>
+          <text class="archive-kicker">My Archive</text>
           <text class="archive-title">我的家庭</text>
-          <text class="archive-subtitle">你还没有家庭，可创建家庭或浏览展示家庭</text>
+          <text class="archive-subtitle">你还没有家庭，可创建家庭或等待家人邀请</text>
         </view>
-        <view class="archive-seal">展</view>
+        <view class="archive-seal">家</view>
       </view>
 
       <view class="showcase-notice archive-panel ui-simplified-hidden">
@@ -117,6 +117,7 @@
         <text class="archive-arrow">›</text>
       </view>
 
+      <template v-if="customerPublicShowcaseAvailable">
       <view v-if="showcaseError" class="my-state archive-form-panel">
         <MiniNotice tone="warm" title="加载失败">{{ showcaseError }}</MiniNotice>
         <MiniButton variant="secondary" @click="reloadShowcase">重新加载</MiniButton>
@@ -163,6 +164,7 @@
           </text>
         </view>
       </template>
+      </template>
     </template>
   </view>
 </template>
@@ -193,6 +195,7 @@ const showcaseLoading = ref(false)
 const showcaseLoadingMore = ref(false)
 const showcaseError = ref('')
 const showcasePageSize = 20
+const customerPublicShowcaseAvailable = false
 
 const hasMyFamilies = computed(() => myFamiliesLoaded.value && families.value.length > 0)
 const isResolvingMyFamilyMode = computed(() => loadingMyFamilies.value && !myFamiliesLoaded.value)
@@ -264,7 +267,7 @@ function loadMoreShowcase() {
 
 async function refreshPage() {
   await loadMyFamilies()
-  if (!hasMyFamilies.value) {
+  if (customerPublicShowcaseAvailable && !hasMyFamilies.value) {
     await fetchShowcasePage(1, false)
   }
 }

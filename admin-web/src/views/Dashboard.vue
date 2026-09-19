@@ -11,23 +11,32 @@
         <strong>{{ pendingTotal }}</strong>
       </div>
     </section>
-    <PageHeader title="仪表盘" description="平台实时业务概览。"/>
     <el-alert v-if="error" :title="error" type="error" show-icon/>
     <div v-loading="loading" class="stats-grid">
-      <section v-for="item in cards" :key="item.label" class="surface stat-card" :class="{ urgent: item.urgent }">
+      <component
+        :is="item.to ? 'button' : 'section'"
+        v-for="item in cards"
+        :key="item.label"
+        class="surface stat-card"
+        :class="{ urgent: item.urgent, actionable: Boolean(item.to) }"
+        :type="item.to ? 'button' : undefined"
+        @click="item.to && router.push(item.to)"
+      >
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
         <em>{{ item.note }}</em>
-      </section>
+      </component>
     </div>
   </div>
 </template>
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { getDashboard } from '@/api/management'; import { getApiErrorMessage } from '@/api/client'; import PageHeader from '@/components/PageHeader.vue'; import type { DashboardStats } from '@/types/api'
+import { useRouter } from 'vue-router'
+import { getDashboard } from '@/api/management'; import { getApiErrorMessage } from '@/api/client'; import type { DashboardStats } from '@/types/api'
 const stats=ref<DashboardStats>({users:0,families:0,pendingPublicApplications:0,pendingFounderTransfers:0,pendingDissolutions:0});const loading=ref(true);const error=ref('')
+const router = useRouter()
 const pendingTotal = computed(() => stats.value.pendingPublicApplications + stats.value.pendingFounderTransfers + stats.value.pendingDissolutions)
-const cards=computed(()=>[{label:'用户数',value:stats.value.users,note:'平台账号'},{label:'家庭数',value:stats.value.families,note:'全部家庭'},{label:'公开申请',value:stats.value.pendingPublicApplications,note:'待审核',urgent:stats.value.pendingPublicApplications>0},{label:'创建者转让',value:stats.value.pendingFounderTransfers,note:'待审核',urgent:stats.value.pendingFounderTransfers>0},{label:'家庭解散',value:stats.value.pendingDissolutions,note:'待审核',urgent:stats.value.pendingDissolutions>0}])
+const cards=computed(()=>[{label:'用户数',value:stats.value.users,note:'平台账号',to:'/admin/users'},{label:'家庭数',value:stats.value.families,note:'全部家庭',to:'/admin/families'},{label:'公开申请',value:stats.value.pendingPublicApplications,note:'处理待审核',urgent:stats.value.pendingPublicApplications>0,to:'/admin/public-applications'},{label:'创建者转让',value:stats.value.pendingFounderTransfers,note:'处理待审核',urgent:stats.value.pendingFounderTransfers>0,to:'/admin/founder-transfer-requests'},{label:'家庭解散',value:stats.value.pendingDissolutions,note:'处理待审核',urgent:stats.value.pendingDissolutions>0,to:'/admin/dissolution-requests'}])
 onMounted(async()=>{try{stats.value=await getDashboard()}catch(e){error.value=getApiErrorMessage(e)}finally{loading.value=false}})
 </script>
 <style scoped>
@@ -114,6 +123,18 @@ onMounted(async()=>{try{stats.value=await getDashboard()}catch(e){error.value=ge
     radial-gradient(circle at 100% 0%, rgba(200, 164, 93, 0.10), transparent 120px),
     linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(244, 250, 247, 0.92) 100%);
   overflow: hidden;
+}
+
+.stat-card.actionable {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  text-align: left;
+}
+
+.stat-card.actionable:hover {
+  border-color: var(--color-primary);
+  transform: translateY(-2px);
 }
 
 .stat-card::before {

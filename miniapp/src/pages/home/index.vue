@@ -32,7 +32,7 @@
           <view class="bamboo-mist bamboo-mist-b" />
         </view>
 
-      <view class="home-primary-entry" @click="openHomePrimaryEntry">
+        <view class="home-primary-entry" @click="openHomePrimaryEntry">
           <view>
             <text class="entry-title">{{ primaryEntryTitle }}</text>
             <text class="entry-desc">{{ primaryEntryDesc }}</text>
@@ -46,23 +46,43 @@
         <text>{{ directoryTagText[1] }}</text>
       </view>
 
-      <view class="home-spine archive-book-spine">
+      <view class="home-spine archive-book-spine" aria-hidden="true">
         <view class="spine-title">
           <text>家</text>
           <text>谱</text>
           <text>册</text>
         </view>
         <view class="spine-stitches">
-          <view v-for="item in 6" :key="item" class="spine-stitch" />
+          <view v-for="item in 5" :key="item" class="spine-stitch" />
         </view>
       </view>
 
     </view>
 
+    <view v-if="featuredShowcase" class="home-showcase-panel" @click="openHistoricalShowcase(featuredShowcase.id)">
+      <view class="home-showcase-head">
+        <view>
+          <text class="archive-kicker">Imperial Lineage</text>
+          <text class="home-showcase-title">帝王世家</text>
+        </view>
+        <text class="home-tools-more" @click.stop="openHistoricalShowcase()">查看全部 ›</text>
+      </view>
+      <view class="home-showcase-card">
+        <image v-if="featuredShowcase.coverImageUrl" class="home-showcase-cover" :src="featuredShowcase.coverImageUrl" mode="aspectFill" />
+        <view class="home-showcase-seal">谱</view>
+        <view class="home-showcase-copy">
+          <text class="home-showcase-name">{{ featuredShowcase.displayName }}</text>
+          <text class="home-showcase-meta">{{ featuredShowcase.regionText || '历史示例' }} · {{ featuredShowcase.memberCount }} 位人物</text>
+          <text class="home-showcase-desc">{{ featuredShowcase.summary }}</text>
+        </view>
+        <text class="archive-arrow">›</text>
+      </view>
+      <text class="home-showcase-note">历史示例 · 仅供浏览</text>
+    </view>
+
     <view class="home-tools-panel">
       <view class="home-tools-head">
         <view>
-          <text class="home-tools-kicker">TOOLS</text>
           <text class="home-tools-title">常用工具</text>
         </view>
         <text class="home-tools-more" @click="go('/pages/tools/index')">查看全部 ›</text>
@@ -72,7 +92,7 @@
           v-for="tool in visibleToolItems"
           :key="tool.key"
           class="home-tool-card"
-          :class="[toolCardClass(tool.key), { 'is-tool-highlighted': isToolHighlighted(tool.key), 'is-tool-disabled': !isToolEnabled(tool.key) }]"
+          :class="{ 'is-tool-highlighted': isToolHighlighted(tool.key), 'is-tool-disabled': !isToolEnabled(tool.key) }"
           @click="openCommonTool(tool.key)"
         >
           <view v-if="tool.key === 'KINSHIP_QUERY'" class="home-tool-icon relation-tool-icon" aria-hidden="true">
@@ -91,28 +111,30 @@
       </view>
     </view>
 
-    <view v-if="!hasOwnFamilies && showcaseFamilies.length > 0" class="home-showcase archive-list ui-simplified-hidden">
-      <view
-        v-for="family in showcaseFamilies"
-        :key="family.id"
-        class="archive-row"
-        @click="openShowcaseFamily(family.id)"
-      >
-        <text class="archive-surname-stamp">{{ family.familySurname.slice(0, 1) }}</text>
-        <view class="archive-row-main">
-          <text class="archive-row-title">{{ family.familyName }}</text>
-          <text class="archive-row-desc">{{ family.regionText || family.nativePlace || '已公开展示' }}</text>
+    <view class="home-journey" @click="openHomePrimaryEntry">
+      <view class="home-journey-head">
+        <view>
+          <text class="home-journey-title">从一页家谱开始</text>
+          <text class="home-journey-desc">建立关系，慢慢补全属于家人的记忆</text>
         </view>
         <text class="archive-arrow">›</text>
       </view>
-      <view class="home-showcase-more" @click="goMyFamilyTab">
-        <text>在「我的家庭」查看更多展示家庭</text>
-        <text class="archive-arrow">›</text>
+      <view class="home-journey-steps">
+        <view
+          v-for="(item, index) in journeySteps"
+          :key="item.key"
+          class="home-journey-step"
+          @click.stop="openJourneyStep(item.key)"
+        >
+          <text class="home-journey-index">0{{ index + 1 }}</text>
+          <text>{{ item.label }}</text>
+        </view>
       </view>
     </view>
 
-    <view class="home-privacy ui-simplified-hidden">
-      <text>家庭资料仅在授权范围内可见，公开展示需经过审核。</text>
+    <view class="home-page-note" aria-hidden="true">
+      <view class="home-page-note-line" />
+      <text>每一次补充，都是留给家人的一页。</text>
     </view>
 
     <!-- #ifdef MP-WEIXIN -->
@@ -131,9 +153,9 @@
 import { onLoad, onShareAppMessage, onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
-import { listContentArticles, listContentCategories } from '@/api/content'
-import { listMyFamilies, listPublicFamilyShowcase } from '@/api/families'
+import { listMyFamilies } from '@/api/families'
 import { listFamilyMembers } from '@/api/members'
+import { listPublishedShowcaseFamilies } from '@/api/showcaseFamilies'
 import {
   getVisibleToolDefinitions,
   getToolDefinition,
@@ -144,16 +166,12 @@ import {
   loadToolConfigs
 } from '@/api/toolConfigs'
 import { promptPrivacyConsentIfNeeded } from '@/features/legal/privacyConsent'
-import { openWechatOfficialArticle } from '@/features/content/wechatOfficialArticle'
 import { buildHomeSharePayload, loadShareConfigs } from '@/features/share/wechatShare'
-import { dateKey, festivalDateLabel, getFestivalItems } from '@/features/festivals/festivalData'
 import { useSessionStore } from '@/stores/session'
 import type {
-  ContentArticleSummary,
-  ContentCategory,
   FamilyMember,
   FamilySummary,
-  PublicFamilyShowcaseItem
+  ShowcaseFamilyItem,
 } from '@/types/api'
 
 interface ArchiveStat {
@@ -162,36 +180,25 @@ interface ArchiveStat {
 }
 
 const session = useSessionStore()
-const categories = ref<ContentCategory[]>([])
-const articles = ref<ContentArticleSummary[]>([])
-const showcaseFamilies = ref<PublicFamilyShowcaseItem[]>([])
-const showcaseTotal = ref(0)
 const myFamilies = ref<FamilySummary[]>([])
 const archiveStats = ref<ArchiveStat[]>([
-  { label: '展示家庭', value: '—' },
-  { label: '家庭故事', value: '—' },
-  { label: '阅读篇目', value: '—' }
+  { label: '家庭记录', value: '私密' },
+  { label: '常用工具', value: '—' },
+  { label: '资料访问', value: '授权' }
 ])
 const hasOwnFamilies = ref(false)
-const festivalItems = getFestivalItems(2026)
-const todayKey = dateKey(new Date())
-const todayFestival = festivalItems.find((item) => item.date === todayKey)
-const nextFestival = festivalItems.find((item) => item.date > todayKey)
-const festivalToolClass = computed(() => ({
-  'is-festival-today': Boolean(todayFestival),
-  'is-festival-upcoming': !todayFestival && Boolean(nextFestival)
-}))
-const festivalToolDescription = computed(() =>
-  todayFestival
-    ? `今天是${todayFestival.name} · ${festivalDateLabel(todayFestival.date)}`
-    : nextFestival
-      ? `${nextFestival.name} · ${festivalDateLabel(nextFestival.date)}即将到来`
-      : '查看节日与法定假期'
-)
+const featuredShowcase = ref<ShowcaseFamilyItem | null>(null)
 const visibleToolItems = computed(() => getVisibleToolDefinitions())
 
-const featuredRead = computed(() => articles.value.find((item) => item.isFeatured) || articles.value[0] || null)
 const shouldPromptCreateFamily = computed(() => !hasOwnFamilies.value && session.isLoggedIn)
+const directoryTagText = computed(() =>
+  hasOwnFamilies.value ? ['家', '树'] : ['建', '树']
+)
+const journeySteps = computed(() => [
+  { key: 'START', label: hasOwnFamilies.value ? '查看家树' : '建立家谱' },
+  { key: 'MEMBERS', label: '补充成员' },
+  { key: 'INVITE', label: '邀请家人' }
+])
 const primaryEntryTitle = computed(() =>
   hasOwnFamilies.value
     ? myFamilies.value.length === 1
@@ -199,7 +206,7 @@ const primaryEntryTitle = computed(() =>
       : '进入我的家庭'
     : shouldPromptCreateFamily.value
       ? '创建我的家庭'
-      : '浏览展示家庭'
+      : '登录后建立家谱'
 )
 const primaryEntryDesc = computed(() =>
   hasOwnFamilies.value
@@ -208,56 +215,8 @@ const primaryEntryDesc = computed(() =>
       : '选择要查看的家庭树'
     : shouldPromptCreateFamily.value
       ? '填写姓氏，建立自己的家庭树'
-      : '无需登录，先看公开展示册页'
+      : '登录并完善资料后，开始记录家庭关系'
 )
-const directoryTagText = computed(() =>
-  hasOwnFamilies.value ? ['家', '树'] : shouldPromptCreateFamily.value ? ['建', '树'] : ['展', '示']
-)
-
-function categoryTitle(key: string) {
-  return categories.value.find((item) => item.key === key)?.name || '内容'
-}
-
-function articleUrl(id: number | string) {
-  return `/pages/content/detail?id=${encodeURIComponent(id)}`
-}
-
-async function openReadingArticle(article: ContentArticleSummary) {
-  if (article.contentType === 'WECHAT_OFFICIAL') {
-    try {
-      await openWechatOfficialArticle(article.externalUrl || '')
-    } catch (err) {
-      uni.showToast({ title: err instanceof Error ? err.message : '公众号文章暂时无法打开', icon: 'none' })
-    }
-    return
-  }
-  go(articleUrl(article.id))
-}
-
-async function loadReading() {
-  try {
-    const [categoryResult, articleResult] = await Promise.all([
-      listContentCategories(),
-      listContentArticles({ page: 1, pageSize: 12 })
-    ])
-    categories.value = categoryResult
-    articles.value = articleResult.items
-  } catch {
-    categories.value = []
-    articles.value = []
-  }
-}
-
-async function loadShowcasePreview() {
-  try {
-    const result = await listPublicFamilyShowcase({ page: 1, pageSize: 2 })
-    showcaseFamilies.value = result.items
-    showcaseTotal.value = result.total
-  } catch {
-    showcaseFamilies.value = []
-    showcaseTotal.value = 0
-  }
-}
 
 async function loadArchiveStats() {
   session.restoreSession()
@@ -282,9 +241,9 @@ async function loadArchiveStats() {
   hasOwnFamilies.value = false
   myFamilies.value = []
   archiveStats.value = [
-    { label: '展示家庭', value: showcaseTotal.value > 0 ? String(showcaseTotal.value) : '—' },
-    { label: '家庭故事', value: articles.value.length > 0 ? String(articles.value.length) : '—' },
-    { label: '阅读篇目', value: categories.value.length > 0 ? String(categories.value.length) : '—' }
+    { label: '家庭记录', value: '私密' },
+    { label: '常用工具', value: String(visibleToolItems.value.length) },
+    { label: '资料访问', value: '授权' }
   ]
 }
 
@@ -301,14 +260,22 @@ function formatLatestMemberUpdate(members: FamilyMember[]) {
   })
 }
 
-function openShowcaseFamily(familyId: number | string) {
-  uni.navigateTo({
-    url: `/pages/family/public-profile?familyId=${encodeURIComponent(String(familyId))}`
-  })
-}
-
 function go(url: string) {
   uni.navigateTo({ url })
+}
+
+function openHistoricalShowcase(showcaseFamilyId?: number) {
+  const query = showcaseFamilyId ? `?familyId=${encodeURIComponent(String(showcaseFamilyId))}` : ''
+  go(`/pages/family/historical-showcase${query}`)
+}
+
+async function loadFeaturedShowcase() {
+  try {
+    const items = await listPublishedShowcaseFamilies()
+    featuredShowcase.value = items.find((item) => item.rotationPinned) || items[0] || null
+  } catch {
+    featuredShowcase.value = null
+  }
 }
 
 function toolTitle(key: string) {
@@ -317,13 +284,8 @@ function toolTitle(key: string) {
 
 function toolDescription(key: string) {
   if (!isToolEnabled(key)) return '暂未开放'
-  if (key === 'TRADITIONAL_FESTIVALS' && (todayFestival || nextFestival)) return festivalToolDescription.value
   if (!getToolDefinition(key)?.path) return '功能暂未接入'
   return getToolDescription(key)
-}
-
-function toolCardClass(key: string) {
-  return key === 'TRADITIONAL_FESTIVALS' ? festivalToolClass.value : {}
 }
 
 function openCommonTool(key: string) {
@@ -368,7 +330,7 @@ function openCreateFamily() {
 }
 
 function openHomePrimaryEntry() {
-  if (!hasOwnFamilies.value && session.isLoggedIn) {
+  if (!hasOwnFamilies.value) {
     openCreateFamily()
     return
   }
@@ -381,10 +343,25 @@ function openHomePrimaryEntry() {
   goMyFamilyTab()
 }
 
+function openJourneyStep(step: 'START' | 'MEMBERS' | 'INVITE') {
+  if (step === 'START') {
+    openHomePrimaryEntry()
+    return
+  }
+
+  if (!hasOwnFamilies.value || myFamilies.value.length !== 1) {
+    goMyFamilyTab()
+    return
+  }
+
+  const familyId = encodeURIComponent(String(myFamilies.value[0].id))
+  uni.navigateTo({
+    url: `/pages/family/members?familyId=${familyId}`
+  })
+}
+
 async function refreshHome() {
-  await loadReading()
-  await loadShowcasePreview()
-  await loadArchiveStats()
+  await Promise.all([loadArchiveStats(), loadFeaturedShowcase()])
 }
 
 onLoad(() => {
@@ -410,12 +387,13 @@ onShow(() => {
 
 .home-page {
   padding-right: 0;
+  padding-bottom: calc(58rpx + env(safe-area-inset-bottom));
 }
 
 .home-book {
   position: relative;
   display: flex;
-  min-height: 638rpx;
+  min-height: 570rpx;
   margin: 4rpx 0 0;
 }
 
@@ -425,7 +403,8 @@ onShow(() => {
   min-width: 0;
   border-top: 1rpx solid var(--archive-line-strong);
   border-bottom: 1rpx solid var(--archive-line);
-  padding: 42rpx 148rpx 30rpx 4rpx;
+  background: rgba(255, 252, 244, 0.2);
+  padding: 36rpx 112rpx 28rpx 4rpx;
   overflow: hidden;
 }
 
@@ -453,15 +432,16 @@ onShow(() => {
 
 .home-stats {
   display: flex;
-  flex-direction: column;
-  gap: 18rpx;
-  width: 200rpx;
-  margin-top: 48rpx;
+  flex-direction: row;
+  gap: 12rpx;
+  width: auto;
+  margin-top: 30rpx;
 }
 
 .home-stat {
+  flex: 1;
   border-left: 3rpx solid var(--archive-cinnabar);
-  padding-left: 18rpx;
+  padding-left: 14rpx;
 }
 
 .home-stat-value,
@@ -481,17 +461,16 @@ onShow(() => {
 .home-stat-label {
   margin-top: 7rpx;
   color: var(--archive-ink-soft);
-  font-size: 21rpx;
+  font-size: 22rpx;
   line-height: 1.2;
 }
 
 .bamboo-ink {
-  position: absolute;
-  right: 138rpx;
-  top: 130rpx;
-  width: 220rpx;
-  height: 380rpx;
-  opacity: 0.82;
+  right: 94rpx;
+  top: 96rpx;
+  width: 202rpx;
+  height: 332rpx;
+  opacity: 0.44;
 }
 
 .bamboo-stem {
@@ -586,7 +565,7 @@ onShow(() => {
 
 .home-primary-entry {
   position: absolute;
-  right: 128rpx;
+  right: 92rpx;
   bottom: 24rpx;
   left: 0;
   display: flex;
@@ -594,9 +573,10 @@ onShow(() => {
   justify-content: space-between;
   gap: 20rpx;
   border: 1rpx solid rgba(35, 73, 98, 0.22);
-  border-radius: 8rpx;
-  background: rgba(255, 252, 244, 0.64);
-  padding: 20rpx 18rpx;
+  min-height: 106rpx;
+  border-radius: 10rpx;
+  background: rgba(255, 252, 244, 0.92);
+  padding: 22rpx 20rpx;
   box-shadow: 0 8rpx 18rpx rgba(77, 59, 35, 0.05);
 }
 
@@ -608,6 +588,121 @@ onShow(() => {
   padding: 22rpx 18rpx 18rpx;
 }
 
+.home-showcase-panel {
+  margin: 0 30rpx 22rpx 0;
+  border: 1rpx solid rgba(200, 164, 93, 0.52);
+  border-radius: 8rpx;
+  background: rgba(255, 251, 239, 0.72);
+  padding: 20rpx 18rpx 16rpx;
+}
+
+.home-showcase-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16rpx; }
+.home-showcase-title { display: block; margin-top: 4rpx; color: var(--archive-ink); font-size: 27rpx; font-weight: 750; }
+.home-showcase-card { position: relative; display: flex; align-items: center; gap: 14rpx; min-height: 126rpx; margin-top: 16rpx; overflow: hidden; border: 1rpx solid var(--archive-line); border-radius: 6rpx; background: rgba(255, 252, 244, 0.92); padding: 16rpx; }
+.home-showcase-cover { width: 112rpx; height: 92rpx; flex: 0 0 auto; border-radius: 4rpx; }
+.home-showcase-seal { display: grid; width: 56rpx; height: 56rpx; flex: 0 0 auto; place-items: center; border: 2rpx solid var(--archive-cinnabar); color: var(--archive-cinnabar); font-family: 'Songti SC', 'STSong', serif; font-size: 28rpx; transform: rotate(-7deg); }
+.home-showcase-copy { display: grid; min-width: 0; flex: 1; gap: 4rpx; }
+.home-showcase-name, .home-showcase-meta, .home-showcase-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-showcase-name { color: var(--archive-ink); font-size: 26rpx; font-weight: 700; }
+.home-showcase-meta { color: var(--archive-blue); font-size: 20rpx; }
+.home-showcase-desc { color: var(--archive-ink-soft); font-size: 21rpx; }
+.home-showcase-note { display: block; margin-top: 12rpx; color: var(--archive-ink-soft); font-size: 20rpx; }
+
+.home-page-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  margin: 0 30rpx 0 0;
+  color: rgba(101, 112, 128, 0.78);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 20rpx;
+  letter-spacing: 1rpx;
+  line-height: 1.4;
+}
+
+.home-journey {
+  margin: 0 30rpx 22rpx 0;
+  border-top: 1rpx solid var(--archive-line-strong);
+  border-bottom: 1rpx solid var(--archive-line);
+  background: rgba(255, 252, 244, 0.3);
+  padding: 20rpx 18rpx 18rpx;
+}
+
+.home-journey-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.home-journey-title,
+.home-journey-desc,
+.home-journey-index,
+.home-journey-step > text:last-child {
+  display: block;
+}
+
+.home-journey-title {
+  color: var(--archive-ink);
+  font-size: 26rpx;
+  font-weight: 700;
+}
+
+.home-journey-desc {
+  margin-top: 5rpx;
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.4;
+}
+
+.home-journey-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10rpx;
+  margin-top: 16rpx;
+}
+
+.home-journey-step {
+  position: relative;
+  min-width: 0;
+  border-left: 2rpx solid rgba(168, 59, 45, 0.52);
+  padding-left: 10rpx;
+}
+
+.home-journey-step::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-top: 4rpx solid transparent;
+  border-bottom: 4rpx solid transparent;
+  border-left: 5rpx solid rgba(101, 112, 128, 0.58);
+  content: '';
+}
+
+.home-journey-index {
+  color: var(--archive-cinnabar);
+  font-size: 17rpx;
+  font-weight: 700;
+  letter-spacing: 1rpx;
+}
+
+.home-journey-step > text:last-child {
+  margin-top: 3rpx;
+  color: var(--archive-ink);
+  font-size: 22rpx;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.home-page-note-line {
+  width: 46rpx;
+  height: 1rpx;
+  background: var(--archive-line-strong);
+}
+
 .home-tools-head {
   display: flex;
   align-items: baseline;
@@ -615,28 +710,23 @@ onShow(() => {
   gap: 16rpx;
 }
 
-.home-tools-kicker,
 .home-tools-title,
 .home-tools-more {
   display: block;
 }
 
-.home-tools-kicker {
-  color: var(--archive-cinnabar);
-  font-size: 18rpx;
-  letter-spacing: 3rpx;
-}
-
 .home-tools-title {
-  margin-top: 5rpx;
   color: var(--archive-ink);
   font-size: 27rpx;
   font-weight: 750;
 }
 
 .home-tools-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 64rpx;
   color: var(--archive-blue);
-  font-size: 21rpx;
+  font-size: 24rpx;
 }
 
 .home-tools-grid {
@@ -651,7 +741,7 @@ onShow(() => {
   align-items: center;
   gap: 16rpx;
   min-width: 0;
-  min-height: 112rpx;
+  min-height: 128rpx;
   border: 1rpx solid var(--archive-line-strong);
   border-radius: 6rpx;
   background: rgba(255, 252, 244, 0.76);
@@ -666,25 +756,6 @@ onShow(() => {
 
 .home-tool-card.is-tool-disabled {
   opacity: 0.62;
-}
-
-.home-tool-card.is-festival-today {
-  border-color: rgba(168, 59, 45, 0.55);
-  background: rgba(168, 59, 45, 0.08);
-}
-
-.home-tool-card.is-festival-today .home-tool-title,
-.home-tool-card.is-festival-today .home-tool-desc {
-  color: var(--archive-cinnabar);
-}
-
-.home-tool-card.is-festival-upcoming {
-  border-color: rgba(35, 73, 98, 0.42);
-  background: rgba(35, 73, 98, 0.055);
-}
-
-.home-tool-card.is-festival-upcoming .home-tool-title {
-  color: var(--archive-blue);
 }
 
 .home-tool-copy {
@@ -759,8 +830,6 @@ onShow(() => {
   display: block;
   overflow: hidden;
   text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .home-tool-title {
@@ -770,9 +839,14 @@ onShow(() => {
 }
 
 .home-tool-desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   margin-top: 5rpx;
   color: var(--archive-ink-soft);
-  font-size: 19rpx;
+  font-size: 22rpx;
+  line-height: 1.35;
+  white-space: normal;
 }
 
 .entry-title,
@@ -796,34 +870,34 @@ onShow(() => {
 
 .home-directory-tag {
   position: absolute;
-  right: 96rpx;
-  top: 248rpx;
+  right: 70rpx;
+  top: 218rpx;
   z-index: 4;
-  width: 58rpx;
-  min-height: 178rpx;
+  width: 52rpx;
+  min-height: 158rpx;
   flex-direction: column;
-  gap: 14rpx;
-  box-shadow: 6rpx 10rpx 18rpx rgba(77, 59, 35, 0.12);
+  gap: 12rpx;
+  box-shadow: 5rpx 8rpx 16rpx rgba(77, 59, 35, 0.1);
   transform: rotate(2deg);
 }
 
 .home-spine {
-  width: 96rpx;
-  min-height: 680rpx;
+  width: 72rpx;
+  min-height: 594rpx;
   flex-shrink: 0;
 }
 
 .spine-title {
   position: absolute;
-  top: 88rpx;
+  top: 76rpx;
   left: 50%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12rpx;
+  gap: 10rpx;
   color: rgba(255, 255, 255, 0.92);
   font-family: 'Songti SC', 'STSong', serif;
-  font-size: 30rpx;
+  font-size: 28rpx;
   font-weight: 700;
   line-height: 1.2;
   transform: translateX(-50%);
@@ -831,19 +905,20 @@ onShow(() => {
 
 .spine-stitches {
   position: absolute;
-  right: 36rpx;
-  bottom: 88rpx;
+  right: 26rpx;
+  bottom: 60rpx;
   display: flex;
   flex-direction: column;
-  gap: 32rpx;
+  gap: 28rpx;
 }
 
 .spine-stitch {
-  width: 18rpx;
-  height: 18rpx;
+  width: 15rpx;
+  height: 15rpx;
   border: 2rpx solid rgba(255, 255, 255, 0.78);
   border-radius: 50%;
 }
+
 
 .home-reading {
   margin: 30rpx 30rpx 0 0;

@@ -25,10 +25,10 @@
 
     <DataTable>
       <el-table v-loading="loading" :data="items" stripe empty-text="暂无家庭解散申请">
-        <el-table-column prop="requestId" label="申请 ID" width="100" />
-        <el-table-column prop="familyId" label="家庭 ID" width="100" />
-        <el-table-column prop="familyName" label="家庭名称" min-width="150" />
-        <el-table-column label="申请人标识" min-width="170">
+        <el-table-column prop="requestId" label="申请 ID" width="90" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="familyId" label="家庭 ID" width="88" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="familyName" label="家庭名称" min-width="170" show-overflow-tooltip />
+        <el-table-column label="申请人标识" min-width="176">
           <template #default="{ row }">
             <div class="id-pair">
               <span>成员：{{ row.requesterMemberId }}</span>
@@ -36,19 +36,19 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="requestReason" label="申请原因" min-width="220" show-overflow-tooltip />
-        <el-table-column label="状态" width="105">
+        <el-table-column prop="requestReason" label="申请原因" min-width="240" show-overflow-tooltip />
+        <el-table-column label="状态" width="96" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }"><StatusTag :status="row.requestStatus" /></template>
         </el-table-column>
-        <el-table-column prop="reviewResult" label="审核结果" width="105" />
-        <el-table-column prop="reviewComment" label="审核意见" min-width="180" show-overflow-tooltip />
-        <el-table-column label="创建时间" width="180">
+        <el-table-column prop="reviewResult" label="审核结果" width="96" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="reviewComment" label="审核意见" min-width="190" show-overflow-tooltip />
+        <el-table-column label="创建时间" width="160" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="审核时间" width="180">
+        <el-table-column label="审核时间" width="160" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">{{ formatTime(row.reviewedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="190" fixed="right">
+        <el-table-column label="操作" width="172" fixed="right" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">
             <div v-if="row.requestStatus === 'PENDING'" class="table-actions">
               <el-button size="small" type="danger" @click="openAudit(row.requestId, 'approve')">通过解散</el-button>
@@ -98,7 +98,7 @@
     <ConfirmDialog
       v-model="approveConfirmVisible"
       title="确认解散家庭"
-      message="批准后家庭将变为已解散，停止公开展示且不可搜索。该操作不会物理删除家庭数据。"
+      message="批准后家庭将进入恢复冷静期：用户端暂不展示，家庭资料仅可查看不可编辑；冷静期内可恢复，或由后台完成解散。该操作不会物理删除家庭数据。"
       :submitting="submitting"
       :close-on-confirm="false"
       danger
@@ -144,7 +144,7 @@ import SearchPanel from '@/components/SearchPanel.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import type { DissolutionRequest } from '@/types/api'
 
-const status = ref('')
+const status = ref('PENDING')
 const familyId = ref<number | undefined>()
 const items = ref<DissolutionRequest[]>([])
 const page = ref(1)

@@ -337,15 +337,4 @@ watch(
   border-radius: 0 0 0 16rpx;
   background: var(--archive-cinnabar, #a83b2d);
 }
-.unlocated-card-hit.interactive::after {
-  content: '管';
-  position: absolute;
-  top: 2rpx;
-  right: 6rpx;
-  z-index: 4;
-  color: #fff;
-  font-size: 16rpx;
-  font-weight: 700;
-  line-height: 1;
-}
 </style>

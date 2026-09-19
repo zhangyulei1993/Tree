@@ -91,7 +91,7 @@ function handleSelect(key: string) {
   display: block;
   margin-top: 6rpx;
   color: var(--tree-text-secondary, #64748b);
-  font-size: 21rpx;
+  font-size: 24rpx;
   line-height: 1.55;
 }
 

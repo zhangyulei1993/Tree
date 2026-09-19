@@ -36,14 +36,14 @@ function goHome() {
   align-items: center;
   gap: 8rpx;
   width: auto;
-  min-height: 58rpx;
+  min-height: 80rpx;
   margin: 0;
   border: 1rpx solid rgba(31, 58, 95, 0.1);
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.86);
   color: var(--tree-text-secondary, #6b7280);
   padding: 8rpx 18rpx 8rpx 14rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
   font-weight: 600;
   line-height: 1.4;
   box-shadow: 0 8rpx 24rpx rgba(31, 58, 95, 0.06);

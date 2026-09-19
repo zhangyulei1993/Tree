@@ -76,6 +76,13 @@ func (s *ManagementService) Members(ctx context.Context, id uint64) (any, *apper
 	}
 	return value, nil
 }
+func (s *ManagementService) Tree(ctx context.Context, id uint64) (any, *apperrors.BusinessError) {
+	value, err := s.repo.Tree(ctx, id)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeResourceNotFound)
+	}
+	return value, nil
+}
 func (s *ManagementService) Admins(ctx context.Context, q repository.PageQuery) (any, *apperrors.BusinessError) {
 	q = normalize(q)
 	rows, total, err := s.repo.Admins(ctx, q)

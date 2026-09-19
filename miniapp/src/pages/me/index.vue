@@ -262,7 +262,19 @@ onShow(() => {
 }
 
 .profile-archive.guest {
-  align-items: flex-start;
+  align-items: center;
+  gap: 20rpx;
+  margin-bottom: 22rpx;
+  padding: 6rpx 0 22rpx;
+}
+
+.profile-archive.guest .avatar-wrap {
+  width: 96rpx;
+  height: 96rpx;
+}
+
+.profile-archive.guest .avatar-text {
+  font-size: 42rpx;
 }
 
 .avatar-wrap {
@@ -317,6 +329,11 @@ onShow(() => {
   line-height: 1.4;
 }
 
+.profile-archive.guest .profile-meta,
+.profile-archive.guest .profile-status {
+  font-size: 24rpx;
+}
+
 .profile-status {
   display: block;
   margin-top: 10rpx;
@@ -339,7 +356,7 @@ onShow(() => {
 }
 
 .guest-actions {
-  margin: 26rpx 0;
+  margin: 18rpx 0 24rpx;
 }
 
 .guest-actions :deep(.mini-button),

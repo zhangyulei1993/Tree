@@ -33,13 +33,13 @@
     </view>
 
     <MiniNotice tone="info" class="solar-term-notice">
-      节气日期按 2026 年公历换算展示，具体交节时刻会因年份和时区略有差异。
+      节气日期按 {{ currentYear }} 年公历换算展示，具体交节时刻会因年份和时区略有差异。
     </MiniNotice>
 
     <view class="solar-term-section">
       <view class="solar-term-section-head">
         <view>
-          <text class="archive-kicker">2026</text>
+          <text class="archive-kicker">{{ currentYear }}</text>
           <text class="section-title">二十四节气</text>
         </view>
         <text class="section-count">{{ solarTerms.length }} 个</text>
@@ -78,7 +78,7 @@ import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import { dateKey, getSolarTermItems, type SolarTermItem } from '@/features/festivals/festivalData'
 
-const currentYear = 2026
+const currentYear = new Date().getFullYear()
 const solarTerms = getSolarTermItems(currentYear)
 const todayKey = dateKey(new Date())
 const todaySolarTerm = solarTerms.find((item) => item.date === todayKey) || null

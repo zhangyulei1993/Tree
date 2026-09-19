@@ -22,18 +22,18 @@
 
     <DataTable>
       <el-table v-loading="loading" :data="items" stripe empty-text="暂无公开申请">
-        <el-table-column prop="applicationId" label="申请 ID" width="110" />
-        <el-table-column prop="familyId" label="家庭 ID" width="100" />
-        <el-table-column prop="familyName" label="家庭名称" min-width="150" />
-        <el-table-column prop="applicantUserId" label="申请用户 ID" width="120" />
-        <el-table-column prop="reason" label="申请理由" min-width="240" show-overflow-tooltip />
-        <el-table-column label="状态" width="110">
+        <el-table-column prop="applicationId" label="申请 ID" width="96" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="familyId" label="家庭 ID" width="88" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="familyName" label="家庭名称" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="applicantUserId" label="申请人 ID" width="102" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="reason" label="申请理由" min-width="260" show-overflow-tooltip />
+        <el-table-column label="状态" width="96" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }"><StatusTag :status="row.status" /></template>
         </el-table-column>
-        <el-table-column label="创建时间" width="180">
+        <el-table-column label="创建时间" width="160" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="172" fixed="right" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">
             <div v-if="row.status === 'PENDING'" class="table-actions">
               <el-button size="small" type="primary" @click="openAudit(row.applicationId, 'approve')">通过</el-button>
@@ -109,7 +109,7 @@ import SearchPanel from '@/components/SearchPanel.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import type { PublicApplication } from '@/types/api'
 
-const status = ref('')
+const status = ref('PENDING')
 const items = ref<PublicApplication[]>([])
 const page = ref(1)
 const pageSize = ref(20)

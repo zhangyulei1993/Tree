@@ -7,6 +7,7 @@ declare module 'vue-router' {
     title?: string
     requiresAuth?: boolean
     roles?: AdminRole[]
+    showcase?: boolean
   }
 }
 
@@ -31,10 +32,13 @@ export const routes: RouteRecordRaw[] = [
       { path: 'users/:userId', name: 'UserDetail', component: () => import('@/views/UserDetail.vue'), meta: { title: '用户详情' } },
       { path: 'families', name: 'Families', component: () => import('@/views/Families.vue'), meta: { title: '家庭管理' } },
       { path: 'families/:familyId', name: 'FamilyDetail', component: () => import('@/views/FamilyDetail.vue'), meta: { title: '家庭详情' } },
+      { path: 'families/:familyId/tree', name: 'AdminFamilyTree', component: () => import('@/views/FamilyTree.vue'), meta: { title: '家庭树' } },
       { path: 'families/:familyId/members', name: 'FamilyMembers', component: () => import('@/views/FamilyMembers.vue'), meta: { title: '家庭成员管理' } },
       { path: 'public-applications', name: 'PublicApplications', component: () => import('@/views/PublicApplications.vue'), meta: { title: '公开申请审核' } },
       { path: 'content', name: 'ContentManagement', component: () => import('@/views/ContentManagement.vue'), meta: { title: '内容中心' } },
       { path: 'share-configs', name: 'ShareConfigs', component: () => import('@/views/ShareConfigs.vue'), meta: { title: '分享配置' } },
+      { path: 'showcase-families', name: 'ShowcaseFamilies', component: () => import('@/views/ShowcaseFamilies.vue'), meta: { title: '帝王世家配置', roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] } },
+      { path: 'showcase-families/:showcaseFamilyId/tree', name: 'ShowcaseFamilyTree', component: () => import('@/views/FamilyTree.vue'), meta: { title: '帝王世家树', roles: ['ROOT_ADMIN', 'SUPER_ADMIN'], showcase: true } },
       { path: 'tool-configs', name: 'ToolConfigs', component: () => import('@/views/ToolConfigs.vue'), meta: { title: '常用工具配置', roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] } },
       {
         path: 'founder-transfer-requests',

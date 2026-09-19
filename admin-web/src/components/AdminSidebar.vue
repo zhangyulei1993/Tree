@@ -8,22 +8,24 @@
       </div>
     </div>
     <el-menu :default-active="$route.path" router class="menu">
-      <el-menu-item v-for="item in visibleMenus" :key="item.path" :index="item.path">
-        <el-icon><component :is="item.icon" /></el-icon>
-        <span>{{ item.label }}</span>
-      </el-menu-item>
+      <el-menu-item-group v-for="group in visibleGroups" :key="group.label" :title="group.label">
+        <el-menu-item v-for="item in group.items" :key="item.path" :index="item.path">
+          <el-icon><component :is="item.icon" /></el-icon>
+          <span>{{ item.label }}</span>
+        </el-menu-item>
+      </el-menu-item-group>
     </el-menu>
   </aside>
 </template>
 
 <script setup lang="ts">
 import {
+  CollectionTag,
   Connection,
   Document,
   Files,
   HomeFilled,
   House,
-  Key,
   MessageBox,
   Operation,
   SetUp,
@@ -43,26 +45,35 @@ interface MenuItem {
 
 const auth = useAuthStore()
 
-const menus: MenuItem[] = [
-  { path: '/admin/dashboard', label: '仪表盘', icon: HomeFilled },
-  { path: '/admin/users', label: '用户管理', icon: User },
-  { path: '/admin/families', label: '家庭管理', icon: House },
-  { path: '/admin/public-applications', label: '公开申请审核', icon: Document },
-  { path: '/admin/content', label: '内容中心', icon: Files },
-  { path: '/admin/share-configs', label: '分享配置', icon: Connection },
-  { path: '/admin/tool-configs', label: '常用工具配置', icon: SetUp, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
-  { path: '/admin/founder-transfer-requests', label: '创始人转让审核', icon: Connection, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
-  { path: '/admin/dissolution-requests', label: '家庭解散审核', icon: MessageBox, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
-  { path: '/admin/account-quota-configs', label: '账号权益配置', icon: SetUp, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
-  { path: '/admin/admin-users', label: '后台管理员管理', icon: UserFilled, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
-  { path: '/admin/operation-logs', label: '操作日志', icon: Operation },
-  { path: '/admin/families/family_001/members', label: '成员管理样例', icon: SetUp },
-  { path: '/admin/families/family_001', label: '家庭详情样例', icon: Key }
+const menuGroups: { label: string; items: MenuItem[] }[] = [
+  { label: '业务总览', items: [
+    { path: '/admin/dashboard', label: '仪表盘', icon: HomeFilled },
+    { path: '/admin/users', label: '用户管理', icon: User },
+    { path: '/admin/families', label: '家庭管理', icon: House }
+  ] },
+  { label: '内容与运营', items: [
+    { path: '/admin/content', label: '内容中心', icon: Files },
+    { path: '/admin/share-configs', label: '分享配置', icon: Connection },
+    { path: '/admin/showcase-families', label: '帝王世家配置', icon: CollectionTag, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
+    { path: '/admin/tool-configs', label: '常用工具配置', icon: SetUp, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] }
+  ] },
+  { label: '审核与风控', items: [
+    { path: '/admin/public-applications', label: '公开申请审核', icon: Document },
+    { path: '/admin/founder-transfer-requests', label: '创始人转让审核', icon: Connection, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
+    { path: '/admin/dissolution-requests', label: '家庭解散审核', icon: MessageBox, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
+    { path: '/admin/operation-logs', label: '操作日志', icon: Operation }
+  ] },
+  { label: '平台设置', items: [
+    { path: '/admin/account-quota-configs', label: '账号权益配置', icon: SetUp, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
+    { path: '/admin/admin-users', label: '后台管理员管理', icon: UserFilled, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] }
+  ] }
 ]
 
-const visibleMenus = computed(() => {
+const visibleGroups = computed(() => {
   const role = auth.admin?.role
-  return menus.filter((item) => !item.roles || (role && item.roles.includes(role)))
+  return menuGroups
+    .map((group) => ({ ...group, items: group.items.filter((item) => !item.roles || (role && item.roles.includes(role))) }))
+    .filter((group) => group.items.length > 0)
 })
 </script>
 
@@ -114,6 +125,14 @@ const visibleMenus = computed(() => {
   padding: 16px 10px 20px;
   border-right: 0;
   background: transparent;
+}
+
+:deep(.el-menu-item-group__title) {
+  padding: 14px 10px 7px;
+  color: rgba(255, 255, 255, 0.44);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
 :deep(.el-menu-item) {

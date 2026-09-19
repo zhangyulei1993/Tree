@@ -17,6 +17,7 @@ import type {
   FounderTransferRequest,
   ManagedAdmin,
   ManagedFamily,
+  AdminFamilyTree,
   ManagedFamilyMember,
   ManagedUser,
   ManagedUserDetail,
@@ -25,7 +26,7 @@ import type {
   PublicApplication
 } from '@/types/api'
 
-export interface PageQuery { keyword?: string; status?: string; role?: AdminRole | ''; result?: string; familyId?: number | string; page?: number; pageSize?: number }
+export interface PageQuery { keyword?: string; status?: string; role?: AdminRole | ''; operatorType?: string; result?: string; familyId?: number | string; startDate?: string; endDate?: string; page?: number; pageSize?: number }
 
 function paginate<T>(items: T[], page = 1, pageSize = 20): PageResult<T> {
   const start = (page - 1) * pageSize
@@ -244,6 +245,31 @@ export async function listFamilyMembers(familyId: number | string) {
   return unwrapData(await apiClient.get<ApiResponse<ManagedFamilyMember[]>>(`/admin/families/${familyId}/members`))
 }
 
+export async function getFamilyTree(familyId: number | string): Promise<AdminFamilyTree> {
+  if (apiMode === 'mock') {
+    const nodes = mapFamilyMembers(familyId).map((member) => ({
+      memberId: member.id,
+      displayName: member.displayName,
+      gender: member.gender,
+      memberType: 'LINEAGE_MEMBER',
+      isLiving: member.isLiving,
+      userBindingState: member.boundUserId ? 'BOUND' : member.userBindingPolicy === 'NOT_REQUIRED' ? 'NOT_REQUIRED' : 'UNBOUND'
+    }))
+    return {
+      familyId: Number(familyId),
+      graphVersion: 1,
+      nodes,
+      edges: nodes.slice(1).map((node, index) => ({
+        relationshipId: index + 1,
+        fromMemberId: nodes[0].memberId,
+        toMemberId: node.memberId,
+        relationshipType: 'PARENT_CHILD'
+      }))
+    }
+  }
+  return unwrapData(await apiClient.get<ApiResponse<AdminFamilyTree>>(`/admin/families/${familyId}/tree`))
+}
+
 export async function listAdmins(params: PageQuery) {
   if (apiMode === 'mock') {
     const items = mapAdmins().filter((item) => (!params.role || item.role === params.role) && (!params.status || item.status === params.status))
@@ -275,7 +301,12 @@ export async function listOperationLogs(params: PageQuery) {
     const items = mapOperationLogs().filter((item) => {
       const hitKeyword = !params.keyword || [item.module, item.action, item.targetType].some((value) => String(value || '').includes(params.keyword!))
       const hitResult = !params.result || item.result === params.result
-      return hitKeyword && hitResult
+      const hitOperatorType = !params.operatorType || item.operatorType === params.operatorType
+      const hitRole = !params.role || item.operatorRole === params.role
+      const createdDate = String(item.createdAt).slice(0, 10)
+      const hitStart = !params.startDate || createdDate >= params.startDate
+      const hitEnd = !params.endDate || createdDate <= params.endDate
+      return hitKeyword && hitResult && hitOperatorType && hitRole && hitStart && hitEnd
     })
     return paginate(items, params.page, params.pageSize)
   }

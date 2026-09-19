@@ -33,30 +33,30 @@
 
         <DataTable>
           <el-table v-loading="articleLoading" :data="articles" stripe empty-text="暂无文章">
-            <el-table-column prop="id" label="ID" width="60" />
-            <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip />
-            <el-table-column label="类型" width="110">
+            <el-table-column prop="id" label="ID" width="60" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+            <el-table-column prop="title" label="标题" min-width="240" show-overflow-tooltip />
+            <el-table-column label="类型" width="110" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
               <template #default="{ row }">
                 <el-tag :type="row.contentType === 'WECHAT_OFFICIAL' ? 'success' : 'info'">
                   {{ row.contentType === 'WECHAT_OFFICIAL' ? '公众号文章' : '站内文章' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="categoryName" label="分类" width="100" />
-            <el-table-column prop="slug" label="路径" min-width="150" show-overflow-tooltip />
-            <el-table-column label="状态" width="90">
+            <el-table-column prop="categoryName" label="分类" width="100" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+            <el-table-column prop="slug" label="路径" min-width="180" show-overflow-tooltip />
+            <el-table-column label="状态" width="90" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
               <template #default="{ row }"><StatusTag :status="row.status" /></template>
             </el-table-column>
-            <el-table-column label="精选" width="70">
+            <el-table-column label="精选" width="70" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
               <template #default="{ row }">
                 <el-tag v-if="row.isFeatured" type="success">精选</el-tag>
                 <span v-else class="muted">否</span>
               </template>
             </el-table-column>
-            <el-table-column label="发布时间" width="150">
+            <el-table-column label="发布时间" width="150" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
               <template #default="{ row }">{{ formatTime(row.publishedAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="230">
+            <el-table-column label="操作" width="208" fixed="right" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
               <template #default="{ row }">
                 <div class="table-actions">
                   <el-button size="small" @click="openArticleEdit(row.id)">编辑</el-button>
@@ -91,17 +91,17 @@
         </div>
         <DataTable>
           <el-table v-loading="categoryLoading" :data="categories" stripe empty-text="暂无分类">
-            <el-table-column prop="id" label="ID" width="80" />
-            <el-table-column prop="key" label="标识" width="140" />
-            <el-table-column prop="name" label="名称" width="140" />
-            <el-table-column prop="description" label="说明" min-width="220" show-overflow-tooltip />
-            <el-table-column prop="sortOrder" label="排序" width="90" />
-            <el-table-column label="状态" width="100">
+            <el-table-column prop="id" label="ID" width="80" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+            <el-table-column prop="key" label="标识" width="150" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+            <el-table-column prop="name" label="名称" width="150" />
+            <el-table-column prop="description" label="说明" min-width="260" show-overflow-tooltip />
+            <el-table-column prop="sortOrder" label="排序" width="76" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+            <el-table-column label="状态" width="90" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
               <template #default="{ row }">
                 <el-tag :type="row.isActive ? 'success' : 'info'">{{ row.isActive ? '启用' : '停用' }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="操作" min-width="180">
+            <el-table-column label="操作" width="156" fixed="right" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
               <template #default="{ row }">
                 <el-button size="small" @click="openCategoryEdit(row)">编辑</el-button>
                 <el-popconfirm title="确认删除该分类？已有文章可能无法继续归类。" @confirm="removeCategory(row.id)">

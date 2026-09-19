@@ -6,7 +6,7 @@
       <view>
         <text class="archive-kicker">Chinese Calendar</text>
         <text class="archive-title">传统节日</text>
-        <text class="archive-subtitle">2026年传统节日与法定假期安排</text>
+        <text class="archive-subtitle">{{ currentYear }}年传统节日与法定假期安排</text>
       </view>
       <view class="archive-seal">节</view>
     </view>
@@ -119,12 +119,12 @@
     </view>
 
     <MiniNotice tone="info" class="source-notice">
-      法定假期按国务院办公厅公布的 2026 年安排整理，调休日期请以临近节日的官方通知为准。
+      法定假期安排以国务院办公厅公布的 {{ currentYear }} 年通知为准，调休日期请以官方通知为准。
     </MiniNotice>
 
     <view class="festival-section-head">
       <view>
-        <text class="archive-kicker">2026</text>
+        <text class="archive-kicker">{{ currentYear }}</text>
         <text class="section-title">节日时间线</text>
       </view>
       <text class="section-count">{{ festivals.length }} 个</text>
@@ -161,7 +161,7 @@
       </view>
     </view>
 
-    <text class="festival-footnote">传统节日日期按 2026 年农历与节气换算展示。</text>
+    <text class="festival-footnote">传统节日日期按 {{ currentYear }} 年农历与节气换算展示。</text>
 
   </view>
 </template>
@@ -185,7 +185,7 @@ import {
   type FestivalCopyScene
 } from '@/features/festivals/festivalCopy'
 
-const currentYear = 2026
+const currentYear = new Date().getFullYear()
 const festivals = getFestivalItems(currentYear)
 const todayKey = dateKey(new Date())
 const todayFestival = festivals.find((item) => item.date === todayKey) || null

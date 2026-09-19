@@ -333,13 +333,21 @@ func (s *memberService) Delete(ctx context.Context, actorID uint64, familyID uin
 		if family.CurrentFounderMemberID != nil && *family.CurrentFounderMemberID == memberID {
 			return errFounderProtected
 		}
-		if _, err := txRepo.FindForUpdate(ctx, familyID, memberID); err != nil {
+		member, err := txRepo.FindForUpdate(ctx, familyID, memberID)
+		if err != nil {
 			return err
 		}
 		if count, err := txRepo.CountBlockingRelationships(ctx, familyID, memberID); err != nil {
 			return err
 		} else if count > 0 {
-			return errHasRelationships
+			if strings.ToUpper(strings.TrimSpace(member.MemberType)) != "SPOUSE" {
+				return errHasRelationships
+			}
+			if hasUnsafeChild, err := txRepo.HasChildWithoutOtherLineageParent(ctx, familyID, memberID); err != nil {
+				return err
+			} else if hasUnsafeChild {
+				return errSpouseChildParentMissing
+			}
 		}
 		if link, err := txRepo.FindActiveLinkByMember(ctx, familyID, memberID); err == nil {
 			if link.FamilyRole == string(enums.FamilyRoleFounder) || link.FamilyRole == string(enums.FamilyRoleFamilyAdmin) {
@@ -374,6 +382,8 @@ func (s *memberService) Delete(ctx context.Context, actorID uint64, familyID uin
 		return memberError(CodeMemberFounderProtected, "家庭创始人或管理员成员不能直接删除")
 	case errors.Is(err, errHasRelationships):
 		return memberError(CodeMemberHasRelationships, "该成员已有子女关系，不能直接删除")
+	case errors.Is(err, errSpouseChildParentMissing):
+		return memberError(CodeMemberHasRelationships, "该外姓配偶存在未保留本家父母的子女，不能直接删除")
 	case errors.Is(err, errFamilyUnavailable):
 		return memberError(CodeMemberFamilyUnavailable, "家庭状态不允许操作")
 	case errors.Is(err, gorm.ErrRecordNotFound):
@@ -513,17 +523,18 @@ func (s *memberService) UnbindUser(ctx context.Context, actorID uint64, familyID
 }
 
 var (
-	errFamilyUnavailable  = errors.New("family unavailable")
-	errBindingConflict    = errors.New("member binding policy conflict")
-	errFounderProtected   = errors.New("founder protected")
-	errHasRelationships   = errors.New("member has relationships")
-	errPrivilegedLink     = errors.New("privileged link protected")
-	errUserUnavailable    = errors.New("user unavailable")
-	errMemberAlreadyBound = errors.New("member already bound")
-	errUserAlreadyBound   = errors.New("user already bound")
-	errMemberNotBound     = errors.New("member not bound")
-	errInvalidProfile     = errors.New("invalid member profile")
-	errInvalidLifeDates   = errors.New("invalid member life dates")
+	errFamilyUnavailable        = errors.New("family unavailable")
+	errBindingConflict          = errors.New("member binding policy conflict")
+	errFounderProtected         = errors.New("founder protected")
+	errHasRelationships         = errors.New("member has relationships")
+	errSpouseChildParentMissing = errors.New("spouse child has no remaining lineage parent")
+	errPrivilegedLink           = errors.New("privileged link protected")
+	errUserUnavailable          = errors.New("user unavailable")
+	errMemberAlreadyBound       = errors.New("member already bound")
+	errUserAlreadyBound         = errors.New("user already bound")
+	errMemberNotBound           = errors.New("member not bound")
+	errInvalidProfile           = errors.New("invalid member profile")
+	errInvalidLifeDates         = errors.New("invalid member life dates")
 )
 
 func memberValues(gender *string, birthDate *string, birthYear *int, deathDate *string, deathYear *int, isAlive *bool, avatarURL *string, description *string, memorialVisible *bool, policy *string) (map[string]any, *apperrors.BusinessError) {

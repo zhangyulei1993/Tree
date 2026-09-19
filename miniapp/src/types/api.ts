@@ -182,6 +182,31 @@ export interface PublicFamilyShowcaseItem {
   updatedAt?: string
 }
 
+export interface ShowcaseFamilyItem {
+  id: number
+  displayName: string
+  regionText: string
+  summary: string
+  coverImageUrl: string
+  treeImageUrl: string
+  memberCount: number
+  relationshipCount: number
+  rotationPinned: boolean
+}
+
+export interface ShowcaseFamilyTree {
+  showcaseFamilyId: number
+  nodes: Array<{
+    memberId: number
+    displayName: string
+    identityText: string
+    memberType: string
+    gender: string
+    birthYear?: number | null
+  }>
+  edges: TreeEdge[]
+}
+
 export interface ListPublicFamilyShowcaseQuery extends PaginationQuery {}
 
 export interface PublicFamilyListItem extends PublicFamily {

@@ -150,10 +150,10 @@
           <text class="memorial-footnote">{{ memorialFootnote }}</text>
           <view class="memorial-actions">
             <view class="memorial-action secondary" @click="closeMemorial">关闭</view>
-            <view class="memorial-action secondary" @click="switchMemorialViewer">设为视角</view>
+            <view class="memorial-action secondary" @click="switchMemorialViewer">以此亲人为视角</view>
             <view v-if="canManageFamily" class="memorial-action primary" @click="editMemorial">编辑资料</view>
-            <view v-if="canManageFamily" class="memorial-action danger" @click="deleteMemorialMember">删除节点</view>
           </view>
+          <view v-if="canManageFamily" class="memorial-delete-action" @click="deleteMemorialMember">删除节点</view>
         </view>
       </view>
     </view>
@@ -870,7 +870,7 @@ onUnload(resetPageData)
 
 .memorial-footnote {
   color: var(--archive-ink-soft);
-  font-size: 21rpx;
+  font-size: 24rpx;
   line-height: 1.55;
 }
 
@@ -883,9 +883,14 @@ onUnload(resetPageData)
 }
 
 .memorial-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 126rpx;
+  min-height: 80rpx;
   border: 1rpx solid var(--archive-line-strong);
-  padding: 14rpx 18rpx;
+  box-sizing: border-box;
+  padding: 12rpx 18rpx;
   text-align: center;
   font-size: 24rpx;
   font-weight: 700;
@@ -900,8 +905,16 @@ onUnload(resetPageData)
   color: var(--archive-cinnabar);
 }
 
-.memorial-action.danger {
-  border-color: rgba(168, 59, 45, 0.72);
+.memorial-delete-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 76rpx;
+  margin-top: 16rpx;
+  border-top: 1rpx solid rgba(168, 59, 45, 0.24);
   color: var(--archive-cinnabar);
+  font-size: 24rpx;
+  font-weight: 700;
+  text-align: center;
 }
 </style>

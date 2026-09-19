@@ -4,8 +4,9 @@
     <el-alert v-if="loadError" :title="`加载失败：${loadError}`" type="error" show-icon :closable="false" />
     <el-alert v-if="operationError" :title="`保存失败：${operationError}`" type="error" show-icon @close="operationError = ''" />
 
-    <div v-loading="loading" class="share-grid">
-      <el-card v-for="item in forms" :key="item.configKey" class="share-card" shadow="never">
+    <el-tabs v-model="activeKey" v-loading="loading" class="share-tabs">
+      <el-tab-pane v-for="item in forms" :key="item.configKey" :name="item.configKey" :label="label(item.configKey)">
+      <el-card class="share-card" shadow="never">
         <template #header>
           <div class="card-header">
             <div>
@@ -82,7 +83,8 @@
           </div>
         </el-form>
       </el-card>
-    </div>
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
@@ -98,6 +100,7 @@ import type { ShareConfig } from '@/types/api'
 
 interface Form extends ShareConfig { saving: boolean }
 const loading = ref(false)
+const activeKey = ref('')
 const loadError = ref('')
 const operationError = ref('')
 const forms = reactive<Form[]>([])
@@ -111,7 +114,10 @@ function label(key: string) {
 async function load() {
   loading.value = true
   loadError.value = ''
-  try { forms.splice(0, forms.length, ...(await listShareConfigs()).map((item) => ({ ...item, saving: false }))) }
+  try {
+    forms.splice(0, forms.length, ...(await listShareConfigs()).map((item) => ({ ...item, saving: false })))
+    if (!forms.some((item) => item.configKey === activeKey.value)) activeKey.value = forms[0]?.configKey || ''
+  }
   catch (error) { loadError.value = getApiErrorMessage(error) }
   finally { loading.value = false }
 }
@@ -178,7 +184,8 @@ onMounted(load)
 </script>
 
 <style scoped>
-.share-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.share-tabs :deep(.el-tabs__header) { margin: 0 0 16px; padding: 0 4px; }
+.share-tabs :deep(.el-tabs__item) { height: 42px; font-weight: 600; }
 .share-card { border-radius: 12px; }
 .card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .card-title-row { display: flex; align-items: center; gap: 10px; color: var(--color-primary); font-size: 17px; }
@@ -209,6 +216,5 @@ onMounted(load)
 .url-label { flex: none; color: var(--color-text-secondary); font-size: 12px; }
 .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 16px; border-top: 1px solid var(--color-border); }
 .save-tip { color: var(--color-text-secondary); font-size: 12px; }
-@media (max-width: 1100px) { .share-grid { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .image-workspace { grid-template-columns: 1fr; } .current-preview { height: 150px; } .card-footer { align-items: flex-start; flex-direction: column; } }
 </style>

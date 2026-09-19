@@ -10,30 +10,30 @@
     <el-alert v-if="loadError" :title="`加载失败：${loadError}`" type="error" show-icon :closable="false" />
     <el-alert v-if="operationError" :title="`操作失败：${operationError}`" type="error" show-icon @close="operationError = ''" />
 
-    <el-card v-loading="loading" class="tool-config-card" shadow="never">
+    <DataTable v-loading="loading" class="tool-config-card">
       <el-table :data="configs" row-key="toolKey" class="tool-table">
-        <el-table-column prop="displayName" label="工具名称" min-width="110" />
-        <el-table-column prop="toolKey" label="配置标识" min-width="170">
+        <el-table-column prop="displayName" label="工具名称" min-width="140" />
+        <el-table-column prop="toolKey" label="配置标识" min-width="190">
           <template #default="{ row }">
             <el-tag effect="plain">{{ row.toolKey }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="description" label="功能说明" min-width="190" show-overflow-tooltip />
-        <el-table-column label="展示" width="82">
+        <el-table-column prop="description" label="功能说明" min-width="260" show-overflow-tooltip />
+        <el-table-column label="展示" width="82" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">
             <el-tag :type="row.visible ? 'success' : 'info'" effect="plain">
               {{ row.visible ? '已展示' : '不展示' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="功能" width="82">
+        <el-table-column label="功能" width="82" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">
             <el-tag :type="row.enabled ? 'success' : 'warning'" effect="plain">
               {{ row.enabled ? '已开放' : '未开放' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="排序" width="132">
+        <el-table-column label="排序" width="118" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">
             <div class="sort-controls">
               <span class="sort-position">{{ sortPosition(row) }}</span>
@@ -60,10 +60,10 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="最近更新" width="140">
+        <el-table-column label="最近更新" width="160" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">{{ formatTime(row.updatedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="225">
+        <el-table-column label="操作" width="168" fixed="right" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">
             <div class="tool-actions">
               <el-button size="small" :type="row.visible ? 'success' : 'default'" :loading="Boolean(saving[row.toolKey])" @click="toggleField(row, 'visible')">
@@ -72,17 +72,20 @@
               <el-button size="small" :type="row.enabled ? 'success' : 'warning'" :loading="Boolean(saving[row.toolKey])" @click="toggleField(row, 'enabled')">
                 {{ row.enabled ? '停用' : '启用' }}
               </el-button>
-              <el-button size="small" :type="row.pinned ? 'primary' : 'default'" :loading="Boolean(saving[row.toolKey])" @click="toggleField(row, 'pinned')">
-                {{ row.pinned ? '取消置顶' : '置顶' }}
-              </el-button>
-              <el-button size="small" :type="row.highlighted ? 'danger' : 'default'" :loading="Boolean(saving[row.toolKey])" @click="toggleField(row, 'highlighted')">
-                {{ row.highlighted ? '取消高亮' : '高亮' }}
-              </el-button>
+              <el-dropdown trigger="click" @command="handleAction(row, $event)">
+                <el-button size="small" :disabled="Boolean(saving[row.toolKey])">更多</el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="pinned">{{ row.pinned ? '取消置顶' : '置顶' }}</el-dropdown-item>
+                    <el-dropdown-item command="highlighted">{{ row.highlighted ? '取消高亮' : '高亮' }}</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </DataTable>
 
     <el-dialog v-model="createVisible" title="新增常用工具" width="520px" destroy-on-close>
       <el-alert
@@ -129,6 +132,7 @@ import type { FormInstance, FormRules } from 'element-plus'
 
 import { getApiErrorMessage } from '@/api/client'
 import { createToolConfig, listToolConfigs, updateToolConfig } from '@/api/toolConfig'
+import DataTable from '@/components/DataTable.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import type { ToolConfig } from '@/types/api'
 
@@ -183,6 +187,10 @@ async function toggleField(item: ToolConfig, field: BooleanToolField) {
   } finally {
     saving[item.toolKey] = false
   }
+}
+
+function handleAction(item: ToolConfig, command: unknown) {
+  if (command === 'pinned' || command === 'highlighted') void toggleField(item, command)
 }
 
 function compareToolConfigs(left: ToolConfig, right: ToolConfig) {
@@ -280,18 +288,18 @@ onMounted(load)
 
 <style scoped>
 .tool-config-card {
-  border-radius: 12px;
+  min-width: 0;
 }
 
 .tool-table {
   width: 100%;
-  min-width: 1090px;
+  min-width: 970px;
 }
 
 .tool-actions {
   display: flex;
   flex-wrap: nowrap;
-  gap: 6px;
+  gap: 4px;
   align-items: center;
   white-space: nowrap;
 }

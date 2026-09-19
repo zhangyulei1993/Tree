@@ -46,12 +46,13 @@ func (p memberPermFake) GetActiveLink(context.Context, uint64, uint64) (*rolemod
 }
 
 type memberRepoFake struct {
-	family           coremodel.Family
-	member           membermodel.FamilyMember
-	user             *usermodel.User
-	links            []rolemodel.FamilyMemberUserLink
-	blockingChildCnt int64
-	relationsDeleted bool
+	family            coremodel.Family
+	member            membermodel.FamilyMember
+	user              *usermodel.User
+	links             []rolemodel.FamilyMemberUserLink
+	blockingChildCnt  int64
+	unsafeSpouseChild bool
+	relationsDeleted  bool
 }
 
 func (r *memberRepoFake) WithTx(*gorm.DB) memberrepo.MemberRepository { return r }
@@ -96,6 +97,10 @@ func (r *memberRepoFake) SoftDelete(context.Context, uint64, uint64, uint64, *st
 
 func (r *memberRepoFake) CountBlockingRelationships(context.Context, uint64, uint64) (int64, error) {
 	return r.blockingChildCnt, nil
+}
+
+func (r *memberRepoFake) HasChildWithoutOtherLineageParent(context.Context, uint64, uint64) (bool, error) {
+	return r.unsafeSpouseChild, nil
 }
 
 func (r *memberRepoFake) SoftDeleteDeletableRelationships(context.Context, uint64, uint64, uint64, *string, time.Time) (int64, error) {
@@ -306,6 +311,34 @@ func TestDeleteMemberRelationshipRules(t *testing.T) {
 		}
 		if repo.family.GraphVersion != 10 {
 			t.Fatal("blocked delete must not increment graph version")
+		}
+	})
+
+	t.Run("external spouse with lineage co-parented children can be deleted", func(t *testing.T) {
+		repo := &memberRepoFake{
+			family:           coremodel.Family{ID: 22, Status: "NORMAL", GraphVersion: 10},
+			member:           membermodel.FamilyMember{ID: 6, FamilyID: 22, MemberType: "SPOUSE", Status: "ACTIVE"},
+			blockingChildCnt: 2,
+		}
+		err := testMemberService(repo, true).Delete(context.Background(), 8, 22, 6, dto.DeleteMemberRequest{}, AuditInput{})
+		if err != nil {
+			t.Fatalf("unexpected %#v", err)
+		}
+		if repo.member.Status != "DELETED" || !repo.relationsDeleted {
+			t.Fatal("safe external spouse deletion must remove the node and related edges")
+		}
+	})
+
+	t.Run("external spouse with an unpaired child is rejected", func(t *testing.T) {
+		repo := &memberRepoFake{
+			family:            coremodel.Family{ID: 22, Status: "NORMAL", GraphVersion: 10},
+			member:            membermodel.FamilyMember{ID: 6, FamilyID: 22, MemberType: "SPOUSE", Status: "ACTIVE"},
+			blockingChildCnt:  1,
+			unsafeSpouseChild: true,
+		}
+		err := testMemberService(repo, true).Delete(context.Background(), 8, 22, 6, dto.DeleteMemberRequest{}, AuditInput{})
+		if err == nil || err.Code != CodeMemberHasRelationships || repo.member.Status != "ACTIVE" {
+			t.Fatalf("unexpected %#v", err)
 		}
 	})
 }

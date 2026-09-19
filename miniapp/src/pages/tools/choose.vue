@@ -113,7 +113,7 @@
         <text v-if="history.length > 0" class="clear-history" @click="confirmClearHistory">清空</text>
       </view>
       <view v-if="history.length > 0" class="history-list">
-        <view v-for="item in history" :key="item.id" class="history-item" @click="reuseHistory(item)">
+        <view v-for="item in visibleHistory" :key="item.id" class="history-item" @click="reuseHistory(item)">
           <view class="history-main">
             <text class="history-result">{{ item.result }}</text>
             <text class="history-scene">{{ item.scenario }} · {{ formatHistoryTime(item.createdAt) }}</text>
@@ -121,7 +121,14 @@
           <text class="history-action">再选 ›</text>
         </view>
       </view>
-      <view v-else class="history-empty">
+      <text
+        v-if="history.length > HISTORY_VISIBLE_COUNT"
+        class="history-toggle"
+        @click="historyExpanded = !historyExpanded"
+      >
+        {{ historyExpanded ? '收起历史' : `展开更多（${history.length - HISTORY_VISIBLE_COUNT}）` }}
+      </text>
+      <view v-else-if="history.length === 0" class="history-empty">
         <text>还没有选择记录</text>
       </view>
     </view>
@@ -168,12 +175,14 @@ interface ChoiceHistoryItem {
 }
 
 const CHOICE_HISTORY_STORAGE_KEY = 'tree_choice_history_v1'
+const HISTORY_VISIBLE_COUNT = 3
 const rawOptions = ref('')
 const choiceTitle = ref('')
 const selectedOption = ref('')
 const errorMessage = ref('')
 const activeScenarioId = ref('')
 const history = ref<ChoiceHistoryItem[]>([])
+const historyExpanded = ref(false)
 const sharedScenarios = ref<SharedChoiceScenario[]>([])
 const sharedScenarioMessage = ref('')
 const sharedPeriod = ref<ChoiceScenarioPeriod>('today')
@@ -183,6 +192,9 @@ const isPicking = ref(false)
 const session = useSessionStore()
 let pickTimer: ReturnType<typeof setInterval> | null = null
 const options = computed(() => parseChoiceOptions(rawOptions.value))
+const visibleHistory = computed(() => (
+  historyExpanded.value ? history.value : history.value.slice(0, HISTORY_VISIBLE_COUNT)
+))
 const sharedPeriods: Array<{ label: string; value: ChoiceScenarioPeriod }> = [
   { label: '今天', value: 'today' },
   { label: '近 7 天', value: '7d' },
@@ -303,8 +315,10 @@ function loadHistory() {
         )
       })
       .slice(0, 10)
+    historyExpanded.value = false
   } catch {
     history.value = []
+    historyExpanded.value = false
   }
 }
 
@@ -427,6 +441,7 @@ function confirmClearHistory() {
     success: (result) => {
       if (!result.confirm) return
       history.value = []
+      historyExpanded.value = false
       uni.removeStorageSync(CHOICE_HISTORY_STORAGE_KEY)
     }
   })
@@ -804,6 +819,15 @@ function confirmClearHistory() {
   flex-shrink: 0;
   color: var(--archive-blue);
   font-size: 21rpx;
+}
+
+.history-toggle {
+  display: block;
+  border-top: 1rpx solid var(--archive-line);
+  padding: 16rpx 0 2rpx;
+  color: var(--archive-blue);
+  font-size: 21rpx;
+  text-align: center;
 }
 
 .history-empty {

@@ -42,6 +42,7 @@ tree-h5-real-e2e-state.json
 tree-large-patrilineal-family-state.json
 *.sql
 !backend/migrations/*.sql
+!backend/scripts/reset_showcase_family_samples.sql
 *.sql.gz
 *.dump
 *.tar.gz

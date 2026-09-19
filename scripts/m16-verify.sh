@@ -41,6 +41,14 @@ run_check \
   docker exec -e CI=true tree-dev bash -lc 'cd /workspace/miniapp && pnpm build:mp-weixin'
 
 run_check \
+  'Mini program contract tests' \
+  docker exec tree-dev bash -lc 'cd /workspace/miniapp && pnpm test:contract'
+
+run_check \
+  'Quota H5 end-to-end test' \
+  bash -lc 'npm --prefix scripts install --silent && node --test --test-concurrency=1 scripts/tree-fresh-quota-e2e.test.mjs'
+
+run_check \
   'Repository security check' \
   bash scripts/security-check.sh
 

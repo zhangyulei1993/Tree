@@ -86,6 +86,34 @@ export interface ManagedFamilyMember {
   familyRole?: string | null
 }
 
+export interface AdminFamilyTreeNode {
+  memberId: number
+  displayName: string
+  identityText?: string
+  surname?: string | null
+  gender: string
+  memberType: string
+  birthDate?: string | null
+  sortOrder?: number
+  isLiving?: boolean | null
+  userBindingState: string
+}
+
+export interface AdminFamilyTreeEdge {
+  relationshipId: number
+  fromMemberId: number
+  toMemberId: number
+  relationshipType: string
+  parentLinkType?: string | null
+}
+
+export interface AdminFamilyTree {
+  familyId: number
+  graphVersion: number
+  nodes: AdminFamilyTreeNode[]
+  edges: AdminFamilyTreeEdge[]
+}
+
 export interface ManagedAdmin {
   id: number
   username: string
@@ -351,4 +379,50 @@ export interface ToolConfig {
   highlighted: boolean
   sortOrder: number
   updatedAt: string
+}
+
+export interface ShowcaseFamily {
+  id: number
+  displayName: string
+  regionText: string
+  summary: string
+  coverImageUrl: string
+  treeImageUrl: string
+  status: 'DRAFT' | 'PUBLISHED'
+  sortOrder: number
+  memberCount: number
+  relationshipCount: number
+  treeStatus: 'BUILDING' | 'READY'
+  rotationPinned: boolean
+  publishedAt?: string | null
+  updatedAt: string
+}
+
+export interface ShowcaseFamilyDisplaySettings {
+  rotationDays: number
+  pinnedShowcaseFamilyId?: number | null
+  pinnedUntil?: string | null
+}
+
+export interface ShowcaseFamilyTreeMember {
+  memberId: number
+  displayName: string
+  identityText: string
+  memberType: 'LINEAGE_MEMBER' | 'SPOUSE'
+  gender: string
+  birthYear?: number | null
+  sortOrder: number
+}
+
+export interface ShowcaseFamilyTreeRelationship {
+  relationshipId: number
+  fromMemberId: number
+  toMemberId: number
+  relationshipType: 'PARENT_CHILD' | 'SPOUSE'
+}
+
+export interface ShowcaseFamilyTree {
+  showcaseFamilyId: number
+  nodes: ShowcaseFamilyTreeMember[]
+  edges: ShowcaseFamilyTreeRelationship[]
 }

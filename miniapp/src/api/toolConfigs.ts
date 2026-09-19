@@ -48,11 +48,11 @@ export const supportedToolDefinitions: SupportedToolDefinition[] = [
 ]
 
 export const toolConfigState = reactive<Record<string, ToolConfigState>>({
-  CHOOSE: { displayName: '该选什么', description: '把选项交给随机选择，帮你快速做决定', visible: true, enabled: false, pinned: false, highlighted: false, sortOrder: 0 },
+  CHOOSE: { displayName: '该选什么', description: '把选项交给随机选择，帮你快速做决定', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0 },
   KINSHIP_QUERY: { displayName: '称谓查询', description: '按关系、性别和长幼查询称谓', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0 },
   TRADITIONAL_FESTIVALS: { displayName: '传统节日', description: '查看传统节日、法定假期与节日文案', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0 },
   SOLAR_TERMS: { displayName: '农历节气', description: '查看二十四节气与时令变化', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0 },
-  FAMILY_STORIES: { displayName: '家庭事迹', description: '查看家庭成员与关系变动记录', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0 }
+  FAMILY_STORIES: { displayName: '家庭事迹', description: '查看家庭成员与关系变动记录', visible: false, enabled: false, pinned: false, highlighted: false, sortOrder: 0 }
 })
 
 export const configuredToolDefinitions = reactive<SupportedToolDefinition[]>(

@@ -16,7 +16,7 @@
         v-for="tool in visibleToolItems"
         :key="tool.key"
         class="tool-card"
-        :class="[toolCardClass(tool.key), { 'is-tool-highlighted': isToolHighlighted(tool.key), 'is-tool-disabled': !isToolEnabled(tool.key) }]"
+        :class="{ 'is-tool-highlighted': isToolHighlighted(tool.key), 'is-tool-disabled': !isToolEnabled(tool.key) }"
         @click="openCommonTool(tool.key)"
       >
         <view v-if="tool.key === 'KINSHIP_QUERY'" class="tool-icon relationship-tool-icon" aria-hidden="true">
@@ -49,23 +49,6 @@ import {
   loadToolConfigs
 } from '@/api/toolConfigs'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
-import { dateKey, festivalDateLabel, getFestivalItems } from '@/features/festivals/festivalData'
-
-const festivalItems = getFestivalItems(2026)
-const todayKey = dateKey(new Date())
-const todayFestival = festivalItems.find((item) => item.date === todayKey)
-const nextFestival = festivalItems.find((item) => item.date > todayKey)
-const festivalToolClass = computed(() => ({
-  'is-festival-today': Boolean(todayFestival),
-  'is-festival-upcoming': !todayFestival && Boolean(nextFestival)
-}))
-const festivalToolDescription = computed(() =>
-  todayFestival
-    ? `今天是${todayFestival.name} · ${festivalDateLabel(todayFestival.date)}`
-    : nextFestival
-      ? `${nextFestival.name} · ${festivalDateLabel(nextFestival.date)}即将到来`
-      : '查看节日与法定假期'
-)
 const visibleToolItems = computed(() => getVisibleToolDefinitions())
 
 function go(url: string) {
@@ -78,13 +61,8 @@ function toolTitle(key: string) {
 
 function toolDescription(key: string) {
   if (!isToolEnabled(key)) return '暂未开放'
-  if (key === 'TRADITIONAL_FESTIVALS' && (todayFestival || nextFestival)) return festivalToolDescription.value
   if (!getToolDefinition(key)?.path) return '功能暂未接入'
   return getToolDescription(key)
-}
-
-function toolCardClass(key: string) {
-  return key === 'TRADITIONAL_FESTIVALS' ? festivalToolClass.value : {}
 }
 
 function openCommonTool(key: string) {
@@ -138,25 +116,6 @@ onShow(() => {
 
 .tool-card.is-tool-disabled {
   opacity: 0.62;
-}
-
-.tool-card.is-festival-today {
-  border-color: rgba(168, 59, 45, 0.55);
-  background: rgba(168, 59, 45, 0.07);
-}
-
-.tool-card.is-festival-today .tool-title,
-.tool-card.is-festival-today .tool-desc {
-  color: var(--archive-cinnabar);
-}
-
-.tool-card.is-festival-upcoming {
-  border-color: rgba(35, 73, 98, 0.42);
-  background: rgba(35, 73, 98, 0.055);
-}
-
-.tool-card.is-festival-upcoming .tool-title {
-  color: var(--archive-blue);
 }
 
 .tool-icon {

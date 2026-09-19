@@ -138,26 +138,6 @@ const bindingClass = computed(() => {
 .tree-member-chip.selectable {
   border-color: rgba(168, 59, 45, 0.42);
 }
-.tree-member-chip.interactive::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 34rpx;
-  height: 34rpx;
-  border-radius: 0 0 0 16rpx;
-  background: var(--archive-cinnabar, #a83b2d);
-}
-.tree-member-chip.interactive::after {
-  content: '管';
-  position: absolute;
-  top: 2rpx;
-  right: 6rpx;
-  color: #fff;
-  font-size: 16rpx;
-  font-weight: 700;
-  line-height: 1;
-}
 .tree-member-chip.compact {
   width: 112rpx;
   height: 112rpx;
@@ -169,7 +149,7 @@ const bindingClass = computed(() => {
 .tree-member-chip.compact .plain-name,
 .tree-member-chip.compact .name-emphasis,
 .tree-member-chip.compact .given-name {
-  font-size: 19rpx;
+  font-size: 21rpx;
   line-height: 1.25;
 }
 .tree-member-chip.compact .gender-dot {
@@ -180,7 +160,7 @@ const bindingClass = computed(() => {
   margin-top: 2rpx;
 }
 .tree-member-chip.compact .meta {
-  font-size: 15rpx;
+  font-size: 18rpx;
   line-height: 1.35;
 }
 .tree-member-chip.living-active {
@@ -296,10 +276,10 @@ const bindingClass = computed(() => {
 .tree-member-chip.compact .surname-seal {
   width: 22rpx;
   height: 22rpx;
-  font-size: 15rpx;
+  font-size: 17rpx;
 }
 .tree-member-chip.compact .given-name {
-  font-size: 19rpx;
+  font-size: 21rpx;
 }
 .binding-dot {
   display: inline-flex;
@@ -339,7 +319,7 @@ const bindingClass = computed(() => {
   border-radius: 999rpx;
   background: var(--archive-cinnabar, #a83b2d);
   color: #fff;
-  font-size: 16rpx;
+  font-size: 18rpx;
   line-height: 1;
   padding: 3rpx 8rpx;
 }
@@ -349,7 +329,7 @@ const bindingClass = computed(() => {
   width: 100%;
   margin-top: 3rpx;
   color: var(--archive-blue, #163353);
-  font-size: 18rpx;
+  font-size: 20rpx;
   font-weight: 500;
   line-height: 1.25;
   text-align: center;
@@ -360,7 +340,7 @@ const bindingClass = computed(() => {
   color: #6b7280;
 }
 .tree-member-chip.compact .kinship-title {
-  font-size: 15rpx;
+  font-size: 17rpx;
   margin-top: 1rpx;
 }
 .gender-dot {
@@ -392,7 +372,7 @@ const bindingClass = computed(() => {
   overflow: hidden;
   max-width: 82rpx;
   color: var(--archive-ink-soft, #657080);
-  font-size: 15rpx;
+  font-size: 18rpx;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;

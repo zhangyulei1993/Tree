@@ -5,6 +5,7 @@
     {"path": "pages/auth/phone-login", "style": {"navigationBarTitleText": "手机号备用登录"}},
     {"path": "pages/content/index", "style": {"navigationBarTitleText": "阅读"}},
     {"path": "pages/family/showcase", "style": {"navigationBarTitleText": "展示家庭"}},
+    {"path": "pages/family/historical-showcase", "style": {"navigationBarTitleText": "帝王世家"}},
     {"path": "pages/content/detail", "style": {"navigationBarTitleText": "内容详情"}},
     {"path": "pages/family/public-profile", "style": {"navigationBarTitleText": "公开家庭"}},
     {"path": "pages/family/public-tree", "style": {"navigationBarTitleText": "公开树"}},

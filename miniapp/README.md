@@ -13,8 +13,9 @@ uni-app 微信小程序 + H5。
 
 | 场景 | 命令 | `VITE_API_BASE_URL` |
 |------|------|---------------------|
-| H5 本地开发 | `pnpm dev:h5` | `/api`（Vite proxy → `127.0.0.1:8080`） |
-| H5 real 构建 | `pnpm build:h5:real` | `/api` |
+| H5 本地开发 | `pnpm dev:h5:local` | `/api`（Vite proxy → `127.0.0.1:8080`） |
+| H5 staging | `pnpm dev:h5:staging` / `pnpm build:h5:staging` | `/api`（Vite proxy → `tapi.bigbigboy.cn`） |
+| 微信小程序本地开发 | `pnpm dev:mp-weixin:local` / `pnpm build:mp-weixin:local` | `http://127.0.0.1:8080/api` |
 | 微信小程序 staging | `pnpm dev:mp-weixin:staging` / `pnpm build:mp-weixin:staging` | `https://tapi.bigbigboy.cn/api` |
 
 **重要：** 微信小程序真机/体验版不能使用 `/api`、`localhost` 或 `127.0.0.1`。必须使用完整 HTTPS 域名，并在微信公众平台配置以下合法域名（域名填 `tapi.bigbigboy.cn`，不要带路径）：
@@ -37,26 +38,34 @@ uni-app 微信小程序 + H5。
 pnpm install
 
 # H5 本地（proxy）
-pnpm dev:h5
+pnpm dev:h5:local
 
-# 微信小程序 + staging API（推荐）
+# 微信小程序 + 本地 API
+pnpm dev:mp-weixin:local
+
+# 微信小程序 + staging API
 pnpm dev:mp-weixin:staging
 ```
 
 ## 构建方式
 
 ```bash
+# 微信小程序本地接口构建
+pnpm build:mp-weixin:local
+
 # 微信小程序 staging（上传体验版前使用）
 pnpm build:mp-weixin:staging
 
-# H5 real
-pnpm build:h5:real
+# H5 本地
+pnpm build:h5:local
 
-# 等价于 staging 小程序构建的手动命令：
-# VITE_API_MODE=real VITE_API_BASE_URL=https://tapi.bigbigboy.cn/api pnpm build:mp-weixin
+# H5 staging
+pnpm build:h5:staging
 ```
 
-构建产物目录：`dist/build/mp-weixin`（微信开发者工具导入）。
+`pnpm build:mp-weixin` 保留为 staging 构建兼容命令，产物仍为 `dist/build/mp-weixin`；新流程请优先使用带环境后缀的命令。
+
+构建产物目录：本地为 `dist/build/mp-weixin-local`，staging 为 `dist/build/mp-weixin-staging`。
 
 ## 看不到界面更新？
 
@@ -66,8 +75,10 @@ pnpm build:h5:real
 
 | 命令 | 应导入的目录 |
 |------|----------------|
-| `pnpm dev:mp-weixin:staging` | `miniapp/dist/dev/mp-weixin` |
-| `pnpm build:mp-weixin:staging` | `miniapp/dist/build/mp-weixin` |
+| `pnpm dev:mp-weixin:local` | `miniapp/dist/dev/mp-weixin-local` |
+| `pnpm dev:mp-weixin:staging` | `miniapp/dist/dev/mp-weixin-staging` |
+| `pnpm build:mp-weixin:local` | `miniapp/dist/build/mp-weixin-local` |
+| `pnpm build:mp-weixin:staging` | `miniapp/dist/build/mp-weixin-staging` |
 
 **不要**导入 `miniapp` 根目录或 `miniapp/src`。
 
@@ -80,7 +91,7 @@ cd miniapp
 pnpm install
 pnpm dev:mp-weixin:staging   # 开发：保持终端运行，改代码后点开发者工具「编译」
 # 或
-pnpm build:mp-weixin:staging # 构建：再导入 dist/build/mp-weixin
+pnpm build:mp-weixin:staging # 构建：再导入 dist/build/mp-weixin-staging
 ```
 
 ### 3. 清缓存

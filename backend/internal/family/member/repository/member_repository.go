@@ -30,6 +30,7 @@ type MemberRepository interface {
 	Update(context.Context, uint64, uint64, map[string]any) error
 	SoftDelete(context.Context, uint64, uint64, uint64, *string, time.Time) error
 	CountBlockingRelationships(context.Context, uint64, uint64) (int64, error)
+	HasChildWithoutOtherLineageParent(context.Context, uint64, uint64) (bool, error)
 	SoftDeleteDeletableRelationships(context.Context, uint64, uint64, uint64, *string, time.Time) (int64, error)
 	FindUserForUpdate(context.Context, uint64) (*usermodel.User, error)
 	FindActiveLinkByMember(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
@@ -123,11 +124,35 @@ func (r *GormMemberRepository) CountBlockingRelationships(ctx context.Context, f
 	return count, err
 }
 
+func (r *GormMemberRepository) HasChildWithoutOtherLineageParent(ctx context.Context, familyID uint64, memberID uint64) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Table("family_relationships AS own").
+		Where("own.family_id = ? AND own.status = ? AND own.deleted_at IS NULL", familyID, "ACTIVE").
+		Where("own.relationship_type = ? AND own.from_member_id = ?", "PARENT_CHILD", memberID).
+		Where(`NOT EXISTS (
+			SELECT 1
+			FROM family_relationships AS other
+			INNER JOIN family_members AS other_member ON other_member.id = other.from_member_id
+			WHERE other.family_id = own.family_id
+				AND other.status = 'ACTIVE'
+				AND other.deleted_at IS NULL
+				AND other.relationship_type = 'PARENT_CHILD'
+				AND other.to_member_id = own.to_member_id
+				AND other.from_member_id <> ?
+				AND other_member.family_id = own.family_id
+				AND other_member.status = 'ACTIVE'
+				AND other_member.deleted_at IS NULL
+				AND other_member.member_type = 'LINEAGE_MEMBER'
+		)`, memberID).
+		Count(&count).Error
+	return count > 0, err
+}
+
 func (r *GormMemberRepository) SoftDeleteDeletableRelationships(ctx context.Context, familyID uint64, memberID uint64, userID uint64, reason *string, now time.Time) (int64, error) {
 	result := r.db.WithContext(ctx).Table("family_relationships").
 		Where("family_id = ? AND status = ? AND deleted_at IS NULL", familyID, "ACTIVE").
-		Where("(relationship_type = ? AND to_member_id = ?) OR (relationship_type = ? AND (from_member_id = ? OR to_member_id = ?))",
-			"PARENT_CHILD", memberID, "SPOUSE", memberID, memberID).
+		Where("(relationship_type = ? AND (from_member_id = ? OR to_member_id = ?)) OR (relationship_type = ? AND (from_member_id = ? OR to_member_id = ?))",
+			"PARENT_CHILD", memberID, memberID, "SPOUSE", memberID, memberID).
 		Updates(map[string]any{
 			"status":             "DELETED",
 			"deleted_at":         now,

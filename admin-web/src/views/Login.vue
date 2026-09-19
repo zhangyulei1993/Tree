@@ -9,9 +9,9 @@
       <el-form label-position="top" @submit.prevent="login">
         <el-form-item v-if="apiMode === 'mock'" label="管理员角色">
           <el-select v-model="role">
-            <el-option label="ROOT_ADMIN" value="ROOT_ADMIN" />
-            <el-option label="SUPER_ADMIN" value="SUPER_ADMIN" />
-            <el-option label="PLATFORM_ADMIN" value="PLATFORM_ADMIN" />
+            <el-option label="根管理员" value="ROOT_ADMIN" />
+            <el-option label="超级管理员" value="SUPER_ADMIN" />
+            <el-option label="平台管理员" value="PLATFORM_ADMIN" />
           </el-select>
         </el-form-item>
         <el-form-item label="用户名">

@@ -229,12 +229,19 @@ export function createE2EHarness() {
       const distDir = join(miniappDir, 'dist', 'build', 'h5')
       fs.rmSync(distDir, { recursive: true, force: true })
       await new Promise((resolve, reject) => {
-        const build = spawn('npm', ['run', 'build:h5:real'], {
-          cwd: miniappDir,
+        const build = spawn('docker', [
+          'exec',
+          '-e',
+          'CI=true',
+          'tree-dev',
+          'bash',
+          '-lc',
+          'cd /workspace/miniapp && pnpm run build:h5:real'
+        ], {
           stdio: 'inherit',
           shell: false
         })
-        build.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`build:h5:real failed: ${code}`))))
+        build.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`container build:h5:real failed: ${code}`))))
       })
       assert.ok(fs.existsSync(join(distDir, 'index.html')), 'h5 build output missing')
     },

@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -27,7 +28,9 @@ func query(ctx *gin.Context) adminrepo.PageQuery {
 	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
 	size, _ := strconv.Atoi(ctx.DefaultQuery("pageSize", "20"))
 	familyID, _ := strconv.ParseUint(ctx.Query("familyId"), 10, 64)
-	return adminrepo.PageQuery{Keyword: ctx.Query("keyword"), Status: ctx.Query("status"), Role: ctx.Query("role"), Result: ctx.Query("result"), FamilyID: familyID, Page: page, PageSize: size}
+	startAt, _ := time.ParseInLocation("2006-01-02", ctx.Query("startDate"), time.Local)
+	endAt, _ := time.ParseInLocation("2006-01-02", ctx.Query("endDate"), time.Local)
+	return adminrepo.PageQuery{Keyword: ctx.Query("keyword"), Status: ctx.Query("status"), Role: ctx.Query("role"), OperatorType: ctx.Query("operatorType"), Result: ctx.Query("result"), FamilyID: familyID, StartAt: startAt, EndAt: endAt, Page: page, PageSize: size}
 }
 func id(ctx *gin.Context, name string) (uint64, bool) {
 	value, err := strconv.ParseUint(ctx.Param(name), 10, 64)
@@ -85,6 +88,14 @@ func (h *ManagementHandler) Members(ctx *gin.Context) {
 		return
 	}
 	v, e := h.service.Members(ctx.Request.Context(), value)
+	write(ctx, v, e)
+}
+func (h *ManagementHandler) Tree(ctx *gin.Context) {
+	value, ok := id(ctx, "familyId")
+	if !ok {
+		return
+	}
+	v, e := h.service.Tree(ctx.Request.Context(), value)
 	write(ctx, v, e)
 }
 func (h *ManagementHandler) Admins(ctx *gin.Context) {

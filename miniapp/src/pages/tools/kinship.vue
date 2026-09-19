@@ -4,9 +4,9 @@
 
     <view class="kinship-head archive-page-head">
       <view>
-        <text class="archive-kicker">Kinship Tool</text>
+        <text class="archive-kicker">Tree Tools</text>
         <text class="archive-title">称谓查询</text>
-        <text class="archive-subtitle">最多推演 {{ maxDepth }} 层血缘关系，末层配偶不另计层</text>
+        <text class="archive-subtitle">从「我」开始选关系，按需补充性别与长幼</text>
       </view>
       <view class="archive-seal">亲</view>
     </view>
@@ -15,26 +15,6 @@
     <MiniNotice tone="security" class="local-only-notice" title="本地处理说明">
       本工具仅在当前设备本地推测称谓，不上传你的性别、年龄或关系路径信息至服务器。
     </MiniNotice>
-
-    <view class="archive-form-panel kinship-panel">
-      <view class="archive-section-head">
-        <text class="archive-section-title">本人信息（可选）</text>
-        <text class="archive-section-subtitle">只在少数配偶关系中需要本人性别</text>
-      </view>
-      <text class="tree-field-label">本人性别（可选）</text>
-      <view class="choice-row">
-        <text
-          v-for="item in selfGenderOptions"
-          :key="item.value"
-          class="choice-chip"
-          :class="{ active: self.gender === item.value }"
-          @click="self.gender = item.value"
-        >
-          {{ item.label }}
-        </text>
-      </view>
-      <text v-if="self.gender === 'unknown'" class="field-hint">大多数称谓不需要填写本人性别；涉及配偶父母时再补充即可。</text>
-    </view>
 
     <view v-if="steps.length > 0" class="archive-form-panel kinship-panel">
       <view class="archive-section-head">
@@ -88,6 +68,24 @@
         </text>
       </view>
       <text v-if="lastDisabledReason" class="disabled-hint">{{ lastDisabledReason }}</text>
+    </view>
+
+    <view v-if="showSelfGenderPanel" class="archive-form-panel kinship-panel self-gender-panel">
+      <view class="archive-section-head">
+        <text class="archive-section-title">补充本人性别</text>
+        <text class="archive-section-subtitle">当前路径涉及配偶关系时使用</text>
+      </view>
+      <view class="choice-row">
+        <text
+          v-for="item in selfGenderOptions"
+          :key="item.value"
+          class="choice-chip"
+          :class="{ active: self.gender === item.value }"
+          @click="self.gender = item.value"
+        >
+          {{ item.label }}
+        </text>
+      </view>
     </view>
 
     <view v-if="pendingRelation" class="archive-form-panel kinship-panel">
@@ -284,6 +282,9 @@ const relativeAgePrompt = computed(() => {
 })
 
 const generationDepth = computed(() => steps.value.filter((step) => step.relation !== 'spouse').length)
+const showSelfGenderPanel = computed(() =>
+  self.value.gender !== 'unknown' || steps.value.some((step) => step.relation === 'spouse')
+)
 
 function selectRelation(option: { relation: KinshipRelation; enabled: boolean; disabledReason?: string }) {
   if (!option.enabled) {
@@ -482,7 +483,7 @@ function copyDescription() {
   align-items: center;
   justify-content: center;
   min-width: 72rpx;
-  min-height: 56rpx;
+  min-height: 80rpx;
   box-sizing: border-box;
   border: 1rpx solid var(--archive-line);
   background: rgba(255, 248, 234, 0.58);
@@ -563,7 +564,7 @@ function copyDescription() {
   align-items: center;
   justify-content: center;
   min-width: 108rpx;
-  min-height: 72rpx;
+  min-height: 80rpx;
   box-sizing: border-box;
   border: 1rpx solid var(--archive-line-strong);
   background: rgba(255, 249, 236, 0.42);

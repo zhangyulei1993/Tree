@@ -14,13 +14,16 @@ import (
 )
 
 type PageQuery struct {
-	Keyword  string
-	Status   string
-	Role     string
-	FamilyID uint64
-	Result   string
-	Page     int
-	PageSize int
+	Keyword      string
+	Status       string
+	Role         string
+	OperatorType string
+	FamilyID     uint64
+	Result       string
+	StartAt      time.Time
+	EndAt        time.Time
+	Page         int
+	PageSize     int
 }
 
 type Dashboard struct {
@@ -75,6 +78,32 @@ type MemberRow struct {
 	UserBindingPolicy string  `json:"userBindingPolicy"`
 	BoundUserID       *uint64 `json:"boundUserId,omitempty"`
 	FamilyRole        *string `json:"familyRole,omitempty"`
+}
+
+type FamilyTreeNode struct {
+	MemberID         uint64     `json:"memberId"`
+	DisplayName      string     `json:"displayName"`
+	Surname          *string    `json:"surname,omitempty"`
+	Gender           string     `json:"gender"`
+	MemberType       string     `json:"memberType"`
+	BirthDate        *time.Time `json:"birthDate,omitempty"`
+	IsLiving         *bool      `json:"isLiving,omitempty"`
+	UserBindingState string     `json:"userBindingState"`
+}
+
+type FamilyTreeEdge struct {
+	RelationshipID   uint64  `json:"relationshipId"`
+	FromMemberID     uint64  `json:"fromMemberId"`
+	ToMemberID       uint64  `json:"toMemberId"`
+	RelationshipType string  `json:"relationshipType"`
+	ParentLinkType   *string `json:"parentLinkType,omitempty"`
+}
+
+type FamilyTree struct {
+	FamilyID     uint64           `json:"familyId"`
+	GraphVersion int64            `json:"graphVersion"`
+	Nodes        []FamilyTreeNode `json:"nodes"`
+	Edges        []FamilyTreeEdge `json:"edges"`
 }
 
 type UserFamilyLink struct {
@@ -317,6 +346,37 @@ func (r *ManagementRepository) Members(ctx context.Context, familyID uint64) ([]
 	return rows, err
 }
 
+func (r *ManagementRepository) Tree(ctx context.Context, familyID uint64) (*FamilyTree, error) {
+	family, err := r.Family(ctx, familyID)
+	if err != nil {
+		return nil, err
+	}
+	result := &FamilyTree{FamilyID: family.ID, GraphVersion: family.GraphVersion}
+	if err := r.db.WithContext(ctx).
+		Table("family_members AS member").
+		Select(`member.id AS member_id, member.display_name, member.surname, member.gender, member.member_type, member.birth_date, member.is_living,
+			CASE
+				WHEN member.user_binding_policy = 'NOT_REQUIRED' THEN 'NOT_REQUIRED'
+				WHEN link.user_id IS NOT NULL THEN 'BOUND'
+				ELSE 'UNBOUND'
+			END AS user_binding_state`).
+		Joins("LEFT JOIN family_member_user_links AS link ON link.member_id = member.id AND link.family_id = member.family_id AND link.link_status = 'ACTIVE'").
+		Where("member.family_id = ? AND member.status = 'ACTIVE' AND member.deleted_at IS NULL", familyID).
+		Order("member.id").
+		Scan(&result.Nodes).Error; err != nil {
+		return nil, err
+	}
+	if err := r.db.WithContext(ctx).
+		Table("family_relationships AS relation").
+		Select("relation.id AS relationship_id, relation.from_member_id, relation.to_member_id, relation.relationship_type, relation.parent_link_type").
+		Where("relation.family_id = ? AND relation.status = 'ACTIVE' AND relation.deleted_at IS NULL", familyID).
+		Order("relation.id").
+		Scan(&result.Edges).Error; err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 func (r *ManagementRepository) Admins(ctx context.Context, query PageQuery) ([]AdminRow, int64, error) {
 	p, size := page(query.Page, query.PageSize)
 	db := r.db.WithContext(ctx).Model(&adminmodel.AdminUser{}).Where("deleted_at IS NULL")
@@ -347,6 +407,18 @@ func (r *ManagementRepository) Logs(ctx context.Context, query PageQuery) ([]Log
 	}
 	if query.FamilyID > 0 {
 		db = db.Where("family_id = ?", query.FamilyID)
+	}
+	if operatorType := strings.TrimSpace(query.OperatorType); operatorType != "" {
+		db = db.Where("operator_type = ?", operatorType)
+	}
+	if role := strings.TrimSpace(query.Role); role != "" {
+		db = db.Where("operator_role = ?", role)
+	}
+	if !query.StartAt.IsZero() {
+		db = db.Where("created_at >= ?", query.StartAt)
+	}
+	if !query.EndAt.IsZero() {
+		db = db.Where("created_at < ?", query.EndAt.AddDate(0, 0, 1))
 	}
 	if keyword := strings.TrimSpace(query.Keyword); keyword != "" {
 		pattern := "%" + keyword + "%"

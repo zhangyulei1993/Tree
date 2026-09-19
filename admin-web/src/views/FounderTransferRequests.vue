@@ -25,10 +25,10 @@
 
     <DataTable>
       <el-table v-loading="loading" :data="items" stripe empty-text="暂无创始人转让申请">
-        <el-table-column prop="requestId" label="申请 ID" width="100" />
-        <el-table-column prop="familyId" label="家庭 ID" width="100" />
-        <el-table-column prop="familyName" label="家庭名称" min-width="150" />
-        <el-table-column label="原创始人" min-width="160">
+        <el-table-column prop="requestId" label="申请 ID" width="90" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="familyId" label="家庭 ID" width="88" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="familyName" label="家庭名称" min-width="170" show-overflow-tooltip />
+        <el-table-column label="原创建人" min-width="176">
           <template #default="{ row }">
             <div class="id-pair">
               <span>成员：{{ row.fromMemberId }}</span>
@@ -36,7 +36,7 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column label="目标创始人" min-width="160">
+        <el-table-column label="目标创建人" min-width="176">
           <template #default="{ row }">
             <div class="id-pair">
               <span>成员：{{ row.toMemberId }}</span>
@@ -44,19 +44,19 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="requestReason" label="申请理由" min-width="200" show-overflow-tooltip />
-        <el-table-column label="状态" width="105">
+        <el-table-column prop="requestReason" label="申请理由" min-width="220" show-overflow-tooltip />
+        <el-table-column label="状态" width="96" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }"><StatusTag :status="row.requestStatus" /></template>
         </el-table-column>
-        <el-table-column prop="reviewResult" label="审核结果" width="105" />
-        <el-table-column prop="reviewComment" label="审核意见" min-width="180" show-overflow-tooltip />
-        <el-table-column label="创建时间" width="180">
+        <el-table-column prop="reviewResult" label="审核结果" width="96" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="reviewComment" label="审核意见" min-width="190" show-overflow-tooltip />
+        <el-table-column label="创建时间" width="160" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="审核时间" width="180">
+        <el-table-column label="审核时间" width="160" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">{{ formatTime(row.reviewedAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="170" fixed="right">
+        <el-table-column label="操作" width="170" fixed="right" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">
             <div v-if="row.requestStatus === 'PENDING'" class="table-actions">
               <el-button size="small" type="primary" @click="openAudit(row.requestId, 'approve')">通过</el-button>
@@ -117,7 +117,7 @@ import SearchPanel from '@/components/SearchPanel.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import type { FounderTransferRequest } from '@/types/api'
 
-const status = ref('')
+const status = ref('PENDING')
 const familyId = ref<number | undefined>()
 const items = ref<FounderTransferRequest[]>([])
 const page = ref(1)

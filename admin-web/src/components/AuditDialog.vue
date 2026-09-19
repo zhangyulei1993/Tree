@@ -49,3 +49,20 @@ function submit() {
   }
 }
 </script>
+
+<style scoped>
+:deep(.el-form-item) {
+  align-items: center;
+}
+
+:deep(.el-form-item__content) {
+  min-height: 32px;
+}
+
+:deep(.el-dialog__footer) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+</style>

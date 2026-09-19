@@ -10,6 +10,7 @@ const props = defineProps<{ status: string }>()
 const labelMap: Record<string, string> = {
   ACTIVE: '正常',
   NORMAL: '正常',
+  PENDING_BIND: '待绑定',
   PENDING: '待处理',
   APPROVED: '已通过',
   ACCEPTED: '已接受',
@@ -23,6 +24,9 @@ const labelMap: Record<string, string> = {
   DISSOLUTION_COOLDOWN: '恢复冷静期',
   TAKEN_DOWN: '已下架',
   PRIVATE: '私有',
+  NOT_REQUIRED: '无需绑定',
+  UNBOUND: '未绑定',
+  BOUND: '已绑定',
   MERGED: '已合并',
   DRAFT: '草稿',
   PUBLISHED: '已发布',

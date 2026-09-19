@@ -2,15 +2,15 @@
   <header class="topbar">
     <div>
       <strong>{{ route.meta.title || '管理后台' }}</strong>
-      <span>Tree 家脉亲缘平台 · {{ buildInfo.environment }} · {{ buildInfo.commit }}</span>
+      <span class="topbar-subtitle">Tree 家脉亲缘平台</span>
     </div>
     <div class="actions">
       <el-select v-if="apiMode === 'mock'" v-model="selectedRole" size="small" style="width: 160px" @change="onRoleChange">
-        <el-option label="ROOT_ADMIN" value="ROOT_ADMIN" />
-        <el-option label="SUPER_ADMIN" value="SUPER_ADMIN" />
-        <el-option label="PLATFORM_ADMIN" value="PLATFORM_ADMIN" />
+        <el-option label="根管理员" value="ROOT_ADMIN" />
+        <el-option label="超级管理员" value="SUPER_ADMIN" />
+        <el-option label="平台管理员" value="PLATFORM_ADMIN" />
       </el-select>
-      <span v-if="auth.admin" class="admin-name">{{ auth.admin.displayName || auth.admin.username }}</span>
+      <span v-if="auth.admin" class="admin-name">{{ adminName }}</span>
       <RoleTag v-if="auth.admin" :role="auth.admin.role" />
       <el-button text :loading="loggingOut" @click="logout">退出</el-button>
     </div>
@@ -18,11 +18,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { apiMode, getApiErrorMessage } from '@/api/client'
-import { buildInfo } from '@/buildInfo'
 import RoleTag from '@/components/RoleTag.vue'
 import { useAuthStore, type AdminRole } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
@@ -32,6 +31,13 @@ const route = useRoute()
 const router = useRouter()
 const selectedRole = ref<AdminRole>(auth.admin?.role || 'ROOT_ADMIN')
 const loggingOut = ref(false)
+const adminName = computed(() => {
+  const admin = auth.admin
+  if (!admin) return ''
+  if (admin.displayName && admin.displayName !== admin.role) return admin.displayName
+  if (admin.username && admin.username !== admin.role) return admin.username
+  return '当前管理员'
+})
 
 watch(
   () => auth.admin?.role,
@@ -76,7 +82,7 @@ async function logout() {
   backdrop-filter: blur(20px);
 }
 
-.topbar span {
+.topbar-subtitle {
   display: block;
   margin-top: 3px;
   color: var(--color-text-secondary);
@@ -98,6 +104,9 @@ async function logout() {
 }
 
 .admin-name {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
   margin: 0;
   color: var(--color-text-primary);
   font-size: 13px;

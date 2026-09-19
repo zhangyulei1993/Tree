@@ -149,26 +149,29 @@
           <view v-if="settingsSection === 'public'" class="archive-form-panel">
             <view class="archive-section-head">
               <text class="archive-section-title">展示权限</text>
-              <text class="archive-section-subtitle">当前状态：{{ publicStatusText(family.publicDisplayStatus) }}</text>
+              <text class="archive-section-subtitle">当前状态：{{ publicStatusText(family.publicDisplayStatus) }} · 暂未开放</text>
             </view>
+            <MiniNotice tone="warm" title="客户公开展示暂未开放">
+              公开展示功能已保留，当前不接收新的公开申请，也不会在小程序展示客户家庭。
+            </MiniNotice>
             <template v-if="family.publicDisplayStatus === 'APPROVED'">
               <MiniNotice tone="security" title="已获得展示权限">
                 平台已允许该家庭公开展示；是否对外展示由家庭自行开启或关闭。
               </MiniNotice>
               <label class="switch-row">
                 <text>{{ family.publicDisplayEnabled ? '正在公开展示' : '暂未公开展示' }}</text>
-                <switch :checked="family.publicDisplayEnabled" color="#163353" @change="onPublicDisplayToggle" />
+                <switch :checked="family.publicDisplayEnabled" color="#163353" :disabled="!customerPublicDisplayAvailable" @change="onPublicDisplayToggle" />
               </label>
             </template>
             <textarea
-              v-else-if="!pendingPublicApplication"
+              v-else-if="customerPublicDisplayAvailable && !pendingPublicApplication"
               v-model.trim="publicReason"
               class="tree-textarea"
               maxlength="500"
               placeholder="申请说明（可选）"
             />
             <MiniButton
-              v-if="!pendingPublicApplication && family.publicDisplayStatus !== 'APPROVED'"
+              v-if="customerPublicDisplayAvailable && !pendingPublicApplication && family.publicDisplayStatus !== 'APPROVED'"
               class="settings-action"
               :loading="publicSubmitting"
               :disabled="publicSubmitting"
@@ -200,7 +203,7 @@
             </view>
           </view>
 
-          <view v-if="settingsSection === 'public' && family.publicDisplayStatus === 'APPROVED'" class="archive-form-panel">
+          <view v-if="settingsSection === 'public' && customerPublicDisplayAvailable && family.publicDisplayStatus === 'APPROVED'" class="archive-form-panel">
             <view class="archive-section-head">
               <text class="archive-section-title">公开信息</text>
               <text class="archive-section-subtitle">开启展示时，访客会看到这些公开资料</text>
@@ -382,6 +385,7 @@ import type {
 import { optionalText, validateTextFields } from '@/utils/inputValidation'
 
 const session = useSessionStore()
+const customerPublicDisplayAvailable = false
 const familyId = ref('')
 const family = ref<FamilyDetail | null>(null)
 const members = ref<FamilyMember[]>([])
@@ -528,6 +532,10 @@ async function savePublicInfo() {
 }
 
 async function submitPublic() {
+  if (!customerPublicDisplayAvailable) {
+    uni.showToast({ title: '客户公开展示暂未开放', icon: 'none' })
+    return
+  }
   const validationMessage = validateTextFields([
     { value: publicReason.value, label: '公开申请说明', kind: 'multiLine', maxLength: 500 }
   ])
@@ -568,6 +576,7 @@ function confirmCancelPublic() {
 }
 
 function onPublicDisplayToggle(event: Event) {
+  if (!customerPublicDisplayAvailable) return
   const nextValue = switchValue(event)
   if (nextValue) {
     enablePublicDisplay()

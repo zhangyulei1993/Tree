@@ -66,6 +66,9 @@ import (
 	shareconfighandler "tree/backend/internal/shareconfig/handler"
 	shareconfigrepo "tree/backend/internal/shareconfig/repository"
 	shareconfigservice "tree/backend/internal/shareconfig/service"
+	showcasefamilyhandler "tree/backend/internal/showcasefamily/handler"
+	showcasefamilyrepo "tree/backend/internal/showcasefamily/repository"
+	showcasefamilyservice "tree/backend/internal/showcasefamily/service"
 	toolconfighandler "tree/backend/internal/toolconfig/handler"
 	toolconfigrepo "tree/backend/internal/toolconfig/repository"
 	toolconfigservice "tree/backend/internal/toolconfig/service"
@@ -76,6 +79,7 @@ func (s *Server) RegisterRoutes() {
 	api.GET("/health", s.health)
 	api.GET("/version", s.version)
 	s.registerShareConfigRoutes(api)
+	s.registerShowcaseFamilyRoutes(api)
 	s.registerToolConfigRoutes(api)
 
 	s.registerAdminRoutes(api)
@@ -154,6 +158,7 @@ func (s *Server) registerAdminRoutes(api *gin.RouterGroup) {
 	protected.GET("/families", management.Families)
 	protected.GET("/families/:familyId", management.Family)
 	protected.GET("/families/:familyId/members", management.Members)
+	protected.GET("/families/:familyId/tree", management.Tree)
 	protected.GET("/admin-users", management.Admins)
 	protected.GET("/operation-logs", management.Logs)
 
@@ -171,6 +176,22 @@ func (s *Server) registerAdminRoutes(api *gin.RouterGroup) {
 	protected.GET("/tool-configs", toolConfigHandler.AdminList)
 	protected.POST("/tool-configs", toolConfigHandler.AdminCreate)
 	protected.PUT("/tool-configs/:toolKey", toolConfigHandler.AdminUpdate)
+	showcaseFamilyHandler := s.buildShowcaseFamilyHandler(managementDB)
+	protected.GET("/showcase-families", showcaseFamilyHandler.AdminList)
+	protected.GET("/showcase-family-display-settings", showcaseFamilyHandler.AdminGetDisplaySettings)
+	protected.PUT("/showcase-family-display-settings", showcaseFamilyHandler.AdminUpdateDisplaySettings)
+	protected.POST("/showcase-families", showcaseFamilyHandler.AdminCreate)
+	protected.PUT("/showcase-families/:showcaseFamilyId", showcaseFamilyHandler.AdminUpdate)
+	protected.POST("/showcase-families/:showcaseFamilyId/publish", showcaseFamilyHandler.AdminPublish)
+	protected.POST("/showcase-families/:showcaseFamilyId/unpublish", showcaseFamilyHandler.AdminUnpublish)
+	protected.DELETE("/showcase-families/:showcaseFamilyId", showcaseFamilyHandler.AdminDelete)
+	protected.GET("/showcase-families/:showcaseFamilyId/tree", showcaseFamilyHandler.AdminTree)
+	protected.POST("/showcase-families/:showcaseFamilyId/members", showcaseFamilyHandler.AdminCreateMember)
+	protected.PUT("/showcase-families/:showcaseFamilyId/members/:memberId", showcaseFamilyHandler.AdminUpdateMember)
+	protected.DELETE("/showcase-families/:showcaseFamilyId/members/:memberId", showcaseFamilyHandler.AdminDeleteMember)
+	protected.POST("/showcase-families/:showcaseFamilyId/members/:memberId/relatives", showcaseFamilyHandler.AdminAddRelative)
+	protected.POST("/showcase-families/:showcaseFamilyId/relationships", showcaseFamilyHandler.AdminCreateRelationship)
+	protected.DELETE("/showcase-families/:showcaseFamilyId/relationships/:relationshipId", showcaseFamilyHandler.AdminDeleteRelationship)
 }
 
 func (s *Server) registerShareConfigRoutes(api *gin.RouterGroup) {
@@ -195,8 +216,22 @@ func (s *Server) registerToolConfigRoutes(api *gin.RouterGroup) {
 	api.GET("/tool-configs", s.buildToolConfigHandler(db).PublicList)
 }
 
+func (s *Server) registerShowcaseFamilyRoutes(api *gin.RouterGroup) {
+	db, err := database.Init(context.Background(), s.cfg.MySQL)
+	if err != nil {
+		s.logger.Error("init mysql for showcase families", zap.Error(err))
+		return
+	}
+	api.GET("/showcase-families", s.buildShowcaseFamilyHandler(db).PublicList)
+	api.GET("/showcase-families/:showcaseFamilyId/tree", s.buildShowcaseFamilyHandler(db).PublicTree)
+}
+
 func (s *Server) buildToolConfigHandler(db *gorm.DB) *toolconfighandler.Handler {
 	return toolconfighandler.New(toolconfigservice.New(toolconfigrepo.New(db), operationlog.NewGormService(db)))
+}
+
+func (s *Server) buildShowcaseFamilyHandler(db *gorm.DB) *showcasefamilyhandler.Handler {
+	return showcasefamilyhandler.New(showcasefamilyservice.New(showcasefamilyrepo.New(db), operationlog.NewGormService(db)))
 }
 
 func (s *Server) buildAdminAuth() (*adminhandler.AuthHandler, gin.HandlerFunc) {

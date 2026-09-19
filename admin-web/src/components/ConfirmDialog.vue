@@ -59,4 +59,16 @@ function confirm() {
   color: var(--color-text-secondary);
   line-height: 1.7;
 }
+
+.confirm-text + :deep(.el-textarea) {
+  display: block;
+  margin-top: 16px;
+}
+
+:deep(.el-dialog__footer) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
 </style>
