@@ -50,6 +50,15 @@ export function resolvePrivacyAuthorizeError(error: unknown): string {
   return '微信隐私授权未完成，请重试后再登录。'
 }
 
+function isDevtoolsPrivacyApiUnavailable(error: unknown): boolean {
+  const errMsg = typeof error === 'object' && error !== null && 'errMsg' in error
+    ? String((error as { errMsg?: unknown }).errMsg || '')
+    : ''
+  // `webapi_getwxaasyncsecinfo` is emitted by the WeChat DevTools runtime,
+  // not by a real mini-program client.
+  return /webapi_getwxaasyncsecinfo:fail/i.test(errMsg)
+}
+
 /** 触发微信隐私授权（仅微信小程序运行时可用） */
 export function requestWechatPrivacyAuthorize(): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -76,6 +85,13 @@ export async function ensurePrivacyConsentForLogin(): Promise<void> {
   try {
     await requestWechatPrivacyAuthorize()
   } catch (error) {
+    // DevTools 2.02.2609231 can fail before presenting the built-in privacy
+    // dialog. The user has already accepted our local agreement; keep this
+    // narrow fallback out of real devices, where authorization remains strict.
+    if (isDevtoolsPrivacyApiUnavailable(error)) {
+      setPrivacyConsent()
+      return
+    }
     throw new Error(resolvePrivacyAuthorizeError(error))
   }
   setPrivacyConsent()

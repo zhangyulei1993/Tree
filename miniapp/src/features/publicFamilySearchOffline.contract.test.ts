@@ -81,6 +81,29 @@ test('runtime code does not navigateTo or redirectTo tabBar pages', () => {
   assert.deepEqual(violations, [])
 })
 
+test('notification routes switch to tabBar pages and navigate to detail pages', () => {
+  const source = read(join(miniappSrc, 'pages', 'me', 'notifications.vue'))
+  assert.match(source, /const tabBarRoutes = new Set\(\['\/pages\/home\/index', '\/pages\/family\/my', '\/pages\/content\/index', '\/pages\/me\/index'\]\)/)
+  assert.match(source, /if \(tabBarRoutes\.has\(basePath\)\) \{\s*uni\.switchTab\(\{ url: basePath, success: onSuccess/)
+  assert.match(source, /uni\.navigateTo\(\{ url: normalized, success: onSuccess/)
+  assert.match(source, /openRoute\(item\.route, \(\) => \{ void markRead\(item\) \}\)/)
+  assert.match(source, /while \(filter\.value === 'UNREAD' && !visibleItems\.value\.length && hasMore\.value && !errorMessage\.value\)/)
+})
+
+test('private tree blocks member additions when capacity cannot be confirmed', () => {
+  const source = read(join(miniappSrc, 'pages', 'family', 'private-tree.vue'))
+  assert.match(source, /title: '容量信息暂不可用'/)
+  assert.match(source, /暂时无法确认当前家庭容量，请稍后重试。/)
+  assert.match(source, /return false\s*\}\s*const usage = capabilities\.usage\.membersPerOwnedFamily/)
+})
+
+test('real-api tool config failure fails closed instead of using stale enabled defaults', () => {
+  const source = read(join(miniappSrc, 'api', 'toolConfigs.ts'))
+  assert.match(source, /function disableToolsAfterConfigFailure\(\)/)
+  assert.match(source, /state\.visible = false\s*state\.enabled = false/)
+  assert.match(source, /disableToolsAfterConfigFailure\(\)/)
+})
+
 test('MiniButton stops native tap bubbling instead of component click modifiers', () => {
   const buttonSource = read(join(miniappSrc, 'components', 'base', 'MiniButton.vue'))
   assert.match(buttonSource, /@tap\.stop="handleTap"/)
@@ -136,14 +159,23 @@ test('private tree loads family invitations only for managers', () => {
   assert.ok(canManageIndex < invitationIndex)
 })
 
+test('all family members can switch tree perspective without gaining management actions', () => {
+  const privateTree = read(join(miniappSrc, 'pages', 'family', 'private-tree.vue'))
+  assert.match(privateTree, /:interactive="true"/)
+  assert.match(privateTree, /actions\.push\(\{ label: '查看资料', primary: true/)
+  assert.match(privateTree, /if \(canSwitchViewer\(node\)\) actions\.push\(\{ label: '切换到此视角'/)
+  assert.match(privateTree, /if \(canManageFamily\.value\) \{[\s\S]*label: '邀请本人绑定'/)
+})
+
 test('private tree gates deceased memorial by family gray access', () => {
   const privateTree = read(join(miniappSrc, 'pages', 'family', 'private-tree.vue'))
   assert.match(privateTree, /:selectable-deceased="grayAccessAvailable"/)
   assert.match(privateTree, /grayAccessAvailable\.value = Boolean\(treeResult\.grayAccessEnabled\)/)
-  assert.match(privateTree, /if \(node\.isLiving === false && grayAccessAvailable\.value\) \{\s*showMemorial\(node\)\s*return/)
+  assert.match(privateTree, /if \(node\.isLiving === false && grayAccessAvailable\.value\) \{[\s\S]*showMemorial\(node\)[\s\S]*return/)
   assert.match(privateTree, /class="memorial-action secondary" @click="switchMemorialViewer"/)
-  assert.match(privateTree, /v-if="canManageFamily" class="memorial-action primary" @click="editMemorial"/)
-  assert.match(privateTree, /v-if="canManageFamily" class="memorial-action danger" @click="deleteMemorialMember"/)
+  assert.match(privateTree, /class="memorial-action primary" @click="viewMemorialMember"/)
+  assert.match(privateTree, /v-if="canDeleteMemorialMember" class="memorial-action danger[^"]*" @click="deleteMemorialMember"/)
+  assert.match(privateTree, /v-else-if="memorialDeleteRestriction" class="memorial-delete-restriction"/)
   assert.match(privateTree, /getFamilyMember\(familyId\.value, node\.memberId\)/)
   assert.match(privateTree, /亲人简介/)
 })
@@ -154,7 +186,7 @@ test('private tree forwards deceased selection through located and unlocated car
   assert.match(treeGraph, /:selectable="isUnlocatedNodeSelectable\(node\)"/)
 })
 
-test('private tree deceased node action sheet stays within WeChat item limit', () => {
+test('private tree deceased node panel keeps all actions accessible', () => {
   const privateTree = read(join(miniappSrc, 'pages', 'family', 'private-tree.vue'))
   const treeGraph = read(join(miniappSrc, 'components', 'family', 'FamilyTreeGraph.vue'))
   assert.equal(privateTree.includes('编辑亲人简介'), false)
@@ -165,10 +197,10 @@ test('private tree deceased node action sheet stays within WeChat item limit', (
   assert.match(treeGraph, /function isUnlocatedNodeSelectable\(node: FamilyTreeResult\['nodes'\]\[number\]\)/)
   assert.match(treeGraph, /props\.interactive \|\| \(props\.selectableDeceased && node\.isLiving === false\)/)
   assert.match(privateTree, /function canSwitchViewer\(node: TreeNode\)/)
-  assert.match(privateTree, /const items = canSwitchViewer\(node\) \? \['切换到此视角'\] : \[\]/)
-  assert.match(privateTree, /if \(items\.length === 0\) return/)
-  assert.match(privateTree, /items\.push\('删除节点'\)/)
-  assert.match(privateTree, /if \(node\.userBindingState === 'UNBOUND'\) items\.push\('邀请本人绑定'\)/)
+  assert.match(privateTree, /class="memorial-action secondary" @click="switchMemorialViewer"/)
+  assert.match(privateTree, /class="memorial-action primary" @click="viewMemorialMember"/)
+  assert.match(privateTree, /v-if="canDeleteMemorialMember" class="memorial-action danger/)
+  assert.match(privateTree, /@click="deleteMemorialMember"/)
 })
 
 test('showcase page has no search box, filters or search button', () => {
@@ -188,7 +220,7 @@ test('showcase page has no search box, filters or search button', () => {
     assert.equal(showcase.includes(snippet), false, `showcase must not include: ${snippet}`)
   }
   assert.match(showcase, /listPublicFamilyShowcase/)
-  assert.match(showcase, /展示家庭/)
+  assert.match(showcase, /优质家庭/)
   assert.match(showcase, /public-profile/)
 })
 
@@ -203,9 +235,9 @@ test('home page has showcase section without search wording', () => {
   for (const snippet of forbidden) {
     assert.equal(home.includes(snippet), false, `home must not include: ${snippet}`)
   }
-  assert.match(home, /展示家庭/)
-  assert.match(home, /查看更多展示家庭/)
-  assert.match(home, /listPublicFamilyShowcase/)
+  assert.match(home, /帝王世家/)
+  assert.match(home, /查看全部/)
+  assert.match(home, /listPublishedShowcaseFamilies/)
   assert.doesNotMatch(home, /阅读精选/)
   assert.match(home, /创建我的家庭/)
   assert.match(home, /openHomePrimaryEntry/)
@@ -214,7 +246,7 @@ test('home page has showcase section without search wording', () => {
 
 test('my family tab keeps create entry when showing public showcase', () => {
   const myFamily = read(join(miniappSrc, 'pages', 'family', 'my.vue'))
-  assert.match(myFamily, /展示家庭/)
+  assert.match(myFamily, /优质家庭/)
   assert.match(myFamily, /创建家庭/)
   assert.match(myFamily, /openCreateFamily/)
   assert.match(myFamily, /pages\/family\/create/)
@@ -225,6 +257,24 @@ test('public profile page has no join apply entry', () => {
   const forbidden = ['申请加入家庭', 'openJoinApply', 'pages/join/apply']
   for (const snippet of forbidden) {
     assert.equal(publicProfile.includes(snippet), false, `public-profile must not include: ${snippet}`)
+  }
+})
+
+test('family settings gates quality-family application by eligibility', () => {
+  const settings = read(join(miniappSrc, 'pages', 'family', 'settings.vue'))
+  const profile = read(join(miniappSrc, 'pages', 'family', 'profile.vue'))
+  const detail = read(join(miniappSrc, 'pages', 'family', 'detail.vue'))
+  const manageCenter = read(join(miniappSrc, 'pages', 'family', 'manage-center.vue'))
+  assert.match(settings, /getQualityEligibility/)
+  assert.match(settings, /const customerPublicDisplayAvailable = computed\(\(\) => Boolean\(qualityEligibility\.value\?\.eligible\)\)/)
+  assert.match(settings, /const settingsSection = ref<[^>]+>\('roles'\)/)
+  assert.match(settings, /v-if="publicSettingsVisible"[\s\S]*?<text>展示<\/text>/)
+  assert.match(settings, /visibleOperationLogs/)
+  const forbidden = ['暂缓开放', '普通家庭公开展示暂缓开放', '公开展示摘要', '公开状态与联系方式', '公开信息、权限角色', '公开展示会重置', '公开审核', '搜索开关']
+  for (const source of [settings, profile, detail, manageCenter]) {
+    for (const phrase of forbidden) {
+      assert.equal(source.includes(phrase), false, `family management copy must not include: ${phrase}`)
+    }
   }
 })
 
@@ -240,6 +290,7 @@ test('backend registers showcase list route instead of offline search handler', 
   const router = read(join(backendApp, 'router.go'))
   assert.match(router, /api\.GET\("\/public\/families", handler\.ListPublicFamilyShowcase\)/)
   assert.equal(router.includes('PublicFamiliesSearchOffline'), false)
+  assert.equal(router.includes('families.POST("/:familyId/join-requests", joinHandler.Create)'), false)
   const handler = read(join(backendFamilyCore, 'handler', 'family_handler.go'))
   assert.match(handler, /ListPublicFamilyShowcase/)
   assert.equal(handler.includes('PublicFamiliesSearchOffline'), false)
@@ -284,14 +335,16 @@ test('public detail and tree masking remains in place', () => {
 
 test('legal text allows showcase browsing and forbids public search wording', () => {
   const legal = read(join(miniappSrc, 'features', 'legal', 'legalContent.ts'))
-  assert.match(legal, /展示家庭/)
-  assert.match(legal, /脱敏/)
-  const forbidden = ['搜索公开家庭', '寻找家庭', '浏览公开家庭列表']
+  const catalog = read(join(miniappSrc, 'features', 'legal', 'privacyCatalog.ts'))
+  assert.match(legal, /历史世系示例/)
+  assert.match(catalog, /历史世系示例与分享浏览/)
+  const forbidden = ['搜索公开家庭', '寻找家庭', '浏览公开家庭列表', '公开家庭展示申请', '申请公开展示', '家庭管理员申请并经平台审核']
   for (const phrase of forbidden) {
     assert.equal(legal.includes(phrase), false, `legal content must not include: ${phrase}`)
+    assert.equal(catalog.includes(phrase), false, `privacy catalog must not include: ${phrase}`)
   }
   const meta = read(join(miniappSrc, 'features', 'legal', 'legalMeta.ts'))
-  assert.match(meta, /1\.4\.0/)
+  assert.match(meta, /1\.5\.0/)
 })
 
 test('historical search service code and migrations remain preserved', () => {

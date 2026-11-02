@@ -32,7 +32,7 @@
           <label><span>家庭简介</span><textarea v-model.trim="familyForm.description" class="field textarea" maxlength="1000" /></label>
           <label><span>公开联系说明</span><textarea v-model.trim="familyForm.publicContactNote" class="field textarea" maxlength="300" /></label>
           <div class="record-actions">
-            <label class="check-row"><input v-model="familyForm.searchable" type="checkbox" /><span>允许在公开家庭搜索中展示</span></label>
+            <label class="check-row"><input v-model="familyForm.searchable" type="checkbox" /><span>允许在优质家庭案例中展示</span></label>
             <label class="check-row"><input v-model="familyForm.publicContactVisible" type="checkbox" /><span>公开联系方式</span></label>
           </div>
           <button class="button" :disabled="acting">{{ acting ? '保存中...' : '保存家庭资料' }}</button>

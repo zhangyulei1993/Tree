@@ -3,20 +3,21 @@ package vo
 import "time"
 
 type ShowcaseFamily struct {
-	ID                uint64     `json:"id"`
-	DisplayName       string     `json:"displayName"`
-	RegionText        string     `json:"regionText"`
-	Summary           string     `json:"summary"`
-	CoverImageURL     string     `json:"coverImageUrl"`
-	TreeImageURL      string     `json:"treeImageUrl"`
-	Status            string     `json:"status"`
-	SortOrder         int        `json:"sortOrder"`
-	MemberCount       int        `json:"memberCount"`
-	RelationshipCount int        `json:"relationshipCount"`
-	TreeStatus        string     `json:"treeStatus"`
-	PublishedAt       *time.Time `json:"publishedAt"`
-	UpdatedAt         time.Time  `json:"updatedAt"`
-	RotationPinned    bool       `json:"rotationPinned"`
+	ID                    uint64     `json:"id"`
+	DisplayName           string     `json:"displayName"`
+	RegionText            string     `json:"regionText"`
+	Summary               string     `json:"summary"`
+	CoverImageURL         string     `json:"coverImageUrl"`
+	TreeImageURL          string     `json:"treeImageUrl"`
+	Status                string     `json:"status"`
+	SortOrder             int        `json:"sortOrder"`
+	MemberCount           int        `json:"memberCount"`
+	RelationshipCount     int        `json:"relationshipCount"`
+	TreeStatus            string     `json:"treeStatus"`
+	HasUnpublishedChanges bool       `json:"hasUnpublishedChanges"`
+	PublishedAt           *time.Time `json:"publishedAt"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
+	RotationPinned        bool       `json:"rotationPinned"`
 }
 
 type DisplaySettings struct {

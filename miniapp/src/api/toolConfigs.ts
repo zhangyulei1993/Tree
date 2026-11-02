@@ -5,6 +5,7 @@ import { isRealApiMode, request } from '@/api/client'
 export type CommonToolKey =
   | 'CHOOSE'
   | 'KINSHIP_QUERY'
+  | 'REGIONAL_DIVISION'
   | 'TRADITIONAL_FESTIVALS'
   | 'SOLAR_TERMS'
   | 'FAMILY_STORIES'
@@ -42,6 +43,7 @@ export interface SupportedToolDefinition {
 export const supportedToolDefinitions: SupportedToolDefinition[] = [
   { key: 'CHOOSE', path: '/pages/tools/choose', icon: '选', displayName: '该选什么', description: '把选项交给随机选择，帮你快速做决定' },
   { key: 'KINSHIP_QUERY', path: '/pages/tools/kinship', icon: '称', displayName: '称谓查询', description: '按关系、性别和长幼查询称谓' },
+  { key: 'REGIONAL_DIVISION', path: '/pages/tools/native-place', icon: '籍', displayName: '籍贯查询', description: '按地名核对地理分区、省市与区县层级' },
   { key: 'TRADITIONAL_FESTIVALS', path: '/pages/tools/festivals', icon: '节', displayName: '传统节日', description: '查看传统节日、法定假期与节日文案' },
   { key: 'SOLAR_TERMS', path: '/pages/tools/solar-terms', icon: '时', displayName: '农历节气', description: '查看二十四节气与时令变化' },
   { key: 'FAMILY_STORIES', path: '/pages/family/stories', icon: '记', displayName: '家庭事迹', description: '查看家庭成员与关系变动记录' }
@@ -50,6 +52,7 @@ export const supportedToolDefinitions: SupportedToolDefinition[] = [
 export const toolConfigState = reactive<Record<string, ToolConfigState>>({
   CHOOSE: { displayName: '该选什么', description: '把选项交给随机选择，帮你快速做决定', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0 },
   KINSHIP_QUERY: { displayName: '称谓查询', description: '按关系、性别和长幼查询称谓', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0 },
+  REGIONAL_DIVISION: { displayName: '籍贯查询', description: '按地名核对地理分区、省市与区县层级', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0 },
   TRADITIONAL_FESTIVALS: { displayName: '传统节日', description: '查看传统节日、法定假期与节日文案', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0 },
   SOLAR_TERMS: { displayName: '农历节气', description: '查看二十四节气与时令变化', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0 },
   FAMILY_STORIES: { displayName: '家庭事迹', description: '查看家庭成员与关系变动记录', visible: false, enabled: false, pinned: false, highlighted: false, sortOrder: 0 }
@@ -74,6 +77,16 @@ function definitionFor(toolKey: string) {
 let loadedAt = 0
 let loading: Promise<void> | null = null
 const cacheTtlMs = 30_000
+
+function disableToolsAfterConfigFailure() {
+  Object.values(toolConfigState).forEach((state) => {
+    state.visible = false
+    state.enabled = false
+    state.pinned = false
+    state.highlighted = false
+  })
+  configuredToolDefinitions.splice(0, configuredToolDefinitions.length)
+}
 
 export function isToolEnabled(toolKey: string) {
   return stateFor(toolKey)?.enabled ?? false
@@ -121,7 +134,6 @@ export async function loadToolConfigs(options: { force?: boolean } = {}) {
   loading = (async () => {
     try {
       const rows = await request<PublicToolConfig[]>('/tool-configs', { public: true })
-      const configuredKeys = new Set<string>()
       const nextDefinitions: SupportedToolDefinition[] = rows
         .filter((row) => row.toolKey.trim())
         .map((row) => {
@@ -143,7 +155,6 @@ export async function loadToolConfigs(options: { force?: boolean } = {}) {
           state.pinned = row.pinned ?? false
           state.highlighted = row.highlighted ?? false
           state.sortOrder = row.sortOrder ?? 0
-          configuredKeys.add(key)
           return {
             key,
             path: fallback?.path,
@@ -152,13 +163,11 @@ export async function loadToolConfigs(options: { force?: boolean } = {}) {
             description: state.description
           }
         })
-      supportedToolDefinitions.forEach((definition) => {
-        if (!configuredKeys.has(definition.key)) nextDefinitions.push({ ...definition })
-      })
       configuredToolDefinitions.splice(0, configuredToolDefinitions.length, ...nextDefinitions)
       loadedAt = Date.now()
     } catch {
-      // Keep bundled defaults when the endpoint is unavailable.
+      // A failed real-api config request must fail closed; otherwise disabled tools can remain usable from stale defaults.
+      disableToolsAfterConfigFailure()
     } finally {
       loading = null
     }

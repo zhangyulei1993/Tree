@@ -20,6 +20,7 @@ func TestPublicFamilyShowcaseRouteIsRegistered(t *testing.T) {
 	}
 	required := []string{
 		`api.GET("/families/:familyId/public", handler.PublicDetail)`,
+		`api.GET("/public/platform-stats", handler.PublicPlatformStats)`,
 		`api.GET("/public/families/:familyId/tree", treeHandler.PublicTree)`,
 	}
 	for _, snippet := range required {

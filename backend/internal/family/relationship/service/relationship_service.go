@@ -33,6 +33,7 @@ const (
 	CodeRelationshipNotFound  apperrors.Code = 43308
 	CodeRelationshipSelf      apperrors.Code = 43309
 	CodeRelationshipFamily    apperrors.Code = 43310
+	CodeRelationshipConflict  apperrors.Code = apperrors.CodeDataConflict
 )
 
 type AuditInput struct {
@@ -88,12 +89,12 @@ func (s *relationshipService) PlaceExisting(ctx context.Context, actorID uint64,
 		if err != nil {
 			return err
 		}
-		if located {
+		if located && !(strings.EqualFold(req.AddType, string(relationshipenum.AddTypeChild)) && req.CoParentMemberID != nil) {
 			return errMemberAlreadyLocated
 		}
 		createdRelationships, err = PlaceExistingMember(
 			ctx, repo, familyID, family.FamilySurname, actorID,
-			req.BaseMemberID, member, req.AddType, req.MemberType, req.Relationship,
+			req.BaseMemberID, member, req.AddType, req.MemberType, req.Relationship, req.CoParentMemberID,
 		)
 		if err != nil {
 			return err
@@ -204,7 +205,7 @@ func (s *relationshipService) Create(ctx context.Context, actorID uint64, family
 			requestedMemberType = req.NewMember.MemberType
 		}
 		createdRelationships, err = placeExistingMember(
-			ctx, repo, familyID, family.FamilySurname, actorID, req.BaseMemberID, member, addType, requestedMemberType, input,
+			ctx, repo, familyID, family.FamilySurname, actorID, req.BaseMemberID, member, addType, requestedMemberType, input, req.CoParentMemberID,
 		)
 		if err != nil {
 			return err
@@ -266,7 +267,13 @@ func (s *relationshipService) Update(ctx context.Context, actorID uint64, family
 		if err != nil {
 			return errRelationshipNotFound
 		}
+		if req.ExpectedRevision != nil && *req.ExpectedRevision != relationship.Revision {
+			return errRelationshipConflict
+		}
 		if relationship.RelationshipType == string(relationshipenum.RelationshipTypeSpouse) && req.ParentLinkType != nil {
+			return errUnsupportedRelationship
+		}
+		if relationship.RelationshipType == string(relationshipenum.RelationshipTypeSpouse) && req.RelationNoteType != nil && !validSpouseDisplayType(*req.RelationNoteType) {
 			return errUnsupportedRelationship
 		}
 		normalizedParentLink, hasParentLink := values["parent_link_type"].(string)
@@ -279,6 +286,7 @@ func (s *relationshipService) Update(ctx context.Context, actorID uint64, family
 				return err
 			}
 		}
+		values["revision"] = gorm.Expr("revision + 1")
 		if err := repo.UpdateRelationship(ctx, familyID, relationshipID, values); err != nil {
 			return err
 		}
@@ -301,7 +309,7 @@ func (s *relationshipService) Delete(ctx context.Context, actorID uint64, family
 	}
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: actorID, Scene: contentsafety.SceneSocial,
-		Fields: contentsafety.OptionalField("delete_reason", req.Reason),
+		Fields:   contentsafety.OptionalField("delete_reason", req.Reason),
 		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
@@ -390,6 +398,9 @@ func normalizeRelationshipInput(addType relationshipenum.AddType, input dto.Rela
 	}
 	if input.RelationNote != nil && result.relationNote == nil && strings.TrimSpace(*input.RelationNote) != "" {
 		return normalizedRelationshipInput{}, relationshipError(CodeRelationshipType, "关系备注过长")
+	}
+	if expectedType == string(relationshipenum.RelationshipTypeSpouse) && input.RelationNoteType != nil && !validSpouseDisplayType(*input.RelationNoteType) {
+		return normalizedRelationshipInput{}, relationshipError(CodeRelationshipType, "配偶展示身份不支持")
 	}
 	if expectedType == string(relationshipenum.RelationshipTypeParentChild) {
 		parentLinkType := string(relationshipenum.ParentLinkTypePrimary)
@@ -484,6 +495,9 @@ func applyParentPlacement(ctx context.Context, repo PlacementRepository, familyI
 }
 
 func applySpousePlacement(ctx context.Context, repo PlacementRepository, familyID uint64, familySurname string, baseMemberID uint64, spouseGender string, input normalizedRelationshipInput) (normalizedRelationshipInput, error) {
+	if input.relationNoteType != nil && isFormerSpouseDisplayType(*input.relationNoteType) {
+		return input, nil
+	}
 	spouses, err := repo.ListActiveSpouseRelationshipsByGender(ctx, familyID, baseMemberID, spouseGender)
 	if err != nil || len(spouses) == 0 {
 		return input, err
@@ -497,10 +511,10 @@ func applySpousePlacement(ctx context.Context, repo PlacementRepository, familyI
 		}
 	}
 	noteType := "SECOND_WIFE"
-	note := "再婚妻子"
+	note := "现任妻子"
 	if spouseGender == string(enums.GenderMale) {
 		noteType = "SECOND_HUSBAND"
-		note = "再婚丈夫"
+		note = "现任丈夫"
 	}
 	if input.relationNoteType == nil {
 		input.relationNoteType = &noteType
@@ -521,6 +535,11 @@ func applySpousePlacement(ctx context.Context, repo PlacementRepository, familyI
 		}
 	}
 	return input, nil
+}
+
+func isFormerSpouseDisplayType(value string) bool {
+	value = strings.ToUpper(strings.TrimSpace(value))
+	return value == "EX_WIFE" || value == "EX_HUSBAND"
 }
 
 func oppositeGender(gender string) string {
@@ -588,6 +607,15 @@ func validParentLinkType(value string) bool {
 	}
 }
 
+func validSpouseDisplayType(value string) bool {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "", "EX_WIFE", "EX_HUSBAND", "SECOND_WIFE", "SECOND_HUSBAND":
+		return true
+	default:
+		return false
+	}
+}
+
 func applyRelationshipValues(relationship *relationshipmodel.FamilyRelationship, values map[string]any) {
 	if value, ok := values["parent_link_type"].(string); ok {
 		relationship.ParentLinkType = &value
@@ -620,7 +648,7 @@ func relationshipVO(relationship *relationshipmodel.FamilyRelationship) vo.Relat
 		FromMemberID: relationship.FromMemberID, ToMemberID: relationship.ToMemberID,
 		RelationshipType: relationship.RelationshipType, ParentLinkType: relationship.ParentLinkType,
 		RelationNoteType: relationship.RelationNoteType, RelationNote: relationship.RelationNote,
-		Status: relationship.Status, CreatedAt: relationship.CreatedAt,
+		Status: relationship.Status, Revision: relationship.Revision, CreatedAt: relationship.CreatedAt,
 		UpdatedAt: relationship.UpdatedAt, DeletedAt: relationship.DeletedAt,
 	}
 }
@@ -679,10 +707,14 @@ func mapRepositoryError(err error) *apperrors.BusinessError {
 		return relationshipError(CodeRelationshipType, "不支持的关系类型或修改")
 	case errors.Is(err, errRelationshipNotFound):
 		return relationshipError(CodeRelationshipNotFound, "关系不存在")
+	case errors.Is(err, errRelationshipConflict):
+		return relationshipError(CodeRelationshipConflict, "关系已被家人更新，请刷新后再保存")
 	case errors.Is(err, errSelfRelationship):
 		return relationshipError(CodeRelationshipSelf, "不能与自己建立关系")
 	case errors.Is(err, errSpouseBaseExpansion):
 		return relationshipError(CodeRelationshipForbidden, "配偶节点不能作为家谱主干扩展，请从族内成员节点操作")
+	case errors.Is(err, errChildCoParentNotSpouse):
+		return relationshipError(CodeRelationshipType, "子女的另一位家长必须是该成员已记录的配偶")
 	case errors.Is(err, errParentMemberTypeRequired):
 		return relationshipError(CodeRelationshipMember, "添加父母时必须选择成员身份")
 	case errors.Is(err, errParentMemberTypeInvalid):
@@ -759,8 +791,10 @@ var (
 	errRelationshipNotFound     = errors.New("relationship not found")
 	errSelfRelationship         = errors.New("self relationship")
 	errSpouseBaseExpansion      = errors.New("spouse base expansion forbidden")
+	errChildCoParentNotSpouse   = errors.New("child co-parent is not spouse")
 	errFamilyUnavailable        = errors.New("family unavailable")
 	errParentMemberTypeRequired = errors.New("parent member type required")
 	errParentMemberTypeInvalid  = errors.New("parent member type invalid")
 	errLineageParentRequired    = errors.New("lineage parent required before spouse parent")
+	errRelationshipConflict     = errors.New("relationship data conflict")
 )

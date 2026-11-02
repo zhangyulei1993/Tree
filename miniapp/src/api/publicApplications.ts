@@ -1,5 +1,9 @@
 import { request } from '@/api/client'
-import type { FamilyOperationLog, FamilyPublicStatus, PaginatedResult, PublicApplication } from '@/types/api'
+import type { FamilyOperationLog, FamilyPublicStatus, PaginatedResult, PublicApplication, QualityEligibility } from '@/types/api'
+
+export function getQualityEligibility(familyId: number | string) {
+  return request<QualityEligibility>(`/families/${familyId}/public-quality-eligibility`)
+}
 
 export function listPublicApplications(familyId: number | string) {
   return request<PaginatedResult<PublicApplication>>(

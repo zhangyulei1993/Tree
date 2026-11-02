@@ -4,6 +4,7 @@ import type { ToolConfig } from '@/types/api'
 const mockConfigs: ToolConfig[] = [
   { id: 5, toolKey: 'CHOOSE', displayName: '该选什么', description: '把选项交给随机选择，帮你快速做决定', visible: true, enabled: false, pinned: false, highlighted: false, sortOrder: 0, updatedAt: new Date().toISOString() },
   { id: 1, toolKey: 'KINSHIP_QUERY', displayName: '称谓查询', description: '按关系、性别和长幼查询称谓', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0, updatedAt: new Date().toISOString() },
+  { id: 5, toolKey: 'REGIONAL_DIVISION', displayName: '籍贯查询', description: '按地名核对地理分区、省市与区县层级', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 5, updatedAt: new Date().toISOString() },
   { id: 2, toolKey: 'TRADITIONAL_FESTIVALS', displayName: '传统节日', description: '查看传统节日、法定假期与节日文案', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0, updatedAt: new Date().toISOString() },
   { id: 3, toolKey: 'SOLAR_TERMS', displayName: '农历节气', description: '查看二十四节气与时令变化', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0, updatedAt: new Date().toISOString() },
   { id: 4, toolKey: 'FAMILY_STORIES', displayName: '家庭事迹', description: '查看家庭成员与关系变动记录', visible: true, enabled: true, pinned: false, highlighted: false, sortOrder: 0, updatedAt: new Date().toISOString() }

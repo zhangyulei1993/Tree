@@ -229,7 +229,7 @@ func TestCacheMissBuildsAndWritesVersionedKey(t *testing.T) {
 	}
 	expectedKey := "family:2:tree:v14"
 	if result.GraphVersion != 14 || repo.snapshotCalls != 1 ||
-		len(cache.setKeys) != 1 || cache.setKeys[0] != expectedKey {
+		len(cache.setKeys) != 2 || cache.setKeys[0] != expectedKey {
 		t.Fatalf("unexpected cache miss behavior: result=%#v keys=%#v", result, cache.setKeys)
 	}
 }
@@ -310,9 +310,11 @@ func TestGraphVersionChangeUsesNewCacheKey(t *testing.T) {
 	if _, err := service.GetPrivateTree(context.Background(), 8, 2); err != nil {
 		t.Fatalf("second read failed: %v", err)
 	}
-	if len(cache.getKeys) != 2 ||
+	if len(cache.getKeys) != 4 ||
 		cache.getKeys[0] != "family:2:tree:v14" ||
-		cache.getKeys[1] != "family:2:tree:v15" {
+		cache.getKeys[1] != "family:2:feature:GRAY_ACCESS" ||
+		cache.getKeys[2] != "family:2:tree:v15" ||
+		cache.getKeys[3] != "family:2:feature:GRAY_ACCESS" {
 		t.Fatalf("unexpected cache keys: %#v", cache.getKeys)
 	}
 }
@@ -481,7 +483,7 @@ func maskedNameRepository() *fakeRepository {
 
 func assertCachedTreeHasFullName(t *testing.T, cache *fakeCache, fullName string) {
 	t.Helper()
-	if len(cache.setKeys) != 1 {
+	if len(cache.setKeys) != 2 {
 		t.Fatalf("expected one cache write, got %#v", cache.setKeys)
 	}
 	var cached vo.TreeResult

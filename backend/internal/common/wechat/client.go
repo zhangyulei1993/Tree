@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +21,8 @@ const (
 	code2SessionURL   = "https://api.weixin.qq.com/sns/jscode2session"
 	accessTokenURL    = "https://api.weixin.qq.com/cgi-bin/token"
 	getPhoneNumberURL = "https://api.weixin.qq.com/wxa/business/getuserphonenumber"
+	subscribeSendURL  = "https://api.weixin.qq.com/cgi-bin/message/subscribe/send"
+	templateListURL   = "https://api.weixin.qq.com/wxaapi/newtmpl/gettemplate"
 	accessTokenSkew   = 2 * time.Minute
 	defaultTokenTTL   = 2 * time.Hour
 )
@@ -40,6 +44,15 @@ type MiniProgramClient struct {
 	tokenMu      sync.Mutex
 	cachedToken  string
 	tokenExpires time.Time
+	templateMu   sync.Mutex
+	templates    []SubscribeTemplate
+	templateAt   time.Time
+}
+
+type SubscribeTemplate struct {
+	ID      string `json:"priTmplId"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
 }
 
 func NewMiniProgramClient(cfg config.WechatConfig) *MiniProgramClient {
@@ -212,6 +225,182 @@ func (c *MiniProgramClient) getAccessToken(ctx context.Context) (string, error) 
 	token := c.cachedToken
 	c.tokenMu.Unlock()
 	return token, nil
+}
+
+// SendSubscribeMessage resolves the template's actual DATA keys from WeChat's
+// current template definition, then maps values to those keys in template order.
+// This keeps field identifiers such as thing1/time2 out of business code.
+func (c *MiniProgramClient) SendSubscribeMessage(ctx context.Context, openID, templateID, page, miniprogramState string, values []string) error {
+	if strings.TrimSpace(openID) == "" || strings.TrimSpace(templateID) == "" {
+		return errors.New("wechat subscription recipient and template are required")
+	}
+	if c.cfg.MockEnabled {
+		return nil
+	}
+	template, err := c.findSubscribeTemplate(ctx, templateID)
+	if err != nil {
+		return err
+	}
+	keys := subscribeDataKeys(template.Content)
+	if len(keys) == 0 || len(keys) != len(values) {
+		return fmt.Errorf("wechat subscription template fields mismatch: want %d values, got %d", len(keys), len(values))
+	}
+	data := make(map[string]map[string]string, len(keys))
+	for i, key := range keys {
+		data[key] = map[string]string{"value": normalizeSubscribeValue(key, values[i])}
+	}
+	body := map[string]any{
+		"touser":      openID,
+		"template_id": templateID,
+		"data":        data,
+	}
+	if strings.TrimSpace(page) != "" {
+		body["page"] = page
+	}
+	if state := strings.TrimSpace(miniprogramState); state != "" {
+		body["miniprogram_state"] = state
+	}
+	return c.postSubscribeMessage(ctx, body)
+}
+
+func (c *MiniProgramClient) postSubscribeMessage(ctx context.Context, body map[string]any) error {
+	token, err := c.getAccessToken(ctx)
+	if err != nil {
+		return err
+	}
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, subscribeSendURL+"?access_token="+url.QueryEscape(token), bytes.NewReader(encoded))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	var payload struct {
+		ErrCode int    `json:"errcode"`
+		ErrMsg  string `json:"errmsg"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return err
+	}
+	if payload.ErrCode != 0 {
+		return fmt.Errorf("wechat subscription send failed: %d", payload.ErrCode)
+	}
+	return nil
+}
+
+func (c *MiniProgramClient) findSubscribeTemplate(ctx context.Context, templateID string) (*SubscribeTemplate, error) {
+	c.templateMu.Lock()
+	if time.Since(c.templateAt) < 10*time.Minute {
+		for i := range c.templates {
+			if c.templates[i].ID == templateID {
+				result := c.templates[i]
+				c.templateMu.Unlock()
+				return &result, nil
+			}
+		}
+	}
+	c.templateMu.Unlock()
+
+	token, err := c.getAccessToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, templateListURL+"?access_token="+url.QueryEscape(token), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var payload struct {
+		ErrCode int                 `json:"errcode"`
+		ErrMsg  string              `json:"errmsg"`
+		Data    []SubscribeTemplate `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	if payload.ErrCode != 0 {
+		return nil, fmt.Errorf("wechat subscription template query failed: %d", payload.ErrCode)
+	}
+	c.templateMu.Lock()
+	c.templates = payload.Data
+	c.templateAt = time.Now()
+	c.templateMu.Unlock()
+	for i := range payload.Data {
+		if payload.Data[i].ID == templateID {
+			return &payload.Data[i], nil
+		}
+	}
+	return nil, errors.New("wechat subscription template is not configured")
+}
+
+var subscribeKeyPattern = regexp.MustCompile(`\{\{([A-Za-z0-9_]+)\.DATA\}\}`)
+
+func subscribeDataKeys(content string) []string {
+	matches := subscribeKeyPattern.FindAllStringSubmatch(content, -1)
+	keys := make([]string, 0, len(matches))
+	seen := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		if len(match) > 1 {
+			if _, ok := seen[match[1]]; !ok {
+				seen[match[1]] = struct{}{}
+				keys = append(keys, match[1])
+			}
+		}
+	}
+	return keys
+}
+
+// normalizeSubscribeValue keeps dynamic business text within WeChat template
+// field constraints while preserving the canonical template field order.
+func normalizeSubscribeValue(key, value string) string {
+	value = strings.TrimSpace(value)
+	switch {
+	case strings.HasPrefix(key, "date"):
+		if parsed, ok := parseSubscribeTime(value); ok {
+			return parsed.Format("2006-01-02")
+		}
+	case strings.HasPrefix(key, "time"):
+		if parsed, ok := parseSubscribeTime(value); ok {
+			return parsed.Format("15:04")
+		}
+	case strings.HasPrefix(key, "phrase"):
+		return truncateSubscribeValue(value, 5)
+	case strings.HasPrefix(key, "thing"):
+		return truncateSubscribeValue(value, 20)
+	case strings.HasPrefix(key, "name"):
+		return truncateSubscribeValue(value, 10)
+	case strings.HasPrefix(key, "character_string"):
+		return truncateSubscribeValue(value, 32)
+	}
+	return value
+}
+
+func parseSubscribeTime(value string) (time.Time, bool) {
+	for _, layout := range []string{time.RFC3339, "2006-01-02 15:04", "2006/1/2 15:04:05", "2006/1/2 15:04"} {
+		if parsed, err := time.ParseInLocation(layout, value, time.Local); err == nil {
+			return parsed, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func truncateSubscribeValue(value string, limit int) string {
+	chars := []rune(value)
+	if len(chars) <= limit {
+		return value
+	}
+	return string(chars[:limit])
 }
 
 func mockPhoneFromCode(phoneCode string) string {

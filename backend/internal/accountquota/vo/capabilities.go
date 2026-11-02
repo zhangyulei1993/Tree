@@ -10,6 +10,7 @@ type Usage struct {
 	OwnedFamilies         int            `json:"ownedFamilies"`
 	JoinedFamilies        int            `json:"joinedFamilies"`
 	MembersPerOwnedFamily map[string]int `json:"membersPerOwnedFamily"`
+	MembersLimitsByFamily map[string]int `json:"membersLimitsByFamily"`
 }
 
 type Capabilities struct {

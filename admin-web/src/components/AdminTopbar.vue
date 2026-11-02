@@ -24,7 +24,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { apiMode, getApiErrorMessage } from '@/api/client'
 import RoleTag from '@/components/RoleTag.vue'
 import { useAuthStore, type AdminRole } from '@/stores/auth'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 
 const auth = useAuthStore()
 const route = useRoute()

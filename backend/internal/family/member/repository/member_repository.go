@@ -32,6 +32,12 @@ type MemberRepository interface {
 	CountBlockingRelationships(context.Context, uint64, uint64) (int64, error)
 	HasChildWithoutOtherLineageParent(context.Context, uint64, uint64) (bool, error)
 	SoftDeleteDeletableRelationships(context.Context, uint64, uint64, uint64, *string, time.Time) (int64, error)
+	ListDeletedSince(context.Context, uint64, time.Time) ([]membermodel.FamilyMember, error)
+	FindDeletedForUpdate(context.Context, uint64, uint64, time.Time) (*membermodel.FamilyMember, error)
+	HasRestorePositionConflict(context.Context, *membermodel.FamilyMember, time.Time) (bool, error)
+	RestoreDeleted(context.Context, uint64, uint64, time.Time) error
+	DiscardRecovery(context.Context, uint64, uint64, uint64, time.Time) error
+	RestoreRelationshipsDeletedAt(context.Context, uint64, uint64, time.Time) error
 	FindUserForUpdate(context.Context, uint64) (*usermodel.User, error)
 	FindActiveLinkByMember(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
 	FindActiveLinkByUser(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
@@ -161,6 +167,80 @@ func (r *GormMemberRepository) SoftDeleteDeletableRelationships(ctx context.Cont
 			"updated_at":         now,
 		})
 	return result.RowsAffected, result.Error
+}
+
+func (r *GormMemberRepository) ListDeletedSince(ctx context.Context, familyID uint64, since time.Time) ([]membermodel.FamilyMember, error) {
+	var members []membermodel.FamilyMember
+	err := r.db.WithContext(ctx).Unscoped().Where("family_id = ? AND status = ? AND deleted_at >= ? AND recovery_discarded_at IS NULL", familyID, "DELETED", since).Order("deleted_at DESC").Find(&members).Error
+	return members, err
+}
+
+func (r *GormMemberRepository) FindDeletedForUpdate(ctx context.Context, familyID, memberID uint64, since time.Time) (*membermodel.FamilyMember, error) {
+	var member membermodel.FamilyMember
+	err := r.db.WithContext(ctx).Unscoped().Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND family_id = ? AND status = ? AND deleted_at >= ? AND recovery_discarded_at IS NULL", memberID, familyID, "DELETED", since).First(&member).Error
+	return &member, err
+}
+
+// HasRestorePositionConflict detects a replacement node created in the same
+// relationship position after this member was deleted. Names alone are not
+// unique in a genealogy, so the comparison is anchored to the deleted edge.
+//
+// Do not use the edge deletion timestamp as the anchor here. MySQL timestamp
+// precision differs across installations, and a precision mismatch could let a
+// replacement node slip through and create a duplicate during recovery.
+func (r *GormMemberRepository) HasRestorePositionConflict(ctx context.Context, member *membermodel.FamilyMember, deletedAt time.Time) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Table("family_relationships AS historical").
+		Joins(`INNER JOIN family_members AS replacement
+			ON replacement.family_id = historical.family_id
+			AND replacement.status = 'ACTIVE'
+			AND replacement.deleted_at IS NULL
+			AND replacement.id <> ?
+			AND replacement.display_name = ?`, member.ID, member.DisplayName).
+		Joins(`INNER JOIN family_relationships AS current
+			ON current.family_id = historical.family_id
+			AND current.status = 'ACTIVE'
+			AND current.deleted_at IS NULL
+			AND current.relationship_type = historical.relationship_type
+			AND (
+				(historical.from_member_id = ? AND current.from_member_id = replacement.id AND current.to_member_id = historical.to_member_id)
+				OR
+				(historical.to_member_id = ? AND current.to_member_id = replacement.id AND current.from_member_id = historical.from_member_id)
+			)`, member.ID, member.ID).
+		Where("historical.family_id = ? AND historical.status = ? AND historical.deleted_at IS NOT NULL", member.FamilyID, "DELETED").
+		Where("historical.from_member_id = ? OR historical.to_member_id = ?", member.ID, member.ID).
+		Count(&count).Error
+	if err != nil || count > 0 {
+		return count > 0, err
+	}
+
+	// A deleted standalone node has no relationship anchor. In that narrow
+	// case, matching its basic identity still prevents an accidental duplicate.
+	err = r.db.WithContext(ctx).Model(&membermodel.FamilyMember{}).
+		Where("family_id = ? AND status = ? AND deleted_at IS NULL AND id <> ?", member.FamilyID, "ACTIVE", member.ID).
+		Where("display_name = ? AND gender = ?", member.DisplayName, member.Gender).
+		Where("birth_date <=> ?", member.BirthDate).
+		Count(&count).Error
+	return count > 0, err
+}
+
+func (r *GormMemberRepository) RestoreDeleted(ctx context.Context, familyID, memberID uint64, now time.Time) error {
+	return r.db.WithContext(ctx).Unscoped().Model(&membermodel.FamilyMember{}).Where("id = ? AND family_id = ? AND status = ? AND recovery_discarded_at IS NULL", memberID, familyID, "DELETED").Updates(map[string]any{"status": "ACTIVE", "deleted_at": nil, "deleted_by_user_id": nil, "delete_reason": nil, "recovery_discarded_at": nil, "recovery_discarded_by_user_id": nil, "updated_at": now, "revision": gorm.Expr("revision + 1")}).Error
+}
+
+func (r *GormMemberRepository) DiscardRecovery(ctx context.Context, familyID, memberID, actorID uint64, now time.Time) error {
+	return r.db.WithContext(ctx).Unscoped().Model(&membermodel.FamilyMember{}).
+		Where("id = ? AND family_id = ? AND status = ? AND recovery_discarded_at IS NULL", memberID, familyID, "DELETED").
+		Updates(map[string]any{
+			"recovery_discarded_at":         now,
+			"recovery_discarded_by_user_id": actorID,
+			"updated_at":                    now,
+			"revision":                      gorm.Expr("revision + 1"),
+		}).Error
+}
+
+func (r *GormMemberRepository) RestoreRelationshipsDeletedAt(ctx context.Context, familyID, memberID uint64, deletedAt time.Time) error {
+	return r.db.WithContext(ctx).Table("family_relationships").Where("family_id = ? AND status = ? AND deleted_at = ? AND (from_member_id = ? OR to_member_id = ?)", familyID, "DELETED", deletedAt, memberID, memberID).Updates(map[string]any{"status": "ACTIVE", "deleted_at": nil, "deleted_by_user_id": nil, "delete_reason": nil, "revision": gorm.Expr("revision + 1")}).Error
 }
 
 func (r *GormMemberRepository) FindUserForUpdate(ctx context.Context, userID uint64) (*usermodel.User, error) {

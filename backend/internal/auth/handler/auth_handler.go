@@ -144,6 +144,7 @@ func (h *AuthHandler) WechatMiniPhoneLogin(ctx *gin.Context) {
 	}
 
 	result, businessErr := h.service.WechatMiniPhoneLogin(ctx.Request.Context(), authservice.WechatMiniPhoneLoginInput{
+		Code:       req.Code,
 		PhoneCode:  req.PhoneCode,
 		ClientType: req.ClientType,
 		IP:         ctx.ClientIP(),
@@ -217,6 +218,36 @@ func (h *AuthHandler) BindPhoneCredential(ctx *gin.Context) {
 		response.Error(ctx, http.StatusBadRequest, businessErr)
 		return
 	}
+	response.OK(ctx, result)
+}
+
+func (h *AuthHandler) BindWechatPhone(ctx *gin.Context) {
+	userID, err := middleware.CurrentUserID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	tokenID, _ := middleware.CurrentJWTID(ctx)
+
+	var req dto.BindWechatPhoneRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+
+	result, businessErr := h.service.BindWechatPhone(ctx.Request.Context(), authservice.BindWechatPhoneInput{
+		UserID:     userID,
+		TokenID:    tokenID,
+		PhoneCode:  req.PhoneCode,
+		ClientType: req.ClientType,
+		IP:         ctx.ClientIP(),
+		UserAgent:  ctx.Request.UserAgent(),
+	})
+	if businessErr != nil {
+		response.Error(ctx, http.StatusBadRequest, businessErr)
+		return
+	}
+
 	response.OK(ctx, result)
 }
 

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -89,6 +90,41 @@ func TestAuthMiddlewareInjectsOnlyExpectedIdentity(t *testing.T) {
 		}
 		if _, err := CurrentUserID(ctx); err == nil {
 			t.Fatal("ADMIN token injected user identity")
+		}
+	})
+}
+
+func TestUserAuthWithStateLookupRejectsDisabledUserAndPropagatesPhoneState(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	manager := middlewareTestManager(t)
+	token, _ := manager.GenerateAccessToken(10, commonjwt.TokenTypeUser, "", "state-jti")
+
+	t.Run("disabled user", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/families", nil)
+		ctx.Request.Header.Set("Authorization", "Bearer "+token)
+		UserAuthWithStateLookup(manager, nil, func(_ context.Context, _ uint64) (UserAuthState, error) {
+			return UserAuthState{Status: "DISABLED", PhoneVerified: true}, nil
+		})(ctx)
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
+		}
+	})
+
+	t.Run("active user carries phone state", func(t *testing.T) {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest(http.MethodGet, "/api/families", nil)
+		ctx.Request.Header.Set("Authorization", "Bearer "+token)
+		UserAuthWithStateLookup(manager, nil, func(_ context.Context, userID uint64) (UserAuthState, error) {
+			if userID != 10 {
+				t.Fatalf("lookup user id = %d, want 10", userID)
+			}
+			return UserAuthState{Status: "ACTIVE", PhoneVerified: true}, nil
+		})(ctx)
+		verified, ok := ctx.Get(ContextPhoneVerified)
+		if !ok || verified != true {
+			t.Fatalf("phone state = %#v, want true", verified)
 		}
 	})
 }

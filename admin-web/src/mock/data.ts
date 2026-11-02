@@ -91,8 +91,8 @@ export interface OperationLogRow {
 export const dashboardStats = [
   { label: '用户总数', value: 1286, trend: '+12 本周' },
   { label: '家庭总数', value: 328, trend: '+6 本周' },
-  { label: '公开家庭', value: 72, trend: '22%' },
-  { label: '待审公开申请', value: 9, trend: '需要处理' },
+  { label: '优质家庭', value: 72, trend: '22%' },
+  { label: '待审优质家庭申请', value: 9, trend: '需要处理' },
   { label: '待审留言', value: 16, trend: '含 3 条高优先级' },
   { label: '待审转让', value: 2, trend: 'ROOT/SUPER' },
   { label: '待审解散', value: 1, trend: 'ROOT/SUPER' }
@@ -158,7 +158,7 @@ export const memberTree: MemberNode[] = [
 
 export const publicApplications: AuditRow[] = [
   { id: 'pub_app_001', familyName: '李氏宗亲', applicant: '李清禾', reason: '希望展示公开家谱供宗亲查找', status: 'PENDING', createdAt: '2026-06-07 14:20' },
-  { id: 'pub_app_002', familyName: '张氏家族', applicant: '张一明', reason: '完善公开展示资料后重新提交', status: 'APPROVED', createdAt: '2026-06-05 10:11' },
+  { id: 'pub_app_002', familyName: '张氏家族', applicant: '张一明', reason: '完善优质家庭案例资料后重新提交', status: 'APPROVED', createdAt: '2026-06-05 10:11' },
   { id: 'pub_app_003', familyName: '王氏家谱', applicant: '王明远', reason: '资料不足的申请样例', status: 'REJECTED', createdAt: '2026-06-01 09:36' }
 ]
 

@@ -139,6 +139,20 @@ func TestSensitiveDetailJSONIsSanitizedRecursively(t *testing.T) {
 	}
 }
 
+func TestSanitizeErrorMessageRedactsSensitiveContext(t *testing.T) {
+	unsafe := "wechat login failed: session_key=private-value"
+	cleaned := sanitizeErrorMessage(&unsafe)
+	if cleaned == nil || *cleaned != redactedValue {
+		t.Fatalf("sensitive error message = %v, want redacted", cleaned)
+	}
+
+	safe := "family member does not exist"
+	cleaned = sanitizeErrorMessage(&safe)
+	if cleaned == nil || *cleaned != safe {
+		t.Fatalf("safe error message = %v, want %q", cleaned, safe)
+	}
+}
+
 func TestRolledBackTransactionLeavesNoSuccessLog(t *testing.T) {
 	ctx := context.Background()
 	db := operationLogTestDB(t)

@@ -28,6 +28,26 @@ export interface DashboardStats {
   pendingPublicApplications: number
   pendingFounderTransfers: number
   pendingDissolutions: number
+  paidCapacityOrders: number
+  activeCapacityRevenueFen: number
+  pendingCapacityRefunds: number
+  reviewCapacityRefunds: number
+  failedCapacityRefunds: number
+  pendingOperations: number
+  newUsersLast7Days: number
+  newFamiliesLast7Days: number
+  acceptedInvitationsLast7Days: number
+}
+
+export interface RecoveryItem {
+  kind: 'MEMBER' | 'RELATIONSHIP'
+  id: number
+  familyId: number
+  familyName: string
+  title: string
+  description: string
+  deletedAt: string
+  deleteReason?: string | null
 }
 
 export interface ManagedUser {
@@ -38,9 +58,7 @@ export interface ManagedUser {
   accountOrigin: string
   registerClient: string
   phoneVerified: boolean
-  phoneLoginEnabled: boolean
   hasWechatLogin: boolean
-  canUnbindPhoneLogin: boolean
   trustTier: 'WECHAT_ONLY' | 'PHONE_BOUND'
   loginMethod: string
   status: string
@@ -96,6 +114,7 @@ export interface AdminFamilyTreeNode {
   birthDate?: string | null
   sortOrder?: number
   isLiving?: boolean | null
+  userBindingPolicy?: string
   userBindingState: string
 }
 
@@ -360,7 +379,7 @@ export interface AccountFeatureOverrideItem {
 
 export interface ShareConfig {
   id: number
-  configKey: 'HOME' | 'PUBLIC_FAMILY' | 'INVITATION_NODE' | 'INVITATION_PENDING_MEMBER' | string
+  configKey: 'HOME' | 'PUBLIC_FAMILY' | 'PUBLIC_FAMILY_TIMELINE' | 'INVITATION_NODE' | 'INVITATION_REWARD' | 'INVITATION_DETAIL' | 'CONTENT_ARTICLE' | string
   titleTemplate: string
   imageUrl: string
   imageUrls: string[]
@@ -381,6 +400,20 @@ export interface ToolConfig {
   updatedAt: string
 }
 
+export interface LaunchSplashConfig {
+  id: number
+  configKey: string
+  enabled: boolean
+  title: string
+  tagline: string
+  imageUrl: string
+  dayImageUrl: string
+  nightImageUrl: string
+  durationMs: number
+  skipEnabled: boolean
+  updatedAt: string
+}
+
 export interface ShowcaseFamily {
   id: number
   displayName: string
@@ -393,6 +426,7 @@ export interface ShowcaseFamily {
   memberCount: number
   relationshipCount: number
   treeStatus: 'BUILDING' | 'READY'
+  hasUnpublishedChanges: boolean
   rotationPinned: boolean
   publishedAt?: string | null
   updatedAt: string

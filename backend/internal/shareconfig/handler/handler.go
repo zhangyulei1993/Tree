@@ -22,8 +22,20 @@ func (h *Handler) PublicList(ctx *gin.Context) {
 }
 
 func (h *Handler) AdminList(ctx *gin.Context) {
+	if !canManage(ctx) {
+		return
+	}
 	result, err := h.service.List(ctx.Request.Context())
 	write(ctx, http.StatusOK, result, err)
+}
+
+func canManage(ctx *gin.Context) bool {
+	role, err := middleware.CurrentAdminRole(ctx)
+	if err != nil || (role != "ROOT_ADMIN" && role != "SUPER_ADMIN") {
+		response.Abort(ctx, http.StatusForbidden, apperrors.CodeForbidden)
+		return false
+	}
+	return true
 }
 
 func (h *Handler) AdminUpdate(ctx *gin.Context) {
@@ -54,6 +66,9 @@ func write(ctx *gin.Context, status int, result any, err *apperrors.BusinessErro
 	httpStatus := http.StatusBadRequest
 	if err.Code == shareservice.CodeNotFound {
 		httpStatus = http.StatusNotFound
+	}
+	if err.Code == apperrors.CodeForbidden {
+		httpStatus = http.StatusForbidden
 	}
 	if err.Code == apperrors.CodeSystemError {
 		httpStatus = http.StatusInternalServerError

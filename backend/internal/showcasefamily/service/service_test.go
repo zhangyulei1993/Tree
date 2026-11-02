@@ -2,6 +2,7 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	showcasemodel "tree/backend/internal/showcasefamily/model"
 )
@@ -86,5 +87,18 @@ func TestHasChildWithoutOtherLineageParent(t *testing.T) {
 	}
 	if !hasChildWithoutOtherLineageParent(rows[:1], members, 2) {
 		t.Fatal("external spouse child without a lineage co-parent must block deletion")
+	}
+}
+
+func TestHasUnpublishedChanges(t *testing.T) {
+	publishedAt := time.Now()
+	if !hasUnpublishedChanges(showcasemodel.ShowcaseFamily{Status: StatusDraft, PublishedAt: &publishedAt}) {
+		t.Fatal("draft family with a previous published timestamp should be marked as modified but unpublished")
+	}
+	if hasUnpublishedChanges(showcasemodel.ShowcaseFamily{Status: StatusDraft}) {
+		t.Fatal("new draft family must not be marked as modified but unpublished")
+	}
+	if hasUnpublishedChanges(showcasemodel.ShowcaseFamily{Status: StatusPublished, PublishedAt: &publishedAt}) {
+		t.Fatal("currently published family must not be marked as modified but unpublished")
 	}
 }

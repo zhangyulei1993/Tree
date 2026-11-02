@@ -2,9 +2,9 @@
   <PageShell>
     <section class="container search-page">
       <div class="search-hero">
-        <span class="eyebrow">公开家族</span>
-        <h1>寻找你的家族</h1>
-        <p>浏览已审核公开的家族主页、公开树和联系方式。未公开家庭不会出现在这里。</p>
+        <span class="eyebrow">优质家庭</span>
+        <h1>学习家庭案例</h1>
+        <p>浏览经平台审核、供学习参考的家庭案例、家庭树结构和公开联系方式。</p>
       </div>
 
       <form class="card filters" @submit.prevent="runSearch">
@@ -14,16 +14,16 @@
         <button class="button" :disabled="loading">{{ loading ? '搜索中...' : '搜索' }}</button>
       </form>
 
-      <section v-if="loading && families.length === 0" class="card state-panel">正在加载公开家庭...</section>
+      <section v-if="loading && families.length === 0" class="card state-panel">正在加载优质家庭案例...</section>
       <section v-else-if="error" class="card state-panel error" role="alert">
-        <strong>公开家庭加载失败</strong>
+        <strong>优质家庭案例加载失败</strong>
         <span>{{ error }}</span>
         <button class="button secondary" @click="runSearch">重新加载</button>
       </section>
       <template v-else>
         <p class="muted">搜索结果：共 {{ total }} 个家庭</p>
         <section v-if="families.length === 0" class="card state-panel">
-          {{ hasFilters ? '未找到匹配的公开家庭，请尝试其他关键词。' : '当前暂无公开家庭。' }}
+          {{ hasFilters ? '未找到匹配的优质家庭案例，请尝试其他关键词。' : '当前暂无优质家庭案例。' }}
         </section>
         <div v-else class="grid">
           <FamilyCard v-for="family in familyCards" :key="family.id" :family="family" />
@@ -88,7 +88,7 @@ async function fetchFamilies(append: boolean) {
       families.value = []
       total.value = 0
     }
-    error.value = apiErrorMessage(requestError, '无法加载公开家庭。')
+    error.value = apiErrorMessage(requestError, '无法加载优质家庭案例。')
   } finally {
     loading.value = false
   }

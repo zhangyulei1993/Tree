@@ -25,8 +25,8 @@ import (
 	invitationmodel "tree/backend/internal/family/invitation/model"
 	inviterepo "tree/backend/internal/family/invitation/repository"
 	"tree/backend/internal/family/invitation/vo"
-	membermodel "tree/backend/internal/family/member/model"
 	rolemodel "tree/backend/internal/family/role/model"
+	notificationservice "tree/backend/internal/notification/service"
 	operationlog "tree/backend/internal/operationlog/service"
 )
 
@@ -42,6 +42,9 @@ const (
 	CodeInvitationDuplicate      apperrors.Code = 44009
 
 	invitationTTL = 7 * 24 * time.Hour
+
+	// Kept only to make pre-existing links fail safely after the feature retirement.
+	retiredPendingMemberInviteType = "JOIN_FAMILY_PENDING_MEMBER"
 )
 
 type AuditInput struct {
@@ -51,7 +54,6 @@ type AuditInput struct {
 
 type Service interface {
 	Create(context.Context, uint64, uint64, uint64, dto.CreateInvitationRequest, AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError)
-	CreateFamily(context.Context, uint64, uint64, dto.CreateInvitationRequest, AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError)
 	Detail(context.Context, string) (*vo.Invitation, *apperrors.BusinessError)
 	Accept(context.Context, uint64, uint64, AuditInput) (*vo.Invitation, *apperrors.BusinessError)
 	Reject(context.Context, uint64, uint64, dto.RejectInvitationRequest, AuditInput) (*vo.Invitation, *apperrors.BusinessError)
@@ -59,6 +61,20 @@ type Service interface {
 	ListMine(context.Context, uint64) ([]vo.Invitation, *apperrors.BusinessError)
 	ListFamily(context.Context, uint64, uint64) ([]vo.Invitation, *apperrors.BusinessError)
 	Regenerate(context.Context, uint64, uint64, AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError)
+	ListMinePage(context.Context, uint64, int, int) (*InvitationPage, *apperrors.BusinessError)
+	ListFamilyPage(context.Context, uint64, uint64, int, int) (*InvitationPage, *apperrors.BusinessError)
+}
+
+type InvitationPage struct {
+	Items    []vo.Invitation `json:"items"`
+	Total    int64           `json:"total"`
+	Page     int             `json:"page"`
+	PageSize int             `json:"pageSize"`
+}
+
+type pageRepository interface {
+	ListForUserPage(context.Context, uint64, int, int) ([]inviterepo.InvitationRow, int64, error)
+	ListForFamilyPage(context.Context, uint64, int, int) ([]inviterepo.InvitationRow, int64, error)
 }
 
 type service struct {
@@ -70,9 +86,18 @@ type service struct {
 	treeCache     commonredis.TreeCache
 	now           func() time.Time
 	token         func() (string, error)
+	notifications notificationservice.Service
 }
 
 func NewService(repo inviterepo.Repository, uow inviterepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service, treeCaches ...commonredis.TreeCache) Service {
+	return newService(repo, uow, permissions, quota, contentSafety, nil, treeCaches...)
+}
+
+func NewServiceWithNotifications(repo inviterepo.Repository, uow inviterepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service, notifications notificationservice.Service, treeCaches ...commonredis.TreeCache) Service {
+	return newService(repo, uow, permissions, quota, contentSafety, notifications, treeCaches...)
+}
+
+func newService(repo inviterepo.Repository, uow inviterepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service, notifications notificationservice.Service, treeCaches ...commonredis.TreeCache) Service {
 	if contentSafety == nil {
 		contentSafety = contentsafety.FailClosed()
 	}
@@ -80,104 +105,7 @@ func NewService(repo inviterepo.Repository, uow inviterepo.UnitOfWork, permissio
 	if len(treeCaches) > 0 && treeCaches[0] != nil {
 		treeCache = treeCaches[0]
 	}
-	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, contentSafety: contentSafety, treeCache: treeCache, now: time.Now, token: randomToken}
-}
-
-func (s *service) CreateFamily(ctx context.Context, actorID, familyID uint64, req dto.CreateInvitationRequest, audit AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError) {
-	allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID)
-	if err != nil || !allowed {
-		return nil, inviteError(CodeInvitationForbidden, "无权创建邀请")
-	}
-	label := clean(req.PendingMemberLabel)
-	if label == nil {
-		return nil, inviteError(CodeMemberNotInvitable, "请填写待确认身份标签")
-	}
-	channel := strings.ToUpper(strings.TrimSpace(req.InviteChannel))
-	if channel != inviteenum.ChannelShareLink && channel != inviteenum.ChannelInApp {
-		return nil, inviteError(CodeMemberNotInvitable, "邀请方式不支持")
-	}
-	if channel == inviteenum.ChannelInApp && (req.TargetUserID == nil || *req.TargetUserID == 0) {
-		return nil, inviteError(CodeMemberNotInvitable, "站内邀请必须指定用户")
-	}
-	if channel == inviteenum.ChannelShareLink && req.TargetUserID != nil {
-		return nil, inviteError(CodeMemberNotInvitable, "分享邀请不能指定站内用户")
-	}
-	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
-		UserID: actorID,
-		Scene:  contentsafety.SceneSocial,
-		Fields: contentsafety.MergeFields(
-			contentsafety.OptionalField("invite_message", req.InviteMessage),
-			contentsafety.StringField("pending_member_label", *label),
-		),
-		FamilyID: &familyID,
-		IP:       audit.IP, UserAgent: audit.UserAgent,
-	}); businessErr != nil {
-		return nil, businessErr
-	}
-	if req.FamilyRoleAfterAccept != nil &&
-		strings.ToUpper(strings.TrimSpace(*req.FamilyRoleAfterAccept)) != string(enums.FamilyRoleMember) {
-		return nil, inviteError(CodeMemberNotInvitable, "邀请接受后的家庭角色只能是 MEMBER")
-	}
-	rawToken, err := s.token()
-	if err != nil {
-		return nil, apperrors.New(apperrors.CodeSystemError)
-	}
-	now := s.now()
-	role := string(enums.FamilyRoleMember)
-	actorType := inviteenum.ActorFamilyAdmin
-	if link, err := s.permissions.GetActiveLink(ctx, actorID, familyID); err == nil && link.FamilyRole == string(enums.FamilyRoleFounder) {
-		actorType = inviteenum.ActorFamilyFounder
-	}
-	invitation := &invitationmodel.FamilyInvitation{
-		FamilyID: familyID, InviterUserID: &actorID,
-		TargetUserID: req.TargetUserID, InviteType: inviteenum.TypeJoinFamilyPendingMember,
-		InviteChannel: channel, InviteActorType: actorType, FamilyRoleAfterAccept: role,
-		InviteToken: stringPtr(tokenHash(rawToken)), InviteMessage: clean(req.InviteMessage), PendingMemberLabel: label,
-		Status: inviteenum.StatusPending, ExpiredAt: now.Add(invitationTTL),
-	}
-	err = s.uow.WithinTransaction(ctx, func(repo inviterepo.Repository) error {
-		family, err := repo.FindFamily(ctx, familyID, true)
-		if err != nil || family.Status != string(enums.StatusNormal) {
-			return errMemberUnavailable
-		}
-		if req.TargetUserID != nil {
-			user, err := repo.FindUser(ctx, *req.TargetUserID, true)
-			if err != nil || user.Status != string(enums.StatusActive) {
-				return errMemberUnavailable
-			}
-			linked, err := linkExists(repo.FindActiveLinkByUser(ctx, familyID, *req.TargetUserID))
-			if err != nil {
-				return err
-			}
-			if linked {
-				return errUserLinked
-			}
-		}
-		if s.quota != nil {
-			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), actorID); err != nil {
-				return err
-			}
-		}
-		if err := repo.Create(ctx, invitation); err != nil {
-			return err
-		}
-		return writeLog(ctx, repo, actorID, familyID, 0, invitation.ID, "CREATE_FAMILY_INVITATION", audit)
-	})
-	if err != nil {
-		if s.quota != nil {
-			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
-				return nil, businessErr
-			}
-		}
-	}
-	if businessErr := mapError(err); businessErr != nil {
-		return nil, businessErr
-	}
-	row, err := s.repo.FindByTokenHash(ctx, tokenHash(rawToken))
-	if err != nil {
-		return nil, apperrors.New(apperrors.CodeSystemError)
-	}
-	return &vo.CreatedInvitation{Invitation: invitationVO(row), InviteToken: rawToken}, nil
+	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, contentSafety: contentSafety, treeCache: treeCache, now: time.Now, token: randomToken, notifications: notifications}
 }
 
 func (s *service) Create(ctx context.Context, actorID, familyID, memberID uint64, req dto.CreateInvitationRequest, audit AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError) {
@@ -229,6 +157,9 @@ func (s *service) Create(ctx context.Context, actorID, familyID, memberID uint64
 		family, err := repo.FindFamily(ctx, familyID, true)
 		if err != nil || family.Status != string(enums.StatusNormal) {
 			return errMemberUnavailable
+		}
+		if err := requirePhoneVerifiedInviter(ctx, repo, actorID); err != nil {
+			return err
 		}
 		member, err := repo.FindMember(ctx, familyID, memberID, true)
 		if err != nil || member.UserBindingPolicy == string(enums.UserBindingNotRequired) {
@@ -283,7 +214,15 @@ func (s *service) Create(ctx context.Context, actorID, familyID, memberID uint64
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	return &vo.CreatedInvitation{Invitation: invitationVO(row), InviteToken: rawToken}, nil
+	result := &vo.CreatedInvitation{Invitation: invitationVO(row), InviteToken: rawToken}
+	if s.notifications != nil && invitation.TargetUserID != nil && *invitation.TargetUserID != 0 {
+		s.notifications.Create(ctx, notificationservice.Input{
+			UserID: *invitation.TargetUserID, Category: "INVITATION", Title: "收到家庭邀请",
+			Content: fmt.Sprintf("「%s」邀请你绑定家庭成员「%s」，请及时处理。", result.Invitation.FamilyName, result.Invitation.TargetMemberName),
+			Route:   "/pages/invite/my", RelatedType: "FAMILY_INVITATION", RelatedID: invitation.ID,
+		})
+	}
+	return result, nil
 }
 
 func (s *service) Detail(ctx context.Context, rawToken string) (*vo.Invitation, *apperrors.BusinessError) {
@@ -296,6 +235,9 @@ func (s *service) Detail(ctx context.Context, rawToken string) (*vo.Invitation, 
 	}
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	if isRetiredPendingMemberInvitation(row.InviteType) {
+		return nil, inviteError(CodeInvitationInvalidStatus, "该暂存成员邀请已下线，请联系家庭管理员从已有节点重新邀请")
 	}
 	result := invitationVO(row)
 	if row.Status == inviteenum.StatusPending && !row.ExpiredAt.After(s.now()) {
@@ -314,6 +256,11 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
+	if isRetiredPendingMemberInvitation(current.InviteType) {
+		businessErr := inviteError(CodeInvitationInvalidStatus, "该暂存成员邀请已下线，请联系家庭管理员从已有节点重新邀请")
+		s.writeAcceptFailureLog(ctx, actorID, current, invitationID, current.TargetMemberID, businessErr, audit)
+		return nil, businessErr
+	}
 	var cacheFamilyID uint64
 	var cacheGraphVersion int64
 	txErr := s.uow.WithinTransaction(ctx, func(repo inviterepo.Repository) error {
@@ -330,6 +277,9 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 		if invitation.FamilyID != current.FamilyID {
 			return errInvitationMissing
 		}
+		if isRetiredPendingMemberInvitation(invitation.InviteType) {
+			return errInvalidStatus
+		}
 		if invitation.Status != inviteenum.StatusPending {
 			return errInvalidStatus
 		}
@@ -340,46 +290,10 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 		if invitation.InviteChannel == inviteenum.ChannelInApp && (invitation.TargetUserID == nil || *invitation.TargetUserID != actorID) {
 			return errTargetMismatch
 		}
-		var targetMemberID = invitation.TargetMemberID
-		if invitation.InviteType == inviteenum.TypeJoinFamilyPendingMember && targetMemberID == 0 {
-			if s.quota != nil {
-				if err := s.quota.AssertCanAddMember(ctx, repo.DB(), invitation.FamilyID, 1); err != nil {
-					return err
-				}
-			}
-			member := &membermodel.FamilyMember{
-				FamilyID:          invitation.FamilyID,
-				MemberType:        "LINEAGE_MEMBER",
-				DisplayName:       pendingMemberDisplayName(invitation),
-				Gender:            string(enums.GenderUnknown),
-				UserBindingPolicy: string(enums.UserBindingOptional),
-				Status:            string(enums.StatusActive),
-				CreatedByUserID:   &actorID,
-			}
-			if err := repo.CreateMember(ctx, member); err != nil {
-				return err
-			}
-			targetMemberID = member.ID
-			invitation.TargetMemberID = targetMemberID
-			if err := repo.IncrementGraphVersion(ctx, invitation.FamilyID); err != nil {
-				return err
-			}
-			cacheGraphVersion++
-			if err := writePendingMemberLog(ctx, repo, actorID, invitation.FamilyID, targetMemberID, audit); err != nil {
-				return err
-			}
-		} else {
-			member, err := repo.FindMemberAnyStatus(ctx, invitation.FamilyID, targetMemberID, true)
-			if err != nil || member.UserBindingPolicy == string(enums.UserBindingNotRequired) {
-				return errMemberUnavailable
-			}
-			if invitation.InviteType == inviteenum.TypeJoinFamilyPendingMember {
-				if member.Status != string(enums.StatusPending) && member.Status != string(enums.StatusActive) {
-					return errMemberUnavailable
-				}
-			} else if member.Status != string(enums.StatusActive) {
-				return errMemberUnavailable
-			}
+		targetMemberID := invitation.TargetMemberID
+		member, err := repo.FindMember(ctx, invitation.FamilyID, targetMemberID, true)
+		if err != nil || member.UserBindingPolicy == string(enums.UserBindingNotRequired) {
+			return errMemberUnavailable
 		}
 		user, err := repo.FindUser(ctx, actorID, true)
 		if err != nil || user.Status != string(enums.StatusActive) {
@@ -405,20 +319,6 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 			}
 			if err := s.quota.AssertCanJoinFamily(ctx, repo.DB(), actorID); err != nil {
 				return err
-			}
-		}
-		if invitation.InviteType == inviteenum.TypeJoinFamilyPendingMember && invitation.TargetMemberID == targetMemberID && targetMemberID != 0 {
-			member, err := repo.FindMemberAnyStatus(ctx, invitation.FamilyID, targetMemberID, true)
-			if err != nil {
-				return errMemberUnavailable
-			}
-			if member.Status == string(enums.StatusPending) {
-				if err := repo.UpdateMember(ctx, invitation.FamilyID, targetMemberID, map[string]any{
-					"status":     string(enums.StatusActive),
-					"updated_at": now,
-				}); err != nil {
-					return err
-				}
 			}
 		}
 		link := &rolemodel.FamilyMemberUserLink{
@@ -461,7 +361,20 @@ func (s *service) Accept(ctx context.Context, actorID, invitationID uint64, audi
 	if cacheFamilyID != 0 {
 		_ = s.treeCache.Delete(ctx, fmt.Sprintf("family:%d:tree:v%d", cacheFamilyID, cacheGraphVersion))
 	}
-	return s.resultByID(ctx, invitationID)
+	result, businessErr := s.resultByID(ctx, invitationID)
+	if businessErr == nil && result != nil && s.notifications != nil && current.InviterUserID != nil {
+		acceptedAt := time.Now()
+		if result.AcceptedAt != nil {
+			acceptedAt = *result.AcceptedAt
+		}
+		s.notifications.Create(ctx, notificationservice.Input{
+			UserID: *current.InviterUserID, Category: "MEMBER", Title: "邀请已被接受",
+			Content: fmt.Sprintf("成员「%s」已加入%s。", result.TargetMemberName, result.FamilyName),
+			Route:   fmt.Sprintf("/pages/family/detail?familyId=%d", result.FamilyID), RelatedType: "FAMILY_INVITATION", RelatedID: invitationID,
+			Subscribe: &notificationservice.SubscribeInput{Kind: "MEMBER", Page: fmt.Sprintf("pages/family/detail?familyId=%d", result.FamilyID), Values: []string{acceptedAt.Format("2006-01-02 15:04"), result.TargetMemberName, result.AcceptedByDisplayName, result.FamilyName, "已加入"}},
+		})
+	}
+	return result, businessErr
 }
 
 func (s *service) Reject(ctx context.Context, actorID, invitationID uint64, req dto.RejectInvitationRequest, audit AuditInput) (*vo.Invitation, *apperrors.BusinessError) {
@@ -478,6 +391,9 @@ func (s *service) Reject(ctx context.Context, actorID, invitationID uint64, req 
 			return errInvitationMissing
 		}
 		if value.Status != inviteenum.StatusPending {
+			return errInvalidStatus
+		}
+		if isRetiredPendingMemberInvitation(value.InviteType) {
 			return errInvalidStatus
 		}
 		if !value.ExpiredAt.After(s.now()) {
@@ -575,6 +491,50 @@ func (s *service) ListFamily(ctx context.Context, actorID, familyID uint64) ([]v
 	return result, nil
 }
 
+func (s *service) ListMinePage(ctx context.Context, actorID uint64, page, pageSize int) (*InvitationPage, *apperrors.BusinessError) {
+	store, ok := s.repo.(pageRepository)
+	if !ok {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	rows, total, err := store.ListForUserPage(ctx, actorID, page, pageSize)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	items := make([]vo.Invitation, 0, len(rows))
+	for i := range rows {
+		item := invitationVO(&rows[i])
+		if item.Status == inviteenum.StatusPending && !item.ExpiredAt.After(s.now()) {
+			item.Status = inviteenum.StatusExpired
+		}
+		items = append(items, item)
+	}
+	return &InvitationPage{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
+}
+
+func (s *service) ListFamilyPage(ctx context.Context, actorID, familyID uint64, page, pageSize int) (*InvitationPage, *apperrors.BusinessError) {
+	allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID)
+	if err != nil || !allowed {
+		return nil, inviteError(CodeInvitationForbidden, "无权查看家庭邀请")
+	}
+	store, ok := s.repo.(pageRepository)
+	if !ok {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	rows, total, err := store.ListForFamilyPage(ctx, familyID, page, pageSize)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	items := make([]vo.Invitation, 0, len(rows))
+	for i := range rows {
+		item := invitationVO(&rows[i])
+		if item.Status == inviteenum.StatusPending && !item.ExpiredAt.After(s.now()) {
+			item.Status = inviteenum.StatusExpired
+		}
+		items = append(items, item)
+	}
+	return &InvitationPage{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
+}
+
 func (s *service) Regenerate(ctx context.Context, actorID, invitationID uint64, audit AuditInput) (*vo.CreatedInvitation, *apperrors.BusinessError) {
 	current, err := s.repo.FindByID(ctx, invitationID, false)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -604,6 +564,9 @@ func (s *service) Regenerate(ctx context.Context, actorID, invitationID uint64, 
 		if value.Status != inviteenum.StatusPending {
 			return errInvalidStatus
 		}
+		if err := requirePhoneVerifiedInviter(ctx, repo, actorID); err != nil {
+			return err
+		}
 		if s.quota != nil {
 			if err := s.quota.AssertProfileComplete(ctx, repo.DB(), actorID); err != nil {
 				return err
@@ -622,7 +585,7 @@ func (s *service) Regenerate(ctx context.Context, actorID, invitationID uint64, 
 			InviterUserID: &actorID, InviteType: value.InviteType,
 			InviteChannel: inviteenum.ChannelShareLink, InviteActorType: value.InviteActorType,
 			FamilyRoleAfterAccept: value.FamilyRoleAfterAccept,
-			InviteToken:           stringPtr(tokenHash(rawToken)), InviteMessage: value.InviteMessage, PendingMemberLabel: value.PendingMemberLabel,
+			InviteToken:           stringPtr(tokenHash(rawToken)), InviteMessage: value.InviteMessage,
 			Status: inviteenum.StatusPending, ExpiredAt: now.Add(invitationTTL),
 		}
 		if err := repo.Create(ctx, replacement); err != nil {
@@ -660,20 +623,18 @@ func invitationVO(row *inviterepo.InvitationRow) vo.Invitation {
 	return vo.Invitation{
 		InvitationID: row.ID, FamilyID: row.FamilyID, FamilyName: row.FamilyName,
 		TargetMemberID: row.TargetMemberID, TargetMemberName: row.TargetMemberName,
-		PendingMemberLabel: row.PendingMemberLabel,
 		InviterDisplayName: row.InviterDisplayName, InviterRole: row.InviteActorType,
 		InviteType: row.InviteType, InviteChannel: row.InviteChannel, InviteMessage: row.InviteMessage,
 		FamilyRoleAfterAccept: row.FamilyRoleAfterAccept, Status: row.Status,
-		ExpiredAt: row.ExpiredAt, AcceptedAt: row.AcceptedAt, RejectedAt: row.RejectedAt,
+		ExpiredAt: row.ExpiredAt, AcceptedAt: row.AcceptedAt,
+		AcceptedByUserID: row.AcceptedByUserID, AcceptedByDisplayName: row.AcceptedByDisplayName,
+		RejectedAt:  row.RejectedAt,
 		CancelledAt: row.CancelledAt, CreatedAt: row.CreatedAt,
 	}
 }
 
-func pendingMemberDisplayName(invitation *invitationmodel.FamilyInvitation) string {
-	if invitation != nil && invitation.PendingMemberLabel != nil && strings.TrimSpace(*invitation.PendingMemberLabel) != "" {
-		return strings.TrimSpace(*invitation.PendingMemberLabel)
-	}
-	return "待确认成员"
+func isRetiredPendingMemberInvitation(inviteType string) bool {
+	return strings.EqualFold(strings.TrimSpace(inviteType), retiredPendingMemberInviteType)
 }
 
 func writeLog(ctx context.Context, repo inviterepo.Repository, actorID, familyID, memberID, invitationID uint64, action string, audit AuditInput) error {
@@ -688,16 +649,6 @@ func writeLog(ctx context.Context, repo inviterepo.Repository, actorID, familyID
 		input.MemberID = &memberID
 	}
 	return repo.WriteLog(ctx, input)
-}
-
-func writePendingMemberLog(ctx context.Context, repo inviterepo.Repository, actorID, familyID, memberID uint64, audit AuditInput) error {
-	targetType := "FAMILY_MEMBER"
-	return repo.WriteLog(ctx, operationlog.WriteInput{
-		OperatorType: string(enums.OperatorTypeUser), OperatorUserID: &actorID,
-		Module: "FAMILY_MEMBER", Action: "CREATE_PENDING_INVITATION_MEMBER", TargetType: &targetType,
-		TargetID: &memberID, FamilyID: &familyID, MemberID: &memberID,
-		IP: clean(&audit.IP), UserAgent: clean(&audit.UserAgent),
-	})
 }
 
 func (s *service) writeAcceptFailureLog(
@@ -784,17 +735,29 @@ func inviteError(code apperrors.Code, message string) *apperrors.BusinessError {
 	return &apperrors.BusinessError{Code: code, Message: message}
 }
 
+func requirePhoneVerifiedInviter(ctx context.Context, repo inviterepo.Repository, actorID uint64) error {
+	user, err := repo.FindUser(ctx, actorID, true)
+	if err != nil || user.Status != string(enums.StatusActive) {
+		return errUserUnavailable
+	}
+	if !user.PhoneVerified {
+		return errInvitationPhoneRequired
+	}
+	return nil
+}
+
 var (
-	errInvitationMissing = errors.New("invitation missing")
-	errExpired           = errors.New("invitation expired")
-	errInvalidStatus     = errors.New("invalid invitation status")
-	errMemberUnavailable = errors.New("member unavailable")
-	errMemberLinked      = errors.New("member linked")
-	errUserLinked        = errors.New("user linked")
-	errUserUnavailable   = errors.New("user unavailable")
-	errTargetMismatch    = errors.New("target mismatch")
-	errDuplicate         = errors.New("duplicate invitation")
-	errForbidden         = errors.New("forbidden")
+	errInvitationMissing       = errors.New("invitation missing")
+	errExpired                 = errors.New("invitation expired")
+	errInvalidStatus           = errors.New("invalid invitation status")
+	errMemberUnavailable       = errors.New("member unavailable")
+	errMemberLinked            = errors.New("member linked")
+	errUserLinked              = errors.New("user linked")
+	errUserUnavailable         = errors.New("user unavailable")
+	errTargetMismatch          = errors.New("target mismatch")
+	errDuplicate               = errors.New("duplicate invitation")
+	errForbidden               = errors.New("forbidden")
+	errInvitationPhoneRequired = errors.New("invitation phone required")
 )
 
 func mapError(err error) *apperrors.BusinessError {
@@ -817,6 +780,8 @@ func mapError(err error) *apperrors.BusinessError {
 		return inviteError(CodeInvitationTargetMismatch, "站内邀请目标用户不匹配")
 	case errors.Is(err, errDuplicate):
 		return inviteError(CodeInvitationDuplicate, "成员已存在待处理邀请")
+	case errors.Is(err, errInvitationPhoneRequired):
+		return inviteError(CodeInvitationForbidden, "请先绑定手机号后再发起邀请")
 	case errors.Is(err, errForbidden):
 		return inviteError(CodeInvitationForbidden, "无权操作邀请")
 	default:

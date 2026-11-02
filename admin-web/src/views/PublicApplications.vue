@@ -1,6 +1,6 @@
 <template>
   <div class="page-stack">
-    <PageHeader title="公开申请审核" description="审核家庭公开展示申请。" />
+    <PageHeader title="优质家庭申请审核" description="审核家庭案例入选优质家庭学习列表的申请。" />
 
     <SearchPanel>
       <el-form>
@@ -21,7 +21,7 @@
     <el-alert v-if="operationError" :title="`操作失败：${operationError}`" type="error" show-icon @close="operationError = ''" />
 
     <DataTable>
-      <el-table v-loading="loading" :data="items" stripe empty-text="暂无公开申请">
+      <el-table v-loading="loading" :data="items" stripe empty-text="暂无优质家庭申请">
         <el-table-column prop="applicationId" label="申请 ID" width="96" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
         <el-table-column prop="familyId" label="家庭 ID" width="88" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
         <el-table-column prop="familyName" label="家庭名称" min-width="180" show-overflow-tooltip />
@@ -47,7 +47,7 @@
                 plain
                 @click="openTakeDown(row.familyId)"
               >
-                下架公开家庭
+                移出优质家庭列表
               </el-button>
               <el-tag v-else-if="row.familyPublicDisplayStatus === 'TAKEN_DOWN'" type="warning">已下架</el-tag>
               <el-tag v-else type="info">当前未公开</el-tag>
@@ -79,9 +79,9 @@
     />
     <ConfirmDialog
       v-model="takeDownVisible"
-      title="确认下架公开家庭"
-      message="申请已通过不代表家庭当前仍在公开。确认后将尝试下架，最终状态以后端校验结果为准。"
-      reason-label="填写下架原因（可选）"
+      title="确认移出优质家庭列表"
+      message="移出后，其他用户将无法在优质家庭列表中学习该案例。确认继续吗？"
+      reason-label="填写移出原因（可选）"
       :submitting="submitting"
       :close-on-confirm="false"
       danger
@@ -91,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { onMounted, ref } from 'vue'
 
 import { takeDownPublicFamily } from '@/api/adminFamilies'
@@ -120,7 +120,7 @@ const operationError = ref('')
 const auditVisible = ref(false)
 const takeDownVisible = ref(false)
 const auditAction = ref<'approve' | 'reject'>('approve')
-const auditTitle = ref('公开申请审核')
+const auditTitle = ref('优质家庭申请审核')
 const auditKey = ref(0)
 const selectedApplicationId = ref<number | null>(null)
 const selectedFamilyId = ref<number | null>(null)
@@ -172,7 +172,7 @@ function openAudit(applicationId: number, action: 'approve' | 'reject') {
   operationError.value = ''
   selectedApplicationId.value = applicationId
   auditAction.value = action
-  auditTitle.value = `公开申请 ${applicationId}`
+  auditTitle.value = `优质家庭申请 ${applicationId}`
   auditKey.value += 1
   auditVisible.value = true
 }
@@ -195,7 +195,7 @@ async function submitAudit(reviewComment: string) {
       await rejectPublicApplication(selectedApplicationId.value, input)
     }
     auditVisible.value = false
-    ElMessage.success(auditAction.value === 'approve' ? '公开申请已通过' : '公开申请已驳回')
+    ElMessage.success(auditAction.value === 'approve' ? '优质家庭申请已通过' : '优质家庭申请已驳回')
     await loadApplications()
   } catch (error) {
     operationError.value = getApiErrorMessage(error)
@@ -213,7 +213,7 @@ async function confirmTakeDown(reason: string) {
       reason: reason.trim() || undefined
     })
     takeDownVisible.value = false
-    ElMessage.success('公开家庭已下架')
+    ElMessage.success('已移出优质家庭列表')
     await loadApplications()
   } catch (error) {
     operationError.value = getApiErrorMessage(error)

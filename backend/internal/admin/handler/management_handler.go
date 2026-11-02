@@ -9,7 +9,6 @@ import (
 
 	adminrepo "tree/backend/internal/admin/repository"
 	adminservice "tree/backend/internal/admin/service"
-	authservice "tree/backend/internal/auth/service"
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/middleware"
@@ -17,12 +16,11 @@ import (
 )
 
 type ManagementHandler struct {
-	service     *adminservice.ManagementService
-	authService authservice.AuthService
+	service *adminservice.ManagementService
 }
 
-func NewManagementHandler(service *adminservice.ManagementService, authService authservice.AuthService) *ManagementHandler {
-	return &ManagementHandler{service: service, authService: authService}
+func NewManagementHandler(service *adminservice.ManagementService) *ManagementHandler {
+	return &ManagementHandler{service: service}
 }
 func query(ctx *gin.Context) adminrepo.PageQuery {
 	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
@@ -44,9 +42,13 @@ func write(ctx *gin.Context, value any, businessErr *apperrors.BusinessError) {
 	if businessErr != nil {
 		status := http.StatusInternalServerError
 		switch businessErr.Code {
+		case apperrors.CodeForbidden:
+			status = http.StatusForbidden
+		case apperrors.CodeInvalidParams:
+			status = http.StatusBadRequest
 		case apperrors.CodeResourceNotFound:
 			status = http.StatusNotFound
-		case apperrors.CodeAdminUnbindPhoneLoginNoWechat:
+		case apperrors.CodeDataConflict, apperrors.CodeInvalidDataStatus:
 			status = http.StatusConflict
 		}
 		response.Error(ctx, status, businessErr)
@@ -70,6 +72,27 @@ func (h *ManagementHandler) User(ctx *gin.Context) {
 	v, e := h.service.User(ctx.Request.Context(), value)
 	write(ctx, v, e)
 }
+
+func (h *ManagementHandler) SetUserStatus(ctx *gin.Context) {
+	userID, ok := id(ctx, "userId")
+	if !ok {
+		return
+	}
+	audit, ok := managementAudit(ctx)
+	if !ok {
+		return
+	}
+	var req struct {
+		Status string `json:"status"`
+		Reason string `json:"reason"`
+	}
+	if ctx.ShouldBindJSON(&req) != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	e := h.service.SetUserStatus(ctx.Request.Context(), audit, userID, req.Status, req.Reason)
+	write(ctx, gin.H{"status": req.Status}, e)
+}
 func (h *ManagementHandler) Families(ctx *gin.Context) {
 	v, e := h.service.Families(ctx.Request.Context(), query(ctx))
 	write(ctx, v, e)
@@ -90,6 +113,96 @@ func (h *ManagementHandler) Members(ctx *gin.Context) {
 	v, e := h.service.Members(ctx.Request.Context(), value)
 	write(ctx, v, e)
 }
+
+func (h *ManagementHandler) UpdateMember(ctx *gin.Context) {
+	familyID, ok := id(ctx, "familyId")
+	if !ok {
+		return
+	}
+	memberID, ok := id(ctx, "memberId")
+	if !ok {
+		return
+	}
+	adminID, err := middleware.CurrentAdminID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	role, err := middleware.CurrentAdminRole(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	var req adminservice.UpdateFamilyMemberRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	v, e := h.service.UpdateFamilyMember(ctx.Request.Context(), familyID, memberID, req, adminservice.AdminAuditInput{
+		AdminID: adminID, Role: role, IP: ctx.ClientIP(), UserAgent: ctx.Request.UserAgent(),
+	})
+	write(ctx, v, e)
+}
+
+func (h *ManagementHandler) DeleteMember(ctx *gin.Context) {
+	familyID, ok := id(ctx, "familyId")
+	if !ok {
+		return
+	}
+	memberID, ok := id(ctx, "memberId")
+	if !ok {
+		return
+	}
+	adminID, err := middleware.CurrentAdminID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	role, err := middleware.CurrentAdminRole(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	var req adminservice.DeleteFamilyMemberRequest
+	if ctx.Request.Body != nil {
+		_ = ctx.ShouldBindJSON(&req)
+	}
+	e := h.service.DeleteFamilyMember(ctx.Request.Context(), familyID, memberID, req, adminservice.AdminAuditInput{
+		AdminID: adminID, Role: role, IP: ctx.ClientIP(), UserAgent: ctx.Request.UserAgent(),
+	})
+	write(ctx, gin.H{"status": "ok"}, e)
+}
+
+func (h *ManagementHandler) CreateRelative(ctx *gin.Context) {
+	familyID, ok := id(ctx, "familyId")
+	if !ok {
+		return
+	}
+	memberID, ok := id(ctx, "memberId")
+	if !ok {
+		return
+	}
+	adminID, err := middleware.CurrentAdminID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	role, err := middleware.CurrentAdminRole(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	var req adminservice.CreateFamilyRelativeRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	v, e := h.service.CreateFamilyRelative(ctx.Request.Context(), familyID, memberID, req, adminservice.AdminAuditInput{
+		AdminID: adminID, Role: role, IP: ctx.ClientIP(), UserAgent: ctx.Request.UserAgent(),
+	})
+	write(ctx, v, e)
+}
+
 func (h *ManagementHandler) Tree(ctx *gin.Context) {
 	value, ok := id(ctx, "familyId")
 	if !ok {
@@ -107,44 +220,169 @@ func (h *ManagementHandler) Admins(ctx *gin.Context) {
 	v, e := h.service.Admins(ctx.Request.Context(), query(ctx))
 	write(ctx, v, e)
 }
+
+func managementAudit(ctx *gin.Context) (adminservice.AdminAuditInput, bool) {
+	adminID, err := middleware.CurrentAdminID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return adminservice.AdminAuditInput{}, false
+	}
+	role, err := middleware.CurrentAdminRole(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return adminservice.AdminAuditInput{}, false
+	}
+	return adminservice.AdminAuditInput{AdminID: adminID, Role: role, IP: ctx.ClientIP(), UserAgent: ctx.Request.UserAgent()}, true
+}
+
+func (h *ManagementHandler) CreateAdmin(ctx *gin.Context) {
+	audit, ok := managementAudit(ctx)
+	if !ok {
+		return
+	}
+	var req adminservice.CreateAdminRequest
+	if ctx.ShouldBindJSON(&req) != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	v, e := h.service.CreateAdmin(ctx.Request.Context(), audit, req)
+	write(ctx, v, e)
+}
+
+func (h *ManagementHandler) UpdateAdmin(ctx *gin.Context) {
+	id, ok := id(ctx, "adminId")
+	if !ok {
+		return
+	}
+	audit, ok := managementAudit(ctx)
+	if !ok {
+		return
+	}
+	var req adminservice.UpdateAdminRequest
+	if ctx.ShouldBindJSON(&req) != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	v, e := h.service.UpdateAdmin(ctx.Request.Context(), audit, id, req)
+	write(ctx, v, e)
+}
+
+func (h *ManagementHandler) SetAdminStatus(ctx *gin.Context) {
+	id, ok := id(ctx, "adminId")
+	if !ok {
+		return
+	}
+	audit, ok := managementAudit(ctx)
+	if !ok {
+		return
+	}
+	var req struct {
+		Status string `json:"status"`
+		Reason string `json:"reason"`
+	}
+	if ctx.ShouldBindJSON(&req) != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	e := h.service.SetAdminStatus(ctx.Request.Context(), audit, id, req.Status, req.Reason)
+	write(ctx, gin.H{"status": req.Status}, e)
+}
+
+func (h *ManagementHandler) UpdateFamily(ctx *gin.Context) {
+	familyID, ok := id(ctx, "familyId")
+	if !ok {
+		return
+	}
+	audit, ok := managementAudit(ctx)
+	if !ok {
+		return
+	}
+	var req adminservice.UpdateFamilyRequest
+	if ctx.ShouldBindJSON(&req) != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	v, e := h.service.UpdateFamily(ctx.Request.Context(), audit, familyID, req)
+	write(ctx, v, e)
+}
+
+func (h *ManagementHandler) SetFamilyStatus(ctx *gin.Context) {
+	familyID, ok := id(ctx, "familyId")
+	if !ok {
+		return
+	}
+	audit, ok := managementAudit(ctx)
+	if !ok {
+		return
+	}
+	var req struct {
+		Status string `json:"status"`
+		Reason string `json:"reason"`
+	}
+	if ctx.ShouldBindJSON(&req) != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	e := h.service.SetFamilyStatus(ctx.Request.Context(), audit, familyID, req.Status, req.Reason)
+	write(ctx, gin.H{"status": req.Status}, e)
+}
 func (h *ManagementHandler) Logs(ctx *gin.Context) {
 	v, e := h.service.Logs(ctx.Request.Context(), query(ctx))
 	write(ctx, v, e)
 }
 
-func (h *ManagementHandler) UnbindPhoneLogin(ctx *gin.Context) {
-	role, _ := middleware.CurrentAdminRole(ctx)
-	if role != string(enums.AdminRoleRootAdmin) && role != string(enums.AdminRoleSuperAdmin) {
+func (h *ManagementHandler) RecoveryItems(ctx *gin.Context) {
+	role, err := middleware.CurrentAdminRole(ctx)
+	if err != nil || (role != string(enums.AdminRoleRootAdmin) && role != string(enums.AdminRoleSuperAdmin)) {
 		response.Abort(ctx, http.StatusForbidden, apperrors.CodeForbidden)
 		return
 	}
-	adminID, err := middleware.CurrentAdminID(ctx)
-	if err != nil {
-		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
-		return
-	}
-	userID, ok := id(ctx, "userId")
+	v, e := h.service.RecoveryItems(ctx.Request.Context(), query(ctx))
+	write(ctx, v, e)
+}
+
+func (h *ManagementHandler) RestoreMember(ctx *gin.Context) {
+	familyID, ok := id(ctx, "familyId")
 	if !ok {
 		return
 	}
-	var req struct {
-		Confirm bool   `json:"confirm"`
-		Reason  string `json:"reason"`
-	}
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+	memberID, ok := id(ctx, "memberId")
+	if !ok {
 		return
 	}
-	if h.authService == nil {
-		response.Abort(ctx, http.StatusInternalServerError, apperrors.CodeSystemError)
+	adminID, role, ok := recoveryAudit(ctx)
+	if !ok {
 		return
 	}
-	if businessErr := h.authService.AdminUnbindPhoneLogin(ctx.Request.Context(), authservice.AdminUnbindPhoneLoginInput{
-		AdminID: adminID, AdminRole: role, TargetUserID: userID, Confirm: req.Confirm, Reason: req.Reason,
-		IP: ctx.ClientIP(), UserAgent: ctx.Request.UserAgent(),
-	}); businessErr != nil {
-		write(ctx, nil, businessErr)
+	write(ctx, gin.H{"status": "ok"}, h.service.RestoreMember(ctx.Request.Context(), familyID, memberID, adminservice.AdminAuditInput{AdminID: adminID, Role: role, IP: ctx.ClientIP(), UserAgent: ctx.Request.UserAgent()}))
+}
+
+func (h *ManagementHandler) RestoreRelationship(ctx *gin.Context) {
+	familyID, ok := id(ctx, "familyId")
+	if !ok {
 		return
 	}
-	response.OK(ctx, gin.H{"status": "ok"})
+	relationshipID, ok := id(ctx, "relationshipId")
+	if !ok {
+		return
+	}
+	adminID, role, ok := recoveryAudit(ctx)
+	if !ok {
+		return
+	}
+	write(ctx, gin.H{"status": "ok"}, h.service.RestoreRelationship(ctx.Request.Context(), familyID, relationshipID, adminservice.AdminAuditInput{AdminID: adminID, Role: role, IP: ctx.ClientIP(), UserAgent: ctx.Request.UserAgent()}))
+}
+
+func recoveryAudit(ctx *gin.Context) (uint64, string, bool) {
+	adminID, err := middleware.CurrentAdminID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return 0, "", false
+	}
+	role, err := middleware.CurrentAdminRole(ctx)
+	if err != nil || (role != string(enums.AdminRoleRootAdmin) && role != string(enums.AdminRoleSuperAdmin)) {
+		response.Abort(ctx, http.StatusForbidden, apperrors.CodeForbidden)
+		return 0, "", false
+	}
+	return adminID, role, true
 }

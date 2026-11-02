@@ -63,8 +63,8 @@
           label-class-name="showcase-center-header"
         >
           <template #default="{ row }">
-            <el-tag :type="row.status === 'PUBLISHED' ? 'success' : 'info'" effect="plain">
-              {{ row.status === 'PUBLISHED' ? '已发布' : '草稿' }}
+            <el-tag :type="statusTagType(row)" effect="plain">
+              {{ statusText(row) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -142,7 +142,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
+import type { FormInstance, FormRules } from 'element-plus'
 
 import { getApiErrorMessage } from '@/api/client'
 import { createShowcaseFamily, deleteShowcaseFamily, getShowcaseFamilyDisplaySettings, listShowcaseFamilies, setShowcaseFamilyPublished, updateShowcaseFamily, updateShowcaseFamilyDisplaySettings, type ShowcaseFamilyInput } from '@/api/showcaseFamily'
@@ -184,7 +185,18 @@ function formatTime(value?: string | null) {
 
 function showcaseSubtitle(item: ShowcaseFamily) {
   const region = item.regionText || '未填写地区'
-  return item.summary ? `${region} · ${item.summary}` : region
+  const summary = item.summary ? `${region} · ${item.summary}` : region
+  return item.hasUnpublishedChanges ? `有修改未发布，已暂时退出小程序展示 · ${summary}` : summary
+}
+
+function statusText(item: ShowcaseFamily) {
+  if (item.hasUnpublishedChanges) return '修改未发布'
+  return item.status === 'PUBLISHED' ? '已发布' : '草稿'
+}
+
+function statusTagType(item: ShowcaseFamily) {
+  if (item.hasUnpublishedChanges) return 'warning'
+  return item.status === 'PUBLISHED' ? 'success' : 'info'
 }
 
 function resetForm() {
@@ -275,7 +287,7 @@ async function submit() {
 async function togglePublished(item: ShowcaseFamily) {
   if (item.status !== 'PUBLISHED') {
     try {
-      await ElMessageBox.confirm(`确认发布“${item.displayName}”？发布后会进入帝王世家入口。`, '确认发布', { type: 'warning', confirmButtonText: '发布', cancelButtonText: '取消' })
+      await ElMessageBox.confirm(`确认发布“${item.displayName}”？发布后会进入小程序帝王世家入口。`, '确认发布', { type: 'warning', confirmButtonText: '发布', cancelButtonText: '取消' })
     } catch {
       return
     }
@@ -301,7 +313,7 @@ function handleCommand(command: string, item: ShowcaseFamily) {
 function actionItems(item: ShowcaseFamily) {
   return [
     { command: 'edit', label: '编辑信息' },
-    { command: 'toggle', label: item.status === 'PUBLISHED' ? '下架展示' : '发布展示' },
+    { command: 'toggle', label: item.status === 'PUBLISHED' ? '下架展示' : item.hasUnpublishedChanges ? '发布修改' : '发布展示' },
     { command: 'delete', label: '删除帝王世家', divided: true, danger: true }
   ]
 }

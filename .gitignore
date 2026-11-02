@@ -11,6 +11,7 @@
 !**/.env.sample
 !**/.env.template
 *.env.local
+pub_key.pem
 
 # Go
 backend/bin/
@@ -30,6 +31,7 @@ docker/redis/data/
 # Logs
 *.log
 logs/
+output/
 
 # Local release and backup artifacts
 .m16/

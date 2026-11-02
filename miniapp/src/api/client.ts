@@ -1,6 +1,7 @@
 import type { ApiResponse } from '@/types/api'
 
 const environment = (import.meta.env || {}) as ImportMetaEnv & {
+  MODE?: string
   VITE_API_MODE?: string
   VITE_API_BASE_URL?: string
 }
@@ -31,6 +32,10 @@ function isAbsoluteHttpUrl(value: string) {
 
 function isLocalhostUrl(value: string) {
   return /^(https?:\/\/)?(127\.0\.0\.1|localhost)([:/]|$)/i.test(value)
+}
+
+function isLocalMpWeixinBuild() {
+  return environment.MODE === 'mp-local'
 }
 
 function isQuotaApiError(error: unknown): error is QuotaApiError {
@@ -123,10 +128,10 @@ export function getMpWeixinApiConfigError(): string | null {
   if (!isAbsoluteHttpUrl(base)) {
     return `小程序 real 模式不能使用相对地址「${base}」。请使用完整 HTTPS 地址（如 https://tapi.bigbigboy.cn/api）重新构建。`
   }
-  if (isLocalhostUrl(base)) {
+  if (isLocalhostUrl(base) && !isLocalMpWeixinBuild()) {
     return '小程序不能访问 localhost 或 127.0.0.1。请使用 https://tapi.bigbigboy.cn/api 重新构建。'
   }
-  if (!/^https:\/\//i.test(base)) {
+  if (!/^https:\/\//i.test(base) && !isLocalMpWeixinBuild()) {
     return '微信小程序 request 合法域名要求 HTTPS。请将 VITE_API_BASE_URL 设为 https://tapi.bigbigboy.cn/api 后重新构建。'
   }
   return null

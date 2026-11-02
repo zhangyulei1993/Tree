@@ -3,15 +3,15 @@
     <section class="container tree-page">
       <div class="page-heading">
         <div>
-          <span class="eyebrow">公开家庭树</span>
+          <span class="eyebrow">优质家庭学习树</span>
           <h1>家庭树</h1>
         </div>
         <RouterLink class="button secondary" :to="`/families/${familyId}/public`">返回公开主页</RouterLink>
       </div>
 
-      <section v-if="loading" class="card state-panel">正在加载公开家庭树...</section>
+      <section v-if="loading" class="card state-panel">正在加载优质家庭学习树...</section>
       <section v-else-if="error" class="card state-panel error" role="alert">
-        <strong>公开家庭树不可访问</strong>
+        <strong>优质家庭学习树不可访问</strong>
         <span>{{ error }}</span>
         <button class="button secondary" @click="loadTree">重新加载</button>
       </section>
@@ -106,7 +106,7 @@ async function loadTree() {
     tree.value = await getPublicTree(familyId.value)
   } catch (requestError) {
     tree.value = null
-    error.value = apiErrorMessage(requestError, '无法加载公开家庭树。')
+    error.value = apiErrorMessage(requestError, '无法加载优质家庭学习树。')
   } finally {
     loading.value = false
   }

@@ -69,8 +69,8 @@ test('user agreement covers required topics', () => {
   for (const snippet of requiredSnippets) {
     assert.match(titles + body, new RegExp(snippet))
   }
-  assert.equal(LEGAL_DOCUMENT_VERSION, '1.4.0')
-  assert.equal(LEGAL_UPDATED_DATE, '2026-07-04')
+  assert.equal(LEGAL_DOCUMENT_VERSION, '1.5.0')
+  assert.equal(LEGAL_UPDATED_DATE, '2026-09-29')
   assert.match(LEGAL_EFFECTIVE_DATE, /^\d{4}-\d{2}-\d{2}$/)
   assert.match(LEGAL_UPDATED_DATE, /^\d{4}-\d{2}-\d{2}$/)
   assert.match(body, /展示家庭/)
@@ -88,7 +88,6 @@ test('privacy policy covers collection categories and rights', () => {
   const requiredSnippets = [
     'openid/unionid',
     '手机号',
-    '登录密码',
     '不使用短信验证码',
     'IP、User-Agent',
     '仅在本地处理、不上传',
@@ -119,10 +118,14 @@ test('wechat privacy declarations reference existing source files', () => {
 })
 
 test('not collected list excludes capabilities used in code', () => {
-  const profilePath = join(miniappSrc, 'pages', 'me', 'profile.vue')
-  const profileSource = readFileSync(profilePath, 'utf8')
-  assert.match(profileSource, /chooseAvatar/)
-  assert.ok(NOT_COLLECTED_IN_APP.some((item) => item.includes('getPhoneNumber')))
+  const accountSecurityPath = join(miniappSrc, 'pages', 'me', 'account-security.vue')
+  const accountSecuritySource = readFileSync(accountSecurityPath, 'utf8')
+  const wechatLoginPath = join(miniappSrc, 'pages', 'auth', 'wechat-login.vue')
+  const wechatLoginSource = readFileSync(wechatLoginPath, 'utf8')
+  assert.match(readFileSync(join(miniappSrc, 'pages', 'me', 'profile.vue'), 'utf8'), /chooseAvatar/)
+  assert.doesNotMatch(wechatLoginSource, /getPhoneNumber/)
+  assert.match(accountSecuritySource, /getPhoneNumber/)
+  assert.ok(!NOT_COLLECTED_IN_APP.some((item) => item.includes('getPhoneNumber')))
 })
 
 test('kinship page documents local-only processing', () => {

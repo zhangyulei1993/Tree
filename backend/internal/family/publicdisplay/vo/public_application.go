@@ -28,6 +28,39 @@ type ListResult struct {
 	Total    int64               `json:"total"`
 }
 
+type QualityEligibility struct {
+	Eligible             bool                      `json:"eligible"`
+	MemberCount          int64                     `json:"memberCount"`
+	RelationshipCount    int64                     `json:"relationshipCount"`
+	BoundMemberCount     int64                     `json:"boundMemberCount"`
+	ProfileCompleteCount int64                     `json:"profileCompleteCount"`
+	UnknownGenderCount   int64                     `json:"unknownGenderCount"`
+	ProfileComplete      bool                      `json:"profileComplete"`
+	Requirements         []string                  `json:"requirements"`
+	Checks               []QualityEligibilityCheck `json:"checks"`
+}
+
+type QualityEligibilityCheck struct {
+	Key      string `json:"key"`
+	Label    string `json:"label"`
+	Current  string `json:"current"`
+	Required string `json:"required"`
+	Met      bool   `json:"met"`
+}
+
+type QualityEligibilityConfig struct {
+	ID                     uint64 `json:"id"`
+	Enabled                bool   `json:"enabled"`
+	MinMemberCount         int    `json:"minMemberCount"`
+	MinRelationshipCount   int    `json:"minRelationshipCount"`
+	MinBoundMemberCount    int    `json:"minBoundMemberCount"`
+	MinProfileCompleteRate int    `json:"minProfileCompleteRate"`
+	MinBoundMemberRate     int    `json:"minBoundMemberRate"`
+	RequireDescription     bool   `json:"requireDescription"`
+	RequireLocation        bool   `json:"requireLocation"`
+	UpdatedAt              string `json:"updatedAt"`
+}
+
 type FamilyPublicStatus struct {
 	FamilyID             uint64     `json:"familyId"`
 	PublicDisplayStatus  string     `json:"publicDisplayStatus"`

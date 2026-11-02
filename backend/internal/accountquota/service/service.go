@@ -31,6 +31,18 @@ type AuditInput struct {
 	UserAgent string
 }
 
+type FamilyCapacity struct {
+	BaseLimit             int
+	PurchasedLimit        int
+	InvitationRewardLimit int
+	EffectiveLimit        int
+	UsedMembers           int
+}
+
+type FamilyCapacityReader interface {
+	GetFamilyCapacity(context.Context, *gorm.DB, uint64) (*FamilyCapacity, error)
+}
+
 type Service interface {
 	GetCapabilities(ctx context.Context, userID uint64) (*quotavo.Capabilities, *apperrors.BusinessError)
 	ListConfigs(ctx context.Context, role string) ([]quotavo.ConfigItem, *apperrors.BusinessError)
@@ -109,12 +121,24 @@ func (s *quotaService) capabilitiesForUser(ctx context.Context, repo quotarepo.R
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
 	membersByFamily := make(map[string]int, len(ownedFamilyIDs))
+	limitsByFamily := make(map[string]int, len(ownedFamilyIDs))
 	for _, familyID := range ownedFamilyIDs {
 		count, countErr := repo.CountActiveMembers(ctx, familyID)
 		if countErr != nil {
 			return nil, apperrors.New(apperrors.CodeSystemError)
 		}
-		membersByFamily[strconv.FormatUint(familyID, 10)] = count
+		familyKey := strconv.FormatUint(familyID, 10)
+		membersByFamily[familyKey] = count
+		purchased, purchasedErr := s.repo.SumActivePurchasedMembers(ctx, familyID)
+		if purchasedErr != nil {
+			return nil, apperrors.New(apperrors.CodeSystemError)
+		}
+		reward, rewardErr := s.repo.SumActiveInvitationRewardMembers(ctx, familyID)
+		if rewardErr != nil {
+			return nil, apperrors.New(apperrors.CodeSystemError)
+		}
+		effectiveLimit := limits.MaxMembersPerOwnedFamily + purchased + reward
+		limitsByFamily[familyKey] = effectiveLimit
 	}
 	return &quotavo.Capabilities{
 		TrustTier:         tier,
@@ -128,8 +152,38 @@ func (s *quotaService) capabilitiesForUser(ctx context.Context, repo quotarepo.R
 			OwnedFamilies:         owned,
 			JoinedFamilies:        joined,
 			MembersPerOwnedFamily: membersByFamily,
+			MembersLimitsByFamily: limitsByFamily,
 		},
 	}, nil
+}
+
+func (s *quotaService) GetFamilyCapacity(ctx context.Context, db *gorm.DB, familyID uint64) (*FamilyCapacity, error) {
+	repo := s.repoFor(db)
+	founderUserID, err := repo.FindFounderUserID(ctx, familyID)
+	if err != nil {
+		return nil, err
+	}
+	user, err := repo.LockUser(ctx, founderUserID)
+	if err != nil {
+		return nil, err
+	}
+	limits, err := repo.GetLimitsForTier(ctx, repo.ResolveTrustTier(user))
+	if err != nil {
+		return nil, err
+	}
+	used, err := repo.CountActiveMembers(ctx, familyID)
+	if err != nil {
+		return nil, err
+	}
+	purchased, err := repo.SumActivePurchasedMembers(ctx, familyID)
+	if err != nil {
+		return nil, err
+	}
+	reward, err := repo.SumActiveInvitationRewardMembers(ctx, familyID)
+	if err != nil {
+		return nil, err
+	}
+	return &FamilyCapacity{BaseLimit: limits.MaxMembersPerOwnedFamily, PurchasedLimit: purchased, InvitationRewardLimit: reward, EffectiveLimit: limits.MaxMembersPerOwnedFamily + purchased + reward, UsedMembers: used}, nil
 }
 
 func (s *quotaService) ListConfigs(ctx context.Context, role string) ([]quotavo.ConfigItem, *apperrors.BusinessError) {
@@ -426,8 +480,17 @@ func (s *quotaService) AssertCanAddMember(ctx context.Context, db *gorm.DB, fami
 	if err != nil {
 		return err
 	}
-	if usage+delta > limits.MaxMembersPerOwnedFamily {
-		return exceedError(tier, "membersPerOwnedFamily", limits.MaxMembersPerOwnedFamily, usage)
+	purchased, err := repo.SumActivePurchasedMembers(ctx, familyID)
+	if err != nil {
+		return err
+	}
+	reward, err := repo.SumActiveInvitationRewardMembers(ctx, familyID)
+	if err != nil {
+		return err
+	}
+	limit := limits.MaxMembersPerOwnedFamily + purchased + reward
+	if usage+delta > limit {
+		return exceedError(tier, "membersPerOwnedFamily", limit, usage)
 	}
 	return nil
 }
@@ -715,6 +778,15 @@ func (s *quotaService) assertFamilyMembersWithinLimit(ctx context.Context, repo 
 	if err != nil {
 		return err
 	}
+	purchased, err := repo.SumActivePurchasedMembers(ctx, familyID)
+	if err != nil {
+		return err
+	}
+	reward, err := repo.SumActiveInvitationRewardMembers(ctx, familyID)
+	if err != nil {
+		return err
+	}
+	limits.MaxMembersPerOwnedFamily += purchased + reward
 	if usage > limits.MaxMembersPerOwnedFamily {
 		return exceedError(tier, "membersPerOwnedFamily", limits.MaxMembersPerOwnedFamily, usage)
 	}

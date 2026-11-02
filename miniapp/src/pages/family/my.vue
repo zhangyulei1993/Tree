@@ -94,22 +94,24 @@
         <view>
           <text class="archive-kicker">My Archive</text>
           <text class="archive-title">我的家庭</text>
-          <text class="archive-subtitle">你还没有家庭，可创建家庭或等待家人邀请</text>
+          <text class="archive-subtitle">还没有家庭，可创建或等待邀请</text>
         </view>
         <view class="archive-seal">家</view>
       </view>
 
-      <view class="showcase-notice archive-panel ui-simplified-hidden">
-        <text class="showcase-notice-label">公开册页</text>
-        <text class="showcase-notice-text">加入家庭请通过成员邀请，暂不提供公开搜索或申请加入。</text>
-      </view>
-
-      <view class="create-family-entry archive-panel" @click="openCreateFamily">
-        <view class="create-family-copy">
-          <text class="create-family-title">创建家庭</text>
-          <text class="create-family-desc">{{ createFamilyHint }}</text>
+      <view class="my-empty-actions">
+        <view class="my-empty-action my-empty-action--quality" @click="openShowcase">
+          <text class="my-empty-action-mark">优</text>
+          <text class="my-empty-action-title">优质家庭</text>
+          <text class="my-empty-action-desc">学习真实家庭树案例</text>
+          <text class="my-empty-action-link">去看看 ›</text>
         </view>
-        <text class="archive-thin-button">{{ createFamilyActionText }}</text>
+        <view class="my-empty-action my-empty-action--create" @click="openCreateFamily">
+          <text class="my-empty-action-mark">建</text>
+          <text class="my-empty-action-title">创建家庭</text>
+          <text class="my-empty-action-desc">建立自己的家庭树</text>
+          <text class="my-empty-action-link">{{ createFamilyActionText }} ›</text>
+        </view>
       </view>
 
       <view v-if="session.isLoggedIn" class="showcase-invite-link" @click="openInvitations">
@@ -124,12 +126,12 @@
       </view>
 
       <view v-else-if="showcaseLoading && showcaseItems.length === 0" class="my-state archive-form-panel">
-        <MiniEmptyState symbol="展" title="正在加载" description="正在读取展示家庭列表..." />
+        <MiniEmptyState symbol="展" title="正在加载" description="正在读取优质家庭列表..." />
       </view>
 
       <template v-else>
         <view v-if="showcaseItems.length > 0" class="showcase-list archive-list">
-          <text class="showcase-count">共 {{ showcaseTotal }} 个展示家庭</text>
+          <text class="showcase-count">共 {{ showcaseTotal }} 个优质家庭</text>
           <view
             v-for="family in showcaseItems"
             :key="family.id"
@@ -149,8 +151,8 @@
         <view v-else class="my-state archive-form-panel">
           <MiniEmptyState
             symbol="展"
-            title="暂无展示家庭"
-            description="当前没有可浏览的展示家庭。你可以通过家人分享的链接访问家庭主页。"
+            title="暂无优质家庭"
+            description="暂无可供学习的优质家庭案例。"
           />
         </view>
 
@@ -174,6 +176,7 @@ import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 
 import { apiErrorMessage } from '@/api/client'
+import { formatFamilyRegionText } from '@/features/native-place/geoHierarchy'
 import { fetchCapabilities } from '@/api/capabilities'
 import { listMyFamilies, listPublicFamilyShowcase } from '@/api/families'
 import MiniButton from '@/components/base/MiniButton.vue'
@@ -187,6 +190,7 @@ const families = ref<FamilySummary[]>([])
 const loadingMyFamilies = ref(false)
 const errorMessage = ref('')
 const myFamiliesLoaded = ref(false)
+const navigating = ref(false)
 
 const showcaseItems = ref<PublicFamilyShowcaseItem[]>([])
 const showcaseTotal = ref(0)
@@ -248,7 +252,7 @@ async function fetchShowcasePage(nextPage: number, append: boolean) {
       showcaseItems.value = []
       showcaseTotal.value = 0
     }
-    showcaseError.value = apiErrorMessage(error, '展示家庭列表加载失败。')
+    showcaseError.value = apiErrorMessage(error, '优质家庭列表加载失败。')
   } finally {
     showcaseLoading.value = false
     showcaseLoadingMore.value = false
@@ -273,18 +277,31 @@ async function refreshPage() {
 }
 
 function openFamily(familyId: number | string) {
-  uni.navigateTo({ url: `/pages/family/detail?familyId=${encodeURIComponent(String(familyId))}` })
+  navigateOnce(`/pages/family/detail?familyId=${encodeURIComponent(String(familyId))}`)
 }
 
 function openShowcaseFamily(familyId: number | string) {
-  uni.navigateTo({
-    url: `/pages/family/public-profile?familyId=${encodeURIComponent(String(familyId))}`
-  })
+  navigateOnce(`/pages/family/public-profile?familyId=${encodeURIComponent(String(familyId))}`)
+}
+
+function openShowcase() {
+  navigateOnce('/pages/family/showcase')
 }
 
 function openInvitations() {
-  if (!session.requireLogin('/pages/me/family-affairs?tab=invitations')) return
-  uni.navigateTo({ url: '/pages/me/family-affairs?tab=invitations' })
+  if (!session.requireLogin('/pages/invite/my')) return
+  navigateOnce('/pages/invite/my')
+}
+
+function navigateOnce(url: string) {
+  if (navigating.value) return
+  navigating.value = true
+  uni.navigateTo({
+    url,
+    complete: () => {
+      navigating.value = false
+    }
+  })
 }
 
 async function openCreateFamily() {
@@ -304,11 +321,11 @@ async function openCreateFamily() {
     uni.showToast({ title: apiErrorMessage(error, '无法确认创建资格'), icon: 'none' })
     return
   }
-  uni.navigateTo({ url: '/pages/family/create' })
+  navigateOnce('/pages/family/create')
 }
 
 function familyRegionLabel(family: FamilySummary) {
-  return family.regionText || family.nativePlace || '暂未填写地区'
+  return formatFamilyRegionText(family)
 }
 
 function familyDesc(family: FamilySummary) {
@@ -335,7 +352,7 @@ function formatCooldown(value: string) {
 }
 
 function showcaseDesc(family: PublicFamilyShowcaseItem) {
-  return family.description || family.regionText || family.nativePlace || '已公开展示'
+  return family.description || family.regionText || family.nativePlace || '已入选优质家庭'
 }
 
 onShow(refreshPage)
@@ -344,6 +361,69 @@ onShow(refreshPage)
 <style scoped>
 .ui-simplified-hidden {
   display: none !important;
+}
+
+.my-empty-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-bottom: 18rpx;
+}
+
+.my-empty-action {
+  display: flex;
+  min-height: 190rpx;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  border: 1rpx solid var(--archive-line);
+  border-radius: 10rpx;
+  background: rgba(255, 252, 244, 0.64);
+  padding: 18rpx;
+  box-shadow: 0 6rpx 16rpx rgba(91, 70, 40, 0.04);
+}
+
+.my-empty-action--quality {
+  border-color: rgba(47, 107, 87, 0.24);
+  background: linear-gradient(180deg, rgba(241, 249, 243, 0.88), rgba(255, 252, 244, 0.54));
+}
+
+.my-empty-action-mark {
+  display: grid;
+  width: 48rpx;
+  height: 48rpx;
+  place-items: center;
+  border: 2rpx solid var(--archive-cinnabar);
+  color: var(--archive-cinnabar);
+  font-family: 'Songti SC', 'STSong', serif;
+  font-size: 25rpx;
+  transform: rotate(-6deg);
+}
+
+.my-empty-action--quality .my-empty-action-mark {
+  border-color: var(--archive-green, #2f6b57);
+  color: var(--archive-green, #2f6b57);
+}
+
+.my-empty-action-title {
+  margin-top: 14rpx;
+  color: var(--archive-ink);
+  font-size: 29rpx;
+  font-weight: 760;
+}
+
+.my-empty-action-desc {
+  margin-top: 7rpx;
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.45;
+}
+
+.my-empty-action-link {
+  margin-top: auto;
+  color: var(--archive-blue);
+  font-size: 22rpx;
+  font-weight: 650;
 }
 
 .my-family-page {

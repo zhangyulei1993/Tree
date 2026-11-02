@@ -6,7 +6,7 @@
         <span>整理家庭关系，保存家族记忆。</span>
       </div>
       <div class="footer-meta">
-        <span>家庭资料仅在授权范围内可见，公开展示需经过审核。</span>
+        <span>家庭资料仅在授权范围内可见，优质家庭案例需经过审核。</span>
         <span class="build-meta">版本 {{ buildInfo.version }} · {{ buildInfo.commit }} · {{ buildInfo.environment }}</span>
       </div>
     </div>

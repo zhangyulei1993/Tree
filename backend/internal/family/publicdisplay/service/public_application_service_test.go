@@ -50,6 +50,7 @@ func (p fakePermission) GetActiveLink(context.Context, uint64, uint64) (*rolemod
 type fakeRepo struct {
 	family       familymodel.Family
 	applications map[uint64]*publicmodel.FamilyPublicApplication
+	config       publicmodel.QualityEligibilityConfig
 	logs         []operationlog.WriteInput
 	nextID       uint64
 }
@@ -60,6 +61,7 @@ func newFakeRepo() *fakeRepo {
 			ID: 2, FamilyName: "Tree", Status: string(enums.StatusNormal),
 			PublicDisplayStatus: publicenum.PublicPrivate, GraphVersion: 12,
 		},
+		config:       publicmodel.QualityEligibilityConfig{ID: 1, Enabled: true, MinMemberCount: 3, MinRelationshipCount: 2, MinBoundMemberCount: 1},
 		applications: map[uint64]*publicmodel.FamilyPublicApplication{},
 		nextID:       1,
 	}
@@ -70,6 +72,18 @@ func (r *fakeRepo) FindFamily(context.Context, uint64, bool) (*familymodel.Famil
 	family := r.family
 	return &family, nil
 }
+func (r *fakeRepo) EvaluateQualityEligibility(context.Context, uint64) (*publicrepo.QualityEligibility, error) {
+	return &publicrepo.QualityEligibility{
+		MemberCount: 6, RelationshipCount: 5, BoundMemberCount: 1, ProfileCompleteCount: 6, ProfileComplete: true,
+	}, nil
+}
+
+func (r *fakeRepo) GetQualityEligibilityConfig(context.Context) (*publicmodel.QualityEligibilityConfig, error) {
+	config := r.config
+	return &config, nil
+}
+
+func (r *fakeRepo) UpdateQualityEligibilityConfig(context.Context, map[string]any) error { return nil }
 func (r *fakeRepo) UpdateFamilyPublicStatus(_ context.Context, _ uint64, values map[string]any) error {
 	if value, ok := values["public_display_status"].(string); ok {
 		r.family.PublicDisplayStatus = value
@@ -294,6 +308,18 @@ func TestPublicApplicationAdminReviewAndTakeDown(t *testing.T) {
 		result, err := newTestService(repo, true, now).TakeDown(context.Background(), 1, string(enums.AdminRoleRootAdmin), 2, publicdto.TakeDownPublicFamilyRequest{}, AuditInput{})
 		if err != nil || result.PublicDisplayStatus != publicenum.PublicTakenDown || repo.family.GraphVersion != before || len(repo.logs) != 1 {
 			t.Fatalf("unexpected %#v %#v", result, err)
+		}
+	})
+	t.Run("approve rechecks the current eligibility rules", func(t *testing.T) {
+		repo := newFakeRepo()
+		repo.applications[1] = &publicmodel.FamilyPublicApplication{ID: 1, FamilyID: 2, ApplicationStatus: publicenum.StatusPending}
+		repo.config.MinMemberCount = 99
+		result, err := newTestService(repo, true, now).Approve(context.Background(), 1, string(enums.AdminRoleRootAdmin), 1, publicdto.ReviewPublicApplicationRequest{}, AuditInput{})
+		if result != nil || err == nil || err.Code != CodePublicApplicationForbidden {
+			t.Fatalf("expected eligibility recheck rejection, result=%#v err=%#v", result, err)
+		}
+		if repo.applications[1].ApplicationStatus != publicenum.StatusPending || repo.family.PublicDisplayStatus != publicenum.PublicPrivate {
+			t.Fatalf("review must remain pending after eligibility failure: app=%s family=%s", repo.applications[1].ApplicationStatus, repo.family.PublicDisplayStatus)
 		}
 	})
 }

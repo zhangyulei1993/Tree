@@ -23,7 +23,8 @@ import type {
   ManagedUserDetail,
   OperationLogRecord,
   PageResult,
-  PublicApplication
+  PublicApplication,
+  RecoveryItem
 } from '@/types/api'
 
 export interface PageQuery { keyword?: string; status?: string; role?: AdminRole | ''; operatorType?: string; result?: string; familyId?: number | string; startDate?: string; endDate?: string; page?: number; pageSize?: number }
@@ -40,7 +41,6 @@ function paginate<T>(items: T[], page = 1, pageSize = 20): PageResult<T> {
 
 function mapManagedUsers(): ManagedUser[] {
   return mockUsers.map((item, index) => {
-    const phoneLoginEnabled = item.phoneVerified
     const hasWechatLogin = item.clientType.includes('WECHAT') || item.origin.includes('WECHAT')
     return {
       id: index + 1,
@@ -50,11 +50,9 @@ function mapManagedUsers(): ManagedUser[] {
       accountOrigin: item.origin,
       registerClient: item.clientType,
       phoneVerified: item.phoneVerified,
-      phoneLoginEnabled,
       hasWechatLogin,
-      canUnbindPhoneLogin: phoneLoginEnabled && hasWechatLogin,
-      trustTier: phoneLoginEnabled ? 'PHONE_BOUND' : 'WECHAT_ONLY',
-      loginMethod: phoneLoginEnabled && hasWechatLogin ? '微信 + 手机号' : hasWechatLogin ? '仅微信' : phoneLoginEnabled ? '仅手机号' : '未设置',
+      trustTier: item.phoneVerified ? 'PHONE_BOUND' : 'WECHAT_ONLY',
+      loginMethod: hasWechatLogin ? '微信登录' : '未设置',
       status: item.status === 'PENDING' ? 'PENDING_BIND' : item.status,
       lastLoginAt: item.lastLoginAt === '-' ? null : item.lastLoginAt,
       createdAt: item.createdAt
@@ -184,7 +182,16 @@ export async function getDashboard() {
       families: mockFamilies.length,
       pendingPublicApplications: mockPublicApplications.filter((item) => item.status === 'PENDING').length,
       pendingFounderTransfers: mockFounderTransfers.filter((item) => item.status === 'PENDING').length,
-      pendingDissolutions: mockDissolutionRequests.filter((item) => item.status === 'PENDING').length
+      pendingDissolutions: mockDissolutionRequests.filter((item) => item.status === 'PENDING').length,
+      paidCapacityOrders: 0,
+      activeCapacityRevenueFen: 0,
+      pendingCapacityRefunds: 0,
+      reviewCapacityRefunds: 0,
+      failedCapacityRefunds: 0,
+      pendingOperations: 0,
+      newUsersLast7Days: 0,
+      newFamiliesLast7Days: 0,
+      acceptedInvitationsLast7Days: 0
     } satisfies DashboardStats
   }
   return unwrapData(await apiClient.get<ApiResponse<DashboardStats>>('/admin/dashboard'))
@@ -245,6 +252,56 @@ export async function listFamilyMembers(familyId: number | string) {
   return unwrapData(await apiClient.get<ApiResponse<ManagedFamilyMember[]>>(`/admin/families/${familyId}/members`))
 }
 
+export interface UpdateManagedFamilyMemberInput {
+  displayName?: string
+  gender?: string
+  birthDate?: string | null
+  isLiving?: boolean | null
+  userBindingPolicy?: string
+}
+
+export type ManagedRelativeAddType = 'ADD_FATHER' | 'ADD_MOTHER' | 'ADD_CHILD' | 'ADD_SPOUSE' | 'ADD_SIBLING'
+
+export interface CreateManagedFamilyRelativeInput {
+  addType: ManagedRelativeAddType
+  newMember: {
+    displayName: string
+    gender: string
+    birthDate?: string | null
+    isLiving?: boolean | null
+    userBindingPolicy?: string
+    memberType?: string
+  }
+  relationship?: {
+    parentLinkType?: string
+  }
+}
+
+export interface CreatedManagedFamilyRelative {
+  memberId: number
+  relationshipIds: number[]
+  graphVersion: number
+}
+
+export async function updateFamilyMember(familyId: number | string, memberId: number | string, input: UpdateManagedFamilyMemberInput) {
+  if (apiMode === 'mock') {
+    return { id: Number(memberId), familyId: Number(familyId), status: 'ACTIVE', ...input } as ManagedFamilyMember
+  }
+  return unwrapData(await apiClient.put<ApiResponse<ManagedFamilyMember>>(`/admin/families/${familyId}/members/${memberId}`, input))
+}
+
+export async function deleteFamilyMember(familyId: number | string, memberId: number | string, reason?: string) {
+  if (apiMode === 'mock') return { status: 'ok' }
+  return unwrapData(await apiClient.delete<ApiResponse<{ status: string }>>(`/admin/families/${familyId}/members/${memberId}`, { data: { reason } }))
+}
+
+export async function createFamilyRelative(familyId: number | string, memberId: number | string, input: CreateManagedFamilyRelativeInput) {
+  if (apiMode === 'mock') {
+    return { memberId: Date.now(), relationshipIds: [Date.now() + 1], graphVersion: 2 } satisfies CreatedManagedFamilyRelative
+  }
+  return unwrapData(await apiClient.post<ApiResponse<CreatedManagedFamilyRelative>>(`/admin/families/${familyId}/members/${memberId}/relatives`, input))
+}
+
 export async function getFamilyTree(familyId: number | string): Promise<AdminFamilyTree> {
   if (apiMode === 'mock') {
     const nodes = mapFamilyMembers(familyId).map((member) => ({
@@ -253,6 +310,7 @@ export async function getFamilyTree(familyId: number | string): Promise<AdminFam
       gender: member.gender,
       memberType: 'LINEAGE_MEMBER',
       isLiving: member.isLiving,
+      userBindingPolicy: member.userBindingPolicy,
       userBindingState: member.boundUserId ? 'BOUND' : member.userBindingPolicy === 'NOT_REQUIRED' ? 'NOT_REQUIRED' : 'UNBOUND'
     }))
     return {
@@ -278,23 +336,30 @@ export async function listAdmins(params: PageQuery) {
   return unwrapData(await apiClient.get<ApiResponse<PageResult<ManagedAdmin>>>('/admin/admin-users', { params }))
 }
 
-export async function unbindPhoneLogin(userId: number | string, reason?: string) {
-  if (apiMode === 'mock') {
-    const user = mapManagedUsers().find((item) => String(item.id) === String(userId))
-    if (user) {
-      user.phoneLoginEnabled = false
-      user.trustTier = 'WECHAT_ONLY'
-      user.loginMethod = '仅微信'
-    }
-    return { status: 'ok' }
-  }
-  return unwrapData(
-    await apiClient.post<ApiResponse<{ status: string }>>(`/admin/users/${userId}/unbind-phone-login`, {
-      confirm: true,
-      reason: reason || ''
-    })
-  )
+export async function createAdmin(input: { username: string; password: string; displayName?: string; phone?: string; email?: string; role: AdminRole; remark?: string }) {
+  return unwrapData(await apiClient.post<ApiResponse<ManagedAdmin>>('/admin/admin-users', input))
 }
+
+export async function updateAdmin(adminId: number, input: { displayName?: string; phone?: string; email?: string; role?: AdminRole; remark?: string }) {
+  return unwrapData(await apiClient.put<ApiResponse<ManagedAdmin>>(`/admin/admin-users/${adminId}`, input))
+}
+
+export async function setAdminStatus(adminId: number, status: 'ACTIVE' | 'DISABLED' | 'DELETED' | 'UNLOCKED', reason?: string) {
+  return unwrapData(await apiClient.post<ApiResponse<{ status: string }>>(`/admin/admin-users/${adminId}/status`, { status, reason }))
+}
+
+export async function setUserStatus(userId: number, status: 'ACTIVE' | 'DISABLED' | 'DELETED', reason?: string) {
+  return unwrapData(await apiClient.post<ApiResponse<{ status: string }>>(`/admin/users/${userId}/status`, { status, reason }))
+}
+
+export async function updateFamily(familyId: number, input: { familyName?: string; description?: string; nativePlace?: string; regionText?: string; searchable?: boolean }) {
+  return unwrapData(await apiClient.put<ApiResponse<ManagedFamily>>(`/admin/families/${familyId}`, input))
+}
+
+export async function setFamilyStatus(familyId: number, status: 'NORMAL' | 'DISABLED' | 'DELETED', reason?: string) {
+  return unwrapData(await apiClient.post<ApiResponse<{ status: string }>>(`/admin/families/${familyId}/status`, { status, reason }))
+}
+
 
 export async function listOperationLogs(params: PageQuery) {
   if (apiMode === 'mock') {
@@ -311,4 +376,17 @@ export async function listOperationLogs(params: PageQuery) {
     return paginate(items, params.page, params.pageSize)
   }
   return unwrapData(await apiClient.get<ApiResponse<PageResult<OperationLogRecord>>>('/admin/operation-logs', { params }))
+}
+
+export async function listRecoveryItems(params: Pick<PageQuery, 'page' | 'pageSize'>) {
+  if (apiMode === 'mock') return paginate<RecoveryItem>([], params.page, params.pageSize)
+  return unwrapData(await apiClient.get<ApiResponse<PageResult<RecoveryItem>>>('/admin/recovery-items', { params }))
+}
+
+export async function restoreRecoveryItem(item: RecoveryItem) {
+  if (apiMode === 'mock') return { status: 'ok' }
+  const path = item.kind === 'MEMBER'
+    ? `/admin/families/${item.familyId}/members/${item.id}/restore`
+    : `/admin/families/${item.familyId}/relationships/${item.id}/restore`
+  return unwrapData(await apiClient.post<ApiResponse<{ status: string }>>(path))
 }

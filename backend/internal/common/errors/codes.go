@@ -83,13 +83,25 @@ const (
 )
 
 const (
-	CodeProfileIncomplete           Code = 41501
-	CodeQuotaOwnedFamiliesExceeded  Code = 41502
-	CodeQuotaJoinedFamiliesExceeded Code = 41503
-	CodeQuotaMembersExceeded        Code = 41504
-	CodeQuotaConfigInvalid          Code = 41505
-	CodeQuotaConfigForbidden        Code = 41506
-	CodeQuotaConfigTierOrder        Code = 41507
+	CodeProfileIncomplete            Code = 41501
+	CodeQuotaOwnedFamiliesExceeded   Code = 41502
+	CodeQuotaJoinedFamiliesExceeded  Code = 41503
+	CodeQuotaMembersExceeded         Code = 41504
+	CodeQuotaConfigInvalid           Code = 41505
+	CodeQuotaConfigForbidden         Code = 41506
+	CodeQuotaConfigTierOrder         Code = 41507
+	CodeCapacityProductNotFound      Code = 41601
+	CodeCapacityPurchaseForbidden    Code = 41602
+	CodeCapacityOrderNotFound        Code = 41603
+	CodeCapacityOrderNotPayable      Code = 41604
+	CodeCapacityRefundUnavailable    Code = 41605
+	CodeCapacityRefundBlocked        Code = 41606
+	CodeCapacityRefundReasonRequired Code = 41608
+	CodeWechatPayConfigError         Code = 41607
+	CodeCapacityRefundQueryFailed    Code = 41609
+	CodeCapacityRefundMismatch       Code = 41610
+	CodeCapacityRefundRetryUnknown   Code = 41611
+	CodeCapacityRefundStateConflict  Code = 41612
 )
 
 const (
@@ -195,6 +207,18 @@ var messages = map[Code]string{
 	CodeQuotaConfigInvalid:                   "权益配置参数不合法",
 	CodeQuotaConfigForbidden:                 "无权修改账号权益配置",
 	CodeQuotaConfigTierOrder:                 "高等级权益不得低于基础等级",
+	CodeCapacityProductNotFound:              "扩容商品不存在或已下架",
+	CodeCapacityPurchaseForbidden:            "只有家庭创建者可以购买成员扩容",
+	CodeCapacityOrderNotFound:                "扩容订单不存在",
+	CodeCapacityOrderNotPayable:              "当前订单不能支付",
+	CodeCapacityRefundUnavailable:            "当前订单暂不支持退款",
+	CodeCapacityRefundBlocked:                "退款后家庭成员数量将超过可用容量",
+	CodeCapacityRefundReasonRequired:         "再次申请退款时必须填写申请理由",
+	CodeWechatPayConfigError:                 "微信支付尚未配置完成",
+	CodeCapacityRefundQueryFailed:            "微信退款查询失败，额度未变，请稍后重试",
+	CodeCapacityRefundMismatch:               "微信退款信息与订单不符，请联系技术人员核查",
+	CodeCapacityRefundRetryUnknown:           "退款重提结果暂不确定，额度仍冻结，请查询微信结果",
+	CodeCapacityRefundStateConflict:          "退款记录存在冲突，额度未变，请联系技术人员查账",
 	CodeAdminUsernameOrPasswordInvalid:       "用户名或密码错误",
 	CodeAdminDisabled:                        "管理员账号已禁用",
 	CodeAdminLocked:                          "管理员账号已锁定",

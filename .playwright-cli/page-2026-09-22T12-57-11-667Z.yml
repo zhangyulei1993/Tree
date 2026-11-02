@@ -1,0 +1,54 @@
+- generic [ref=f1e314]:
+  - generic [ref=f1e316]:
+    - generic [ref=f1e318] [cursor=pointer]
+    - generic [ref=f1e321]: 添加与调整
+  - generic [ref=f1e326]:
+    - generic [ref=f1e327]:
+      - generic [ref=f1e328]:
+        - generic [ref=f1e329]: Family Tree Edit
+        - generic [ref=f1e330]: 添加与调整
+        - generic [ref=f1e331]: 测氏测试家族205306 · 先确认关系，再选择添加、暂存或调整
+      - generic [ref=f1e332]: 测
+    - generic [ref=f1e333]: 返回家庭树
+    - generic [ref=f1e335]:
+      - generic [ref=f1e336]: 添加节点
+      - generic [ref=f1e338]: 添加暂存
+      - generic [ref=f1e340]: 接入暂存
+      - generic [ref=f1e342]: 调关系
+    - generic [ref=f1e344]:
+      - generic [ref=f1e345]: 关系已确定
+      - generic [ref=f1e346]: 选择一位已有成员，再添加其父母、子女、配偶或兄弟姐妹。新成员会立即进入家庭树。
+    - generic [ref=f1e347]:
+      - generic [ref=f1e348]:
+        - generic [ref=f1e349]: 添加节点
+        - generic [ref=f1e350]: 已确认亲属关系时，直接添加到家庭树
+      - generic [ref=f1e353] [cursor=pointer]:
+        - generic [ref=f1e354]: 和谁有关：
+        - text: 测试用户205306
+      - generic [ref=f1e357] [cursor=pointer]:
+        - generic [ref=f1e358]: 准备添加：
+        - text: 父亲
+      - generic [ref=f1e359]:
+        - generic [ref=f1e360]: 关系预览
+        - generic [ref=f1e361]: 将为“测试用户205306”添加一位父亲。
+      - generic [ref=f1e365] [cursor=pointer]:
+        - generic [ref=f1e366]: 父母身份（图示）：
+        - text: 家庭成员
+      - generic [ref=f1e367]: 仅影响树状家谱纸签样式，不改变亲属关系；已有另一位家庭成员父/母时，可选择“家庭成员的配偶”。
+      - generic [ref=f1e369]:
+        - generic: 新成员姓名
+        - textbox [ref=f1e370]
+      - generic [ref=f1e371] [cursor=pointer]: 性别：男
+      - generic [ref=f1e375]:
+        - generic: 出生年份（可选）
+        - spinbutton [ref=f1e376]
+      - generic [ref=f1e377]:
+        - generic [ref=f1e378]: 目前健在
+        - generic [ref=f1e379] [cursor=pointer]
+      - generic [ref=f1e383]:
+        - generic [ref=f1e384]: 关系备注（可选）
+        - textbox [ref=f1e385]
+      - generic [ref=f1e386]:
+        - generic [ref=f1e387]: 操作说明
+        - generic [ref=f1e388]: 此操作会同时创建新成员和关系，不用于连接两个已有成员。重复父亲、母亲或配偶由系统校验并给出提示。
+      - generic [ref=f1e390]: 创建并接入家庭树

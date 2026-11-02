@@ -43,7 +43,7 @@
     <view class="about-section archive-form-panel">
       <view class="archive-section-head">
         <text class="archive-section-title">合规说明</text>
-        <text class="archive-section-subtitle">隐私保护与公开展示原则</text>
+        <text class="archive-section-subtitle">隐私保护与优质家庭案例原则</text>
       </view>
       <view class="about-list archive-list">
         <view v-for="item in complianceItems" :key="item.title" class="archive-row static">
@@ -160,8 +160,8 @@ const featureItems = [
     desc: '通过邀请链接或申请流程加入家庭，协作维护族谱'
   },
   {
-    title: '公开展示',
-    desc: '经审核后可对外展示脱敏后的家族简介与公开家庭树'
+    title: '示例浏览',
+    desc: '浏览平台整理的历史世系示例，参考家庭树的记录方式'
   }
 ]
 
@@ -175,8 +175,8 @@ const complianceItems = [
     desc: '个人信息处理范围、保存期限与权利行使方式见隐私政策'
   },
   {
-    title: '公开脱敏',
-    desc: '公开展示的信息经审核与脱敏处理，不默认公开在世成员详细资料'
+    title: '隐私保护',
+    desc: '家庭资料默认仅家庭成员可见，不默认公开在世成员详细资料'
   }
 ]
 

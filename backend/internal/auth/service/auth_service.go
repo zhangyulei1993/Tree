@@ -102,6 +102,16 @@ type WechatMiniLoginInput struct {
 }
 
 type WechatMiniPhoneLoginInput struct {
+	Code       string
+	PhoneCode  string
+	ClientType string
+	IP         string
+	UserAgent  string
+}
+
+type BindWechatPhoneInput struct {
+	UserID     uint64
+	TokenID    string
 	PhoneCode  string
 	ClientType string
 	IP         string
@@ -154,6 +164,7 @@ type AuthService interface {
 	Logout(ctx context.Context, input LogoutInput) *apperrors.BusinessError
 	WechatMiniLogin(ctx context.Context, input WechatMiniLoginInput) (*vo.LoginResponse, *apperrors.BusinessError)
 	WechatMiniPhoneLogin(ctx context.Context, input WechatMiniPhoneLoginInput) (*vo.LoginResponse, *apperrors.BusinessError)
+	BindWechatPhone(ctx context.Context, input BindWechatPhoneInput) (*vo.LoginResponse, *apperrors.BusinessError)
 	BindPhone(ctx context.Context, input BindPhoneInput) (*vo.LoginResponse, *apperrors.BusinessError)
 	BindPhoneCredential(ctx context.Context, input BindPhoneCredentialInput) (*vo.LoginResponse, *apperrors.BusinessError)
 	ChangePhoneLoginPassword(ctx context.Context, input ChangePhoneLoginPasswordInput) (*vo.LoginResponse, *apperrors.BusinessError)
@@ -474,7 +485,7 @@ func (s *PhoneAuthService) WechatMiniLogin(ctx context.Context, input WechatMini
 }
 
 func (s *PhoneAuthService) WechatMiniPhoneLogin(ctx context.Context, input WechatMiniPhoneLoginInput) (*vo.LoginResponse, *apperrors.BusinessError) {
-	if input.PhoneCode == "" {
+	if input.PhoneCode == "" || input.Code == "" {
 		s.writeSystemAction(ctx, actionWechatPhoneLogin, input.IP, input.UserAgent, false, "phone code required")
 		return nil, apperrors.New(apperrors.CodeWechatPhoneCodeInvalid)
 	}
@@ -494,37 +505,205 @@ func (s *PhoneAuthService) WechatMiniPhoneLogin(ctx context.Context, input Wecha
 	}
 
 	phoneHash := security.PhoneHash(phone)
-	existing, findErr := s.userRepo.FindByPhoneHash(ctx, phoneHash)
-	if findErr == nil {
-		if businessErr := phoneLoginStatusError(existing); businessErr != nil {
-			s.writeUserAction(ctx, existing.ID, actionWechatPhoneLogin, input.IP, input.UserAgent, false, "status denied")
-			return nil, businessErr
-		}
-		if err := s.userRepo.RecordLoginSuccess(ctx, existing.ID, input.IP, input.ClientType, time.Now()); err != nil {
-			return nil, apperrors.New(apperrors.CodeSystemError)
-		}
-		s.writeUserAction(ctx, existing.ID, actionWechatPhoneLogin, input.IP, input.UserAgent, true, "")
-		return s.issueUserToken(existing)
+	wechatSession, err := s.wechatClient.Code2Session(ctx, input.Code)
+	if err != nil {
+		s.writeSystemAction(ctx, actionWechatPhoneLogin, input.IP, input.UserAgent, false, "wechat code2session failed")
+		return nil, apperrors.New(apperrors.CodeWechatOpenIDFetchFailed)
 	}
 
-	user := &usermodel.User{
-		Phone:          &phone,
-		PhoneHash:      &phoneHash,
-		PhoneVerified:  true,
-		PasswordHash:   nil,
-		AccountOrigin:  accountOriginWechatMiniPhone,
-		RegisterClient: input.ClientType,
-		Status:         string(enums.StatusActive),
-	}
-	if err := s.userRepo.Create(ctx, user); err != nil {
-		s.writeSystemAction(ctx, actionWechatPhoneLogin, input.IP, input.UserAgent, false, "create user failed")
+	openIDHash := security.HashPlain(wechatSession.OpenID)
+	identity, identityErr := s.userRepo.FindIdentityByOpenIDHash(ctx, providerWechatMini, s.wechatAppID, openIDHash)
+	if identityErr != nil && !errors.Is(identityErr, gorm.ErrRecordNotFound) {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	if err := s.userRepo.RecordLoginSuccess(ctx, user.ID, input.IP, input.ClientType, time.Now()); err != nil {
+	phoneUser, phoneErr := s.userRepo.FindByPhoneHash(ctx, phoneHash)
+	if phoneErr != nil && !errors.Is(phoneErr, gorm.ErrRecordNotFound) {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
-	s.writeUserAction(ctx, user.ID, actionWechatPhoneLogin, input.IP, input.UserAgent, true, "")
-	return s.issueUserToken(user)
+
+	var resultUser *usermodel.User
+	var businessErr *apperrors.BusinessError
+	err = s.withTransaction(ctx, func(tx *gorm.DB) error {
+		txUserRepo := s.userRepo.WithTx(tx)
+		now := time.Now()
+		var target *usermodel.User
+		if identityErr == nil {
+			target, err = txUserRepo.FindByID(ctx, identity.UserID)
+			if err != nil {
+				businessErr = apperrors.New(apperrors.CodeWechatIdentityExpired)
+				return errors.New(errRollback)
+			}
+			if phoneErr == nil && phoneUser.ID != target.ID {
+				businessErr = apperrors.New(apperrors.CodeWechatPhoneLoginInvalid)
+				return errors.New(errRollback)
+			}
+		} else if phoneErr == nil {
+			target, err = txUserRepo.FindByID(ctx, phoneUser.ID)
+			if err != nil {
+				businessErr = apperrors.New(apperrors.CodeSystemError)
+				return errors.New(errRollback)
+			}
+		}
+
+		if target != nil {
+			if businessErr = phoneLoginStatusError(target); businessErr != nil {
+				return errors.New(errRollback)
+			}
+			if err := txUserRepo.UpdateUser(ctx, target.ID, map[string]any{
+				"phone": phone, "phone_hash": phoneHash, "phone_verified": true, "updated_at": now,
+			}); err != nil {
+				businessErr = apperrors.New(apperrors.CodeSystemError)
+				return errors.New(errRollback)
+			}
+			if identityErr == nil {
+				if err := txUserRepo.UpdateIdentity(ctx, identity.ID, map[string]any{"last_login_at": now, "updated_at": now}); err != nil {
+					businessErr = apperrors.New(apperrors.CodeSystemError)
+					return errors.New(errRollback)
+				}
+			} else if err := txUserRepo.CreateIdentity(ctx, wechatMiniIdentity(target.ID, s.wechatAppID, wechatSession, openIDHash, now)); err != nil {
+				businessErr = apperrors.New(apperrors.CodeSystemError)
+				return errors.New(errRollback)
+			}
+			resultUser, err = txUserRepo.FindByID(ctx, target.ID)
+			if err != nil {
+				businessErr = apperrors.New(apperrors.CodeSystemError)
+				return errors.New(errRollback)
+			}
+			return nil
+		}
+
+		user := &usermodel.User{
+			Phone: &phone, PhoneHash: &phoneHash, PhoneVerified: true, PasswordHash: nil,
+			AccountOrigin: accountOriginWechatMiniPhone, RegisterClient: input.ClientType,
+			Status: string(enums.StatusActive), LastLoginAt: &now,
+			LastLoginIP: stringPtr(input.IP), LastLoginClient: &input.ClientType,
+		}
+		if err := txUserRepo.Create(ctx, user); err != nil {
+			businessErr = apperrors.New(apperrors.CodeSystemError)
+			return errors.New(errRollback)
+		}
+		if err := txUserRepo.CreateIdentity(ctx, wechatMiniIdentity(user.ID, s.wechatAppID, wechatSession, openIDHash, now)); err != nil {
+			businessErr = apperrors.New(apperrors.CodeSystemError)
+			return errors.New(errRollback)
+		}
+		resultUser = user
+		return nil
+	})
+	if err != nil {
+		if businessErr != nil {
+			s.writeSystemAction(ctx, actionWechatPhoneLogin, input.IP, input.UserAgent, false, "account resolution denied")
+			return nil, businessErr
+		}
+		s.writeSystemAction(ctx, actionWechatPhoneLogin, input.IP, input.UserAgent, false, "account resolution failed")
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	if err := s.userRepo.RecordLoginSuccess(ctx, resultUser.ID, input.IP, input.ClientType, time.Now()); err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	s.writeUserAction(ctx, resultUser.ID, actionWechatPhoneLogin, input.IP, input.UserAgent, true, "")
+	return s.issueUserToken(resultUser)
+}
+
+func wechatMiniIdentity(userID uint64, appID string, result *wechat.Code2SessionResult, openIDHash string, now time.Time) *usermodel.UserAuthIdentity {
+	unionHash := ""
+	if result.UnionID != "" {
+		unionHash = security.HashPlain(result.UnionID)
+	}
+	openID := result.OpenID
+	return &usermodel.UserAuthIdentity{
+		UserID: userID, Provider: providerWechatMini, ProviderAppID: &appID,
+		OpenID: &openID, OpenIDHash: &openIDHash,
+		UnionID: stringPtr(result.UnionID), UnionIDHash: stringPtr(unionHash),
+		IdentityStatus: string(enums.StatusActive), BoundAt: &now, LastLoginAt: &now,
+	}
+}
+
+func (s *PhoneAuthService) BindWechatPhone(ctx context.Context, input BindWechatPhoneInput) (*vo.LoginResponse, *apperrors.BusinessError) {
+	if input.PhoneCode == "" {
+		s.writeUserAction(ctx, input.UserID, actionBindPhone, input.IP, input.UserAgent, false, "phone code required")
+		return nil, apperrors.New(apperrors.CodeWechatPhoneCodeInvalid)
+	}
+	if input.ClientType != ClientWechatMini {
+		s.writeUserAction(ctx, input.UserID, actionBindPhone, input.IP, input.UserAgent, false, "invalid client type")
+		return nil, apperrors.New(apperrors.CodeInvalidParams)
+	}
+	phone, err := s.wechatClient.GetPhoneNumber(ctx, input.PhoneCode)
+	if err != nil {
+		s.writeUserAction(ctx, input.UserID, actionBindPhone, input.IP, input.UserAgent, false, "wechat phone fetch failed")
+		return nil, apperrors.New(apperrors.CodeWechatPhoneFetchFailed)
+	}
+	if !security.ValidPhone(phone) {
+		s.writeUserAction(ctx, input.UserID, actionBindPhone, input.IP, input.UserAgent, false, "invalid phone")
+		return nil, apperrors.New(apperrors.CodeVerificationPhoneInvalid)
+	}
+	current, err := s.userRepo.FindByID(ctx, input.UserID)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeBindPhoneLoginRequired)
+	}
+	if current.Status != string(enums.StatusPendingBind) && current.Status != string(enums.StatusActive) {
+		return nil, apperrors.New(apperrors.CodeBindPhoneStatusDenied)
+	}
+
+	phoneHash := security.PhoneHash(phone)
+	var resultUser *usermodel.User
+	var businessErr *apperrors.BusinessError
+	err = s.withTransaction(ctx, func(tx *gorm.DB) error {
+		txUserRepo := s.userRepo.WithTx(tx)
+		target, findErr := txUserRepo.FindByPhoneHash(ctx, phoneHash)
+		if findErr != nil {
+			now := time.Now()
+			if err := txUserRepo.UpdateUser(ctx, current.ID, map[string]any{
+				"phone":          phone,
+				"phone_hash":     phoneHash,
+				"phone_verified": true,
+				"status":         string(enums.StatusActive),
+				"updated_at":     now,
+			}); err != nil {
+				businessErr = apperrors.New(apperrors.CodeSystemError)
+				return errors.New(errRollback)
+			}
+			_ = txUserRepo.CreatePhoneHistory(ctx, phoneHistory(current.ID, &phone, &phoneHash, actionBindPhone, current.ID))
+			resultUser, _ = txUserRepo.FindByID(ctx, current.ID)
+			return nil
+		}
+		if target.ID == current.ID {
+			now := time.Now()
+			if err := txUserRepo.UpdateUser(ctx, current.ID, map[string]any{
+				"phone_verified": true,
+				"status":         string(enums.StatusActive),
+				"updated_at":     now,
+			}); err != nil {
+				businessErr = apperrors.New(apperrors.CodeSystemError)
+				return errors.New(errRollback)
+			}
+			resultUser, _ = txUserRepo.FindByID(ctx, current.ID)
+			return nil
+		}
+		switch target.Status {
+		case string(enums.StatusActive):
+			resultUser, businessErr = s.mergeUsers(ctx, txUserRepo, current, target, input.IP, input.UserAgent, nil)
+		case string(enums.StatusPendingClaim):
+			resultUser, businessErr = s.claimUser(ctx, txUserRepo, current, target, phone, phoneHash, input.IP, input.UserAgent, nil)
+		default:
+			businessErr = apperrors.New(apperrors.CodeBindPhoneStatusDenied)
+		}
+		if businessErr != nil {
+			return errors.New(errRollback)
+		}
+		return nil
+	})
+	if err != nil {
+		if businessErr != nil {
+			s.writeUserAction(ctx, current.ID, actionBindPhone, input.IP, input.UserAgent, false, businessErr.Message)
+			return nil, businessErr
+		}
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	if resultUser.ID != current.ID && s.blacklist != nil {
+		_ = s.blacklist.RevokeUserTokens(ctx, current.ID, time.Now().Unix(), 30*24*time.Hour)
+	}
+	s.writeUserAction(ctx, resultUser.ID, actionBindPhone, input.IP, input.UserAgent, true, "")
+	return s.issueUserToken(resultUser)
 }
 
 func (s *PhoneAuthService) BindPhone(ctx context.Context, input BindPhoneInput) (*vo.LoginResponse, *apperrors.BusinessError) {

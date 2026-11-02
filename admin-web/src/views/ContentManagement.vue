@@ -231,7 +231,7 @@
 </template>
 
 <script setup lang="ts">
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import type { UploadRequestOptions, UploadRawFile } from 'element-plus'
 import { onMounted, reactive, ref } from 'vue'
 
@@ -600,8 +600,16 @@ function formatTime(value?: string | null) {
 
 .table-actions {
   display: flex;
+  align-items: center;
+  justify-content: center;
   flex-wrap: wrap;
+  width: 100%;
   gap: 6px;
+  white-space: normal;
+}
+
+.table-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .pager {

@@ -9,19 +9,22 @@ type PublicContact struct {
 }
 
 type CreateFamilyRequest struct {
-	Surname       string         `json:"surname" binding:"required"`
-	FounderGender *string        `json:"founderGender"`
-	FamilyName    *string        `json:"familyName"`
-	Name          *string        `json:"name"`
-	NativePlace   *string        `json:"nativePlace"`
-	RegionCode    *string        `json:"regionCode"`
-	RegionText    *string        `json:"regionText"`
-	Description   *string        `json:"description"`
-	AvatarURL     *string        `json:"avatarUrl"`
-	PublicContact *PublicContact `json:"publicContact"`
+	Surname          string         `json:"surname" binding:"required"`
+	FounderName      string         `json:"founderName" binding:"required"`
+	FounderGender    *string        `json:"founderGender" binding:"required"`
+	FounderBirthYear *int           `json:"founderBirthYear" binding:"required"`
+	FamilyName       *string        `json:"familyName"`
+	Name             *string        `json:"name"`
+	NativePlace      *string        `json:"nativePlace"`
+	RegionCode       *string        `json:"regionCode"`
+	RegionText       *string        `json:"regionText"`
+	Description      *string        `json:"description"`
+	AvatarURL        *string        `json:"avatarUrl"`
+	PublicContact    *PublicContact `json:"publicContact"`
 }
 
 type UpdateFamilyRequest struct {
+	ExpectedRevision     *int64  `json:"expectedRevision"`
 	FamilyName           *string `json:"familyName"`
 	NativePlace          *string `json:"nativePlace"`
 	RegionCode           *string `json:"regionCode"`

@@ -89,13 +89,14 @@ func createQuotaUser(t *testing.T, tx *gorm.DB, phoneLoginEnabled bool, nickname
 		}
 		if err := tx.Model(user).Updates(map[string]any{
 			"phone": phone, "phone_hash": phoneHash, "password_hash": passwordHash,
-			"phone_login_enabled": true,
+			"phone_verified": true, "phone_login_enabled": true,
 		}).Error; err != nil {
 			t.Fatalf("enable phone login: %v", err)
 		}
 		user.Phone = &phone
 		user.PhoneHash = &phoneHash
 		user.PasswordHash = &passwordHash
+		user.PhoneVerified = true
 		user.PhoneLoginEnabled = true
 	}
 	return user
@@ -117,6 +118,26 @@ func TestPhoneVerifiedUserUsesHigherTier(t *testing.T) {
 	ctx := context.Background()
 	tx := quotaTestDB(t)
 	user := createQuotaUser(t, tx, true, "高级用户")
+	svc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
+	result, err := svc.GetCapabilities(ctx, user.ID)
+	if err != nil || result.TrustTier != quotaenum.TrustTierPhoneBound ||
+		result.Limits.MaxMembersPerOwnedFamily != 20 || result.Limits.MaxJoinedFamilies != 5 {
+		t.Fatalf("unexpected phone verified capabilities: %#v %#v", result, err)
+	}
+}
+
+func TestPhoneVerifiedUserWithoutBackupLoginUsesHigherTier(t *testing.T) {
+	ctx := context.Background()
+	tx := quotaTestDB(t)
+	user := createQuotaUser(t, tx, false, "快捷手机号用户")
+	phone := fmt.Sprintf("139%08d", user.ID%100000000)
+	phoneHash := security.PhoneHash(phone)
+	if err := tx.Model(user).Updates(map[string]any{
+		"phone": phone, "phone_hash": phoneHash, "phone_verified": true,
+		"phone_login_enabled": false,
+	}).Error; err != nil {
+		t.Fatalf("bind verified phone: %v", err)
+	}
 	svc := quotaservice.NewService(tx, quotarepo.NewRepository(tx))
 	result, err := svc.GetCapabilities(ctx, user.ID)
 	if err != nil || result.TrustTier != quotaenum.TrustTierPhoneBound ||

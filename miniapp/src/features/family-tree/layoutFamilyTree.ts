@@ -13,18 +13,20 @@ import type {
   RenderTreeLink
 } from './types'
 
-/** 布局尺寸（rpx）— 与 FamilyTreeMemberChip compact 样式对齐 */
-const SINGLE_CARD_W = 112
-const CARD_GAP = 7
-const COUPLE_ROW_H = 112
-const NODE_GAP_X = 14
-const LEVEL_GAP_Y = 150
-const CANVAS_PADDING = 14
+/** 布局尺寸（rpx）— 与无卡片人物节点的实际占位对齐 */
+// Keep the layout hit areas aligned with the rendered portrait node. The former
+// values predated the portrait-base design and allowed adjacent branches to overlap.
+const SINGLE_NODE_W = 160
+const COUPLE_GAP = 24
+const COUPLE_ROW_H = 178
+const NODE_GAP_X = 24
+const LEVEL_GAP_Y = 234
+const CANVAS_PADDING = 24
 const LINK_STROKE = 2
 
 function coupleWidth(parentCount: number): number {
-  if (parentCount <= 0) return SINGLE_CARD_W
-  return parentCount * SINGLE_CARD_W + (parentCount - 1) * CARD_GAP
+  if (parentCount <= 0) return SINGLE_NODE_W
+  return parentCount * SINGLE_NODE_W + (parentCount - 1) * COUPLE_GAP
 }
 
 function branchToDatum(branch: FamilyTreeBranchNode): CoupleHierarchyDatum {
@@ -153,7 +155,7 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
 
     const maxWidth = Math.max(
       ...branchData.map((branch) => maxCoupleWidth(branch)),
-      SINGLE_CARD_W
+      SINGLE_NODE_W
     )
 
     const root = hierarchy(rootDatum, (datum) => datum.children)
@@ -242,6 +244,8 @@ export function layoutFamilyTree(input: FamilyTreeBuildInput): FamilyTreeLayoutR
       renderLinks.push({
         id: `${source.id}->${target.id}`,
         segments: buildOrthogonalLink(source, target),
+        sourceMemberIds: source.parents.map((parent) => parent.memberId),
+        targetMemberIds: target.parents.map((parent) => parent.memberId),
         highlighted
       })
     }

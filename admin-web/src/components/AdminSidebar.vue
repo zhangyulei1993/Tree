@@ -22,15 +22,17 @@
 import {
   CollectionTag,
   Connection,
-  Document,
+    Document,
   Files,
   HomeFilled,
   House,
+  FolderOpened,
   MessageBox,
   Operation,
   SetUp,
   User,
-  UserFilled
+  UserFilled,
+    Wallet
 } from '@element-plus/icons-vue'
 import { computed } from 'vue'
 
@@ -58,13 +60,17 @@ const menuGroups: { label: string; items: MenuItem[] }[] = [
     { path: '/admin/tool-configs', label: '常用工具配置', icon: SetUp, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] }
   ] },
   { label: '审核与风控', items: [
-    { path: '/admin/public-applications', label: '公开申请审核', icon: Document },
+    { path: '/admin/public-applications', label: '优质家庭审核', icon: Document },
+    { path: '/admin/quality-family-config', label: '优质家庭准入规则', icon: SetUp, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
     { path: '/admin/founder-transfer-requests', label: '创始人转让审核', icon: Connection, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
     { path: '/admin/dissolution-requests', label: '家庭解散审核', icon: MessageBox, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
+    { path: '/admin/recovery-center', label: '变更恢复中心', icon: FolderOpened, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
     { path: '/admin/operation-logs', label: '操作日志', icon: Operation }
   ] },
   { label: '平台设置', items: [
     { path: '/admin/account-quota-configs', label: '账号权益配置', icon: SetUp, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
+    { path: '/admin/capacity-commerce', label: '容量商品与订单', icon: Wallet, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
+    { path: '/admin/backup-operation', label: '备份与存储', icon: FolderOpened, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] },
     { path: '/admin/admin-users', label: '后台管理员管理', icon: UserFilled, roles: ['ROOT_ADMIN', 'SUPER_ADMIN'] }
   ] }
 ]

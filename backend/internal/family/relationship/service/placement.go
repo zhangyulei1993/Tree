@@ -42,6 +42,7 @@ func PlaceExistingMember(
 	addTypeValue string,
 	memberType *string,
 	relationshipInput dto.RelationshipInput,
+	coParentMemberIDs ...*uint64,
 ) ([]*relationshipmodel.FamilyRelationship, error) {
 	addType, businessErr := normalizeAddType(addTypeValue)
 	if businessErr != nil {
@@ -51,7 +52,7 @@ func PlaceExistingMember(
 	if businessErr != nil {
 		return nil, businessErr
 	}
-	return placeExistingMember(ctx, repo, familyID, familySurname, actorID, baseMemberID, member, addType, memberType, input)
+	return placeExistingMember(ctx, repo, familyID, familySurname, actorID, baseMemberID, member, addType, memberType, input, coParentMemberIDs...)
 }
 
 func normalizedStoredMemberType(value string) string {
@@ -69,6 +70,7 @@ func placeExistingMember(
 	addType relationshipenum.AddType,
 	requestedMemberType *string,
 	input normalizedRelationshipInput,
+	coParentMemberIDs ...*uint64,
 ) ([]*relationshipmodel.FamilyRelationship, error) {
 	dbMember, err := repo.FindMemberForUpdate(ctx, familyID, member.ID)
 	if err != nil {
@@ -97,7 +99,6 @@ func placeExistingMember(
 	var plans []relationshipPlan
 	switch addType {
 	case relationshipenum.AddTypeFather:
-		input = applyParentPlacement(ctx, repo, familyID, familySurname, baseMember.ID, workingMember.Gender, input, "STEP_FATHER", "继父")
 		plans = []relationshipPlan{{from: &workingMember, to: baseMember, relationshipType: string(relationshipenum.RelationshipTypeParentChild), input: input}}
 		if err := ensurePrimaryParentAvailable(ctx, repo, familyID, baseMember.ID, workingMember.Gender, input.parentLinkType, 0); err != nil {
 			return nil, err
@@ -108,7 +109,6 @@ func placeExistingMember(
 			plans = append(plans, extraPlans...)
 		}
 	case relationshipenum.AddTypeMother:
-		input = applyParentPlacement(ctx, repo, familyID, familySurname, baseMember.ID, workingMember.Gender, input, "STEP_MOTHER", "继母")
 		plans = []relationshipPlan{{from: &workingMember, to: baseMember, relationshipType: string(relationshipenum.RelationshipTypeParentChild), input: input}}
 		if err := ensurePrimaryParentAvailable(ctx, repo, familyID, baseMember.ID, workingMember.Gender, input.parentLinkType, 0); err != nil {
 			return nil, err
@@ -119,7 +119,10 @@ func placeExistingMember(
 			plans = append(plans, extraPlans...)
 		}
 	case relationshipenum.AddTypeChild:
-		plans = []relationshipPlan{{from: baseMember, to: &workingMember, relationshipType: string(relationshipenum.RelationshipTypeParentChild), input: input}}
+		plans, err = childParentPlans(ctx, repo, familyID, baseMember, &workingMember, input, coParentMemberIDs...)
+		if err != nil {
+			return nil, err
+		}
 	case relationshipenum.AddTypeSpouse:
 		input, err = applySpousePlacement(ctx, repo, familyID, familySurname, baseMember.ID, workingMember.Gender, input)
 		if err != nil {
@@ -157,6 +160,10 @@ func placeExistingMember(
 			if plans[i].relationshipType == string(relationshipenum.RelationshipTypeSpouse) {
 				continue
 			}
+			if plans[i].relationshipType == string(relationshipenum.RelationshipTypeParentChild) &&
+				len(coParentMemberIDs) > 0 && coParentMemberIDs[0] != nil && plans[i].from.ID == baseMember.ID {
+				continue
+			}
 			return nil, errDuplicateRelationship
 		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
@@ -177,6 +184,55 @@ func placeExistingMember(
 
 	*member = workingMember
 	return created, nil
+}
+
+// childParentPlans records the actual two parents when the operator selects a spouse.
+// It deliberately does not infer from a current spouse: prior and later marriages can coexist.
+func childParentPlans(
+	ctx context.Context,
+	repo PlacementRepository,
+	familyID uint64,
+	baseMember *membermodel.FamilyMember,
+	child *membermodel.FamilyMember,
+	input normalizedRelationshipInput,
+	coParentMemberIDs ...*uint64,
+) ([]relationshipPlan, error) {
+	plans := []relationshipPlan{{from: baseMember, to: child, relationshipType: string(relationshipenum.RelationshipTypeParentChild), input: input}}
+	if len(coParentMemberIDs) == 0 || coParentMemberIDs[0] == nil || *coParentMemberIDs[0] == 0 {
+		return plans, nil
+	}
+	coParentID := *coParentMemberIDs[0]
+	if coParentID == baseMember.ID {
+		return nil, errSelfRelationship
+	}
+	coParent, err := repo.FindMemberForUpdate(ctx, familyID, coParentID)
+	if err != nil {
+		return nil, errMemberUnavailable
+	}
+	if coParent.Gender != oppositeGender(baseMember.Gender) {
+		return nil, errSpouseGenderMismatch
+	}
+	spouses, err := repo.ListActiveSpouseRelationshipsByGender(ctx, familyID, baseMember.ID, coParent.Gender)
+	if err != nil {
+		return nil, err
+	}
+	if !containsSpouseMember(spouses, coParentID) {
+		return nil, errChildCoParentNotSpouse
+	}
+	if err := ensurePrimaryParentAvailable(ctx, repo, familyID, child.ID, coParent.Gender, input.parentLinkType, 0); err != nil {
+		return nil, err
+	}
+	plans = append(plans, relationshipPlan{from: coParent, to: child, relationshipType: string(relationshipenum.RelationshipTypeParentChild), input: input})
+	return plans, nil
+}
+
+func containsSpouseMember(rows []relationshiprepo.SpouseRelationshipRow, memberID uint64) bool {
+	for _, row := range rows {
+		if row.Spouse.ID == memberID {
+			return true
+		}
+	}
+	return false
 }
 
 func applyExplicitParentMemberType(

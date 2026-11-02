@@ -6,6 +6,10 @@
     :interactive="interactive"
     :selectable-all="selectableAll"
     :selectable-deceased="selectableDeceased"
+    :health-hints="healthHints"
+    :portrait-theme="portraitTheme"
+    :portrait-region="portraitRegion"
+    :portrait-region-code="portraitRegionCode"
     @select="emit('select', $event)"
   />
 </template>
@@ -21,6 +25,10 @@ defineProps<{
   interactive?: boolean
   selectableAll?: boolean
   selectableDeceased?: boolean
+  healthHints?: Record<number, string[]>
+  portraitTheme?: 'default' | 'imperial' | 'regional'
+  portraitRegion?: string | null
+  portraitRegionCode?: string | null
 }>()
 
 const emit = defineEmits<{

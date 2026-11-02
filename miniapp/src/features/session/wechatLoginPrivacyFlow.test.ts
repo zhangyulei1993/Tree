@@ -139,6 +139,18 @@ test('wechat authorize rejection does not write consent or call uni.login', asyn
   assert.equal(loginCalled, false)
 })
 
+test('DevTools privacy API availability failure keeps local login verification usable', async () => {
+  installUniMock()
+  clearPrivacyConsent()
+  installWxAuthorizeMock(({ fail }) => {
+    fail?.({ errMsg: 'webapi_getwxaasyncsecinfo:fail' })
+  })
+
+  await ensurePrivacyConsentForLogin()
+
+  assert.equal(hasPrivacyConsent(), true)
+})
+
 test('one click completes authorize and login without requiring a second click', async () => {
   installUniMock()
   clearPrivacyConsent()

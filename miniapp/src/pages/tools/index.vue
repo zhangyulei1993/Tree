@@ -37,7 +37,7 @@
 
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 import {
   getVisibleToolDefinitions,
@@ -50,9 +50,17 @@ import {
 } from '@/api/toolConfigs'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 const visibleToolItems = computed(() => getVisibleToolDefinitions())
+const navigating = ref(false)
 
 function go(url: string) {
-  uni.navigateTo({ url })
+  if (navigating.value) return
+  navigating.value = true
+  uni.navigateTo({
+    url,
+    complete: () => {
+      navigating.value = false
+    }
+  })
 }
 
 function toolTitle(key: string) {
@@ -83,7 +91,7 @@ onLoad(() => {
 })
 
 onShow(() => {
-  void loadToolConfigs({ force: true })
+  void loadToolConfigs()
 })
 </script>
 

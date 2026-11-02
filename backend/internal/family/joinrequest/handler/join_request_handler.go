@@ -35,6 +35,12 @@ func (h *Handler) ListMine(ctx *gin.Context) {
 	if !ok {
 		return
 	}
+	if ctx.Query("page") != "" {
+		page, size := listPage(ctx)
+		result, err := h.service.ListMinePage(ctx, actor, page, size)
+		write(ctx, http.StatusOK, result, err)
+		return
+	}
 	result, err := h.service.ListMine(ctx, actor)
 	write(ctx, http.StatusOK, result, err)
 }
@@ -43,8 +49,29 @@ func (h *Handler) ListFamily(ctx *gin.Context) {
 	if !ok {
 		return
 	}
+	if ctx.Query("page") != "" {
+		page, size := listPage(ctx)
+		result, err := h.service.ListFamilyPage(ctx, actor, family, page, size)
+		write(ctx, http.StatusOK, result, err)
+		return
+	}
 	result, err := h.service.ListFamily(ctx, actor, family)
 	write(ctx, http.StatusOK, result, err)
+}
+
+func listPage(ctx *gin.Context) (int, int) {
+	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(ctx.DefaultQuery("pageSize", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 {
+		size = 20
+	}
+	if size > 100 {
+		size = 100
+	}
+	return page, size
 }
 func (h *Handler) Approve(ctx *gin.Context) {
 	actor, family, request, ok := actorFamilyRequest(ctx)

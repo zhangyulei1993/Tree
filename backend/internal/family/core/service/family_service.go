@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -13,13 +15,16 @@ import (
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
+	commonredis "tree/backend/internal/common/redis"
 	"tree/backend/internal/family/core/dto"
 	familymodel "tree/backend/internal/family/core/model"
 	familyrepo "tree/backend/internal/family/core/repository"
 	"tree/backend/internal/family/core/vo"
 	dissolutionmodel "tree/backend/internal/family/dissolution/model"
 	membermodel "tree/backend/internal/family/member/model"
+	relationshipmodel "tree/backend/internal/family/relationship/model"
 	rolemodel "tree/backend/internal/family/role/model"
+	notificationservice "tree/backend/internal/notification/service"
 	operationlog "tree/backend/internal/operationlog/service"
 )
 
@@ -66,8 +71,10 @@ type FamilyService interface {
 	PublicDetail(context.Context, uint64) (*vo.PublicFamily, *apperrors.BusinessError)
 	ListPublicFamilies(context.Context, dto.ListPublicFamiliesQuery) (*vo.ListPublicFamiliesResult, *apperrors.BusinessError)
 	ListPublicFamilyShowcase(context.Context, dto.ListPublicFamilyShowcaseQuery) (*vo.ListPublicFamilyShowcaseResult, *apperrors.BusinessError)
+	PublicPlatformStats(context.Context) (*vo.PublicPlatformStats, *apperrors.BusinessError)
 	ListOperationLogs(context.Context, uint64, uint64, int, int) (*vo.ListOperationLogsResult, *apperrors.BusinessError)
 	Update(context.Context, uint64, uint64, dto.UpdateFamilyRequest, AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError)
+	ExportArchive(context.Context, uint64, uint64, string, AuditInput) (*vo.FamilyArchiveExport, *apperrors.BusinessError)
 	CreateDissolutionRequest(context.Context, uint64, uint64, dto.CreateDissolutionRequest, AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	CurrentDissolutionRequest(context.Context, uint64, uint64) (*vo.DissolutionRequest, *apperrors.BusinessError)
 	CancelDissolutionRequest(context.Context, uint64, uint64, uint64, dto.CancelDissolutionRequest, AuditInput) (*vo.DissolutionRequest, *apperrors.BusinessError)
@@ -76,19 +83,112 @@ type FamilyService interface {
 	Leave(context.Context, uint64, uint64, dto.LeaveFamilyRequest, AuditInput) (*vo.LeaveFamilyResult, *apperrors.BusinessError)
 }
 
+func (s *familyService) ExportArchive(ctx context.Context, userID, familyID uint64, scope string, audit AuditInput) (*vo.FamilyArchiveExport, *apperrors.BusinessError) {
+	if allowed, err := s.permissions.CanManageFamily(ctx, userID, familyID); err != nil || !allowed {
+		return nil, familyError(CodeFamilyUpdateForbidden, "无权导出家庭档案")
+	}
+	scope = strings.ToUpper(strings.TrimSpace(scope))
+	if scope == "" {
+		scope = "INTERNAL"
+	}
+	if scope != "INTERNAL" && scope != "SHARE" && scope != "PUBLIC" {
+		return nil, familyError(apperrors.CodeInvalidParams, "导出范围不正确")
+	}
+	family, err := s.repo.FindFamilyByID(ctx, familyID)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	var members []membermodel.FamilyMember
+	if err := s.db.WithContext(ctx).Where("family_id = ? AND status = ? AND deleted_at IS NULL", familyID, "ACTIVE").Order("id").Find(&members).Error; err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	items := make([]vo.ArchiveMember, 0, len(members))
+	missing := map[string]bool{}
+	incompleteCount := 0
+	for _, member := range members {
+		incomplete := false
+		if strings.TrimSpace(member.DisplayName) == "" {
+			missing["姓名"] = true
+			incomplete = true
+		}
+		if member.Gender == "" || member.Gender == string(enums.GenderUnknown) {
+			missing["性别"] = true
+			incomplete = true
+		}
+		if member.BirthDate == nil {
+			missing["出生年份"] = true
+			incomplete = true
+		}
+		if incomplete {
+			incompleteCount++
+		}
+		item := vo.ArchiveMember{MemberID: member.ID, Name: member.DisplayName}
+		if scope != "PUBLIC" {
+			item.Gender = member.Gender
+		}
+		if member.BirthDate != nil {
+			year := member.BirthDate.Year()
+			item.BirthYear = &year
+		}
+		if member.DeathDate != nil {
+			year := member.DeathDate.Year()
+			item.DeathYear = &year
+		}
+		items = append(items, item)
+	}
+	missingFields := make([]string, 0, len(missing))
+	for field := range missing {
+		missingFields = append(missingFields, field)
+	}
+	sort.Strings(missingFields)
+	if scope == "PUBLIC" && incompleteCount > 0 {
+		return nil, familyError(CodeFamilyUpdateStatusDenied, fmt.Sprintf("仍有 %d 位成员缺少%s，暂不能生成公开长卷", incompleteCount, strings.Join(missingFields, "、")))
+	}
+	var relationships []relationshipmodel.FamilyRelationship
+	if err := s.db.WithContext(ctx).Where("family_id = ? AND status = ? AND deleted_at IS NULL", familyID, "ACTIVE").Order("id").Find(&relationships).Error; err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	edges := make([]vo.ArchiveRelationship, 0, len(relationships))
+	for _, relationship := range relationships {
+		edges = append(edges, vo.ArchiveRelationship{FromMemberID: relationship.FromMemberID, ToMemberID: relationship.ToMemberID, RelationshipType: relationship.RelationshipType})
+	}
+	link, _ := s.permissions.GetActiveLink(ctx, userID, familyID)
+	result := &vo.FamilyArchiveExport{Scope: scope, GeneratedAt: time.Now(), Family: *familyDetail(family, link.FamilyRole), Members: items, Relationships: edges, Quality: vo.ArchiveQuality{IncompleteMemberCount: incompleteCount, MissingFields: missingFields}}
+	if scope == "PUBLIC" {
+		result.Family.Description = nil
+		result.Family.NativePlace = nil
+	}
+	_ = operationlog.NewGormService(s.db).WriteSuccess(ctx, userOperationLog(userID, "EXPORT_FAMILY_ARCHIVE_"+scope, "FAMILY", familyID, familyID, nil, audit))
+	return result, nil
+}
+
 type familyService struct {
 	db            *gorm.DB
 	repo          familyrepo.FamilyRepository
 	permissions   permission.FamilyPermissionService
 	quota         quotaservice.Service
 	contentSafety contentsafety.Service
+	notifications notificationservice.Service
+	treeCache     commonredis.TreeCache
 }
 
 func NewFamilyService(db *gorm.DB, repo familyrepo.FamilyRepository, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service) FamilyService {
+	return newFamilyService(db, repo, permissions, quota, contentSafety, nil)
+}
+
+func NewFamilyServiceWithNotifications(db *gorm.DB, repo familyrepo.FamilyRepository, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service, notifications notificationservice.Service, treeCaches ...commonredis.TreeCache) FamilyService {
+	return newFamilyService(db, repo, permissions, quota, contentSafety, notifications, treeCaches...)
+}
+
+func newFamilyService(db *gorm.DB, repo familyrepo.FamilyRepository, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service, notifications notificationservice.Service, treeCaches ...commonredis.TreeCache) FamilyService {
 	if contentSafety == nil {
 		contentSafety = contentsafety.FailClosed()
 	}
-	return &familyService{db: db, repo: repo, permissions: permissions, quota: quota, contentSafety: contentSafety}
+	treeCache := commonredis.TreeCache(commonredis.NoopTreeCache{})
+	if len(treeCaches) > 0 && treeCaches[0] != nil {
+		treeCache = treeCaches[0]
+	}
+	return &familyService{db: db, repo: repo, permissions: permissions, quota: quota, contentSafety: contentSafety, notifications: notifications, treeCache: treeCache}
 }
 
 func (s *familyService) Create(ctx context.Context, userID uint64, req dto.CreateFamilyRequest, audit AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError) {
@@ -104,9 +204,11 @@ func (s *familyService) Create(ctx context.Context, userID uint64, req dto.Creat
 	if familyName == "" {
 		familyName = surname + "氏家族"
 	}
-	displayName := surname + "氏创建者"
-	if user.Nickname != nil && strings.TrimSpace(*user.Nickname) != "" {
-		displayName = strings.TrimSpace(*user.Nickname)
+	displayName := strings.TrimSpace(req.FounderName)
+	// HTTP callers must provide the founder profile. Keep the historical default for
+	// internal callers during the transition from the previous request contract.
+	if displayName == "" {
+		displayName = surname + "氏创建者"
 	}
 	founderGender := string(enums.GenderUnknown)
 	if req.FounderGender != nil {
@@ -115,10 +217,19 @@ func (s *familyService) Create(ctx context.Context, userID uint64, req dto.Creat
 			return nil, familyError(CodeFamilyCreateStatusDenied, "创建者性别必须选择男或女")
 		}
 	}
+	var founderBirthDate *time.Time
+	if req.FounderBirthYear != nil {
+		currentYear := time.Now().Year()
+		if *req.FounderBirthYear < 1 || *req.FounderBirthYear > currentYear {
+			return nil, familyError(CodeFamilyCreateStatusDenied, "创建者出生年份不正确")
+		}
+		value := time.Date(*req.FounderBirthYear, time.January, 1, 0, 0, 0, 0, time.UTC)
+		founderBirthDate = &value
+	}
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: userID,
 		Scene:  contentsafety.SceneProfile,
-		Fields: familyCreateTextFields(surname, familyName, req.NativePlace, req.RegionText, req.Description, req.PublicContact),
+		Fields: familyCreateTextFields(surname, displayName, familyName, req.NativePlace, req.RegionText, req.Description, req.PublicContact),
 		IP:     audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
@@ -170,6 +281,7 @@ func (s *familyService) Create(ctx context.Context, userID uint64, req dto.Creat
 			Surname:           &surname,
 			DisplayName:       displayName,
 			Gender:            founderGender,
+			BirthDate:         founderBirthDate,
 			UserBindingPolicy: string(enums.UserBindingOptional),
 			Status:            string(enums.StatusActive),
 			CreatedByUserID:   &userID,
@@ -268,7 +380,16 @@ func (s *familyService) Detail(ctx context.Context, userID uint64, familyID uint
 	if err != nil {
 		return nil, familyError(CodeFamilyDetailForbidden, "无权查看家庭详情")
 	}
-	return familyDetail(family, link.FamilyRole), nil
+	result := familyDetail(family, link.FamilyRole)
+	if reader, ok := s.quota.(quotaservice.FamilyCapacityReader); ok {
+		capacity, capacityErr := reader.GetFamilyCapacity(ctx, s.db, familyID)
+		if capacityErr != nil {
+			return nil, apperrors.New(apperrors.CodeSystemError)
+		}
+		result.MemberCount = capacity.UsedMembers
+		result.MemberLimit = capacity.EffectiveLimit
+	}
+	return result, nil
 }
 
 func (s *familyService) PublicDetail(ctx context.Context, familyID uint64) (*vo.PublicFamily, *apperrors.BusinessError) {
@@ -337,6 +458,18 @@ func (s *familyService) ListPublicFamilyShowcase(ctx context.Context, req dto.Li
 	}, nil
 }
 
+func (s *familyService) PublicPlatformStats(ctx context.Context) (*vo.PublicPlatformStats, *apperrors.BusinessError) {
+	stats, err := s.repo.PublicPlatformStats(ctx)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	return &vo.PublicPlatformStats{
+		FamilyCount:       stats.FamilyCount,
+		MemberCount:       stats.MemberCount,
+		RelationshipCount: stats.RelationshipCount,
+	}, nil
+}
+
 func (s *familyService) Update(ctx context.Context, userID uint64, familyID uint64, req dto.UpdateFamilyRequest, audit AuditInput) (*vo.FamilyDetail, *apperrors.BusinessError) {
 	allowed, err := s.permissions.CanManageFamily(ctx, userID, familyID)
 	if err != nil || !allowed {
@@ -352,6 +485,9 @@ func (s *familyService) Update(ctx context.Context, userID uint64, familyID uint
 	if family.Status != familyStatusNormal {
 		return nil, familyError(CodeFamilyUpdateStatusDenied, "当前家庭状态不允许修改")
 	}
+	if req.ExpectedRevision != nil && *req.ExpectedRevision != family.Revision {
+		return nil, familyError(apperrors.CodeDataConflict, "家庭资料已被家人更新，请刷新后再保存")
+	}
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID:   userID,
 		Scene:    contentsafety.SceneProfile,
@@ -363,6 +499,7 @@ func (s *familyService) Update(ctx context.Context, userID uint64, familyID uint
 	}
 	values := updateValues(req)
 	if len(values) > 0 {
+		values["revision"] = gorm.Expr("revision + 1")
 		err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			if err := s.repo.WithTx(tx).UpdateFamily(ctx, familyID, values); err != nil {
 				return err
@@ -392,6 +529,10 @@ func (s *familyService) Leave(ctx context.Context, userID uint64, familyID uint6
 		return nil, businessErr
 	}
 	var memberID uint64
+	var memberName string
+	var notificationRecipientIDs []uint64
+	var leftAt time.Time
+	var cacheGraphVersion int64
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		repo := s.repo.WithTx(tx)
 		family, err := repo.FindFamilyByIDForUpdate(ctx, familyID)
@@ -401,6 +542,7 @@ func (s *familyService) Leave(ctx context.Context, userID uint64, familyID uint6
 		if family.Status != familyStatusNormal {
 			return errFamilyLeaveForbidden
 		}
+		cacheGraphVersion = family.GraphVersion
 		link, err := repo.FindActiveLinkForUpdate(ctx, familyID, userID)
 		if err != nil {
 			return err
@@ -409,7 +551,20 @@ func (s *familyService) Leave(ctx context.Context, userID uint64, familyID uint6
 			return errFamilyFounderMustTransfer
 		}
 		memberID = link.MemberID
+		member, err := repo.FindMemberByID(ctx, familyID, memberID)
+		if err != nil {
+			return err
+		}
+		memberName = strings.TrimSpace(member.DisplayName)
+		if memberName == "" {
+			memberName = "一位成员"
+		}
+		notificationRecipientIDs, err = repo.ListFamilyNotificationRecipientUserIDs(ctx, familyID, userID)
+		if err != nil {
+			return err
+		}
 		now := time.Now()
+		leftAt = now
 		if err := repo.DeactivateLink(ctx, link.ID, userID, cleanString(req.Reason), now); err != nil {
 			return err
 		}
@@ -418,6 +573,23 @@ func (s *familyService) Leave(ctx context.Context, userID uint64, familyID uint6
 		))
 	})
 	if err == nil {
+		// Binding state is part of the tree payload but leaving does not change its structure.
+		// Evict the current snapshot without incrementing graph_version.
+		_ = s.treeCache.Delete(ctx, fmt.Sprintf("family:%d:tree:v%d", familyID, cacheGraphVersion))
+		if s.notifications != nil {
+			reason := cleanString(req.Reason)
+			if reason == nil {
+				defaultReason := "成员已解除家庭绑定。"
+				reason = &defaultReason
+			}
+			for _, recipientID := range notificationRecipientIDs {
+				s.notifications.Create(ctx, notificationservice.Input{
+					UserID: recipientID, Category: "FAMILY_MEMBER_CHANGE", Title: "家庭成员已退出",
+					Content: fmt.Sprintf("成员「%s」已退出家庭。", memberName), Route: fmt.Sprintf("/pages/family/detail?familyId=%d&memberId=%d", familyID, memberID), RelatedType: "FAMILY_MEMBER_CHANGE", RelatedID: familyID,
+					Subscribe: &notificationservice.SubscribeInput{Kind: "MEMBER_CHANGE", Page: fmt.Sprintf("pages/family/detail?familyId=%d&memberId=%d", familyID, memberID), Values: []string{memberName, "退出家庭", leftAt.Format("2006-01-02 15:04"), *reason}},
+				})
+			}
+		}
 		return &vo.LeaveFamilyResult{FamilyID: familyID, MemberID: memberID, Status: "LEFT"}, nil
 	}
 	switch {
@@ -750,7 +922,7 @@ func familyDetail(family *familymodel.Family, role string) *vo.FamilyDetail {
 		PublicContactName:    family.PublicContactName, PublicContactPhone: family.PublicContactPhone,
 		PublicContactWechat: family.PublicContactWechat, PublicContactNote: family.PublicContactNote,
 		PublicContactVisible: family.PublicContactVisible, CurrentFounderMemberID: family.CurrentFounderMemberID,
-		GraphVersion: family.GraphVersion, Role: role,
+		GraphVersion: family.GraphVersion, Revision: family.Revision, Role: role,
 	}
 }
 
@@ -763,9 +935,10 @@ func dissolutionVO(request *dissolutionmodel.FamilyDissolutionRequest) *vo.Disso
 	}
 }
 
-func familyCreateTextFields(surname, familyName string, nativePlace, regionText, description *string, contact *dto.PublicContact) []contentsafety.Field {
+func familyCreateTextFields(surname, founderName, familyName string, nativePlace, regionText, description *string, contact *dto.PublicContact) []contentsafety.Field {
 	fields := contentsafety.MergeFields(
 		contentsafety.StringField("surname", surname),
+		contentsafety.StringField("founder_name", founderName),
 		contentsafety.StringField("family_name", familyName),
 		contentsafety.OptionalField("native_place", nativePlace),
 		contentsafety.OptionalField("region_text", regionText),

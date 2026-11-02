@@ -97,7 +97,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index'
 
 import { getApiErrorMessage } from '@/api/client'
 import {
@@ -128,7 +128,7 @@ const overrideSaving = ref(false)
 const GRAY_ACCESS_FEATURE = 'GRAY_ACCESS'
 
 function tierLabel(tier: string) {
-  return tier === 'PHONE_BOUND' ? '备用登录已开启' : '仅微信登录'
+  return tier === 'PHONE_BOUND' ? '已绑定手机号' : '仅微信登录'
 }
 
 function formatTime(value?: string) {

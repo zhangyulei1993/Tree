@@ -769,6 +769,32 @@ export const CANONICAL_KINSHIP_TERMS: Record<CanonicalTermKey, CanonicalKinshipT
     canonicalTitle: '外曾姑祖母',
     targetGender: 'female'
   },
+  FIFTH_GRANDUNCLE_YOUNGER: {
+    key: 'FIFTH_GRANDUNCLE_YOUNGER',
+    canonicalTitle: '五世叔祖父',
+    targetGender: 'male',
+    seniority: 'younger'
+  },
+  FIFTH_GRANDAUNT: {
+    key: 'FIFTH_GRANDAUNT',
+    canonicalTitle: '五世姑祖母',
+    targetGender: 'female'
+  },
+  HIGH_MATERNAL_GRANDUNCLE: {
+    key: 'HIGH_MATERNAL_GRANDUNCLE',
+    canonicalTitle: '高舅祖父',
+    targetGender: 'male'
+  },
+  HIGH_MATERNAL_GRANDAUNT: {
+    key: 'HIGH_MATERNAL_GRANDAUNT',
+    canonicalTitle: '高姨祖母',
+    targetGender: 'female'
+  },
+  OUTER_MATERNAL_GRANDAUNT_HUSBAND: {
+    key: 'OUTER_MATERNAL_GRANDAUNT_HUSBAND',
+    canonicalTitle: '外姑祖父',
+    targetGender: 'male'
+  },
   MATERNAL_GRANDAUNT_PATERNAL: {
     key: 'MATERNAL_GRANDAUNT_PATERNAL',
     canonicalTitle: '外姑祖母',

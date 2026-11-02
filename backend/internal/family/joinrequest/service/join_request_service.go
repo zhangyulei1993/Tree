@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	relationshipmodel "tree/backend/internal/family/relationship/model"
 	relationshipservice "tree/backend/internal/family/relationship/service"
 	rolemodel "tree/backend/internal/family/role/model"
+	notificationservice "tree/backend/internal/notification/service"
 	operationlog "tree/backend/internal/operationlog/service"
 )
 
@@ -45,6 +47,24 @@ type Service interface {
 	Approve(context.Context, uint64, uint64, uint64, dto.ApproveJoinRequest, AuditInput) (*vo.JoinRequest, *apperrors.BusinessError)
 	Reject(context.Context, uint64, uint64, uint64, dto.RejectJoinRequest, AuditInput) (*vo.JoinRequest, *apperrors.BusinessError)
 	Cancel(context.Context, uint64, uint64, uint64, dto.CancelJoinRequest, AuditInput) (*vo.JoinRequest, *apperrors.BusinessError)
+	ListMinePage(context.Context, uint64, int, int) (*JoinRequestPage, *apperrors.BusinessError)
+	ListFamilyPage(context.Context, uint64, uint64, int, int) (*JoinRequestPage, *apperrors.BusinessError)
+}
+
+type JoinRequestPage struct {
+	Items    []vo.JoinRequest `json:"items"`
+	Total    int64            `json:"total"`
+	Page     int              `json:"page"`
+	PageSize int              `json:"pageSize"`
+}
+
+type pageRepository interface {
+	ListMinePage(context.Context, uint64, int, int) ([]joinrepo.JoinRequestRow, int64, error)
+	ListFamilyPage(context.Context, uint64, int, int) ([]joinrepo.JoinRequestRow, int64, error)
+}
+
+type notificationRecipientRepository interface {
+	ListFamilyNotificationRecipientUserIDs(context.Context, uint64, uint64) ([]uint64, error)
 }
 
 type service struct {
@@ -54,13 +74,22 @@ type service struct {
 	quota         quotaservice.Service
 	contentSafety contentsafety.Service
 	now           func() time.Time
+	notifications notificationservice.Service
 }
 
 func NewService(repo joinrepo.Repository, uow joinrepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service) Service {
+	return newService(repo, uow, permissions, quota, contentSafety, nil)
+}
+
+func NewServiceWithNotifications(repo joinrepo.Repository, uow joinrepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service, notifications notificationservice.Service) Service {
+	return newService(repo, uow, permissions, quota, contentSafety, notifications)
+}
+
+func newService(repo joinrepo.Repository, uow joinrepo.UnitOfWork, permissions permission.FamilyPermissionService, quota quotaservice.Service, contentSafety contentsafety.Service, notifications notificationservice.Service) Service {
 	if contentSafety == nil {
 		contentSafety = contentsafety.FailClosed()
 	}
-	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, contentSafety: contentSafety, now: time.Now}
+	return &service{repo: repo, uow: uow, permissions: permissions, quota: quota, contentSafety: contentSafety, now: time.Now, notifications: notifications}
 }
 
 func (s *service) Create(ctx context.Context, actorID, familyID uint64, req dto.CreateJoinRequest, audit AuditInput) (*vo.JoinRequest, *apperrors.BusinessError) {
@@ -128,6 +157,9 @@ func (s *service) Create(ctx context.Context, actorID, familyID uint64, req dto.
 		return nil, businessErr
 	}
 	result := requestVO(&joinrepo.JoinRequestRow{FamilyJoinRequest: *value})
+	if s.notifications != nil {
+		s.notifyCreated(ctx, familyID, actorID, &result)
+	}
 	return &result, nil
 }
 
@@ -150,6 +182,42 @@ func (s *service) ListFamily(ctx context.Context, actorID, familyID uint64) ([]v
 	return rowsVO(rows), nil
 }
 
+func (s *service) ListMinePage(ctx context.Context, actorID uint64, page, pageSize int) (*JoinRequestPage, *apperrors.BusinessError) {
+	store, ok := s.repo.(pageRepository)
+	if !ok {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	rows, total, err := store.ListMinePage(ctx, actorID, page, pageSize)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	items := make([]vo.JoinRequest, 0, len(rows))
+	for i := range rows {
+		items = append(items, requestVO(&rows[i]))
+	}
+	return &JoinRequestPage{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
+}
+
+func (s *service) ListFamilyPage(ctx context.Context, actorID, familyID uint64, page, pageSize int) (*JoinRequestPage, *apperrors.BusinessError) {
+	allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID)
+	if err != nil || !allowed {
+		return nil, joinError(CodeJoinRequestForbidden, "无权查看加入申请")
+	}
+	store, ok := s.repo.(pageRepository)
+	if !ok {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	rows, total, err := store.ListFamilyPage(ctx, familyID, page, pageSize)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	items := make([]vo.JoinRequest, 0, len(rows))
+	for i := range rows {
+		items = append(items, requestVO(&rows[i]))
+	}
+	return &JoinRequestPage{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
+}
+
 func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint64, req dto.ApproveJoinRequest, audit AuditInput) (*vo.JoinRequest, *apperrors.BusinessError) {
 	if ok, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !ok {
 		return nil, joinError(CodeJoinRequestForbidden, "无权处理加入申请")
@@ -160,6 +228,9 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 	}
 	if mode == joinenum.ApproveBindExisting && req.Location != nil {
 		return nil, joinError(CodeApproveModeInvalid, "绑定已有成员时不能重复定位")
+	}
+	if mode == joinenum.ApproveCreateNew && req.Location == nil {
+		return nil, joinError(CodeApproveModeInvalid, "新增成员必须同时指定其在家庭树中的关系位置")
 	}
 	if mode == joinenum.ApproveCreateNew && req.NewMember != nil {
 		if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
@@ -185,7 +256,7 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 	}
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: actorID, Scene: contentsafety.SceneSocial,
-		Fields: contentsafety.OptionalField("handle_comment", req.HandleComment),
+		Fields:   contentsafety.OptionalField("handle_comment", req.HandleComment),
 		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
@@ -349,7 +420,11 @@ func (s *service) Approve(ctx context.Context, actorID, familyID, requestID uint
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}
-	return s.result(ctx, familyID, requestID, graphVersion)
+	result, businessErr := s.result(ctx, familyID, requestID, graphVersion)
+	if businessErr == nil && result != nil && s.notifications != nil {
+		s.notifyAudit(ctx, result, "审核通过")
+	}
+	return result, businessErr
 }
 
 func (s *service) Reject(ctx context.Context, actorID, familyID, requestID uint64, req dto.RejectJoinRequest, audit AuditInput) (*vo.JoinRequest, *apperrors.BusinessError) {
@@ -358,7 +433,7 @@ func (s *service) Reject(ctx context.Context, actorID, familyID, requestID uint6
 	}
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: actorID, Scene: contentsafety.SceneSocial,
-		Fields: contentsafety.OptionalField("handle_comment", req.HandleComment),
+		Fields:   contentsafety.OptionalField("handle_comment", req.HandleComment),
 		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
@@ -383,13 +458,65 @@ func (s *service) Reject(ctx context.Context, actorID, familyID, requestID uint6
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}
-	return s.result(ctx, familyID, requestID, nil)
+	result, businessErr := s.result(ctx, familyID, requestID, nil)
+	if businessErr == nil && result != nil && s.notifications != nil {
+		s.notifyAudit(ctx, result, "审核拒绝")
+	}
+	return result, businessErr
+}
+
+func (s *service) notifyAudit(ctx context.Context, result *vo.JoinRequest, status string) {
+	comment := "无"
+	if result.HandleComment != nil && *result.HandleComment != "" {
+		comment = *result.HandleComment
+	}
+	requestText := "申请加入家庭"
+	if result.ApplicantMessage != nil && *result.ApplicantMessage != "" {
+		requestText = *result.ApplicantMessage
+	}
+	handledAt := time.Now()
+	if result.HandledAt != nil {
+		handledAt = *result.HandledAt
+	}
+	route := fmt.Sprintf("/pages/join/my?familyId=%d", result.FamilyID)
+	page := fmt.Sprintf("pages/join/my?familyId=%d", result.FamilyID)
+	if status == "审核通过" {
+		route = fmt.Sprintf("/pages/family/detail?familyId=%d", result.FamilyID)
+		page = fmt.Sprintf("pages/family/detail?familyId=%d", result.FamilyID)
+	}
+	s.notifications.Create(ctx, notificationservice.Input{UserID: result.ApplicantUserID, Category: "AUDIT", Title: "加入家庭审核结果", Content: fmt.Sprintf("加入%s。", status), Route: route, RelatedType: "FAMILY_JOIN_REQUEST", RelatedID: result.RequestID, Subscribe: &notificationservice.SubscribeInput{Kind: "AUDIT", Page: page, Values: []string{"加入家庭", requestText, status, handledAt.Format("2006-01-02 15:04"), comment}}})
+}
+
+func (s *service) notifyCreated(ctx context.Context, familyID, applicantID uint64, result *vo.JoinRequest) {
+	recipients, ok := s.repo.(notificationRecipientRepository)
+	if !ok {
+		return
+	}
+	ids, err := recipients.ListFamilyNotificationRecipientUserIDs(ctx, familyID, applicantID)
+	if err != nil {
+		return
+	}
+	familyName := "当前家庭"
+	if family, err := s.repo.FindFamily(ctx, familyID, false); err == nil && strings.TrimSpace(family.FamilyName) != "" {
+		familyName = strings.TrimSpace(family.FamilyName)
+	}
+	applicantName := "一位用户"
+	if result.ApplicantRealName != nil && strings.TrimSpace(*result.ApplicantRealName) != "" {
+		applicantName = strings.TrimSpace(*result.ApplicantRealName)
+	}
+	for _, recipientID := range ids {
+		s.notifications.Create(ctx, notificationservice.Input{
+			UserID: recipientID, Category: "AUDIT", Title: "收到新的加入申请",
+			Content: fmt.Sprintf("用户「%s」申请加入%s，请及时处理。", applicantName, familyName),
+			Route:   fmt.Sprintf("/pages/join/family?familyId=%d", familyID), RelatedType: "FAMILY_JOIN_REQUEST", RelatedID: result.RequestID,
+		})
+	}
 }
 
 func (s *service) Cancel(ctx context.Context, actorID, familyID, requestID uint64, req dto.CancelJoinRequest, audit AuditInput) (*vo.JoinRequest, *apperrors.BusinessError) {
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: actorID, Scene: contentsafety.SceneSocial,
-		Fields: contentsafety.OptionalField("cancel_reason", req.CancelReason),
+		Fields:   contentsafety.OptionalField("cancel_reason", req.CancelReason),
 		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr

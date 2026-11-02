@@ -53,6 +53,10 @@ type memberRepoFake struct {
 	blockingChildCnt  int64
 	unsafeSpouseChild bool
 	relationsDeleted  bool
+	restoreConflict   bool
+	restored          bool
+	recoveryDiscarded bool
+	lastUpdate        map[string]any
 }
 
 func (r *memberRepoFake) WithTx(*gorm.DB) memberrepo.MemberRepository { return r }
@@ -88,7 +92,13 @@ func (r *memberRepoFake) FindForUpdate(_ context.Context, familyID, memberID uin
 	return &value, nil
 }
 
-func (r *memberRepoFake) Update(context.Context, uint64, uint64, map[string]any) error { return nil }
+func (r *memberRepoFake) Update(_ context.Context, _ uint64, _ uint64, values map[string]any) error {
+	r.lastUpdate = make(map[string]any, len(values))
+	for key, value := range values {
+		r.lastUpdate[key] = value
+	}
+	return nil
+}
 
 func (r *memberRepoFake) SoftDelete(context.Context, uint64, uint64, uint64, *string, time.Time) error {
 	r.member.Status = "DELETED"
@@ -106,6 +116,36 @@ func (r *memberRepoFake) HasChildWithoutOtherLineageParent(context.Context, uint
 func (r *memberRepoFake) SoftDeleteDeletableRelationships(context.Context, uint64, uint64, uint64, *string, time.Time) (int64, error) {
 	r.relationsDeleted = true
 	return 1, nil
+}
+
+func (r *memberRepoFake) ListDeletedSince(context.Context, uint64, time.Time) ([]membermodel.FamilyMember, error) {
+	return nil, nil
+}
+
+func (r *memberRepoFake) FindDeletedForUpdate(context.Context, uint64, uint64, time.Time) (*membermodel.FamilyMember, error) {
+	if r.member.Status != "DELETED" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	value := r.member
+	return &value, nil
+}
+
+func (r *memberRepoFake) HasRestorePositionConflict(context.Context, *membermodel.FamilyMember, time.Time) (bool, error) {
+	return r.restoreConflict, nil
+}
+
+func (r *memberRepoFake) RestoreDeleted(context.Context, uint64, uint64, time.Time) error {
+	r.restored = true
+	return nil
+}
+
+func (r *memberRepoFake) DiscardRecovery(context.Context, uint64, uint64, uint64, time.Time) error {
+	r.recoveryDiscarded = true
+	return nil
+}
+
+func (r *memberRepoFake) RestoreRelationshipsDeletedAt(context.Context, uint64, uint64, time.Time) error {
+	return nil
 }
 
 func (r *memberRepoFake) FindUserForUpdate(_ context.Context, userID uint64) (*usermodel.User, error) {
@@ -263,6 +303,127 @@ func TestBindUserInvalidatesTreeCacheWithoutGraphVersionChange(t *testing.T) {
 	}
 	if len(cache.deleted) != 1 || cache.deleted[0] != "family:22:tree:v10" {
 		t.Fatalf("bind must invalidate current tree cache, got %#v", cache.deleted)
+	}
+}
+
+func TestUpdateProfileVerificationFollowsEditorIdentity(t *testing.T) {
+	originalTx := runMemberTransaction
+	runMemberTransaction = func(_ context.Context, _ *gorm.DB, fn func(tx *gorm.DB) error) error {
+		return fn(nil)
+	}
+	t.Cleanup(func() { runMemberTransaction = originalTx })
+
+	name := "新名字"
+	t.Run("bound member saving their own profile confirms it automatically", func(t *testing.T) {
+		repo := &memberRepoFake{
+			family: coremodel.Family{ID: 22, Status: "NORMAL", GraphVersion: 10},
+			member: membermodel.FamilyMember{ID: 6, FamilyID: 22, Status: "ACTIVE", Gender: "MALE", Revision: 1},
+			links:  []rolemodel.FamilyMemberUserLink{{ID: 1, FamilyID: 22, MemberID: 6, UserID: 9, LinkStatus: "ACTIVE"}},
+		}
+		result, err := testMemberService(repo, true).Update(context.Background(), 9, 22, 6, dto.UpdateMemberRequest{Name: &name}, AuditInput{})
+		if err != nil || result == nil {
+			t.Fatalf("unexpected %#v %#v", result, err)
+		}
+		if got := repo.lastUpdate["profile_verification_status"]; got != "SELF_CONFIRMED" {
+			t.Fatalf("self edit should confirm the profile, got %#v", got)
+		}
+		if got := repo.lastUpdate["profile_confirmed_by_user_id"]; got != uint64(9) {
+			t.Fatalf("self edit should record the editor, got %#v", got)
+		}
+		if _, ok := repo.lastUpdate["profile_confirmed_at"].(time.Time); !ok {
+			t.Fatalf("self edit should store a confirmation time, got %#v", repo.lastUpdate["profile_confirmed_at"])
+		}
+	})
+
+	t.Run("manager editing another member still leaves the profile pending", func(t *testing.T) {
+		repo := &memberRepoFake{
+			family: coremodel.Family{ID: 22, Status: "NORMAL", GraphVersion: 10},
+			member: membermodel.FamilyMember{ID: 6, FamilyID: 22, Status: "ACTIVE", Gender: "MALE", Revision: 1},
+			links:  []rolemodel.FamilyMemberUserLink{{ID: 1, FamilyID: 22, MemberID: 6, UserID: 9, LinkStatus: "ACTIVE"}},
+		}
+		result, err := testMemberService(repo, true).Update(context.Background(), 8, 22, 6, dto.UpdateMemberRequest{Name: &name}, AuditInput{})
+		if err != nil || result == nil {
+			t.Fatalf("unexpected %#v %#v", result, err)
+		}
+		if got := repo.lastUpdate["profile_verification_status"]; got != "PENDING" {
+			t.Fatalf("manager edit should keep the profile pending, got %#v", got)
+		}
+		if repo.lastUpdate["profile_confirmed_at"] != nil || repo.lastUpdate["profile_confirmed_by_user_id"] != nil {
+			t.Fatalf("manager edit should clear prior confirmation, got %#v", repo.lastUpdate)
+		}
+	})
+}
+
+func TestRestoreMemberRejectsReplacementAtSamePosition(t *testing.T) {
+	originalTx := runMemberTransaction
+	runMemberTransaction = func(_ context.Context, _ *gorm.DB, fn func(tx *gorm.DB) error) error {
+		return fn(nil)
+	}
+	t.Cleanup(func() { runMemberTransaction = originalTx })
+
+	creatorID := uint64(8)
+	deletedAt := time.Now().Add(-time.Hour)
+	repo := &memberRepoFake{
+		family: coremodel.Family{ID: 22, Status: "NORMAL", CreatorUserID: &creatorID, GraphVersion: 10},
+		member: membermodel.FamilyMember{
+			ID: 22, FamilyID: 22, DisplayName: "樊一瑾", Gender: "FEMALE", Status: "DELETED", DeletedAt: &deletedAt,
+		},
+		restoreConflict: true,
+	}
+
+	cache := &memberTreeCache{}
+	service := NewMemberService(nil, repo, memberPermFake{canManage: true}, nil, contentsafety.AlwaysPass(), cache)
+	err := service.Restore(context.Background(), creatorID, 22, 22, AuditInput{})
+	if err == nil || err.Code != CodeMemberDataConflict {
+		t.Fatalf("expected restore conflict, got %#v", err)
+	}
+	if repo.restored {
+		t.Fatal("conflicted restore must not reactivate the deleted member")
+	}
+	if repo.family.GraphVersion != 10 {
+		t.Fatal("conflicted restore must not increment graph version")
+	}
+
+	t.Run("restores when the original position is still vacant", func(t *testing.T) {
+		repo.restoreConflict = false
+		repo.restored = false
+		err := service.Restore(context.Background(), creatorID, 22, 22, AuditInput{})
+		if err != nil {
+			t.Fatalf("expected restore to succeed, got %#v", err)
+		}
+		if !repo.restored {
+			t.Fatal("vacant restore should reactivate the deleted member")
+		}
+		if repo.family.GraphVersion != 11 {
+			t.Fatalf("successful restore must increment graph version once, got %d", repo.family.GraphVersion)
+		}
+		if len(cache.deleted) != 1 || cache.deleted[0] != "family:22:tree:v10" {
+			t.Fatalf("restore must invalidate the prior tree cache, got %#v", cache.deleted)
+		}
+	})
+}
+
+func TestDiscardRecoveryRequiresCreatorAndKeepsGraphVersion(t *testing.T) {
+	originalTx := runMemberTransaction
+	runMemberTransaction = func(_ context.Context, _ *gorm.DB, fn func(tx *gorm.DB) error) error {
+		return fn(nil)
+	}
+	t.Cleanup(func() { runMemberTransaction = originalTx })
+
+	creatorID := uint64(8)
+	deletedAt := time.Now().Add(-time.Hour)
+	repo := &memberRepoFake{
+		family: coremodel.Family{ID: 22, Status: "NORMAL", CreatorUserID: &creatorID, GraphVersion: 10},
+		member: membermodel.FamilyMember{ID: 22, FamilyID: 22, Status: "DELETED", DeletedAt: &deletedAt},
+	}
+	if err := testMemberService(repo, true).DiscardRecovery(context.Background(), creatorID, 22, 22, AuditInput{}); err != nil {
+		t.Fatalf("expected discard to succeed, got %#v", err)
+	}
+	if !repo.recoveryDiscarded {
+		t.Fatal("discard should remove recovery eligibility")
+	}
+	if repo.family.GraphVersion != 10 {
+		t.Fatal("discarding recovery eligibility must not change the tree graph")
 	}
 }
 

@@ -76,6 +76,9 @@ export interface PublicContactInput {
 
 export interface CreateFamilyInput {
   surname: string
+  founderName: string
+  founderGender: Gender
+  founderBirthYear: number
   familyName?: string
   nativePlace?: string
   regionText?: string

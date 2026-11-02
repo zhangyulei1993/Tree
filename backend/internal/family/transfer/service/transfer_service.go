@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	transfermodel "tree/backend/internal/family/transfer/model"
 	transferrepo "tree/backend/internal/family/transfer/repository"
 	"tree/backend/internal/family/transfer/vo"
+	notificationservice "tree/backend/internal/notification/service"
 	operationlog "tree/backend/internal/operationlog/service"
 )
 
@@ -49,19 +51,28 @@ type service struct {
 	quota         quotaservice.Service
 	contentSafety contentsafety.Service
 	now           func() time.Time
+	notifications notificationservice.Service
 }
 
 func NewService(repo transferrepo.Repository, uow transferrepo.UnitOfWork, quota quotaservice.Service, contentSafety contentsafety.Service) Service {
+	return newService(repo, uow, quota, contentSafety, nil)
+}
+
+func NewServiceWithNotifications(repo transferrepo.Repository, uow transferrepo.UnitOfWork, quota quotaservice.Service, contentSafety contentsafety.Service, notifications notificationservice.Service) Service {
+	return newService(repo, uow, quota, contentSafety, notifications)
+}
+
+func newService(repo transferrepo.Repository, uow transferrepo.UnitOfWork, quota quotaservice.Service, contentSafety contentsafety.Service, notifications notificationservice.Service) Service {
 	if contentSafety == nil {
 		contentSafety = contentsafety.FailClosed()
 	}
-	return &service{repo: repo, uow: uow, quota: quota, contentSafety: contentSafety, now: time.Now}
+	return &service{repo: repo, uow: uow, quota: quota, contentSafety: contentSafety, now: time.Now, notifications: notifications}
 }
 
 func (s *service) Create(ctx context.Context, actorID uint64, familyID uint64, req transferdto.CreateTransferRequest, audit AuditInput) (*vo.TransferRequest, *apperrors.BusinessError) {
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: actorID, Scene: contentsafety.SceneSocial,
-		Fields: contentsafety.OptionalField("request_reason", req.RequestReason),
+		Fields:   contentsafety.OptionalField("request_reason", req.RequestReason),
 		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
@@ -129,7 +140,9 @@ func (s *service) Current(ctx context.Context, actorID uint64, familyID uint64) 
 	}
 	request, err := s.repo.FindPendingByFamily(ctx, familyID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, transferError(CodeTransferNotFound, "当前没有待审核创始人转让申请")
+		// No pending request is the expected idle state for the family settings page.
+		// Return a successful null payload so the client does not treat it as a failed request.
+		return nil, nil
 	}
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
@@ -142,7 +155,7 @@ func (s *service) Current(ctx context.Context, actorID uint64, familyID uint64) 
 func (s *service) Cancel(ctx context.Context, actorID uint64, familyID uint64, requestID uint64, req transferdto.CancelTransferRequest, audit AuditInput) (*vo.TransferRequest, *apperrors.BusinessError) {
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: actorID, Scene: contentsafety.SceneSocial,
-		Fields: contentsafety.OptionalField("cancel_reason", req.CancelReason),
+		Fields:   contentsafety.OptionalField("cancel_reason", req.CancelReason),
 		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
@@ -273,7 +286,29 @@ func (s *service) review(ctx context.Context, adminID uint64, role string, reque
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}
-	return s.result(ctx, requestID)
+	result, businessErr := s.result(ctx, requestID)
+	if businessErr == nil && result != nil && s.notifications != nil {
+		status := "审核通过"
+		if nextStatus != transferenum.StatusApproved {
+			status = "审核拒绝"
+		}
+		commentText := "无"
+		if result.ReviewComment != nil && *result.ReviewComment != "" {
+			commentText = *result.ReviewComment
+		}
+		requestText := "申请转让家庭创建人"
+		if result.RequestReason != nil && *result.RequestReason != "" {
+			requestText = *result.RequestReason
+		}
+		reviewedAt := time.Now()
+		if result.ReviewedAt != nil {
+			reviewedAt = *result.ReviewedAt
+		}
+		for _, userID := range []uint64{result.FromUserID, result.ToUserID} {
+			s.notifications.Create(ctx, notificationservice.Input{UserID: userID, Category: "AUDIT", Title: "家庭创建人转让审核结果", Content: fmt.Sprintf("家庭创建人转让申请%s。", status), Route: fmt.Sprintf("/pages/family/detail?familyId=%d", result.FamilyID), RelatedType: "FAMILY_FOUNDER_TRANSFER_REQUEST", RelatedID: requestID, Subscribe: &notificationservice.SubscribeInput{Kind: "AUDIT", Page: fmt.Sprintf("pages/family/detail?familyId=%d", result.FamilyID), Values: []string{"创建人转让", requestText, status, reviewedAt.Format("2006-01-02 15:04"), commentText}}})
+		}
+	}
+	return result, businessErr
 }
 
 func (s *service) result(ctx context.Context, requestID uint64) (*vo.TransferRequest, *apperrors.BusinessError) {

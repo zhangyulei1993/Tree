@@ -6,21 +6,21 @@
       <view>
         <text class="archive-kicker">Family Invitations</text>
         <text class="archive-title">收到的家庭邀请</text>
-        <text class="archive-subtitle">核对家庭名称与成员身份后，再决定是否接受邀请</text>
+        <text class="archive-subtitle">核对信息后接受邀请</text>
       </view>
       <view class="archive-seal">邀</view>
     </view>
 
     <view class="invite-summary">
       <text class="archive-chip">待处理 {{ pendingCount }}</text>
-      <MiniButton variant="secondary" size="sm" :disabled="loading" :loading="loading" @click="loadInvitations">
+      <MiniButton variant="secondary" size="sm" :disabled="loading || refreshing" :loading="loading || refreshing" @click="loadInvitations">
         刷新列表
       </MiniButton>
     </view>
 
     <template v-if="authChecked">
       <MiniNotice tone="security" title="核对邀请信息">
-        邀请由家庭管理员发起，请核对家庭名称、成员身份和邀请发起人后再接受。
+        请核对家庭、成员和邀请人。
       </MiniNotice>
 
       <view v-if="loading && invitations.length === 0" class="invite-state archive-form-panel">
@@ -36,7 +36,7 @@
         <MiniEmptyState
           symbol="邀"
           title="暂无邀请"
-          description="请家人发送家庭邀请或公开家庭分享链接。"
+          description="请家人发送邀请。"
         />
       </view>
 
@@ -128,6 +128,7 @@ import type { Invitation } from '@/types/api'
 const session = useSessionStore()
 const invitations = ref<Invitation[]>([])
 const loading = ref(false)
+const refreshing = ref(false)
 const loadError = ref('')
 const actionError = ref('')
 const actingId = ref<number | string | null>(null)
@@ -143,8 +144,8 @@ const invitationGroups = computed(() => {
   const pending = invitations.value.filter((item) => displayStatus(item) === 'PENDING')
   const history = invitations.value.filter((item) => displayStatus(item) !== 'PENDING')
   return [
-    { key: 'pending', title: '待我处理', subtitle: '需要确认家庭与成员身份的邀请', items: pending },
-    { key: 'history', title: '历史记录', subtitle: '已接受、拒绝或失效的邀请', items: history }
+    { key: 'pending', title: '待处理', subtitle: '需要确认的邀请', items: pending },
+    { key: 'history', title: '历史记录', subtitle: '已处理或失效的邀请', items: history }
   ].filter((group) => group.items.length > 0)
 })
 
@@ -164,6 +165,7 @@ function resetTransientUI() {
 function resetPageData() {
   authChecked.value = false
   loading.value = false
+  refreshing.value = false
   loadError.value = ''
   invitations.value = []
   resetTransientUI()
@@ -179,14 +181,8 @@ function displayStatus(item: Invitation) {
   return item.status
 }
 
-function isPendingMemberInvitation(item: Invitation) {
-  return item.inviteType === 'JOIN_FAMILY_PENDING_MEMBER'
-}
-
 function inviteTargetText(item: Invitation) {
-  return isPendingMemberInvitation(item)
-    ? item.pendingMemberLabel || item.targetMemberName || '身份待确认'
-    : item.targetMemberName
+  return item.targetMemberName
 }
 
 function inviteChannelText(channel: string) {
@@ -219,6 +215,7 @@ function openInvitationDetail(item: Invitation) {
 }
 
 async function loadInvitations() {
+  if (loading.value || refreshing.value) return
   session.restoreSession()
   if (!session.isLoggedIn) {
     resetPageData()
@@ -228,6 +225,7 @@ async function loadInvitations() {
   authChecked.value = true
   const isInitialLoad = invitations.value.length === 0
   loading.value = isInitialLoad
+  refreshing.value = true
   loadError.value = ''
   actionError.value = ''
   try {
@@ -236,6 +234,7 @@ async function loadInvitations() {
     loadError.value = apiErrorMessage(error, '邀请列表加载失败。')
   } finally {
     loading.value = false
+    refreshing.value = false
   }
 }
 
@@ -266,6 +265,7 @@ async function accept(invitationId: number | string) {
   try {
     await acceptInvitation(invitationId)
     await loadInvitations()
+    uni.showToast({ title: '已接受邀请', icon: 'success' })
   } catch (error) {
     actionError.value = apiErrorMessage(error, '接受邀请失败。')
   } finally {
@@ -281,6 +281,7 @@ async function reject(invitationId: number | string) {
   try {
     await rejectInvitation(invitationId)
     await loadInvitations()
+    uni.showToast({ title: '已拒绝邀请', icon: 'success' })
   } catch (error) {
     actionError.value = apiErrorMessage(error, '拒绝邀请失败。')
   } finally {

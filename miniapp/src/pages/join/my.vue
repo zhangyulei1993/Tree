@@ -5,8 +5,8 @@
     <view class="join-head archive-page-head">
       <view>
         <text class="archive-kicker">Join Requests</text>
-        <text class="archive-title">我提交的加入申请</text>
-        <text class="archive-subtitle">查看申请进度与审核结果，待审核时可主动取消</text>
+        <text class="archive-title">历史加入申请</text>
+        <text class="archive-subtitle">查看早期申请记录与审核结果</text>
       </view>
       <view class="archive-seal">申</view>
     </view>
@@ -19,8 +19,8 @@
         </MiniButton>
       </view>
 
-      <MiniNotice tone="security" title="申请说明">
-        申请信息仅家庭管理员可见，用于核实身份。审核结果会在此页面更新。
+      <MiniNotice tone="security" title="历史记录">
+        当前家庭仅支持节点邀请绑定；这里保留早期加入申请的查询与取消入口。
       </MiniNotice>
 
       <view v-if="loading && requests.length === 0" class="join-state archive-form-panel">
@@ -36,7 +36,7 @@
         <MiniEmptyState
           symbol="申"
           title="暂无加入申请"
-          description="你提交的家庭加入申请会显示在这里。请家人发送家庭邀请。"
+          description="已提交的申请会显示在这里。"
         />
       </view>
 
@@ -61,16 +61,16 @@
               </view>
 
               <view class="join-meta">
-                <text>提交时间：{{ formatDate(item.createdAt) }}</text>
-                <text>处理结果：{{ handleResultText(item) }}</text>
+                <text>提交于 {{ formatDate(item.createdAt) }}</text>
+                <text>结果：{{ handleResultText(item) }}</text>
               </view>
 
               <view v-if="expandedRequestId === item.requestId" class="join-detail">
                 <text>申请理由：{{ item.applicantMessage || '未填写' }}</text>
                 <text v-if="item.handleComment">审核意见：{{ item.handleComment }}</text>
-                <text v-if="item.cancelledAt" class="join-meta-weak">取消时间：{{ formatDate(item.cancelledAt) }}</text>
+                <text v-if="item.cancelledAt" class="join-meta-weak">取消于 {{ formatDate(item.cancelledAt) }}</text>
                 <text v-else-if="item.requestStatus !== 'PENDING'" class="join-meta-weak">
-                  更新时间：{{ formatDate(item.updatedAt) }}
+                  更新于 {{ formatDate(item.updatedAt) }}
                 </text>
               </view>
 
@@ -327,6 +327,15 @@ onUnload(resetPageData)
 
 .join-meta-weak {
   opacity: 0.88;
+}
+
+.join-meta > text,
+.join-detail > text {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-all;
 }
 
 .join-actions {

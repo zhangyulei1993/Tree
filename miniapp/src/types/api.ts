@@ -8,11 +8,9 @@ export interface UserInfo {
   id: number | string
   phone?: string | null
   phoneVerified: boolean
-  phoneLoginEnabled?: boolean
   nickname?: string | null
   avatarUrl?: string | null
   status: string
-  passwordSet?: boolean
 }
 
 export interface UpdateProfileInput {
@@ -38,20 +36,8 @@ export interface RegisterPhoneInput {
   nickname?: string
 }
 
-export interface LoginPhoneInput {
-  phone: string
-  password: string
-}
-
-export interface BindPhoneCredentialInput {
-  phone: string
-  password: string
-  confirmPassword: string
-}
-
-export interface ChangePhoneLoginPasswordInput {
-  currentPassword: string
-  newPassword: string
+export interface BindWechatPhoneInput {
+  phoneCode: string
 }
 
 export interface BindPhoneInput {
@@ -94,6 +80,7 @@ export interface UserCapabilities {
     ownedFamilies: number
     joinedFamilies: number
     membersPerOwnedFamily: Record<string, number>
+    membersLimitsByFamily?: Record<string, number>
   }
 }
 
@@ -102,6 +89,7 @@ export interface FamilySummary {
   familyName: string
   familySurname: string
   nativePlace?: string | null
+  regionCode?: string | null
   regionText?: string | null
   avatarUrl?: string | null
   status: string
@@ -124,6 +112,9 @@ export interface FamilyDetail extends FamilySummary {
   publicContactVisible: boolean
   currentFounderMemberId?: number | null
   graphVersion: number
+	  revision?: number
+  memberCount?: number
+  memberLimit?: number
 }
 
 export interface LeaveFamilyResult {
@@ -134,16 +125,21 @@ export interface LeaveFamilyResult {
 
 export interface CreateFamilyInput {
   surname: string
+  founderName: string
   founderGender: Gender
+  founderBirthYear: number
   familyName?: string
   nativePlace?: string
+  regionCode?: string
   regionText?: string
   description?: string
 }
 
 export interface UpdateFamilyInput {
+	  expectedRevision?: number
   familyName?: string
   nativePlace?: string
+  regionCode?: string
   regionText?: string
   description?: string
   searchable?: boolean
@@ -180,6 +176,12 @@ export interface PublicFamilyShowcaseItem {
   publicApprovedAt?: string | null
   createdAt?: string
   updatedAt?: string
+}
+
+export interface PublicPlatformStats {
+  familyCount: number
+  memberCount: number
+  relationshipCount: number
 }
 
 export interface ShowcaseFamilyItem {
@@ -276,7 +278,6 @@ export interface RejectInvitationInput {
 export interface CreateInvitationInput {
   inviteChannel: 'SHARE_LINK'
   inviteMessage?: string
-  pendingMemberLabel?: string
   familyRoleAfterAccept: 'MEMBER'
 }
 
@@ -286,7 +287,6 @@ export interface Invitation {
   familyName: string
   targetMemberId: number | string
   targetMemberName: string
-  pendingMemberLabel?: string | null
   inviterDisplayName?: string
   inviterRole?: string
   inviteType?: string
@@ -296,6 +296,8 @@ export interface Invitation {
   status: string
   expiredAt: string
   acceptedAt?: string | null
+  acceptedByUserId?: number | string | null
+  acceptedByDisplayName?: string
   rejectedAt?: string | null
   cancelledAt?: string | null
   createdAt: string
@@ -365,6 +367,9 @@ export interface FamilyMember {
   familyId: number
   name: string
   gender: string
+	portraitHairStyle?: PortraitHairStyle
+	portraitGlassesStyle?: PortraitGlassesStyle
+	portraitAvatarStyle?: PortraitAvatarStyle
   birthDate?: string | null
   birthYear?: number | null
   deathDate?: string | null
@@ -375,6 +380,11 @@ export interface FamilyMember {
   memorialVisible?: boolean
   status: string
   userBindingPolicy: string
+	  revision?: number
+	  profileSourceType?: string
+	  profileVerificationStatus?: string
+	  profileConfirmedAt?: string | null
+	  profileConfirmedByUserId?: number | null
   boundUserId?: number | null
   boundFamilyRole?: string | null
   createdAt: string
@@ -382,11 +392,17 @@ export interface FamilyMember {
 }
 
 export type Gender = 'MALE' | 'FEMALE' | 'UNKNOWN'
+export type PortraitHairStyle = 'AUTO' | 'SHORT' | 'BOB' | 'BRAIDS' | 'LOW_BUN' | 'WAVY' | 'LONG'
+export type PortraitGlassesStyle = 'AUTO' | 'ON' | 'OFF'
+export type PortraitAvatarStyle = 'AUTO' | `BASE_${number}` | `GLASSES_${number}`
 export type UserBindingPolicy = 'OPTIONAL' | 'REQUIRED' | 'NOT_REQUIRED'
 
 export interface CreateMemberInput {
   name: string
   gender?: Gender
+	portraitHairStyle?: PortraitHairStyle
+	portraitGlassesStyle?: PortraitGlassesStyle
+	portraitAvatarStyle?: PortraitAvatarStyle
   birthDate?: string
   birthYear?: number
   deathDate?: string
@@ -398,7 +414,7 @@ export interface CreateMemberInput {
   userBindingPolicy?: UserBindingPolicy
 }
 
-export type UpdateMemberInput = Partial<CreateMemberInput>
+export type UpdateMemberInput = Partial<CreateMemberInput> & { expectedRevision?: number }
 
 export type RelationshipAddType =
   | 'ADD_FATHER'
@@ -425,6 +441,7 @@ export interface NewRelationshipMemberInput {
 
 export interface CreateRelationshipInput {
   baseMemberId: number
+  coParentMemberId?: number
   addType: RelationshipAddType
   newMember: NewRelationshipMemberInput
   relationship: {
@@ -437,6 +454,7 @@ export interface CreateRelationshipInput {
 
 export interface PlaceExistingMemberInput {
   baseMemberId: number
+  coParentMemberId?: number
   memberId: number
   addType: RelationshipAddType
   memberType?: MemberType
@@ -444,6 +462,7 @@ export interface PlaceExistingMemberInput {
 }
 
 export interface UpdateRelationshipInput {
+	  expectedRevision?: number
   parentLinkType?: string
   relationNoteType?: string
   relationNote?: string
@@ -459,6 +478,7 @@ export interface Relationship {
   relationNoteType?: string | null
   relationNote?: string | null
   status: string
+	  revision?: number
   createdAt: string
   updatedAt: string
   deletedAt?: string | null
@@ -489,6 +509,26 @@ export interface PublicApplication {
   cancelReason?: string | null
   createdAt: string
   updatedAt: string
+}
+
+export interface QualityEligibility {
+  eligible: boolean
+  memberCount: number
+  relationshipCount: number
+  boundMemberCount: number
+  profileCompleteCount: number
+  unknownGenderCount: number
+  profileComplete: boolean
+  requirements: string[]
+  checks: QualityEligibilityCheck[]
+}
+
+export interface QualityEligibilityCheck {
+  key: string
+  label: string
+  current: string
+  required: string
+  met: boolean
 }
 
 export interface FamilyPublicStatus {
@@ -561,9 +601,13 @@ export interface DissolutionRequest {
 export interface TreeNode {
   memberId: number
   displayName: string
+  identityText?: string | null
   surname?: string | null
   generationCharacter?: string | null
   gender: string
+	portraitHairStyle?: PortraitHairStyle
+	portraitGlassesStyle?: PortraitGlassesStyle
+	portraitAvatarStyle?: PortraitAvatarStyle
   memberType: string
   birthDate?: string | null
   deathDate?: string | null
@@ -581,6 +625,7 @@ export interface TreeEdge {
   parentLinkType?: string | null
   relationNoteType?: string | null
   relationNote?: string | null
+	  revision?: number
 }
 
 export interface TreeItem {

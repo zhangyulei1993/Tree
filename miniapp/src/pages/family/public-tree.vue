@@ -3,7 +3,7 @@
     <MiniBackHome />
 
     <view v-if="loading && !tree" class="tree-state archive-form-panel">
-      <MiniEmptyState symbol="…" title="正在加载" description="正在加载公开家庭树..." />
+          <MiniEmptyState symbol="…" title="正在加载" description="正在加载优质家庭树案例..." />
     </view>
 
     <view v-else-if="errorMessage && !tree" class="tree-state archive-form-panel">
@@ -15,7 +15,7 @@
       <view class="tree-head archive-page-head">
         <view>
           <text class="archive-kicker">Public Family Tree</text>
-          <text class="archive-title">公开家庭树</text>
+          <text class="archive-title">优质家庭树案例</text>
           <text class="archive-subtitle">
             {{ treeViewLabel(tree.treeMode) }} · {{ tree.nodes.length }} 位成员 · {{ edgeCount }} 条关系
           </text>
@@ -24,7 +24,7 @@
       </view>
 
       <view class="public-notice archive-panel">
-        <text class="public-notice-label">公开册页</text>
+        <text class="public-notice-label">学习案例</text>
         <text class="public-notice-text">
           以下家庭树经平台审核后对外展示，姓名等信息已按公开规则脱敏，仅供浏览，不提供申请加入。
         </text>
@@ -54,7 +54,7 @@
       </view>
 
       <view class="tree-scroll-note">
-        <text>关系图可左右滑动查看；配偶为浅纸签，不作为关系扩展入口。</text>
+        <text>树状家谱可左右滑动查看；配偶卡带有婚嫁标记，不作为关系扩展入口。</text>
       </view>
 
       <template v-if="viewMode === 'structure'">
@@ -62,7 +62,7 @@
           v-if="tree.nodes.length === 0"
           symbol="谱"
           title="暂无公开成员"
-          description="该家庭暂未公开家庭树成员。"
+          description="该优质家庭暂未开放树成员案例。"
         />
         <FamilyTreeStructureView v-else class="archive-tree-structure" :tree="tree" />
       </template>
@@ -72,7 +72,7 @@
           v-if="edgeCount === 0"
           symbol="亲"
           title="暂无公开关系"
-          description="该家庭暂未公开家庭树关系。"
+          description="该优质家庭暂未开放树关系案例。"
         />
         <RelationSentenceList v-else class="public-relation-list" :items="relationSentences" />
       </template>
@@ -122,6 +122,7 @@ import {
 } from '@/features/family-tree/relationSentences'
 import type { FamilyTreeViewMode } from '@/features/family-tree/types'
 import type { FamilyTreeResult } from '@/types/api'
+import { readQueryParam } from '@/utils/queryString'
 
 const familyId = ref('')
 const tree = ref<FamilyTreeResult | null>(null)
@@ -146,7 +147,7 @@ function resetPageState() {
 function familyIdFromCurrentHash() {
   if (typeof window === 'undefined') return ''
   const [, query = ''] = window.location.hash.split('?')
-  return new URLSearchParams(query).get('familyId') || ''
+  return readQueryParam(query, ['familyId'])
 }
 
 function isCurrentTreeRoute() {
@@ -160,7 +161,7 @@ function reloadForFamilyId(nextFamilyId: string) {
   resetPageState()
 
   if (!familyId.value) {
-    errorMessage.value = '公开家庭树暂不可访问。'
+    errorMessage.value = '优质家庭树案例暂不可访问。'
     return
   }
 
@@ -178,7 +179,7 @@ function handleHashChange() {
 async function loadTree() {
   if (!familyId.value) {
     tree.value = null
-    errorMessage.value = '公开家庭树暂不可访问。'
+    errorMessage.value = '优质家庭树案例暂不可访问。'
     return
   }
   const version = requestVersion
@@ -194,7 +195,7 @@ async function loadTree() {
   } catch (error) {
     if (version === requestVersion && currentFamilyId === familyId.value) {
       tree.value = null
-      errorMessage.value = apiErrorMessage(error, '公开家庭树暂不可访问。')
+      errorMessage.value = apiErrorMessage(error, '优质家庭树案例暂不可访问。')
     }
   } finally {
     if (version === requestVersion && currentFamilyId === familyId.value) {

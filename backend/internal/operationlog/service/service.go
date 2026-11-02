@@ -69,6 +69,14 @@ func (s *GormService) write(ctx context.Context, input WriteInput, result string
 		return nil
 	}
 
+	beforeJSON, err := sanitizeDetailJSON(input.BeforeJSON)
+	if err != nil {
+		return err
+	}
+	afterJSON, err := sanitizeDetailJSON(input.AfterJSON)
+	if err != nil {
+		return err
+	}
 	detailJSON, err := sanitizeDetailJSON(input.DetailJSON)
 	if err != nil {
 		return err
@@ -85,11 +93,11 @@ func (s *GormService) write(ctx context.Context, input WriteInput, result string
 		FamilyID:        input.FamilyID,
 		MemberID:        input.MemberID,
 		UserID:          input.UserID,
-		BeforeJSON:      input.BeforeJSON,
-		AfterJSON:       input.AfterJSON,
+		BeforeJSON:      beforeJSON,
+		AfterJSON:       afterJSON,
 		DetailJSON:      detailJSON,
 		Result:          result,
-		ErrorMessage:    input.ErrorMessage,
+		ErrorMessage:    sanitizeErrorMessage(input.ErrorMessage),
 		IP:              input.IP,
 		UserAgent:       input.UserAgent,
 	}

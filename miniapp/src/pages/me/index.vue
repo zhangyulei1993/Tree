@@ -10,8 +10,7 @@
           <text class="archive-kicker">Personal File</text>
           <text class="profile-name">{{ session.user.nickname || '未设置昵称' }}</text>
           <view class="profile-meta">
-            <text>世代待补</text>
-            <text>平台账号</text>
+            <text>{{ familySummary }}</text>
             <text>ID {{ session.user.id }}</text>
           </view>
           <text class="profile-status">{{ accountStatusLabel }}</text>
@@ -19,8 +18,17 @@
       </view>
 
       <view v-if="showProfileIncompleteNotice" class="profile-notice archive-panel">
-        <MiniNotice tone="info">设置昵称后即可使用家庭、邀请与加入等功能；头像可选。</MiniNotice>
+        <MiniNotice tone="info">设置昵称后即可使用家庭功能；头像可选。</MiniNotice>
         <MiniButton class="btn-top" @click="go('/pages/me/profile?onboarding=1')">去完善资料</MiniButton>
+      </view>
+
+      <view class="guide-entry archive-row" @click="openNewUserGuide">
+        <view class="directory-icon text-directory-icon" aria-hidden="true">引</view>
+        <view class="archive-row-main">
+          <text class="archive-row-title">新手引导</text>
+          <text class="archive-row-desc">从当前进度继续，不会修改家庭资料</text>
+        </view>
+        <text class="archive-arrow">›</text>
       </view>
 
       <view class="me-directory archive-list">
@@ -34,7 +42,7 @@
           </view>
           <view class="archive-row-main">
             <text class="archive-row-title">常用工具</text>
-            <text class="archive-row-desc">称谓查询等家庭实用工具</text>
+            <text class="archive-row-desc">称谓查询等实用工具</text>
           </view>
           <text class="archive-arrow">›</text>
         </view>
@@ -75,7 +83,7 @@
         <view class="profile-copy">
           <text class="archive-kicker">Tree / Me</text>
           <text class="profile-name">欢迎使用 Tree</text>
-          <text class="profile-status">登录后可查看家庭、成员与邀请信息</text>
+          <text class="profile-status">登录后查看家庭与邀请</text>
         </view>
       </view>
 
@@ -94,7 +102,7 @@
           </view>
           <view class="archive-row-main">
             <text class="archive-row-title">常用工具</text>
-            <text class="archive-row-desc">称谓查询等家庭实用工具</text>
+            <text class="archive-row-desc">称谓查询等实用工具</text>
           </view>
           <text class="archive-arrow">›</text>
         </view>
@@ -116,15 +124,20 @@ import { onShow } from '@dcloudio/uni-app'
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage, resolveAssetUrl } from '@/api/client'
+import { listMyFamilies } from '@/api/families'
+import { listNotifications } from '@/api/notifications'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
 import { accountStatusText } from '@/components/base/formatStatus'
+import { resumeNewUserGuide } from '@/features/onboarding/newUserGuide'
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
 const loggingOut = ref(false)
 const errorMessage = ref('')
 const navigating = ref(false)
+const unreadNotificationCount = ref(0)
+const familySummary = ref('家庭信息加载中')
 
 const avatarText = computed(() => {
   const name = session.user?.nickname?.trim()
@@ -142,13 +155,12 @@ const accountStatusLabel = computed(() =>
   session.user ? accountStatusText(session.user.status) : ''
 )
 
-const directoryItems = [
-  { title: '个人资料', icon: '人', desc: '昵称、头像与基础资料', count: '', url: '/pages/me/profile' },
-  { title: '家庭事务', icon: '事', desc: '家庭邀请、加入申请与成员身份', count: '', url: '/pages/me/family-affairs' },
-  { title: '设置', icon: '设', desc: '账号与安全、手机号登录', count: '', url: '/pages/me/account-security' },
-  { title: '帮助与反馈', icon: '问', desc: '使用说明与联系方式', count: '', url: '/pages/me/about' },
-  { title: '关于我们', icon: '关', desc: '协议、隐私与版本信息', count: '', url: '/pages/me/about' }
-]
+const directoryItems = computed(() => [
+  { title: '消息中心', icon: '信', desc: '家庭、邀请、支付与审核动态', count: unreadNotificationCount.value ? String(unreadNotificationCount.value) : '', url: '/pages/me/notifications' },
+  { title: '我的邀请与申请', icon: '事', desc: '处理收到的邀请与加入记录', count: '', url: '/pages/me/family-affairs' },
+  { title: '设置', icon: '设', desc: '账号与安全、更新资料', count: '', url: '/pages/me/account-security' },
+  { title: '帮助与关于', icon: '问', desc: '使用说明、协议与联系方式', count: '', url: '/pages/me/about' }
+])
 
 function go(url: string) {
   if (navigating.value) return
@@ -159,6 +171,11 @@ function go(url: string) {
       navigating.value = false
     }
   })
+}
+
+function openNewUserGuide() {
+  resumeNewUserGuide()
+  uni.switchTab({ url: '/pages/home/index' })
 }
 
 async function logout() {
@@ -176,8 +193,19 @@ async function logout() {
   }
 }
 
-onShow(() => {
+onShow(async () => {
   session.restoreSession()
+  if (!session.isLoggedIn) { unreadNotificationCount.value = 0; familySummary.value = '登录后同步家庭信息'; return }
+  try {
+    const [notificationPage, families] = await Promise.all([listNotifications(1, 1), listMyFamilies()])
+    unreadNotificationCount.value = notificationPage.unreadCount
+    const created = families.filter((item) => item.role === 'FOUNDER').length
+    const joined = Math.max(0, families.length - created)
+    familySummary.value = `已创建 ${created} · 已加入 ${joined}`
+  } catch {
+    unreadNotificationCount.value = 0
+    familySummary.value = '家庭信息暂未同步'
+  }
 })
 </script>
 
@@ -191,6 +219,13 @@ onShow(() => {
   border: 1rpx solid var(--archive-line-strong);
   border-radius: 50%;
   background: rgba(255, 252, 244, 0.72);
+}
+
+.guide-entry {
+  margin-bottom: 18rpx;
+  border-top: 1rpx solid rgba(168, 59, 45, 0.22);
+  border-bottom: 1rpx solid rgba(168, 59, 45, 0.14);
+  background: rgba(255, 249, 238, 0.58);
 }
 
 .text-directory-icon {

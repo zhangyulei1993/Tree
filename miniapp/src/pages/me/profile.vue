@@ -29,7 +29,7 @@
     <view class="archive-form-panel profile-form">
       <view class="archive-section-head">
         <text class="archive-section-title">基本资料</text>
-        <text class="archive-section-subtitle">昵称必填，头像可选</text>
+        <text class="archive-section-subtitle">昵称和头像均可稍后补充</text>
       </view>
 
       <text class="tree-field-label">头像（可选）</text>
@@ -64,100 +64,20 @@
       <text v-if="successMessage" class="tree-field-success">{{ successMessage }}</text>
 
       <MiniButton class="profile-save" :disabled="saving" :loading="saving" @click="saveNickname">
-        {{ onboarding ? '完成并继续' : '保存资料' }}
+        {{ onboarding ? '保存并继续' : '保存资料' }}
+      </MiniButton>
+      <MiniButton
+        v-if="onboarding && !profileRequired"
+        class="profile-skip"
+        variant="ghost"
+        size="sm"
+        :disabled="saving || uploading"
+        @click="skipProfile"
+      >
+        暂时跳过，稍后再说
       </MiniButton>
     </view>
 
-    <view v-if="showPhoneBackupSection" class="archive-form-panel phone-backup-section">
-      <view class="archive-section-head">
-        <text class="archive-section-title">备用登录（可选）</text>
-        <text class="archive-section-subtitle">
-          设置手机号与登录密码，可在无法使用微信时登录。不使用短信验证，可随时跳过。
-        </text>
-      </view>
-
-      <template v-if="phoneLoginEnabled">
-        <text class="tree-field-label">已绑定手机号</text>
-        <text class="phone-mask">{{ maskedPhone }}</text>
-
-        <text class="tree-field-label">当前密码</text>
-        <input
-          v-model="currentPassword"
-          class="tree-input"
-          password
-          maxlength="64"
-          placeholder="请输入当前登录密码"
-        />
-        <text class="tree-field-label">新密码</text>
-        <input
-          v-model="newPassword"
-          class="tree-input"
-          password
-          maxlength="64"
-          placeholder="至少 6 位"
-        />
-        <MiniButton
-          class="profile-action"
-          size="sm"
-          variant="secondary"
-          :disabled="changingPassword"
-          :loading="changingPassword"
-          @click="submitPasswordChange"
-        >
-          更新登录密码
-        </MiniButton>
-      </template>
-
-      <template v-else>
-        <text class="tree-field-label">手机号</text>
-        <input
-          v-model.trim="bindPhone"
-          class="tree-input"
-          type="number"
-          maxlength="11"
-          placeholder="请输入手机号"
-        />
-        <text class="tree-field-label">登录密码</text>
-        <input
-          v-model="bindPassword"
-          class="tree-input"
-          password
-          maxlength="64"
-          placeholder="至少 6 位"
-        />
-        <text class="tree-field-label">确认密码</text>
-        <input
-          v-model="bindConfirmPassword"
-          class="tree-input"
-          password
-          maxlength="64"
-          placeholder="再次输入登录密码"
-        />
-        <MiniButton
-          class="profile-action"
-          size="sm"
-          variant="secondary"
-          :disabled="bindingPhone"
-          :loading="bindingPhone"
-          @click="submitPhoneBind"
-        >
-          设置备用登录
-        </MiniButton>
-        <MiniButton
-          v-if="onboarding"
-          class="profile-action"
-          size="sm"
-          variant="ghost"
-          :disabled="bindingPhone || saving"
-          @click="skipPhoneBackup"
-        >
-          暂时跳过
-        </MiniButton>
-      </template>
-
-      <text v-if="phoneErrorMessage" class="tree-field-error">{{ phoneErrorMessage }}</text>
-      <text v-if="phoneSuccessMessage" class="tree-field-success">{{ phoneSuccessMessage }}</text>
-    </view>
   </view>
 </template>
 
@@ -168,12 +88,11 @@ import { computed, ref } from 'vue'
 import { apiErrorMessage, resolveAssetUrl } from '@/api/client'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
-import MiniNotice from '@/components/base/MiniNotice.vue'
 import { accountStatusText } from '@/components/base/formatStatus'
+import { markNewUserGuideMilestone } from '@/features/onboarding/newUserGuide'
 import { isProfileComplete } from '@/features/session/profileComplete'
 import { useSessionStore } from '@/stores/session'
 import { validateTextFields } from '@/utils/inputValidation'
-import { maskPhone } from '@/utils/maskPhone'
 
 const session = useSessionStore()
 const nickname = ref('')
@@ -182,16 +101,8 @@ const saving = ref(false)
 const uploading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
-const phoneErrorMessage = ref('')
-const phoneSuccessMessage = ref('')
 const onboarding = ref(false)
-const bindPhone = ref('')
-const bindPassword = ref('')
-const bindConfirmPassword = ref('')
-const currentPassword = ref('')
-const newPassword = ref('')
-const bindingPhone = ref(false)
-const changingPassword = ref(false)
+const profileRequired = ref(false)
 
 const displayNickname = computed(() => nickname.value.trim() || session.user?.nickname || '未设置昵称')
 const userId = computed(() => session.user?.id || '—')
@@ -202,10 +113,12 @@ const pageTitle = computed(() => {
 })
 const profileDesc = computed(() =>
   onboarding.value
-    ? '设置昵称后即可使用家庭、邀请与加入等功能；头像可选。'
+    ? profileRequired.value
+      ? '当前操作需要可识别的资料，请先设置昵称；头像仍可稍后补充。'
+      : '头像和昵称都可以稍后补充；涉及家庭身份时再按提示完善。'
     : profileComplete.value
       ? '更新昵称和头像，保持家人可识别'
-      : '设置昵称后即可使用完整功能；头像可选。'
+      : '昵称和头像均可稍后补充。'
 )
 const avatarText = computed(() => {
   const name = nickname.value.trim() || session.user?.nickname?.trim()
@@ -221,23 +134,6 @@ const avatarPreview = computed(() => {
   if (localAvatarPath.value) return localAvatarPath.value
   return resolveAssetUrl(session.user?.avatarUrl)
 })
-
-const phoneLoginEnabled = computed(() => Boolean(session.user?.phoneLoginEnabled))
-const showPhoneBackupSection = computed(() => profileComplete.value && !onboarding.value)
-const maskedPhone = computed(() => maskPhone(session.user?.phone))
-
-function validatePhone(value: string) {
-  return /^1[3-9]\d{9}$/.test(value)
-}
-
-function validatePassword(value: string) {
-  return value.length >= 6
-}
-
-function clearPhoneMessages() {
-  phoneErrorMessage.value = ''
-  phoneSuccessMessage.value = ''
-}
 
 type ChooseAvatarEvent = {
   detail: {
@@ -271,7 +167,6 @@ async function onChooseAvatar(event: ChooseAvatarEvent) {
 async function saveNickname() {
   errorMessage.value = ''
   successMessage.value = ''
-  clearPhoneMessages()
   const value = nickname.value.trim()
   if (!value) {
     errorMessage.value = '请输入昵称。'
@@ -289,6 +184,7 @@ async function saveNickname() {
   try {
     await session.saveProfile({ nickname: value })
     await session.refreshMe().catch(() => undefined)
+    markNewUserGuideMilestone('PROFILE_DONE')
     successMessage.value = '昵称已保存。'
     uni.showToast({ title: '保存成功', icon: 'success' })
     if (onboarding.value) {
@@ -301,79 +197,15 @@ async function saveNickname() {
   }
 }
 
-async function submitPhoneBind() {
-  clearPhoneMessages()
-  errorMessage.value = ''
-  successMessage.value = ''
-
-  const phoneValue = bindPhone.value.trim()
-  if (!validatePhone(phoneValue)) {
-    phoneErrorMessage.value = '请输入有效的手机号。'
-    return
-  }
-  if (!validatePassword(bindPassword.value)) {
-    phoneErrorMessage.value = '登录密码至少 6 位。'
-    return
-  }
-  if (bindPassword.value !== bindConfirmPassword.value) {
-    phoneErrorMessage.value = '两次输入的密码不一致。'
-    return
-  }
-
-  bindingPhone.value = true
-  try {
-    await session.bindPhoneCredential({
-      phone: phoneValue,
-      password: bindPassword.value,
-      confirmPassword: bindConfirmPassword.value
-    })
-    bindPhone.value = ''
-    bindPassword.value = ''
-    bindConfirmPassword.value = ''
-    phoneSuccessMessage.value = '备用登录已设置。'
-    uni.showToast({ title: '设置成功', icon: 'success' })
-    if (onboarding.value) {
-      setTimeout(() => session.finishProfile(), 300)
-    }
-  } catch (error) {
-    phoneErrorMessage.value = apiErrorMessage(error, '备用登录设置失败，请稍后重试。')
-  } finally {
-    bindingPhone.value = false
-  }
-}
-
-async function submitPasswordChange() {
-  clearPhoneMessages()
-  if (!currentPassword.value || !validatePassword(newPassword.value)) {
-    phoneErrorMessage.value = '请填写当前密码，且新密码至少 6 位。'
-    return
-  }
-
-  changingPassword.value = true
-  try {
-    await session.changePhoneLoginPassword({
-      currentPassword: currentPassword.value,
-      newPassword: newPassword.value
-    })
-    currentPassword.value = ''
-    newPassword.value = ''
-    phoneSuccessMessage.value = '登录密码已更新。'
-    uni.showToast({ title: '密码已更新', icon: 'success' })
-  } catch (error) {
-    phoneErrorMessage.value = apiErrorMessage(error, '密码更新失败，请稍后重试。')
-  } finally {
-    changingPassword.value = false
-  }
-}
-
-function skipPhoneBackup() {
-  if (onboarding.value) {
-    session.finishProfile()
-  }
+function skipProfile() {
+  if (profileRequired.value || saving.value || uploading.value) return
+  uni.showToast({ title: '已跳过，可在个人资料中补充', icon: 'none' })
+  setTimeout(() => session.finishProfile(), 300)
 }
 
 onLoad((options) => {
   onboarding.value = options?.onboarding === '1'
+  profileRequired.value = options?.required === '1'
 })
 
 onShow(() => {
@@ -398,6 +230,10 @@ onShow(() => {
 
 .profile-page :deep(.mini-back-home) {
   margin-bottom: 22rpx;
+}
+
+.profile-skip {
+  margin-top: 10rpx;
 }
 
 .profile-folio {
@@ -472,8 +308,7 @@ onShow(() => {
   line-height: 1.4;
 }
 
-.profile-form,
-.phone-backup-section {
+.profile-form {
   margin-bottom: 24rpx;
 }
 
@@ -522,16 +357,4 @@ onShow(() => {
   align-self: flex-start;
 }
 
-.profile-action {
-  margin-top: 16rpx;
-  align-self: flex-start;
-}
-
-.phone-mask {
-  display: block;
-  margin-top: 8rpx;
-  color: var(--archive-ink);
-  font-size: 28rpx;
-  font-weight: 650;
-}
 </style>

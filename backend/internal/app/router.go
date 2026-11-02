@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -17,6 +18,9 @@ import (
 	authhandler "tree/backend/internal/auth/handler"
 	authrepo "tree/backend/internal/auth/repository"
 	authservice "tree/backend/internal/auth/service"
+	backupconfighandler "tree/backend/internal/backupconfig/handler"
+	backupconfigrepo "tree/backend/internal/backupconfig/repository"
+	backupconfigservice "tree/backend/internal/backupconfig/service"
 	choicescenariohandler "tree/backend/internal/choicescenario/handler"
 	choicescenariorepo "tree/backend/internal/choicescenario/repository"
 	choicescenarioservice "tree/backend/internal/choicescenario/service"
@@ -32,6 +36,10 @@ import (
 	contenthandler "tree/backend/internal/content/handler"
 	contentrepo "tree/backend/internal/content/repository"
 	contentservice "tree/backend/internal/content/service"
+	capacityhandler "tree/backend/internal/family/capacity/handler"
+	capacityrepo "tree/backend/internal/family/capacity/repository"
+	capacityservice "tree/backend/internal/family/capacity/service"
+	capacitywechatpay "tree/backend/internal/family/capacity/wechatpay"
 	familyhandler "tree/backend/internal/family/core/handler"
 	familyrepo "tree/backend/internal/family/core/repository"
 	familyservice "tree/backend/internal/family/core/service"
@@ -41,6 +49,9 @@ import (
 	invitationhandler "tree/backend/internal/family/invitation/handler"
 	invitationrepo "tree/backend/internal/family/invitation/repository"
 	invitationservice "tree/backend/internal/family/invitation/service"
+	invitationrewardhandler "tree/backend/internal/family/invitationreward/handler"
+	invitationrewardrepo "tree/backend/internal/family/invitationreward/repository"
+	invitationrewardservice "tree/backend/internal/family/invitationreward/service"
 	joinhandler "tree/backend/internal/family/joinrequest/handler"
 	joinrepo "tree/backend/internal/family/joinrequest/repository"
 	joinservice "tree/backend/internal/family/joinrequest/service"
@@ -62,6 +73,12 @@ import (
 	treehandler "tree/backend/internal/family/tree/handler"
 	treerepo "tree/backend/internal/family/tree/repository"
 	treeservice "tree/backend/internal/family/tree/service"
+	launchsplashhandler "tree/backend/internal/launchsplash/handler"
+	launchsplashrepo "tree/backend/internal/launchsplash/repository"
+	launchsplashservice "tree/backend/internal/launchsplash/service"
+	notificationhandler "tree/backend/internal/notification/handler"
+	notificationrepo "tree/backend/internal/notification/repository"
+	notificationservice "tree/backend/internal/notification/service"
 	operationlog "tree/backend/internal/operationlog/service"
 	shareconfighandler "tree/backend/internal/shareconfig/handler"
 	shareconfigrepo "tree/backend/internal/shareconfig/repository"
@@ -74,6 +91,15 @@ import (
 	toolconfigservice "tree/backend/internal/toolconfig/service"
 )
 
+func strictRedisEnvironment(env string) bool {
+	switch strings.ToLower(strings.TrimSpace(env)) {
+	case "staging", "production", "prod":
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *Server) RegisterRoutes() {
 	api := s.engine.Group("/api")
 	api.GET("/health", s.health)
@@ -81,12 +107,88 @@ func (s *Server) RegisterRoutes() {
 	s.registerShareConfigRoutes(api)
 	s.registerShowcaseFamilyRoutes(api)
 	s.registerToolConfigRoutes(api)
+	s.registerLaunchSplashRoutes(api)
 
 	s.registerAdminRoutes(api)
 	s.registerUserAuthRoutes(api)
 	s.registerChoiceScenarioRoutes(api)
 	s.registerFamilyRoutes(api)
 	s.registerContentRoutes(api)
+	s.registerCapacityRoutes(api)
+	s.registerInvitationRewardRoutes(api)
+}
+
+func (s *Server) registerInvitationRewardRoutes(api *gin.RouterGroup) {
+	db, err := database.Init(context.Background(), s.cfg.MySQL)
+	if err != nil {
+		s.logger.Error("init mysql for invitation rewards", zap.Error(err))
+		return
+	}
+	_, userAuth := s.buildUserAuth()
+	if userAuth == nil {
+		return
+	}
+	service := invitationrewardservice.New(db, invitationrewardrepo.New(db), permission.NewFamilyPermissionService(db), accountquotaservice.NewService(db, accountquotarepo.NewRepository(db)), operationlog.NewGormService(db))
+	h := invitationrewardhandler.New(service)
+	protected := api.Group("/families/:familyId/invitation-reward")
+	protected.Use(userAuth)
+	protected.GET("", h.Summary)
+	protected.POST("/share", h.Share)
+	apiProtected := api.Group("/invitation-rewards")
+	apiProtected.Use(userAuth)
+	apiProtected.POST("/:referralCode/qualify", h.Qualify)
+}
+
+func (s *Server) registerCapacityRoutes(api *gin.RouterGroup) {
+	db, err := database.Init(context.Background(), s.cfg.MySQL)
+	if err != nil {
+		s.logger.Error("init mysql for capacity", zap.Error(err))
+		return
+	}
+	_, userAuth := s.buildUserAuth()
+	if userAuth == nil {
+		return
+	}
+	jwtManager, err := commonjwt.NewManager(s.cfg.JWT, s.cfg.App.Name)
+	if err != nil {
+		return
+	}
+	var blacklist commonredis.TokenBlacklist = commonredis.NoopTokenBlacklist{}
+	permissionService := permission.NewFamilyPermissionService(db)
+	userRepo := authrepo.NewGormUserRepository(db)
+	quotaService := accountquotaservice.NewService(db, accountquotarepo.NewRepository(db))
+	logs := operationlog.NewGormService(db)
+	var provider *capacitywechatpay.Provider
+	if s.cfg.WechatPay.Enabled {
+		provider, err = capacitywechatpay.New(context.Background(), *s.cfg)
+		if err != nil {
+			s.logger.Error("init wechat pay", zap.Error(err))
+			return
+		}
+	}
+	wechatClient := wechat.NewMiniProgramClient(s.cfg.Wechat)
+	notifications := notificationservice.NewWithSubscribe(notificationrepo.New(db), userRepo, wechatClient, s.cfg.Wechat, s.logger)
+	service := capacityservice.NewWithNotifications(db, capacityrepo.NewRepository(db), permissionService, provider, logs, userRepo, quotaService, s.cfg.Wechat.MiniAppID, s.logger, s.cfg.Capacity.OrderTimeoutMinutes, notifications)
+	service.StartOrderExpiryWorker(context.Background())
+	h := capacityhandler.New(service, provider, s.cfg.Wechat.MiniAppID, s.cfg.WechatPay.MerchantID)
+	api.GET("/capacity-products", h.Products)
+	protected := api.Group("/families/:familyId/capacity")
+	protected.Use(userAuth)
+	protected.GET("/orders", h.Orders)
+	protected.POST("/orders", h.CreateOrder)
+	protected.POST("/orders/:orderNo/pay", h.ResumePayment)
+	protected.POST("/orders/:orderNo/reconcile", h.ReconcilePayment)
+	protected.POST("/orders/:orderNo/refund", h.Refund)
+	notificationHandler := notificationhandler.New(notifications)
+	userNotifications := api.Group("/notifications")
+	userNotifications.Use(userAuth)
+	userNotifications.GET("", notificationHandler.List)
+	userNotifications.POST("/:notificationId/read", notificationHandler.MarkRead)
+	userNotifications.POST("/read-all", notificationHandler.MarkAllRead)
+	_ = jwtManager
+	_ = blacklist
+	api.POST("/payments/wechat/notify", h.PaymentNotify)
+	api.POST("/payments/wechat/refund-notify", h.RefundNotify)
 }
 
 func (s *Server) registerChoiceScenarioRoutes(api *gin.RouterGroup) {
@@ -142,25 +244,60 @@ func (s *Server) registerAdminRoutes(api *gin.RouterGroup) {
 		s.logger.Error("init mysql for admin management", zap.Error(err))
 		return
 	}
-	userAuthHandler, _ := s.buildUserAuth()
-	var userAuthService authservice.AuthService
-	if userAuthHandler != nil {
-		userAuthService = userAuthHandler.Service()
-	}
 	management := adminhandler.NewManagementHandler(
-		adminservice.NewManagementService(adminrepo.NewManagementRepository(managementDB, s.cfg.Wechat.MiniAppID)),
-		userAuthService,
+		adminservice.NewManagementService(
+			adminrepo.NewManagementRepository(managementDB, s.cfg.Wechat.MiniAppID),
+			accountquotaservice.NewService(managementDB, accountquotarepo.NewRepository(managementDB)),
+		),
 	)
 	protected.GET("/dashboard", management.Dashboard)
 	protected.GET("/users", management.Users)
 	protected.GET("/users/:userId", management.User)
-	protected.POST("/users/:userId/unbind-phone-login", management.UnbindPhoneLogin)
+	protected.POST("/users/:userId/status", management.SetUserStatus)
 	protected.GET("/families", management.Families)
 	protected.GET("/families/:familyId", management.Family)
+	protected.PUT("/families/:familyId", management.UpdateFamily)
+	protected.POST("/families/:familyId/status", management.SetFamilyStatus)
 	protected.GET("/families/:familyId/members", management.Members)
+	protected.PUT("/families/:familyId/members/:memberId", management.UpdateMember)
+	protected.DELETE("/families/:familyId/members/:memberId", management.DeleteMember)
+	protected.POST("/families/:familyId/members/:memberId/relatives", management.CreateRelative)
 	protected.GET("/families/:familyId/tree", management.Tree)
 	protected.GET("/admin-users", management.Admins)
+	protected.POST("/admin-users", management.CreateAdmin)
+	protected.PUT("/admin-users/:adminId", management.UpdateAdmin)
+	protected.POST("/admin-users/:adminId/status", management.SetAdminStatus)
 	protected.GET("/operation-logs", management.Logs)
+	protected.GET("/recovery-items", management.RecoveryItems)
+	protected.POST("/families/:familyId/members/:memberId/restore", management.RestoreMember)
+	protected.POST("/families/:familyId/relationships/:relationshipId/restore", management.RestoreRelationship)
+	var capacityProvider *capacitywechatpay.Provider
+	if s.cfg.WechatPay.Enabled {
+		capacityProvider, err = capacitywechatpay.New(context.Background(), *s.cfg)
+		if err != nil {
+			s.logger.Error("init wechat pay for admin refund review", zap.Error(err))
+		}
+	}
+	adminWechatClient := wechat.NewMiniProgramClient(s.cfg.Wechat)
+	adminUserRepo := authrepo.NewGormUserRepository(managementDB)
+	adminNotifications := notificationservice.NewWithSubscribe(notificationrepo.New(managementDB), adminUserRepo, adminWechatClient, s.cfg.Wechat, s.logger)
+	capacityAdminService := capacityservice.NewWithNotifications(managementDB, capacityrepo.NewRepository(managementDB), nil, capacityProvider, operationlog.NewGormService(managementDB), nil, nil, s.cfg.Wechat.MiniAppID, s.logger, s.cfg.Capacity.OrderTimeoutMinutes, adminNotifications)
+	capacityAdminHandler := capacityhandler.New(capacityAdminService, capacityProvider, s.cfg.Wechat.MiniAppID, s.cfg.WechatPay.MerchantID)
+	protected.GET("/capacity-products", capacityAdminHandler.AdminProducts)
+	protected.PUT("/capacity-products/:productKey", capacityAdminHandler.AdminUpdateProduct)
+	protected.GET("/capacity-orders", capacityAdminHandler.AdminOrders)
+	protected.POST("/capacity-orders/:orderNo/reconcile", capacityAdminHandler.AdminReconcilePayment)
+	protected.POST("/capacity-refunds/:refundNo/approve", capacityAdminHandler.AdminApproveRefund)
+	protected.POST("/capacity-refunds/:refundNo/reject", capacityAdminHandler.AdminRejectRefund)
+	protected.POST("/capacity-refunds/:refundNo/resolve", capacityAdminHandler.AdminReconcileRefund)
+	protected.POST("/capacity-refunds/:refundNo/retry", capacityAdminHandler.AdminRetryRefund)
+	backupConfigHandler := backupconfighandler.New(backupconfigservice.New(backupconfigrepo.New(managementDB), operationlog.NewGormService(managementDB)))
+	protected.GET("/backup-operation-config", backupConfigHandler.Overview)
+	protected.PUT("/backup-operation-config", backupConfigHandler.Update)
+	rewardAdminService := invitationrewardservice.New(managementDB, invitationrewardrepo.New(managementDB), permission.NewFamilyPermissionService(managementDB), accountquotaservice.NewService(managementDB, accountquotarepo.NewRepository(managementDB)), operationlog.NewGormService(managementDB))
+	rewardAdminHandler := invitationrewardhandler.New(rewardAdminService)
+	protected.GET("/family-invitation-reward-config", rewardAdminHandler.AdminGet)
+	protected.PUT("/family-invitation-reward-config", rewardAdminHandler.AdminUpdate)
 
 	quotaHandler := s.buildQuotaHandler(managementDB)
 	protected.GET("/account-quota-configs", quotaHandler.ListConfigs)
@@ -172,10 +309,16 @@ func (s *Server) registerAdminRoutes(api *gin.RouterGroup) {
 	shareConfigHandler := s.buildShareConfigHandler(managementDB)
 	protected.GET("/share-configs", shareConfigHandler.AdminList)
 	protected.PUT("/share-configs/:configKey", shareConfigHandler.AdminUpdate)
+	qualityConfigHandler := publichandler.NewHandler(publicservice.NewService(publicrepo.NewRepository(managementDB), nil, nil, nil))
+	protected.GET("/quality-family-eligibility-config", qualityConfigHandler.AdminQualityEligibilityConfig)
+	protected.PUT("/quality-family-eligibility-config", qualityConfigHandler.AdminUpdateQualityEligibilityConfig)
 	toolConfigHandler := s.buildToolConfigHandler(managementDB)
 	protected.GET("/tool-configs", toolConfigHandler.AdminList)
 	protected.POST("/tool-configs", toolConfigHandler.AdminCreate)
 	protected.PUT("/tool-configs/:toolKey", toolConfigHandler.AdminUpdate)
+	launchSplashHandler := s.buildLaunchSplashHandler(managementDB)
+	protected.GET("/launch-splash-config", launchSplashHandler.AdminGet)
+	protected.PUT("/launch-splash-config", launchSplashHandler.AdminUpdate)
 	showcaseFamilyHandler := s.buildShowcaseFamilyHandler(managementDB)
 	protected.GET("/showcase-families", showcaseFamilyHandler.AdminList)
 	protected.GET("/showcase-family-display-settings", showcaseFamilyHandler.AdminGetDisplaySettings)
@@ -192,6 +335,10 @@ func (s *Server) registerAdminRoutes(api *gin.RouterGroup) {
 	protected.POST("/showcase-families/:showcaseFamilyId/members/:memberId/relatives", showcaseFamilyHandler.AdminAddRelative)
 	protected.POST("/showcase-families/:showcaseFamilyId/relationships", showcaseFamilyHandler.AdminCreateRelationship)
 	protected.DELETE("/showcase-families/:showcaseFamilyId/relationships/:relationshipId", showcaseFamilyHandler.AdminDeleteRelationship)
+}
+
+func (s *Server) buildLaunchSplashHandler(db *gorm.DB) *launchsplashhandler.Handler {
+	return launchsplashhandler.New(launchsplashservice.New(launchsplashrepo.New(db), operationlog.NewGormService(db)))
 }
 
 func (s *Server) registerShareConfigRoutes(api *gin.RouterGroup) {
@@ -214,6 +361,15 @@ func (s *Server) registerToolConfigRoutes(api *gin.RouterGroup) {
 		return
 	}
 	api.GET("/tool-configs", s.buildToolConfigHandler(db).PublicList)
+}
+
+func (s *Server) registerLaunchSplashRoutes(api *gin.RouterGroup) {
+	db, err := database.Init(context.Background(), s.cfg.MySQL)
+	if err != nil {
+		s.logger.Error("init mysql for launch splash", zap.Error(err))
+		return
+	}
+	api.GET("/launch-splash-config", s.buildLaunchSplashHandler(db).Public)
 }
 
 func (s *Server) registerShowcaseFamilyRoutes(api *gin.RouterGroup) {
@@ -252,6 +408,10 @@ func (s *Server) buildAdminAuth() (*adminhandler.AuthHandler, gin.HandlerFunc) {
 	var blacklist commonredis.TokenBlacklist = commonredis.NoopTokenBlacklist{}
 	redisClient, err := commonredis.NewClient(ctx, s.cfg.Redis)
 	if err != nil {
+		if strictRedisEnvironment(s.cfg.App.Env) {
+			s.logger.Error("redis is required for admin authentication", zap.Error(err))
+			return nil, nil
+		}
 		s.logger.Warn("init redis token blacklist failed, using noop blacklist", zap.Error(err))
 	} else {
 		blacklist = commonredis.NewTokenBlacklist(redisClient)
@@ -275,16 +435,32 @@ func (s *Server) registerUserAuthRoutes(api *gin.RouterGroup) {
 	auth := api.Group("/auth")
 	auth.POST("/login-phone", authHandler.LoginPhone)
 	auth.POST("/wechat-mini/login", authHandler.WechatMiniLogin)
+	auth.POST("/wechat-mini/phone-login", authHandler.WechatMiniPhoneLogin)
+	if db, err := database.Init(context.Background(), s.cfg.MySQL); err == nil {
+		jwtManager, jwtErr := commonjwt.NewManager(s.cfg.JWT, s.cfg.App.Name)
+		if jwtErr == nil {
+			blacklist := commonredis.TokenBlacklist(commonredis.NoopTokenBlacklist{})
+			if client, redisErr := commonredis.NewClient(context.Background(), s.cfg.Redis); redisErr == nil {
+				blacklist = commonredis.NewTokenBlacklist(client)
+			}
+			assist := authhandler.NewAssistanceHandler(authservice.NewAssistanceService(db, authrepo.NewGormUserRepository(db), authrepo.NewGormAssistanceCodeRepository(db), jwtManager, blacklist, operationlog.NewGormService(db), s.cfg.JWT.UserSecret))
+			auth.POST("/assistance/redeem", assist.Redeem)
+			protectedAssist := api.Group("/users/me/assistance-codes")
+			protectedAssist.Use(userAuth)
+			protectedAssist.GET("", assist.List)
+			protectedAssist.POST("", assist.Generate)
+			protectedAssist.POST("/:codeId/revoke", assist.Revoke)
+		}
+	}
 
 	protected := auth.Group("")
-	protected.Use(userAuth)
+	protected.Use(userAuth, middleware.RequireNoAssistance())
 	protected.POST("/logout", authHandler.Logout)
-	protected.POST("/wechat-mini/bind-phone-credential", authHandler.BindPhoneCredential)
-	protected.POST("/wechat-mini/change-phone-login-password", authHandler.ChangePhoneLoginPassword)
+	protected.POST("/wechat-mini/bind-phone", authHandler.BindWechatPhone)
 	protected.POST("/cancel-account/wechat-reauth", authHandler.CancelAccountByWechatReauth)
 
 	users := api.Group("/users/me")
-	users.Use(userAuth)
+	users.Use(userAuth, middleware.RequireNoAssistance())
 	users.GET("", authHandler.GetMe)
 	users.PATCH("/profile", authHandler.UpdateProfile)
 	users.POST("/avatar", authHandler.UploadAvatar)
@@ -321,6 +497,10 @@ func (s *Server) buildUserAuth() (*authhandler.AuthHandler, gin.HandlerFunc) {
 	var blacklist commonredis.TokenBlacklist = commonredis.NoopTokenBlacklist{}
 	redisClient, err := commonredis.NewClient(ctx, s.cfg.Redis)
 	if err != nil {
+		if strictRedisEnvironment(s.cfg.App.Env) {
+			s.logger.Error("redis is required for user authentication", zap.Error(err))
+			return nil, nil
+		}
 		s.logger.Warn("init redis user token blacklist failed, using noop blacklist", zap.Error(err))
 	} else {
 		blacklist = commonredis.NewTokenBlacklist(redisClient)
@@ -334,7 +514,13 @@ func (s *Server) buildUserAuth() (*authhandler.AuthHandler, gin.HandlerFunc) {
 	service := authservice.NewPhoneAuthService(db, userRepo, codeRepo, wechatClient, jwtManager, blacklist, operationLog, contentSafety, s.cfg)
 	handler := authhandler.NewAuthHandler(service)
 
-	return handler, middleware.UserAuth(jwtManager, blacklist)
+	return handler, middleware.UserAuthWithStateLookup(jwtManager, blacklist, func(ctx context.Context, userID uint64) (middleware.UserAuthState, error) {
+		user, err := userRepo.FindByID(ctx, userID)
+		if err != nil {
+			return middleware.UserAuthState{}, err
+		}
+		return middleware.UserAuthState{Status: user.Status, PhoneVerified: user.PhoneVerified}, nil
+	})
 }
 
 func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
@@ -348,17 +534,19 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	}
 
 	api.GET("/families/:familyId/public", handler.PublicDetail)
+	api.GET("/public/platform-stats", handler.PublicPlatformStats)
 	api.GET("/public/families", handler.ListPublicFamilyShowcase)
 	api.GET("/public/families/:familyId/tree", treeHandler.PublicTree)
 	api.GET("/invitations/:inviteToken", invitationHandler.Detail)
 
 	families := api.Group("/families")
-	families.Use(userAuth)
+	families.Use(userAuth, middleware.RestrictAssistanceToFamilyWork())
 	families.POST("", handler.Create)
 	families.GET("", handler.List)
 	families.GET("/:familyId", handler.Detail)
 	families.PUT("/:familyId", handler.Update)
 	families.GET("/:familyId/operation-logs", handler.OperationLogs)
+	families.GET("/:familyId/archive-export", handler.ExportArchive)
 	families.POST("/:familyId/leave", handler.Leave)
 	families.POST("/:familyId/dissolution-requests", handler.CreateDissolutionRequest)
 	families.GET("/:familyId/dissolution-requests/current", handler.CurrentDissolutionRequest)
@@ -367,13 +555,16 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.POST("/:familyId/dissolution/restore", handler.RestoreDissolution)
 	families.POST("/:familyId/members", memberHandler.Create)
 	families.GET("/:familyId/members", memberHandler.List)
+	families.GET("/:familyId/recoverable-members", memberHandler.ListRecoverable)
 	families.GET("/:familyId/members/:memberId", memberHandler.Detail)
 	families.PUT("/:familyId/members/:memberId", memberHandler.Update)
+	families.POST("/:familyId/members/:memberId/profile-confirmation", memberHandler.ConfirmProfile)
 	families.DELETE("/:familyId/members/:memberId", memberHandler.Delete)
+	families.POST("/:familyId/members/:memberId/restore", memberHandler.Restore)
+	families.POST("/:familyId/members/:memberId/discard-recovery", memberHandler.DiscardRecovery)
 	families.POST("/:familyId/members/:memberId/bind-user", memberHandler.BindUser)
 	families.POST("/:familyId/members/:memberId/unbind-user", memberHandler.UnbindUser)
 	families.POST("/:familyId/members/:memberId/invite", invitationHandler.Create)
-	families.POST("/:familyId/invitations", invitationHandler.CreateFamily)
 	families.GET("/:familyId/invitations", invitationHandler.ListFamily)
 	families.POST("/:familyId/members/:memberId/set-admin", roleHandler.SetAdmin)
 	families.POST("/:familyId/members/:memberId/unset-admin", roleHandler.UnsetAdmin)
@@ -382,12 +573,12 @@ func (s *Server) registerFamilyRoutes(api *gin.RouterGroup) {
 	families.PUT("/:familyId/relationships/:relationshipId", relationshipHandler.Update)
 	families.DELETE("/:familyId/relationships/:relationshipId", relationshipHandler.Delete)
 	families.GET("/:familyId/tree", treeHandler.PrivateTree)
-	families.POST("/:familyId/join-requests", joinHandler.Create)
 	families.GET("/:familyId/join-requests", joinHandler.ListFamily)
 	families.POST("/:familyId/join-requests/:requestId/approve", joinHandler.Approve)
 	families.POST("/:familyId/join-requests/:requestId/reject", joinHandler.Reject)
 	families.POST("/:familyId/join-requests/:requestId/cancel", joinHandler.Cancel)
 	families.POST("/:familyId/public-applications", publicApplicationHandler.Submit)
+	families.GET("/:familyId/public-quality-eligibility", publicApplicationHandler.QualityEligibility)
 	families.GET("/:familyId/public-applications", publicApplicationHandler.ListFamily)
 	families.POST("/:familyId/public-applications/:applicationId/cancel", publicApplicationHandler.Cancel)
 	families.POST("/:familyId/public-display/enable", publicApplicationHandler.EnableUser)
@@ -472,6 +663,10 @@ func (s *Server) buildContent() (*contenthandler.Handler, gin.HandlerFunc) {
 	var blacklist commonredis.TokenBlacklist = commonredis.NoopTokenBlacklist{}
 	redisClient, err := commonredis.NewClient(ctx, s.cfg.Redis)
 	if err != nil {
+		if strictRedisEnvironment(s.cfg.App.Env) {
+			s.logger.Error("redis is required for admin content authentication", zap.Error(err))
+			return nil, nil
+		}
 		s.logger.Warn("init redis content token blacklist failed, using noop blacklist", zap.Error(err))
 	} else {
 		blacklist = commonredis.NewTokenBlacklist(redisClient)
@@ -500,6 +695,10 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 	var treeCache commonredis.TreeCache = commonredis.NoopTreeCache{}
 	redisClient, err := commonredis.NewClient(ctx, s.cfg.Redis)
 	if err != nil {
+		if strictRedisEnvironment(s.cfg.App.Env) {
+			s.logger.Error("redis is required for family authentication", zap.Error(err))
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil
+		}
 		s.logger.Warn("init redis family token blacklist failed, using noop blacklist", zap.Error(err))
 	} else {
 		blacklist = commonredis.NewTokenBlacklist(redisClient)
@@ -508,12 +707,14 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 
 	repo := familyrepo.NewFamilyRepository(db)
 	userRepo := authrepo.NewGormUserRepository(db)
+	wechatClient := wechat.NewMiniProgramClient(s.cfg.Wechat)
+	notifications := notificationservice.NewWithSubscribe(notificationrepo.New(db), userRepo, wechatClient, s.cfg.Wechat, s.logger)
 	operationLog := operationlog.NewGormService(db)
 	contentSafety := contentsafety.NewService(contentsafety.NewClient(s.cfg.Wechat), userRepo, operationLog, s.cfg.Wechat.MiniAppID)
 	permissionService := permission.NewFamilyPermissionService(db)
 	quotaRepo := accountquotarepo.NewRepository(db)
 	quotaService := accountquotaservice.NewService(db, quotaRepo)
-	service := familyservice.NewFamilyService(db, repo, permissionService, quotaService, contentSafety)
+	service := familyservice.NewFamilyServiceWithNotifications(db, repo, permissionService, quotaService, contentSafety, notifications, treeCache)
 	memberRepository := memberrepo.NewMemberRepository(db)
 	memberService := memberservice.NewMemberService(db, memberRepository, permissionService, quotaService, contentSafety, treeCache)
 	relationshipRepository := relationshiprepo.NewRepository(db)
@@ -523,22 +724,22 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 	treeService := treeservice.NewTreeService(treeRepository, treeCache, permissionService)
 	invitationRepository := invitationrepo.NewRepository(db)
 	invitationUnitOfWork := invitationrepo.NewUnitOfWork(db, invitationRepository)
-	invitationService := invitationservice.NewService(invitationRepository, invitationUnitOfWork, permissionService, quotaService, contentSafety, treeCache)
+	invitationService := invitationservice.NewServiceWithNotifications(invitationRepository, invitationUnitOfWork, permissionService, quotaService, contentSafety, notifications, treeCache)
 	joinRepository := joinrepo.NewRepository(db)
 	joinUnitOfWork := joinrepo.NewUnitOfWork(db, joinRepository)
-	joinRequestService := joinservice.NewService(joinRepository, joinUnitOfWork, permissionService, quotaService, contentSafety)
+	joinRequestService := joinservice.NewServiceWithNotifications(joinRepository, joinUnitOfWork, permissionService, quotaService, contentSafety, notifications)
 	publicRepository := publicrepo.NewRepository(db)
 	publicUnitOfWork := publicrepo.NewUnitOfWork(db, publicRepository)
-	publicApplicationService := publicservice.NewService(publicRepository, publicUnitOfWork, permissionService, contentSafety)
+	publicApplicationService := publicservice.NewServiceWithNotifications(publicRepository, publicUnitOfWork, permissionService, contentSafety, notifications)
 	roleRepository := rolerepo.NewRepository(db)
 	roleUnitOfWork := rolerepo.NewUnitOfWork(db, roleRepository)
 	roleService := roleservice.NewService(roleRepository, roleUnitOfWork)
 	transferRepository := transferrepo.NewRepository(db)
 	transferUnitOfWork := transferrepo.NewUnitOfWork(db, transferRepository)
-	transferService := transferservice.NewService(transferRepository, transferUnitOfWork, quotaService, contentSafety)
+	transferService := transferservice.NewServiceWithNotifications(transferRepository, transferUnitOfWork, quotaService, contentSafety, notifications)
 	dissolutionRepository := dissolutionrepo.NewRepository(db)
 	dissolutionUnitOfWork := dissolutionrepo.NewUnitOfWork(db, dissolutionRepository)
-	dissolutionService := dissolutionservice.NewService(dissolutionRepository, dissolutionUnitOfWork, quotaService, s.cfg.Family.DissolutionCooldownDays)
+	dissolutionService := dissolutionservice.NewServiceWithNotifications(dissolutionRepository, dissolutionUnitOfWork, quotaService, s.cfg.Family.DissolutionCooldownDays, notifications)
 	return familyhandler.NewFamilyHandler(service),
 		memberhandler.NewMemberHandler(memberService),
 		relationshiphandler.NewRelationshipHandler(relationshipService),
@@ -549,6 +750,12 @@ func (s *Server) buildFamilyCore() (*familyhandler.FamilyHandler, *memberhandler
 		rolehandler.NewHandler(roleService),
 		transferhandler.NewHandler(transferService),
 		dissolutionhandler.NewHandler(dissolutionService),
-		middleware.UserAuth(jwtManager, blacklist),
+		middleware.UserAuthWithStateLookup(jwtManager, blacklist, func(ctx context.Context, userID uint64) (middleware.UserAuthState, error) {
+			user, err := userRepo.FindByID(ctx, userID)
+			if err != nil {
+				return middleware.UserAuthState{}, err
+			}
+			return middleware.UserAuthState{Status: user.Status, PhoneVerified: user.PhoneVerified}, nil
+		}),
 		middleware.AdminAuth(jwtManager, blacklist)
 }

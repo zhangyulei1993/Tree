@@ -85,3 +85,31 @@ func TestWechatMockEnabledAllowedInDevAndTest(t *testing.T) {
 		})
 	}
 }
+
+func TestProductionRejectsDefaultJWTSecrets(t *testing.T) {
+	for _, env := range []string{"staging", "production", "prod"} {
+		t.Run(env, func(t *testing.T) {
+			t.Setenv("APP_ENV", env)
+			t.Setenv("JWT_USER_SECRET", "change_me_user_secret")
+			t.Setenv("JWT_ADMIN_SECRET", "change_me_admin_secret")
+			if _, err := Load(); err == nil || !strings.Contains(err.Error(), "jwt secrets") {
+				t.Fatalf("expected default JWT secrets to be rejected, got %v", err)
+			}
+		})
+	}
+}
+
+func TestProductionAcceptsExplicitJWTSecrets(t *testing.T) {
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("JWT_USER_SECRET", "user-secret-for-production")
+	t.Setenv("JWT_ADMIN_SECRET", "admin-secret-for-production")
+	t.Setenv("WECHAT_MINI_APP_ID", "wx-production-test")
+	t.Setenv("WECHAT_MINI_APP_SECRET", "production-test-secret")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.JWT.UserSecret == "" || cfg.JWT.AdminSecret == "" {
+		t.Fatal("expected explicit JWT secrets")
+	}
+}

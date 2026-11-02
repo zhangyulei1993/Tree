@@ -41,7 +41,7 @@
               公开记录
             </RouterLink>
             <button class="button danger" :disabled="closingPublic" @click="confirmClosePublic">
-              {{ closingPublic ? '关闭中...' : '关闭公开展示' }}
+              {{ closingPublic ? '关闭中...' : '关闭优质家庭展示' }}
             </button>
           </div>
           <p v-if="operationError" class="operation-error" role="alert">{{ operationError }}</p>
@@ -69,7 +69,7 @@
             <span>{{ publicEntryDescription }}</span>
           </RouterLink>
           <div v-else-if="canManage" class="card entry entry-disabled">
-            <strong>公开展示暂不可调整</strong>
+            <strong>优质家庭展示暂不可调整</strong>
             <span>家庭当前为{{ statusText(family.status) }}状态</span>
           </div>
         </div>
@@ -99,16 +99,16 @@ const operationError = ref('')
 const familyId = computed(() => String(route.params.familyId))
 const canManage = computed(() => family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN')
 const publicEntryTitle = computed(() => {
-  if (family.value?.publicDisplayStatus === 'APPROVED') return '公开展示管理'
-  if (family.value?.publicDisplayStatus === 'PENDING') return '公开申请审核中'
-  return '申请公开展示'
+  if (family.value?.publicDisplayStatus === 'APPROVED') return '优质家庭展示管理'
+  if (family.value?.publicDisplayStatus === 'PENDING') return '优质家庭申请审核中'
+  return '申请成为优质家庭'
 })
 const publicEntryDescription = computed(() => {
-  if (family.value?.publicDisplayStatus === 'APPROVED') return '查看公开主页，或关闭公开展示'
+  if (family.value?.publicDisplayStatus === 'APPROVED') return '查看优质家庭案例，或关闭展示'
   if (family.value?.publicDisplayStatus === 'PENDING') return '查看审核进度，或取消待审核申请'
   if (family.value?.publicDisplayStatus === 'REJECTED') return '查看审核意见并重新提交申请'
   if (family.value?.publicDisplayStatus === 'TAKEN_DOWN') return '当前已关闭，可重新申请公开'
-  return '提交公开申请并查看审核进度'
+  return '提交优质家庭申请并查看审核进度'
 })
 
 function roleText(role?: string) {
@@ -144,7 +144,7 @@ async function confirmClosePublic() {
     await closePublicFamily(familyId.value, {})
     await loadFamily()
   } catch (requestError) {
-    operationError.value = apiErrorMessage(requestError, '关闭公开展示失败。')
+    operationError.value = apiErrorMessage(requestError, '关闭优质家庭展示失败。')
   } finally {
     closingPublic.value = false
   }

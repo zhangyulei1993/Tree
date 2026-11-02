@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -13,11 +14,13 @@ import (
 	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
+	familymodel "tree/backend/internal/family/core/model"
 	"tree/backend/internal/family/publicdisplay/dto"
 	publicenum "tree/backend/internal/family/publicdisplay/enum"
 	publicmodel "tree/backend/internal/family/publicdisplay/model"
 	publicrepo "tree/backend/internal/family/publicdisplay/repository"
 	"tree/backend/internal/family/publicdisplay/vo"
+	notificationservice "tree/backend/internal/notification/service"
 	operationlog "tree/backend/internal/operationlog/service"
 )
 
@@ -37,6 +40,9 @@ type AuditInput struct {
 }
 
 type Service interface {
+	QualityEligibility(context.Context, uint64, uint64) (*vo.QualityEligibility, *apperrors.BusinessError)
+	GetQualityEligibilityConfig(context.Context, string) (*vo.QualityEligibilityConfig, *apperrors.BusinessError)
+	UpdateQualityEligibilityConfig(context.Context, uint64, string, vo.QualityEligibilityConfig) (*vo.QualityEligibilityConfig, *apperrors.BusinessError)
 	Submit(context.Context, uint64, uint64, dto.CreatePublicApplicationRequest, AuditInput) (*vo.PublicApplication, *apperrors.BusinessError)
 	ListFamily(context.Context, uint64, uint64, dto.ListApplicationsQuery) (*vo.ListResult, *apperrors.BusinessError)
 	Cancel(context.Context, uint64, uint64, uint64, dto.CancelPublicApplicationRequest, AuditInput) (*vo.PublicApplication, *apperrors.BusinessError)
@@ -49,6 +55,148 @@ type Service interface {
 	TakeDown(context.Context, uint64, string, uint64, dto.TakeDownPublicFamilyRequest, AuditInput) (*vo.FamilyPublicStatus, *apperrors.BusinessError)
 }
 
+func (s *service) QualityEligibility(ctx context.Context, actorID, familyID uint64) (*vo.QualityEligibility, *apperrors.BusinessError) {
+	if ok, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !ok {
+		return nil, publicError(CodePublicApplicationForbidden, "无权查看优质家庭邀请资格")
+	}
+	family, err := s.repo.FindFamily(ctx, familyID, false)
+	if err != nil || family.Status != string(enums.StatusNormal) {
+		return nil, publicError(CodePublicFamilyUnavailable, "家庭状态不允许申请优质家庭")
+	}
+	eligibility, err := s.evaluateQualityEligibility(ctx, s.repo, family)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	eligible := eligibility.Eligible
+	if eligible && family.CreatorUserID != nil && s.notifications != nil {
+		input := notificationservice.Input{
+			UserID: *family.CreatorUserID, Category: "FAMILY", Title: "已获得优质家庭申请资格",
+			Content: fmt.Sprintf("“%s”已达到平台优质家庭标准。是否申请成为优质家庭案例，由家庭创建者自行决定。", family.FamilyName),
+			Route:   fmt.Sprintf("/pages/family/settings?familyId=%d&section=public", familyID), RelatedType: "QUALITY_FAMILY_ELIGIBILITY", RelatedID: familyID,
+			Subscribe: &notificationservice.SubscribeInput{Kind: "AUDIT", Page: fmt.Sprintf("pages/family/settings?familyId=%d", familyID), Values: []string{"优质家庭资格", family.FamilyName, "已获得申请资格", time.Now().Format("2006-01-02 15:04"), "请进入家庭设置提交申请"}},
+		}
+		if once, ok := s.notifications.(notificationservice.CreateOnceService); ok {
+			once.CreateOnce(ctx, input)
+		} else {
+			s.notifications.Create(ctx, input)
+		}
+	}
+	return eligibility, nil
+}
+
+func (s *service) evaluateQualityEligibility(ctx context.Context, repo publicrepo.Repository, family *familymodel.Family) (*vo.QualityEligibility, error) {
+	metrics, err := repo.EvaluateQualityEligibility(ctx, family.ID)
+	if err != nil {
+		return nil, err
+	}
+	config, err := repo.GetQualityEligibilityConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profileRate := percentage(metrics.ProfileCompleteCount, metrics.MemberCount)
+	boundRate := percentage(metrics.BoundMemberCount, metrics.MemberCount)
+	requirements := make([]string, 0, 6)
+	if !config.Enabled {
+		requirements = append(requirements, "平台暂未开放优质家庭申请")
+	}
+	if metrics.MemberCount < int64(config.MinMemberCount) {
+		requirements = append(requirements, fmt.Sprintf("至少录入 %d 位活跃成员", config.MinMemberCount))
+	}
+	if metrics.RelationshipCount < int64(config.MinRelationshipCount) {
+		requirements = append(requirements, fmt.Sprintf("至少维护 %d 条有效亲属关系", config.MinRelationshipCount))
+	}
+	if metrics.BoundMemberCount < int64(config.MinBoundMemberCount) {
+		requirements = append(requirements, fmt.Sprintf("至少绑定 %d 位真实用户", config.MinBoundMemberCount))
+	}
+	if profileRate < config.MinProfileCompleteRate {
+		requirements = append(requirements, fmt.Sprintf("节点资料完整度达到 %d%%", config.MinProfileCompleteRate))
+	}
+	if boundRate < config.MinBoundMemberRate {
+		requirements = append(requirements, fmt.Sprintf("节点绑定比例达到 %d%%", config.MinBoundMemberRate))
+	}
+	if config.RequireDescription && strings.TrimSpace(valueOrEmpty(family.Description)) == "" {
+		requirements = append(requirements, "完善家庭简介")
+	}
+	if config.RequireLocation && strings.TrimSpace(valueOrEmpty(family.RegionText)) == "" && strings.TrimSpace(valueOrEmpty(family.NativePlace)) == "" {
+		requirements = append(requirements, "完善家庭所在地")
+	}
+	descriptionComplete := strings.TrimSpace(valueOrEmpty(family.Description)) != ""
+	locationComplete := strings.TrimSpace(valueOrEmpty(family.RegionText)) != "" || strings.TrimSpace(valueOrEmpty(family.NativePlace)) != ""
+	checks := []vo.QualityEligibilityCheck{
+		{Key: "members", Label: "活跃成员", Current: fmt.Sprintf("%d 位", metrics.MemberCount), Required: fmt.Sprintf("至少 %d 位", config.MinMemberCount), Met: metrics.MemberCount >= int64(config.MinMemberCount)},
+		{Key: "relationships", Label: "有效亲属关系", Current: fmt.Sprintf("%d 条", metrics.RelationshipCount), Required: fmt.Sprintf("至少 %d 条", config.MinRelationshipCount), Met: metrics.RelationshipCount >= int64(config.MinRelationshipCount)},
+		{Key: "boundMembers", Label: "已绑定用户", Current: fmt.Sprintf("%d 位", metrics.BoundMemberCount), Required: fmt.Sprintf("至少 %d 位", config.MinBoundMemberCount), Met: metrics.BoundMemberCount >= int64(config.MinBoundMemberCount)},
+		{Key: "profileRate", Label: "节点资料完整度", Current: fmt.Sprintf("%d%%", profileRate), Required: fmt.Sprintf("至少 %d%%", config.MinProfileCompleteRate), Met: profileRate >= config.MinProfileCompleteRate},
+		{Key: "boundRate", Label: "节点绑定比例", Current: fmt.Sprintf("%d%%", boundRate), Required: fmt.Sprintf("至少 %d%%", config.MinBoundMemberRate), Met: boundRate >= config.MinBoundMemberRate},
+	}
+	if config.RequireDescription {
+		checks = append(checks, vo.QualityEligibilityCheck{Key: "description", Label: "家庭简介", Current: map[bool]string{true: "已填写", false: "未填写"}[descriptionComplete], Required: "需要填写", Met: descriptionComplete})
+	}
+	if config.RequireLocation {
+		checks = append(checks, vo.QualityEligibilityCheck{Key: "location", Label: "家庭所在地", Current: map[bool]string{true: "已填写", false: "未填写"}[locationComplete], Required: "需要填写", Met: locationComplete})
+	}
+	eligible := config.Enabled
+	for _, check := range checks {
+		eligible = eligible && check.Met
+	}
+	return &vo.QualityEligibility{
+		Eligible:    eligible,
+		MemberCount: metrics.MemberCount, RelationshipCount: metrics.RelationshipCount, BoundMemberCount: metrics.BoundMemberCount, ProfileCompleteCount: metrics.ProfileCompleteCount,
+		UnknownGenderCount: metrics.UnknownGenderCount, ProfileComplete: metrics.ProfileComplete,
+		Requirements: requirements, Checks: checks,
+	}, nil
+}
+
+func (s *service) GetQualityEligibilityConfig(ctx context.Context, role string) (*vo.QualityEligibilityConfig, *apperrors.BusinessError) {
+	if !canManageQualityConfig(role) {
+		return nil, apperrors.New(apperrors.CodeForbidden)
+	}
+	value, err := s.repo.GetQualityEligibilityConfig(ctx)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	return qualityConfigVO(value), nil
+}
+
+func (s *service) UpdateQualityEligibilityConfig(ctx context.Context, adminID uint64, role string, input vo.QualityEligibilityConfig) (*vo.QualityEligibilityConfig, *apperrors.BusinessError) {
+	if !canManageQualityConfig(role) {
+		return nil, apperrors.New(apperrors.CodeForbidden)
+	}
+	if input.MinMemberCount < 1 || input.MinRelationshipCount < 0 || input.MinBoundMemberCount < 0 || input.MinProfileCompleteRate < 0 || input.MinProfileCompleteRate > 100 || input.MinBoundMemberRate < 0 || input.MinBoundMemberRate > 100 {
+		return nil, publicError(CodePublicApplicationForbidden, "优质家庭准入条件不合法")
+	}
+	if err := s.repo.UpdateQualityEligibilityConfig(ctx, map[string]any{
+		"enabled": input.Enabled, "min_member_count": input.MinMemberCount, "min_relationship_count": input.MinRelationshipCount,
+		"min_bound_member_count": input.MinBoundMemberCount, "min_profile_complete_rate": input.MinProfileCompleteRate,
+		"min_bound_member_rate": input.MinBoundMemberRate, "require_description": input.RequireDescription,
+		"require_location": input.RequireLocation, "updated_by_admin_id": adminID,
+	}); err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	value, err := s.repo.GetQualityEligibilityConfig(ctx)
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	return qualityConfigVO(value), nil
+}
+
+func canManageQualityConfig(role string) bool { return role == "ROOT_ADMIN" || role == "SUPER_ADMIN" }
+func percentage(part, total int64) int {
+	if total <= 0 {
+		return 0
+	}
+	return int(part * 100 / total)
+}
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+func qualityConfigVO(value *publicmodel.QualityEligibilityConfig) *vo.QualityEligibilityConfig {
+	return &vo.QualityEligibilityConfig{ID: value.ID, Enabled: value.Enabled, MinMemberCount: value.MinMemberCount, MinRelationshipCount: value.MinRelationshipCount, MinBoundMemberCount: value.MinBoundMemberCount, MinProfileCompleteRate: value.MinProfileCompleteRate, MinBoundMemberRate: value.MinBoundMemberRate, RequireDescription: value.RequireDescription, RequireLocation: value.RequireLocation, UpdatedAt: value.UpdatedAt.Format(time.RFC3339)}
+}
+
 func (s *service) TakeDownUser(ctx context.Context, actorID uint64, familyID uint64, req dto.TakeDownPublicFamilyRequest, audit AuditInput) (*vo.FamilyPublicStatus, *apperrors.BusinessError) {
 	return s.DisableUser(ctx, actorID, familyID, req, audit)
 }
@@ -56,7 +204,7 @@ func (s *service) TakeDownUser(ctx context.Context, actorID uint64, familyID uin
 func (s *service) EnableUser(ctx context.Context, actorID uint64, familyID uint64, audit AuditInput) (*vo.FamilyPublicStatus, *apperrors.BusinessError) {
 	allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID)
 	if err != nil || !allowed {
-		return nil, publicError(CodePublicApplicationForbidden, "无权开启家庭公开展示")
+		return nil, publicError(CodePublicApplicationForbidden, "无权开启优质家庭展示")
 	}
 	var status *vo.FamilyPublicStatus
 	err = s.uow.WithinTransaction(ctx, func(repo publicrepo.Repository) error {
@@ -90,7 +238,7 @@ func (s *service) EnableUser(ctx context.Context, actorID uint64, familyID uint6
 func (s *service) DisableUser(ctx context.Context, actorID uint64, familyID uint64, req dto.TakeDownPublicFamilyRequest, audit AuditInput) (*vo.FamilyPublicStatus, *apperrors.BusinessError) {
 	allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID)
 	if err != nil || !allowed {
-		return nil, publicError(CodePublicApplicationForbidden, "无权关闭家庭公开展示")
+		return nil, publicError(CodePublicApplicationForbidden, "无权关闭优质家庭展示")
 	}
 	var status *vo.FamilyPublicStatus
 	err = s.uow.WithinTransaction(ctx, func(repo publicrepo.Repository) error {
@@ -125,18 +273,27 @@ type service struct {
 	permissions   permission.FamilyPermissionService
 	contentSafety contentsafety.Service
 	now           func() time.Time
+	notifications notificationservice.Service
 }
 
 func NewService(repo publicrepo.Repository, uow publicrepo.UnitOfWork, permissions permission.FamilyPermissionService, contentSafety contentsafety.Service) Service {
+	return newService(repo, uow, permissions, contentSafety, nil)
+}
+
+func NewServiceWithNotifications(repo publicrepo.Repository, uow publicrepo.UnitOfWork, permissions permission.FamilyPermissionService, contentSafety contentsafety.Service, notifications notificationservice.Service) Service {
+	return newService(repo, uow, permissions, contentSafety, notifications)
+}
+
+func newService(repo publicrepo.Repository, uow publicrepo.UnitOfWork, permissions permission.FamilyPermissionService, contentSafety contentsafety.Service, notifications notificationservice.Service) Service {
 	if contentSafety == nil {
 		contentSafety = contentsafety.FailClosed()
 	}
-	return &service{repo: repo, uow: uow, permissions: permissions, contentSafety: contentSafety, now: time.Now}
+	return &service{repo: repo, uow: uow, permissions: permissions, contentSafety: contentSafety, now: time.Now, notifications: notifications}
 }
 
 func (s *service) Submit(ctx context.Context, actorID, familyID uint64, req dto.CreatePublicApplicationRequest, audit AuditInput) (*vo.PublicApplication, *apperrors.BusinessError) {
 	if ok, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !ok {
-		return nil, publicError(CodePublicApplicationForbidden, "无权提交公开申请")
+		return nil, publicError(CodePublicApplicationForbidden, "无权提交优质家庭申请")
 	}
 	if businessErr := s.contentSafety.CheckTexts(ctx, contentsafety.CheckInput{
 		UserID: actorID, Scene: contentsafety.SceneSocial,
@@ -144,6 +301,13 @@ func (s *service) Submit(ctx context.Context, actorID, familyID uint64, req dto.
 		FamilyID: &familyID, IP: audit.IP, UserAgent: audit.UserAgent,
 	}); businessErr != nil {
 		return nil, businessErr
+	}
+	eligibility, eligibilityErr := s.QualityEligibility(ctx, actorID, familyID)
+	if eligibilityErr != nil {
+		return nil, eligibilityErr
+	}
+	if !eligibility.Eligible {
+		return nil, publicError(CodePublicApplicationForbidden, "当前家庭尚未获得优质家庭申请资格")
 	}
 	var applicationID uint64
 	err := s.uow.WithinTransaction(ctx, func(repo publicrepo.Repository) error {
@@ -190,7 +354,7 @@ func (s *service) Submit(ctx context.Context, actorID, familyID uint64, req dto.
 
 func (s *service) ListFamily(ctx context.Context, actorID, familyID uint64, req dto.ListApplicationsQuery) (*vo.ListResult, *apperrors.BusinessError) {
 	if ok, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !ok {
-		return nil, publicError(CodePublicApplicationForbidden, "无权查看公开申请")
+		return nil, publicError(CodePublicApplicationForbidden, "无权查看优质家庭申请")
 	}
 	req.Page, req.PageSize = normalizePage(req.Page, req.PageSize)
 	rows, total, err := s.repo.List(ctx, publicrepo.ListQuery{FamilyID: &familyID, Status: normalizeStatus(req.Status), Page: req.Page, PageSize: req.PageSize})
@@ -247,7 +411,7 @@ func (s *service) Cancel(ctx context.Context, actorID, familyID, applicationID u
 
 func (s *service) ListAdmin(ctx context.Context, adminID uint64, role string, req dto.ListApplicationsQuery) (*vo.ListResult, *apperrors.BusinessError) {
 	if !canAdminReview(role) {
-		return nil, publicError(CodePublicApplicationForbidden, "无权查看公开申请")
+		return nil, publicError(CodePublicApplicationForbidden, "无权查看优质家庭申请")
 	}
 	req.Page, req.PageSize = normalizePage(req.Page, req.PageSize)
 	rows, total, err := s.repo.List(ctx, publicrepo.ListQuery{Status: normalizeStatus(req.Status), Page: req.Page, PageSize: req.PageSize})
@@ -267,7 +431,7 @@ func (s *service) Reject(ctx context.Context, adminID uint64, role string, appli
 
 func (s *service) review(ctx context.Context, adminID uint64, role string, applicationID uint64, appStatus string, familyStatus string, action string, comment *string, audit AuditInput) (*vo.PublicApplication, *apperrors.BusinessError) {
 	if !canAdminReview(role) {
-		return nil, publicError(CodePublicApplicationForbidden, "无权审核公开申请")
+		return nil, publicError(CodePublicApplicationForbidden, "无权审核优质家庭申请")
 	}
 	err := s.uow.WithinTransaction(ctx, func(repo publicrepo.Repository) error {
 		app, err := repo.FindByID(ctx, applicationID, true)
@@ -283,6 +447,19 @@ func (s *service) review(ctx context.Context, adminID uint64, role string, appli
 		if _, err := repo.FindFamily(ctx, app.FamilyID, true); err != nil {
 			return errFamilyUnavailable
 		}
+		family, err := repo.FindFamily(ctx, app.FamilyID, false)
+		if err != nil || family.Status != string(enums.StatusNormal) {
+			return errFamilyUnavailable
+		}
+		if familyStatus == publicenum.PublicApproved {
+			eligibility, err := s.evaluateQualityEligibility(ctx, repo, family)
+			if err != nil {
+				return err
+			}
+			if !eligibility.Eligible {
+				return errEligibilityChanged
+			}
+		}
 		now := s.now()
 		if err := repo.UpdateApplication(ctx, applicationID, publicenum.StatusPending, map[string]any{
 			"application_status":   appStatus,
@@ -296,8 +473,9 @@ func (s *service) review(ctx context.Context, adminID uint64, role string, appli
 		values := map[string]any{"public_display_status": familyStatus}
 		if familyStatus == publicenum.PublicApproved {
 			values["public_approved_at"] = now
-			values["public_display_enabled"] = false
-			values["public_enabled_at"] = nil
+			values["public_display_enabled"] = true
+			values["public_enabled_at"] = now
+			values["searchable"] = true
 		} else {
 			values["public_display_enabled"] = false
 		}
@@ -309,12 +487,32 @@ func (s *service) review(ctx context.Context, adminID uint64, role string, appli
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}
-	return s.result(ctx, applicationID)
+	result, businessErr := s.result(ctx, applicationID)
+	if businessErr == nil && result != nil && s.notifications != nil && result.ApplicantUserID != nil {
+		status := "审核通过"
+		if appStatus != publicenum.StatusApproved {
+			status = "审核拒绝"
+		}
+		commentText := "无"
+		if result.ReviewComment != nil && *result.ReviewComment != "" {
+			commentText = *result.ReviewComment
+		}
+		requestText := "申请成为优质家庭"
+		if result.Reason != nil && *result.Reason != "" {
+			requestText = *result.Reason
+		}
+		reviewedAt := time.Now()
+		if result.ReviewedAt != nil {
+			reviewedAt = *result.ReviewedAt
+		}
+		s.notifications.Create(ctx, notificationservice.Input{UserID: *result.ApplicantUserID, Category: "AUDIT", Title: "优质家庭申请审核结果", Content: fmt.Sprintf("优质家庭申请%s。", status), Route: fmt.Sprintf("/pages/family/detail?familyId=%d", result.FamilyID), RelatedType: "FAMILY_PUBLIC_APPLICATION", RelatedID: applicationID, Subscribe: &notificationservice.SubscribeInput{Kind: "AUDIT", Page: fmt.Sprintf("pages/family/detail?familyId=%d", result.FamilyID), Values: []string{"优质家庭申请", requestText, status, reviewedAt.Format("2006-01-02 15:04"), commentText}}})
+	}
+	return result, businessErr
 }
 
 func (s *service) TakeDown(ctx context.Context, adminID uint64, role string, familyID uint64, req dto.TakeDownPublicFamilyRequest, audit AuditInput) (*vo.FamilyPublicStatus, *apperrors.BusinessError) {
 	if !canAdminReview(role) {
-		return nil, publicError(CodePublicApplicationForbidden, "无权下架公开家庭")
+		return nil, publicError(CodePublicApplicationForbidden, "无权移出优质家庭列表")
 	}
 	var status *vo.FamilyPublicStatus
 	err := s.uow.WithinTransaction(ctx, func(repo publicrepo.Repository) error {
@@ -453,13 +651,14 @@ func publicError(code apperrors.Code, message string) *apperrors.BusinessError {
 }
 
 var (
-	errNotFound          = errors.New("public application not found")
-	errInvalidStatus     = errors.New("public application invalid status")
-	errDuplicate         = errors.New("public application duplicate")
-	errFamilyUnavailable = errors.New("family unavailable")
-	errForbidden         = errors.New("forbidden")
-	errAlreadyApproved   = errors.New("family already approved")
-	errTakeDown          = errors.New("family cannot take down")
+	errNotFound           = errors.New("public application not found")
+	errInvalidStatus      = errors.New("public application invalid status")
+	errDuplicate          = errors.New("public application duplicate")
+	errFamilyUnavailable  = errors.New("family unavailable")
+	errForbidden          = errors.New("forbidden")
+	errAlreadyApproved    = errors.New("family already approved")
+	errTakeDown           = errors.New("family cannot take down")
+	errEligibilityChanged = errors.New("quality eligibility changed")
 )
 
 func mapError(err error) *apperrors.BusinessError {
@@ -467,19 +666,21 @@ func mapError(err error) *apperrors.BusinessError {
 	case err == nil:
 		return nil
 	case errors.Is(err, errNotFound), errors.Is(err, gorm.ErrRecordNotFound):
-		return publicError(CodePublicApplicationNotFound, "公开申请不存在")
+		return publicError(CodePublicApplicationNotFound, "优质家庭申请不存在")
 	case errors.Is(err, errInvalidStatus):
-		return publicError(CodePublicApplicationInvalidStatus, "公开申请状态不可操作")
+		return publicError(CodePublicApplicationInvalidStatus, "优质家庭申请状态不可操作")
 	case errors.Is(err, errDuplicate):
-		return publicError(CodePublicApplicationDuplicate, "已有待审核公开申请")
+		return publicError(CodePublicApplicationDuplicate, "已有待审核优质家庭申请")
 	case errors.Is(err, errFamilyUnavailable):
-		return publicError(CodePublicFamilyUnavailable, "家庭状态不允许公开申请")
+		return publicError(CodePublicFamilyUnavailable, "家庭状态不允许申请优质家庭")
 	case errors.Is(err, errForbidden):
-		return publicError(CodePublicApplicationForbidden, "无权操作公开申请")
+		return publicError(CodePublicApplicationForbidden, "无权操作优质家庭申请")
 	case errors.Is(err, errAlreadyApproved):
 		return publicError(CodePublicFamilyAlreadyApproved, "家庭已公开")
 	case errors.Is(err, errTakeDown):
-		return publicError(CodePublicFamilyTakeDownDenied, "公开家庭不可下架或状态不允许下架")
+		return publicError(CodePublicFamilyTakeDownDenied, "优质家庭不可移出或当前状态不允许移出")
+	case errors.Is(err, errEligibilityChanged):
+		return publicError(CodePublicApplicationForbidden, "当前家庭已不满足最新优质家庭标准，请重新核对后再审核")
 	default:
 		return apperrors.New(apperrors.CodeSystemError)
 	}

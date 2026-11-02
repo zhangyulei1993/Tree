@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	dissolutionenum "tree/backend/internal/family/dissolution/enum"
 	dissolutionrepo "tree/backend/internal/family/dissolution/repository"
 	"tree/backend/internal/family/dissolution/vo"
+	notificationservice "tree/backend/internal/notification/service"
 	operationlog "tree/backend/internal/operationlog/service"
 )
 
@@ -43,18 +45,27 @@ type Service interface {
 }
 
 type service struct {
-	repo         dissolutionrepo.Repository
-	uow          dissolutionrepo.UnitOfWork
-	quota        quotaservice.Service
-	now          func() time.Time
-	cooldownDays int
+	repo          dissolutionrepo.Repository
+	uow           dissolutionrepo.UnitOfWork
+	quota         quotaservice.Service
+	now           func() time.Time
+	cooldownDays  int
+	notifications notificationservice.Service
 }
 
 func NewService(repo dissolutionrepo.Repository, uow dissolutionrepo.UnitOfWork, quota quotaservice.Service, cooldownDays int) Service {
+	return newService(repo, uow, quota, cooldownDays, nil)
+}
+
+func NewServiceWithNotifications(repo dissolutionrepo.Repository, uow dissolutionrepo.UnitOfWork, quota quotaservice.Service, cooldownDays int, notifications notificationservice.Service) Service {
+	return newService(repo, uow, quota, cooldownDays, notifications)
+}
+
+func newService(repo dissolutionrepo.Repository, uow dissolutionrepo.UnitOfWork, quota quotaservice.Service, cooldownDays int, notifications notificationservice.Service) Service {
 	if cooldownDays <= 0 {
 		cooldownDays = 7
 	}
-	return &service{repo: repo, uow: uow, quota: quota, now: time.Now, cooldownDays: cooldownDays}
+	return &service{repo: repo, uow: uow, quota: quota, now: time.Now, cooldownDays: cooldownDays, notifications: notifications}
 }
 
 func (s *service) ListAdmin(ctx context.Context, adminID uint64, role string, req dissolutiondto.ListDissolutionQuery) (*vo.ListResult, *apperrors.BusinessError) {
@@ -133,7 +144,27 @@ func (s *service) review(ctx context.Context, adminID uint64, role string, reque
 	if businessErr := mapError(err); businessErr != nil {
 		return nil, businessErr
 	}
-	return s.result(ctx, requestID)
+	result, businessErr := s.result(ctx, requestID)
+	if businessErr == nil && result != nil && s.notifications != nil {
+		status := "审核通过"
+		if nextStatus != dissolutionenum.StatusApproved {
+			status = "审核拒绝"
+		}
+		commentText := "无"
+		if result.ReviewComment != nil && *result.ReviewComment != "" {
+			commentText = *result.ReviewComment
+		}
+		requestText := "申请家庭解散"
+		if result.RequestReason != nil && *result.RequestReason != "" {
+			requestText = *result.RequestReason
+		}
+		reviewedAt := time.Now()
+		if result.ReviewedAt != nil {
+			reviewedAt = *result.ReviewedAt
+		}
+		s.notifications.Create(ctx, notificationservice.Input{UserID: result.RequesterUserID, Category: "AUDIT", Title: "家庭解散审核结果", Content: fmt.Sprintf("家庭解散申请%s。", status), Route: fmt.Sprintf("/pages/family/detail?familyId=%d", result.FamilyID), RelatedType: "FAMILY_DISSOLUTION_REQUEST", RelatedID: requestID, Subscribe: &notificationservice.SubscribeInput{Kind: "AUDIT", Page: fmt.Sprintf("pages/family/detail?familyId=%d", result.FamilyID), Values: []string{"家庭解散", requestText, status, reviewedAt.Format("2006-01-02 15:04"), commentText}}})
+	}
+	return result, businessErr
 }
 
 func (s *service) Restore(ctx context.Context, adminID uint64, role string, familyID uint64, req dissolutiondto.RestoreFamilyRequest, audit AuditInput) (*vo.RestoreResult, *apperrors.BusinessError) {

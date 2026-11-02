@@ -1,0 +1,72 @@
+- generic [ref=e24]:
+  - complementary [ref=e25]:
+    - generic [ref=e26]:
+      - generic [ref=e27]: T
+      - generic [ref=e28]:
+        - strong [ref=e29]: Tree
+        - generic [ref=e30]: 管理后台
+    - menubar [ref=e31]:
+      - listitem [ref=e32]:
+        - generic [ref=e33]: 业务总览
+        - list [ref=e34]:
+          - menuitem "仪表盘" [ref=e35] [cursor=pointer]
+          - menuitem "用户管理" [ref=e40] [cursor=pointer]
+          - menuitem "家庭管理" [ref=e45] [cursor=pointer]
+      - listitem [ref=e50]:
+        - generic [ref=e51]: 内容与运营
+        - list [ref=e52]:
+          - menuitem "内容中心" [ref=e53] [cursor=pointer]
+          - menuitem "分享配置" [ref=e58] [cursor=pointer]
+          - menuitem "帝王世家配置" [ref=e64] [cursor=pointer]
+          - menuitem "常用工具配置" [ref=e69] [cursor=pointer]
+      - listitem [ref=e77]:
+        - generic [ref=e78]: 审核与风控
+        - list [ref=e79]:
+          - menuitem "公开申请审核" [ref=e80] [cursor=pointer]
+          - menuitem "创始人转让审核" [ref=e85] [cursor=pointer]
+          - menuitem "家庭解散审核" [ref=e91] [cursor=pointer]
+          - menuitem "操作日志" [ref=e96] [cursor=pointer]
+      - listitem [ref=e101]:
+        - generic [ref=e102]: 平台设置
+        - list [ref=e103]:
+          - menuitem "账号权益配置" [ref=e104] [cursor=pointer]
+          - menuitem "后台管理员管理" [ref=e112] [cursor=pointer]
+  - main [ref=e117]:
+    - generic [ref=e118]:
+      - generic [ref=e119]:
+        - strong [ref=e120]: 仪表盘
+        - generic [ref=e121]: Tree 家脉亲缘平台
+      - generic [ref=e122]:
+        - generic [ref=e123]: admin
+        - generic [ref=e124]: 根管理员
+        - button "退出" [ref=e126] [cursor=pointer]
+    - generic [ref=e129]:
+      - generic [ref=e130]:
+        - generic [ref=e131]:
+          - generic [ref=e132]: Tree 管理后台
+          - heading "平台运营总览" [level=1] [ref=e133]
+          - paragraph [ref=e134]: 聚合用户、家庭、审核和高风险流程，优先处理需要人工介入的事项。
+        - generic [ref=e135]:
+          - generic [ref=e136]: 待处理
+          - strong [ref=e137]: "0"
+      - generic [ref=e138]:
+        - button "用户数 413 平台账号" [ref=e139] [cursor=pointer]:
+          - generic [ref=e140]: 用户数
+          - strong [ref=e141]: "413"
+          - emphasis [ref=e142]: 平台账号
+        - button "家庭数 46 全部家庭" [ref=e143] [cursor=pointer]:
+          - generic [ref=e144]: 家庭数
+          - strong [ref=e145]: "46"
+          - emphasis [ref=e146]: 全部家庭
+        - button "公开申请 0 处理待审核" [ref=e147] [cursor=pointer]:
+          - generic [ref=e148]: 公开申请
+          - strong [ref=e149]: "0"
+          - emphasis [ref=e150]: 处理待审核
+        - button "创建者转让 0 处理待审核" [ref=e151] [cursor=pointer]:
+          - generic [ref=e152]: 创建者转让
+          - strong [ref=e153]: "0"
+          - emphasis [ref=e154]: 处理待审核
+        - button "家庭解散 0 处理待审核" [ref=e155] [cursor=pointer]:
+          - generic [ref=e156]: 家庭解散
+          - strong [ref=e157]: "0"
+          - emphasis [ref=e158]: 处理待审核

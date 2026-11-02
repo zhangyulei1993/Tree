@@ -10,6 +10,48 @@
     <el-alert v-if="loadError" :title="`加载失败：${loadError}`" type="error" show-icon :closable="false" />
     <el-alert v-if="operationError" :title="`操作失败：${operationError}`" type="error" show-icon @close="operationError = ''" />
 
+    <el-card class="splash-card" shadow="never">
+      <template #header><div class="splash-card-title">小程序开屏</div></template>
+      <el-form v-if="splashConfig" :model="splashConfig" label-width="100px" inline>
+        <el-form-item label="开屏状态"><el-switch v-model="splashConfig.enabled" active-text="启用" inactive-text="关闭" /></el-form-item>
+        <el-form-item label="跳过按钮"><el-switch v-model="splashConfig.skipEnabled" active-text="显示" inactive-text="隐藏" /></el-form-item>
+        <el-form-item label="展示时长"><el-input-number v-model="splashConfig.durationMs" :min="1500" :max="15000" :step="100" /><span class="unit-text">毫秒</span></el-form-item>
+        <el-form-item label="白天图片" class="splash-wide-item">
+          <div class="splash-image-field">
+            <el-image v-if="splashConfig.dayImageUrl" :src="splashConfig.dayImageUrl" fit="cover" class="splash-image-preview" />
+            <el-upload
+              :show-file-list="false"
+              accept="image/jpeg,image/png,image/webp"
+              :before-upload="beforeSplashImageUpload"
+              :http-request="(options: UploadRequestOptions) => uploadSplashImage('day', options)"
+            >
+              <el-button :loading="splashImageUploading.day || splashImageCompressing.day">{{ splashConfig.dayImageUrl ? '更换图片' : '上传图片' }}</el-button>
+            </el-upload>
+            <el-button v-if="splashConfig.dayImageUrl" text type="danger" @click="clearSplashImage('day')">清除</el-button>
+            <span class="splash-field-help">06:00 至 17:59 使用，上传后自动压缩到尽量小。</span>
+          </div>
+        </el-form-item>
+        <el-form-item label="夜晚图片" class="splash-wide-item">
+          <div class="splash-image-field">
+            <el-image v-if="splashConfig.nightImageUrl" :src="splashConfig.nightImageUrl" fit="cover" class="splash-image-preview" />
+            <el-upload
+              :show-file-list="false"
+              accept="image/jpeg,image/png,image/webp"
+              :before-upload="beforeSplashImageUpload"
+              :http-request="(options: UploadRequestOptions) => uploadSplashImage('night', options)"
+            >
+              <el-button :loading="splashImageUploading.night || splashImageCompressing.night">{{ splashConfig.nightImageUrl ? '更换图片' : '上传图片' }}</el-button>
+            </el-upload>
+            <el-button v-if="splashConfig.nightImageUrl" text type="danger" @click="clearSplashImage('night')">清除</el-button>
+            <span class="splash-field-help">18:00 至 05:59 使用；只上传一张时全天使用，上传后自动压缩到尽量小。</span>
+          </div>
+        </el-form-item>
+        <el-form-item label="主标题" class="splash-wide-item"><el-input v-model="splashConfig.title" maxlength="120" /></el-form-item>
+        <el-form-item label="副标题" class="splash-wide-item"><el-input v-model="splashConfig.tagline" maxlength="240" /></el-form-item>
+        <el-form-item class="splash-submit-item"><el-button type="primary" :loading="splashSaving" @click="saveSplash">保存开屏配置</el-button></el-form-item>
+      </el-form>
+    </el-card>
+
     <DataTable v-loading="loading" class="tool-config-card">
       <el-table :data="configs" row-key="toolKey" class="tool-table">
         <el-table-column prop="displayName" label="工具名称" min-width="140" />
@@ -128,13 +170,18 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
+import type { FormInstance, FormRules, UploadRawFile, UploadRequestOptions } from 'element-plus'
 
 import { getApiErrorMessage } from '@/api/client'
 import { createToolConfig, listToolConfigs, updateToolConfig } from '@/api/toolConfig'
+import { getLaunchSplashConfig, updateLaunchSplashConfig } from '@/api/launchSplash'
+import { uploadContentImage } from '@/api/content'
+import { compressUploadImage } from '@/utils/imageCompression'
 import DataTable from '@/components/DataTable.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import type { ToolConfig } from '@/types/api'
+import type { LaunchSplashConfig } from '@/types/api'
 
 const configs = ref<ToolConfig[]>([])
 const loading = ref(false)
@@ -145,6 +192,10 @@ const createVisible = ref(false)
 const createLoading = ref(false)
 const createFormRef = ref<FormInstance>()
 const createForm = reactive({ toolKey: '', displayName: '', description: '' })
+const splashConfig = ref<LaunchSplashConfig | null>(null)
+const splashSaving = ref(false)
+const splashImageUploading = reactive({ day: false, night: false })
+const splashImageCompressing = reactive({ day: false, night: false })
 const createRules: FormRules = {
   toolKey: [
     { required: true, message: '请输入工具标识', trigger: 'blur' },
@@ -162,12 +213,86 @@ async function load() {
   loading.value = true
   loadError.value = ''
   try {
-    configs.value = await listToolConfigs()
+    const [toolRows, splash] = await Promise.all([listToolConfigs(), getLaunchSplashConfig()])
+    configs.value = toolRows
+    splashConfig.value = splash
   } catch (error) {
     loadError.value = getApiErrorMessage(error)
   } finally {
     loading.value = false
   }
+}
+
+async function saveSplash(notify = true): Promise<boolean> {
+  if (!splashConfig.value) return false
+  splashSaving.value = true
+  operationError.value = ''
+  try {
+    splashConfig.value = await updateLaunchSplashConfig({
+      enabled: splashConfig.value.enabled,
+      title: splashConfig.value.title,
+      tagline: splashConfig.value.tagline,
+      imageUrl: splashConfig.value.imageUrl,
+      dayImageUrl: splashConfig.value.dayImageUrl,
+      nightImageUrl: splashConfig.value.nightImageUrl,
+      durationMs: splashConfig.value.durationMs,
+      skipEnabled: splashConfig.value.skipEnabled
+    })
+    if (notify) ElMessage.success('开屏配置已保存')
+    return true
+  } catch (error) {
+    operationError.value = getApiErrorMessage(error)
+    return false
+  } finally { splashSaving.value = false }
+}
+
+function beforeSplashImageUpload(file: UploadRawFile) {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    operationError.value = '仅支持 JPG、PNG、WEBP 图片'
+    return false
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    operationError.value = '图片大小需在 5MB 以内'
+    return false
+  }
+  operationError.value = ''
+  return true
+}
+
+type SplashImageSlot = 'day' | 'night'
+
+async function uploadSplashImage(slot: SplashImageSlot, options: UploadRequestOptions) {
+  if (!splashConfig.value) return
+  splashImageUploading[slot] = true
+  splashImageCompressing[slot] = true
+  operationError.value = ''
+  try {
+    const compressedFile = await compressUploadImage(options.file)
+    splashImageCompressing[slot] = false
+    const result = await uploadContentImage(compressedFile)
+    if (slot === 'day') splashConfig.value.dayImageUrl = result.url
+    else splashConfig.value.nightImageUrl = result.url
+    const saved = await saveSplash(false)
+    if (!saved) {
+      options.onError?.(new Error('开屏配置保存失败') as Parameters<NonNullable<UploadRequestOptions['onError']>>[0])
+      return
+    }
+    ElMessage.success(`${slot === 'day' ? '白天' : '夜晚'}开屏图片已压缩并替换`)
+    options.onSuccess?.(result)
+  } catch (error) {
+    operationError.value = getApiErrorMessage(error)
+    options.onError?.(error as Parameters<NonNullable<UploadRequestOptions['onError']>>[0])
+  } finally {
+    splashImageUploading[slot] = false
+    splashImageCompressing[slot] = false
+  }
+}
+
+async function clearSplashImage(slot: SplashImageSlot) {
+  if (!splashConfig.value) return
+  if (slot === 'day') splashConfig.value.dayImageUrl = ''
+  else splashConfig.value.nightImageUrl = ''
+  if (await saveSplash(false)) ElMessage.success(`${slot === 'day' ? '白天' : '夜晚'}开屏图片已删除`)
 }
 
 type BooleanToolField = 'visible' | 'enabled' | 'pinned' | 'highlighted'
@@ -291,6 +416,15 @@ onMounted(load)
   min-width: 0;
 }
 
+.splash-card { margin-bottom: 16px; }
+.splash-card-title { font-weight: 650; }
+.splash-wide-item { min-width: 320px; }
+.splash-submit-item { margin-left: 100px; }
+.unit-text { margin-left: 8px; color: var(--el-text-color-secondary); }
+.splash-image-field { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.splash-image-preview { width: 76px; height: 96px; border: 1px solid var(--el-border-color); border-radius: 6px; background: var(--el-fill-color-light); }
+.splash-field-help { color: var(--el-text-color-secondary); font-size: 12px; }
+
 .tool-table {
   width: 100%;
   min-width: 970px;
@@ -298,14 +432,20 @@ onMounted(load)
 
 .tool-actions {
   display: flex;
-  flex-wrap: nowrap;
-  gap: 4px;
   align-items: center;
-  white-space: nowrap;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  white-space: normal;
 }
 
 .tool-actions :deep(.el-button) {
   padding: 5px 7px;
+}
+
+.tool-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .sort-controls {

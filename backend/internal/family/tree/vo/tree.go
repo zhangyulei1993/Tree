@@ -1,18 +1,21 @@
 package vo
 
 type Node struct {
-	MemberID            uint64  `json:"memberId"`
-	DisplayName         string  `json:"displayName"`
-	Surname             *string `json:"surname,omitempty"`
-	GenerationCharacter *string `json:"generationCharacter,omitempty"`
-	Gender              string  `json:"gender"`
-	MemberType          string  `json:"memberType"`
-	BirthDate           *string `json:"birthDate,omitempty"`
-	DeathDate           *string `json:"deathDate,omitempty"`
-	IsLiving            *bool   `json:"isLiving,omitempty"`
-	UserBindingState    string  `json:"userBindingState"`
-	CanExpand           bool    `json:"canExpand"`
-	StopReason          *string `json:"stopReason,omitempty"`
+	MemberID             uint64  `json:"memberId"`
+	DisplayName          string  `json:"displayName"`
+	Surname              *string `json:"surname,omitempty"`
+	GenerationCharacter  *string `json:"generationCharacter,omitempty"`
+	Gender               string  `json:"gender"`
+	PortraitHairStyle    string  `json:"portraitHairStyle"`
+	PortraitGlassesStyle string  `json:"portraitGlassesStyle"`
+	PortraitAvatarStyle  string  `json:"portraitAvatarStyle"`
+	MemberType           string  `json:"memberType"`
+	BirthDate            *string `json:"birthDate,omitempty"`
+	DeathDate            *string `json:"deathDate,omitempty"`
+	IsLiving             *bool   `json:"isLiving,omitempty"`
+	UserBindingState     string  `json:"userBindingState"`
+	CanExpand            bool    `json:"canExpand"`
+	StopReason           *string `json:"stopReason,omitempty"`
 }
 
 type Edge struct {
@@ -23,6 +26,7 @@ type Edge struct {
 	ParentLinkType   *string `json:"parentLinkType,omitempty"`
 	RelationNoteType *string `json:"relationNoteType,omitempty"`
 	RelationNote     *string `json:"relationNote,omitempty"`
+	Revision         int64   `json:"revision"`
 }
 
 type TreeItem struct {

@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"tree/backend/internal/common/enums"
 	familymodel "tree/backend/internal/family/core/model"
 	joinmodel "tree/backend/internal/family/joinrequest/model"
 	membermodel "tree/backend/internal/family/member/model"
@@ -96,6 +97,14 @@ func (r *GormRepository) FindPending(ctx context.Context, familyID, userID uint6
 	err := r.db.WithContext(ctx).Where("family_id = ? AND applicant_user_id = ? AND request_status = ?", familyID, userID, "PENDING").First(&value).Error
 	return &value, err
 }
+
+func (r *GormRepository) ListFamilyNotificationRecipientUserIDs(ctx context.Context, familyID, excludeUserID uint64) ([]uint64, error) {
+	var ids []uint64
+	err := r.db.WithContext(ctx).Table("family_member_user_links").
+		Where("family_id = ? AND link_status = ? AND family_role IN ? AND user_id <> ?", familyID, "ACTIVE", []string{string(enums.FamilyRoleFounder), string(enums.FamilyRoleFamilyAdmin)}, excludeUserID).
+		Distinct("user_id").Pluck("user_id", &ids).Error
+	return ids, err
+}
 func (r *GormRepository) Create(ctx context.Context, value *joinmodel.FamilyJoinRequest) error {
 	return r.db.WithContext(ctx).Create(value).Error
 }
@@ -112,15 +121,43 @@ func (r *GormRepository) ListMine(ctx context.Context, userID uint64) ([]JoinReq
 	var values []JoinRequestRow
 	err := r.db.WithContext(ctx).Table("family_join_requests AS j").Select("j.*, f.family_name").
 		Joins("JOIN families AS f ON f.id = j.family_id").Where("j.applicant_user_id = ?", userID).
-		Order("j.id DESC").Scan(&values).Error
+		Order("CASE WHEN j.request_status = 'PENDING' THEN 0 ELSE 1 END, j.id DESC").Limit(100).Scan(&values).Error
 	return values, err
 }
 func (r *GormRepository) ListFamily(ctx context.Context, familyID uint64) ([]JoinRequestRow, error) {
 	var values []JoinRequestRow
 	err := r.db.WithContext(ctx).Table("family_join_requests AS j").Select("j.*, f.family_name").
 		Joins("JOIN families AS f ON f.id = j.family_id").Where("j.family_id = ?", familyID).
-		Order("j.id DESC").Scan(&values).Error
+		Order("CASE WHEN j.request_status = 'PENDING' THEN 0 ELSE 1 END, j.id DESC").Limit(100).Scan(&values).Error
 	return values, err
+}
+
+func (r *GormRepository) ListMinePage(ctx context.Context, userID uint64, page, pageSize int) ([]JoinRequestRow, int64, error) {
+	return r.listPage(ctx, "j.applicant_user_id = ?", userID, page, pageSize)
+}
+
+func (r *GormRepository) ListFamilyPage(ctx context.Context, familyID uint64, page, pageSize int) ([]JoinRequestRow, int64, error) {
+	return r.listPage(ctx, "j.family_id = ?", familyID, page, pageSize)
+}
+
+func (r *GormRepository) listPage(ctx context.Context, condition string, id uint64, page, pageSize int) ([]JoinRequestRow, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	base := r.db.WithContext(ctx).Table("family_join_requests AS j").Joins("JOIN families AS f ON f.id = j.family_id").Where(condition, id)
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var values []JoinRequestRow
+	err := base.Select("j.*, f.family_name").Order("CASE WHEN j.request_status = 'PENDING' THEN 0 ELSE 1 END, j.id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Scan(&values).Error
+	return values, total, err
 }
 func (r *GormRepository) UpdateStatus(ctx context.Context, id uint64, current string, values map[string]any) error {
 	result := r.db.WithContext(ctx).Model(&joinmodel.FamilyJoinRequest{}).Where("id = ? AND request_status = ?", id, current).Updates(values)

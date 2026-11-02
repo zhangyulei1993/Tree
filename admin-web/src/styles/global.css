@@ -46,9 +46,20 @@ a {
 
 .table-actions {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.table-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+.table-actions--nowrap {
+  flex-wrap: nowrap;
   white-space: nowrap;
 }
 
@@ -68,6 +79,19 @@ a {
 
 .table-status-stack--center {
   align-items: center;
+  text-align: center;
+}
+
+.el-table th.el-table__cell,
+.el-table td.el-table__cell {
+  vertical-align: middle;
+}
+
+.el-table .is-center .cell,
+.el-table .table-column--center .cell,
+.el-table .showcase-center-cell .cell,
+.el-table .showcase-center-header .cell {
+  justify-content: center;
   text-align: center;
 }
 

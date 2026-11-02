@@ -1,5 +1,5 @@
 import { isRealApiMode, request } from '@/api/client'
-import { families, myFamilies } from '@/mock/data'
+import { families } from '@/mock/data'
 import type {
   CreateFamilyInput,
   FamilyDetail,
@@ -9,28 +9,57 @@ import type {
   PaginatedResult,
   PublicFamily,
   PublicFamilyShowcaseItem,
+  PublicPlatformStats,
   UpdateFamilyInput
 } from '@/types/api'
 
 const mockFamilyOverrides = new Map<string, Partial<FamilyDetail>>()
+const mockCreatedFamiliesKey = 'tree_miniapp_mock_created_families'
+
+type MockCreatedFamily = FamilySummary & {
+  founderName?: string
+  founderGender?: CreateFamilyInput['founderGender']
+  founderBirthYear?: number
+}
+
+function readMockCreatedFamilies(): MockCreatedFamily[] {
+  try {
+    const stored = uni.getStorageSync(mockCreatedFamiliesKey)
+    if (!stored) return []
+    const parsed = typeof stored === 'string' ? JSON.parse(stored) : stored
+    return Array.isArray(parsed) ? parsed as MockCreatedFamily[] : []
+  } catch {
+    uni.removeStorageSync(mockCreatedFamiliesKey)
+    return []
+  }
+}
+
+function writeMockCreatedFamily(family: FamilyDetail, input: CreateFamilyInput) {
+  const created = readMockCreatedFamilies().filter((item) => String(item.id) !== String(family.id))
+  created.unshift({
+    id: family.id,
+    familyName: family.familyName,
+    familySurname: family.familySurname,
+    nativePlace: family.nativePlace,
+    regionCode: family.regionCode,
+    regionText: family.regionText,
+    avatarUrl: family.avatarUrl,
+    status: family.status,
+    dissolutionCooldownUntil: family.dissolutionCooldownUntil,
+    dissolutionCooldownDays: family.dissolutionCooldownDays,
+    publicDisplayStatus: family.publicDisplayStatus,
+    publicDisplayEnabled: family.publicDisplayEnabled,
+    role: family.role,
+    founderName: input.founderName,
+    founderGender: input.founderGender,
+    founderBirthYear: input.founderBirthYear
+  })
+  uni.setStorageSync(mockCreatedFamiliesKey, JSON.stringify(created))
+}
 
 export async function listMyFamilies(): Promise<FamilySummary[]> {
   if (!isRealApiMode) {
-    return myFamilies.map((family) => {
-      const source = families.find((item) => item.id === family.id) || families[0]
-      return {
-        id: family.id,
-        familyName: family.name,
-        familySurname: source.surname,
-        nativePlace: source.nativePlace,
-        regionText: source.regionText,
-        status: family.status,
-        dissolutionCooldownDays: 0,
-        publicDisplayStatus: 'APPROVED',
-        publicDisplayEnabled: true,
-        role: family.role
-      }
-    })
+    return readMockCreatedFamilies()
   }
   return request<FamilySummary[]>('/families')
 }
@@ -47,20 +76,21 @@ export async function leaveFamily(
 
 export async function getFamilyDetail(familyId: number | string): Promise<FamilyDetail> {
   if (!isRealApiMode) {
+    const created = readMockCreatedFamilies().find((item) => String(item.id) === String(familyId))
     const source = families.find((item) => item.id === String(familyId)) || families[0]
-    const mine = myFamilies.find((item) => item.id === source.id)
     const detail: FamilyDetail = {
-      id: source.id,
-      familyName: source.name,
-      familySurname: source.surname,
-      nativePlace: source.nativePlace,
-      regionText: source.regionText,
+      id: created?.id || source.id,
+      familyName: created?.familyName || source.name,
+      familySurname: created?.familySurname || source.surname,
+      nativePlace: created?.nativePlace ?? source.nativePlace,
+      regionCode: created?.regionCode ?? null,
+      regionText: created?.regionText ?? source.regionText,
       description: source.description,
-      status: source.status,
+      status: created?.status || source.status,
       dissolutionCooldownDays: 0,
-      publicDisplayStatus: 'APPROVED',
-      publicDisplayEnabled: true,
-      role: mine?.role || 'MEMBER',
+      publicDisplayStatus: created?.publicDisplayStatus || 'APPROVED',
+      publicDisplayEnabled: created?.publicDisplayEnabled ?? true,
+      role: created?.role || 'MEMBER',
       searchable: true,
       publicContactVisible: Boolean(source.contact),
       publicContactNote: source.contact || null,
@@ -80,6 +110,7 @@ export async function createFamily(input: CreateFamilyInput): Promise<FamilyDeta
       familyName: input.familyName || `${input.surname}氏家族`,
       familySurname: input.surname,
       nativePlace: input.nativePlace || null,
+      regionCode: input.regionCode || null,
       regionText: input.regionText || null,
       description: input.description || null,
       status: 'NORMAL',
@@ -93,6 +124,7 @@ export async function createFamily(input: CreateFamilyInput): Promise<FamilyDeta
       graphVersion: 1
     }
     mockFamilyOverrides.set(String(created.id), created)
+    writeMockCreatedFamily(created, input)
     return created
   }
   return request<FamilyDetail, CreateFamilyInput>('/families', {
@@ -115,6 +147,19 @@ export async function updateFamily(
     method: 'PUT',
     data: input
   })
+}
+
+export type FamilyArchiveExport = {
+  scope: 'INTERNAL' | 'SHARE' | 'PUBLIC'
+  generatedAt: string
+  family: FamilyDetail
+  members: Array<{ memberId: number; name: string; gender?: string; birthYear?: number; deathYear?: number; description?: string }>
+  relationships: Array<{ fromMemberId: number; toMemberId: number; relationshipType: string }>
+  quality: { incompleteMemberCount: number; missingFields: string[] }
+}
+
+export function exportFamilyArchive(familyId: number | string, scope: FamilyArchiveExport['scope']) {
+  return request<FamilyArchiveExport>(`/families/${familyId}/archive-export?scope=${scope}`)
 }
 
 export async function getPublicFamilyDetail(familyId: number | string): Promise<PublicFamily> {
@@ -167,6 +212,17 @@ export async function listPublicFamilyShowcase(
 
   const params = buildShowcaseQuery(query)
   return request<PaginatedResult<PublicFamilyShowcaseItem>>(`/public/families?${params}`, { public: true })
+}
+
+export async function getPublicPlatformStats(): Promise<PublicPlatformStats> {
+  if (!isRealApiMode) {
+    return {
+      familyCount: families.length,
+      memberCount: 128,
+      relationshipCount: 142
+    }
+  }
+  return request<PublicPlatformStats>('/public/platform-stats', { public: true })
 }
 
 function buildShowcaseQuery(query: ListPublicFamilyShowcaseQuery) {

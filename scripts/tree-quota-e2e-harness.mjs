@@ -37,6 +37,14 @@ function dockerMysql(sql) {
   ], { encoding: 'utf8' }).trim()
 }
 
+function isDockerContainerRunning(name) {
+  try {
+    return execFileSync('docker', ['inspect', '-f', '{{.State.Running}}', name], { encoding: 'utf8' }).trim() === 'true'
+  } catch {
+    return false
+  }
+}
+
 function listListeningPids(port) {
   try {
     const out = execFileSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], { encoding: 'utf8' }).trim()
@@ -228,20 +236,19 @@ export function createE2EHarness() {
     async forceBuildH5() {
       const distDir = join(miniappDir, 'dist', 'build', 'h5')
       fs.rmSync(distDir, { recursive: true, force: true })
+      const useContainerBuild = isDockerContainerRunning('tree-dev')
+      const command = useContainerBuild ? 'docker' : 'pnpm'
+      const args = useContainerBuild
+        ? ['exec', '-e', 'CI=true', 'tree-dev', 'bash', '-lc', 'cd /workspace/miniapp && pnpm run build:h5:real']
+        : ['run', 'build:h5:real']
       await new Promise((resolve, reject) => {
-        const build = spawn('docker', [
-          'exec',
-          '-e',
-          'CI=true',
-          'tree-dev',
-          'bash',
-          '-lc',
-          'cd /workspace/miniapp && pnpm run build:h5:real'
-        ], {
+        const build = spawn(command, args, {
+          cwd: useContainerBuild ? undefined : miniappDir,
+          env: useContainerBuild ? process.env : { ...process.env, CI: 'true' },
           stdio: 'inherit',
           shell: false
         })
-        build.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`container build:h5:real failed: ${code}`))))
+        build.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`${useContainerBuild ? 'container' : 'local'} build:h5:real failed: ${code}`))))
       })
       assert.ok(fs.existsSync(join(distDir, 'index.html')), 'h5 build output missing')
     },

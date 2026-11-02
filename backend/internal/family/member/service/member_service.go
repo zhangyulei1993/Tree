@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -41,6 +42,7 @@ const (
 	CodeMemberUserAlreadyBound  apperrors.Code = 43405
 	CodeMemberNotBound          apperrors.Code = 43406
 	CodeMemberUnbindProtected   apperrors.Code = 43407
+	CodeMemberDataConflict      apperrors.Code = apperrors.CodeDataConflict
 
 	profileNoteType = "M8_PROFILE_JSON"
 )
@@ -54,6 +56,18 @@ type profileNote struct {
 	AvatarURL   *string `json:"avatarUrl,omitempty"`
 }
 
+const (
+	portraitStyleAuto = "AUTO"
+)
+
+var portraitHairStyles = map[string]bool{
+	"AUTO": true, "SHORT": true, "BOB": true, "BRAIDS": true, "LOW_BUN": true, "WAVY": true, "LONG": true,
+}
+
+var portraitGlassesStyles = map[string]bool{"AUTO": true, "ON": true, "OFF": true}
+
+var portraitAvatarStylePattern = regexp.MustCompile(`^(AUTO|BASE_([1-9]|1[0-2])|GLASSES_([1-9]|1[0-2]))$`)
+
 type AuditInput struct {
 	IP        string
 	UserAgent string
@@ -64,9 +78,133 @@ type MemberService interface {
 	List(context.Context, uint64, uint64) ([]vo.Member, *apperrors.BusinessError)
 	Detail(context.Context, uint64, uint64, uint64) (*vo.Member, *apperrors.BusinessError)
 	Update(context.Context, uint64, uint64, uint64, dto.UpdateMemberRequest, AuditInput) (*vo.Member, *apperrors.BusinessError)
+	ConfirmProfile(context.Context, uint64, uint64, uint64, dto.ConfirmMemberProfileRequest, AuditInput) (*vo.Member, *apperrors.BusinessError)
 	Delete(context.Context, uint64, uint64, uint64, dto.DeleteMemberRequest, AuditInput) *apperrors.BusinessError
 	BindUser(context.Context, uint64, uint64, uint64, dto.BindUserRequest, AuditInput) (*vo.Member, *apperrors.BusinessError)
 	UnbindUser(context.Context, uint64, uint64, uint64, dto.UnbindUserRequest, AuditInput) (*vo.Member, *apperrors.BusinessError)
+	ListRecoverable(context.Context, uint64, uint64) ([]vo.RecoverableMember, *apperrors.BusinessError)
+	Restore(context.Context, uint64, uint64, uint64, AuditInput) *apperrors.BusinessError
+	DiscardRecovery(context.Context, uint64, uint64, uint64, AuditInput) *apperrors.BusinessError
+}
+
+func (s *memberService) ListRecoverable(ctx context.Context, actorID, familyID uint64) ([]vo.RecoverableMember, *apperrors.BusinessError) {
+	if allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !allowed {
+		return nil, memberError(CodeMemberEditForbidden, "无权查看恢复记录")
+	}
+	items, err := s.repo.ListDeletedSince(ctx, familyID, time.Now().Add(-7*24*time.Hour))
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	result := make([]vo.RecoverableMember, 0, len(items))
+	for _, item := range items {
+		if item.DeletedAt != nil {
+			result = append(result, vo.RecoverableMember{MemberID: item.ID, Name: item.DisplayName, DeletedAt: *item.DeletedAt, RecoverableUntil: item.DeletedAt.Add(7 * 24 * time.Hour), DeleteReason: item.DeleteReason})
+		}
+	}
+	return result, nil
+}
+
+func (s *memberService) Restore(ctx context.Context, actorID, familyID, memberID uint64, audit AuditInput) *apperrors.BusinessError {
+	if allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !allowed {
+		return memberError(CodeMemberEditForbidden, "无权恢复成员")
+	}
+	since := time.Now().Add(-7 * 24 * time.Hour)
+	var cacheGraphVersion int64
+	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		repo := s.repo.WithTx(tx)
+		family, err := repo.LockFamily(ctx, familyID)
+		if err != nil {
+			return err
+		}
+		if family.CreatorUserID == nil || *family.CreatorUserID != actorID {
+			return errRestoreForbidden
+		}
+		member, err := repo.FindDeletedForUpdate(ctx, familyID, memberID, since)
+		if err != nil {
+			return err
+		}
+		if member.DeletedAt != nil {
+			conflict, err := repo.HasRestorePositionConflict(ctx, member, *member.DeletedAt)
+			if err != nil {
+				return err
+			}
+			if conflict {
+				return errRestorePositionConflict
+			}
+		}
+		if s.quota != nil {
+			if err := s.quota.AssertCanAddMember(ctx, tx, familyID, 1); err != nil {
+				return err
+			}
+		}
+		now := time.Now()
+		if err := repo.RestoreDeleted(ctx, familyID, memberID, now); err != nil {
+			return err
+		}
+		if member.DeletedAt != nil {
+			if err := repo.RestoreRelationshipsDeletedAt(ctx, familyID, memberID, *member.DeletedAt); err != nil {
+				return err
+			}
+		}
+		if err := repo.IncrementGraphVersion(ctx, familyID); err != nil {
+			return err
+		}
+		cacheGraphVersion = family.GraphVersion
+		return writeLog(ctx, tx, actorID, "RESTORE_MEMBER", memberID, familyID, audit)
+	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return memberError(CodeMemberNotFound, "成员不存在或恢复期限已过")
+	}
+	if errors.Is(err, errRestoreForbidden) {
+		return memberError(CodeMemberEditForbidden, "仅家庭创建者可以恢复成员")
+	}
+	if errors.Is(err, errRestorePositionConflict) {
+		return memberError(CodeMemberDataConflict, "该成员原有关系位置已被新节点占用，不能恢复")
+	}
+	if err != nil {
+		if s.quota != nil {
+			if businessErr := s.quota.MapQuotaError(err); businessErr != nil && businessErr.Code != apperrors.CodeSystemError {
+				return businessErr
+			}
+		}
+		return apperrors.New(apperrors.CodeSystemError)
+	}
+	_ = s.treeCache.Delete(ctx, fmt.Sprintf("family:%d:tree:v%d", familyID, cacheGraphVersion))
+	return nil
+}
+
+func (s *memberService) DiscardRecovery(ctx context.Context, actorID, familyID, memberID uint64, audit AuditInput) *apperrors.BusinessError {
+	if allowed, err := s.permissions.CanManageFamily(ctx, actorID, familyID); err != nil || !allowed {
+		return memberError(CodeMemberEditForbidden, "无权清除恢复记录")
+	}
+	since := time.Now().Add(-7 * 24 * time.Hour)
+	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		repo := s.repo.WithTx(tx)
+		family, err := repo.LockFamily(ctx, familyID)
+		if err != nil {
+			return err
+		}
+		if family.CreatorUserID == nil || *family.CreatorUserID != actorID {
+			return errRestoreForbidden
+		}
+		if _, err := repo.FindDeletedForUpdate(ctx, familyID, memberID, since); err != nil {
+			return err
+		}
+		if err := repo.DiscardRecovery(ctx, familyID, memberID, actorID, time.Now()); err != nil {
+			return err
+		}
+		return writeLog(ctx, tx, actorID, "DISCARD_MEMBER_RECOVERY", memberID, familyID, audit)
+	})
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return memberError(CodeMemberNotFound, "成员不存在或恢复期限已过")
+	}
+	if errors.Is(err, errRestoreForbidden) {
+		return memberError(CodeMemberEditForbidden, "仅家庭创建者可以清除恢复记录")
+	}
+	if err != nil {
+		return apperrors.New(apperrors.CodeSystemError)
+	}
+	return nil
 }
 
 type memberService struct {
@@ -97,7 +235,7 @@ func (s *memberService) Create(ctx context.Context, actorID uint64, familyID uin
 	if name == "" {
 		return nil, memberError(CodeMemberNameRequired, "成员姓名不能为空")
 	}
-	values, businessErr := memberValues(req.Gender, req.BirthDate, req.BirthYear, req.DeathDate, req.DeathYear, req.IsAlive, req.AvatarURL, req.Description, req.MemorialVisible, req.UserBindingPolicy)
+	values, businessErr := memberValues(req.Gender, req.PortraitHairStyle, req.PortraitGlassesStyle, req.PortraitAvatarStyle, req.BirthDate, req.BirthYear, req.DeathDate, req.DeathYear, req.IsAlive, req.AvatarURL, req.Description, req.MemorialVisible, req.UserBindingPolicy)
 	if businessErr != nil {
 		return nil, businessErr
 	}
@@ -114,13 +252,18 @@ func (s *memberService) Create(ctx context.Context, actorID uint64, familyID uin
 		return nil, businessErr
 	}
 	member := &membermodel.FamilyMember{
-		FamilyID:          familyID,
-		MemberType:        "LINEAGE_MEMBER",
-		DisplayName:       name,
-		Gender:            string(enums.GenderUnknown),
-		UserBindingPolicy: string(enums.UserBindingOptional),
-		Status:            string(enums.StatusActive),
-		CreatedByUserID:   &actorID,
+		FamilyID:                  familyID,
+		MemberType:                "LINEAGE_MEMBER",
+		DisplayName:               name,
+		Gender:                    string(enums.GenderUnknown),
+		PortraitHairStyle:         portraitStyleAuto,
+		PortraitGlassesStyle:      portraitStyleAuto,
+		PortraitAvatarStyle:       portraitStyleAuto,
+		UserBindingPolicy:         string(enums.UserBindingOptional),
+		Status:                    string(enums.StatusActive),
+		ProfileSourceType:         "FAMILY_EDIT",
+		ProfileVerificationStatus: "PENDING",
+		CreatedByUserID:           &actorID,
 	}
 	applyMemberValues(member, values)
 
@@ -244,6 +387,18 @@ func (s *memberService) Update(ctx context.Context, actorID uint64, familyID uin
 		if err != nil {
 			return err
 		}
+		if req.ExpectedRevision != nil && *req.ExpectedRevision != member.Revision {
+			return errDataConflict
+		}
+		if hairStyle, ok := values["portrait_hair_style"].(string); ok {
+			effectiveGender := member.Gender
+			if gender, updated := values["gender"].(string); updated {
+				effectiveGender = gender
+			}
+			if hairStyle != portraitStyleAuto && effectiveGender != string(enums.GenderFemale) {
+				return errInvalidPortraitStyle
+			}
+		}
 		effectiveBirth := member.BirthDate
 		if value, ok := values["birth_date"].(*time.Time); ok {
 			effectiveBirth = value
@@ -281,6 +436,21 @@ func (s *memberService) Update(ctx context.Context, actorID uint64, familyID uin
 			_ = member
 			return nil
 		}
+		values["revision"] = gorm.Expr("revision + 1")
+		values["profile_source_type"] = "FAMILY_EDIT"
+		link, linkErr := txRepo.FindActiveLinkByMember(ctx, familyID, memberID)
+		if linkErr != nil && !errors.Is(linkErr, gorm.ErrRecordNotFound) {
+			return linkErr
+		}
+		if linkErr == nil && link.UserID == actorID {
+			values["profile_verification_status"] = "SELF_CONFIRMED"
+			values["profile_confirmed_at"] = time.Now()
+			values["profile_confirmed_by_user_id"] = actorID
+		} else {
+			values["profile_verification_status"] = "PENDING"
+			values["profile_confirmed_at"] = nil
+			values["profile_confirmed_by_user_id"] = nil
+		}
 		if err := txRepo.Update(ctx, familyID, memberID, values); err != nil {
 			return err
 		}
@@ -292,8 +462,14 @@ func (s *memberService) Update(ctx context.Context, actorID uint64, familyID uin
 	if errors.Is(err, errBindingConflict) {
 		return nil, memberError(CodeMemberBindingConflict, "当前成员已有绑定，不能标记无需绑定")
 	}
+	if errors.Is(err, errDataConflict) {
+		return nil, memberError(CodeMemberDataConflict, "成员资料已被家人更新，请刷新后再保存")
+	}
 	if errors.Is(err, errInvalidProfile) {
 		return nil, memberError(CodeMemberInvalidField, "成员描述或头像地址过长")
+	}
+	if errors.Is(err, errInvalidPortraitStyle) {
+		return nil, memberError(CodeMemberInvalidField, "仅女性成员可选择头像发型")
 	}
 	if errors.Is(err, errInvalidLifeDates) {
 		return nil, memberError(CodeMemberInvalidField, "去世日期不能早于出生日期")
@@ -393,6 +569,64 @@ func (s *memberService) Delete(ctx context.Context, actorID uint64, familyID uin
 	default:
 		return nil
 	}
+}
+
+func (s *memberService) ConfirmProfile(ctx context.Context, actorID uint64, familyID uint64, memberID uint64, req dto.ConfirmMemberProfileRequest, audit AuditInput) (*vo.Member, *apperrors.BusinessError) {
+	status := strings.ToUpper(strings.TrimSpace(req.Status))
+	if status != "SELF_CONFIRMED" && status != "FAMILY_CONFIRMED" && status != "NEEDS_REVIEW" {
+		return nil, memberError(CodeMemberInvalidField, "资料确认状态不支持")
+	}
+	err := runMemberTransaction(ctx, s.db, func(tx *gorm.DB) error {
+		txRepo := s.repo.WithTx(tx)
+		family, err := txRepo.LockFamily(ctx, familyID)
+		if err != nil {
+			return err
+		}
+		if family.Status != string(enums.StatusNormal) {
+			return errFamilyUnavailable
+		}
+		member, err := txRepo.FindForUpdate(ctx, familyID, memberID)
+		if err != nil {
+			return err
+		}
+		if req.ExpectedRevision != nil && *req.ExpectedRevision != member.Revision {
+			return errDataConflict
+		}
+		canManage, permissionErr := s.permissions.CanManageFamily(ctx, actorID, familyID)
+		if permissionErr != nil {
+			return permissionErr
+		}
+		if !canManage {
+			link, linkErr := txRepo.FindActiveLinkByMember(ctx, familyID, memberID)
+			if linkErr != nil || link.UserID != actorID || (status != "SELF_CONFIRMED" && status != "NEEDS_REVIEW") {
+				return errConfirmForbidden
+			}
+		}
+		now := time.Now()
+		if err := txRepo.Update(ctx, familyID, memberID, map[string]any{
+			"profile_verification_status": status, "profile_confirmed_at": now,
+			"profile_confirmed_by_user_id": actorID, "revision": gorm.Expr("revision + 1"),
+		}); err != nil {
+			return err
+		}
+		return writeLog(ctx, tx, actorID, "CONFIRM_MEMBER_PROFILE", memberID, familyID, audit)
+	})
+	if errors.Is(err, errConfirmForbidden) {
+		return nil, memberError(CodeMemberEditForbidden, "只能确认本人资料，或由家庭管理者确认")
+	}
+	if errors.Is(err, errDataConflict) {
+		return nil, memberError(CodeMemberDataConflict, "成员资料已被家人更新，请刷新后再操作")
+	}
+	if errors.Is(err, errFamilyUnavailable) {
+		return nil, memberError(CodeMemberFamilyUnavailable, "家庭状态不允许操作")
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, memberError(CodeMemberNotFound, "成员不存在")
+	}
+	if err != nil {
+		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	return s.Detail(ctx, actorID, familyID, memberID)
 }
 
 func (s *memberService) BindUser(ctx context.Context, actorID uint64, familyID uint64, memberID uint64, req dto.BindUserRequest, audit AuditInput) (*vo.Member, *apperrors.BusinessError) {
@@ -534,10 +768,15 @@ var (
 	errUserAlreadyBound         = errors.New("user already bound")
 	errMemberNotBound           = errors.New("member not bound")
 	errInvalidProfile           = errors.New("invalid member profile")
+	errInvalidPortraitStyle     = errors.New("invalid portrait style")
 	errInvalidLifeDates         = errors.New("invalid member life dates")
+	errDataConflict             = errors.New("member data conflict")
+	errConfirmForbidden         = errors.New("member profile confirmation forbidden")
+	errRestoreForbidden         = errors.New("member restore forbidden")
+	errRestorePositionConflict  = errors.New("member restore position conflict")
 )
 
-func memberValues(gender *string, birthDate *string, birthYear *int, deathDate *string, deathYear *int, isAlive *bool, avatarURL *string, description *string, memorialVisible *bool, policy *string) (map[string]any, *apperrors.BusinessError) {
+func memberValues(gender *string, portraitHairStyle *string, portraitGlassesStyle *string, portraitAvatarStyle *string, birthDate *string, birthYear *int, deathDate *string, deathYear *int, isAlive *bool, avatarURL *string, description *string, memorialVisible *bool, policy *string) (map[string]any, *apperrors.BusinessError) {
 	values := map[string]any{}
 	if gender != nil {
 		normalized := strings.ToUpper(strings.TrimSpace(*gender))
@@ -545,6 +784,34 @@ func memberValues(gender *string, birthDate *string, birthYear *int, deathDate *
 			return nil, memberError(CodeMemberInvalidField, "成员性别错误")
 		}
 		values["gender"] = normalized
+	}
+	if portraitHairStyle != nil {
+		normalized := strings.ToUpper(strings.TrimSpace(*portraitHairStyle))
+		if !portraitHairStyles[normalized] {
+			return nil, memberError(CodeMemberInvalidField, "头像发型选项错误")
+		}
+		if gender != nil && strings.ToUpper(strings.TrimSpace(*gender)) != string(enums.GenderFemale) && normalized != portraitStyleAuto {
+			return nil, memberError(CodeMemberInvalidField, "仅女性成员可选择头像发型")
+		}
+		values["portrait_hair_style"] = normalized
+	}
+	if portraitGlassesStyle != nil {
+		normalized := strings.ToUpper(strings.TrimSpace(*portraitGlassesStyle))
+		if !portraitGlassesStyles[normalized] {
+			return nil, memberError(CodeMemberInvalidField, "头像眼镜选项错误")
+		}
+		values["portrait_glasses_style"] = normalized
+	}
+	if portraitAvatarStyle != nil {
+		normalized := strings.ToUpper(strings.TrimSpace(*portraitAvatarStyle))
+		if !portraitAvatarStylePattern.MatchString(normalized) {
+			return nil, memberError(CodeMemberInvalidField, "头像形象选项错误")
+		}
+		values["portrait_avatar_style"] = normalized
+		// New portrait selections are complete illustrations. Do not leave stale
+		// legacy switches around to influence subsequent tree rendering.
+		values["portrait_hair_style"] = portraitStyleAuto
+		values["portrait_glasses_style"] = portraitStyleAuto
 	}
 	birth, err := parseDateOrYear(birthDate, birthYear)
 	if err != nil {
@@ -588,9 +855,12 @@ func memberValues(gender *string, birthDate *string, birthYear *int, deathDate *
 }
 
 func updateMemberValues(req dto.UpdateMemberRequest) (map[string]any, *apperrors.BusinessError) {
-	values, businessErr := memberValues(req.Gender, req.BirthDate, req.BirthYear, req.DeathDate, req.DeathYear, req.IsAlive, nil, nil, req.MemorialVisible, req.UserBindingPolicy)
+	values, businessErr := memberValues(req.Gender, req.PortraitHairStyle, req.PortraitGlassesStyle, req.PortraitAvatarStyle, req.BirthDate, req.BirthYear, req.DeathDate, req.DeathYear, req.IsAlive, nil, nil, req.MemorialVisible, req.UserBindingPolicy)
 	if businessErr != nil {
 		return nil, businessErr
+	}
+	if gender, ok := values["gender"].(string); ok && gender != string(enums.GenderFemale) {
+		values["portrait_hair_style"] = portraitStyleAuto
 	}
 	if req.Name != nil {
 		name := strings.TrimSpace(*req.Name)
@@ -605,6 +875,15 @@ func updateMemberValues(req dto.UpdateMemberRequest) (map[string]any, *apperrors
 func applyMemberValues(member *membermodel.FamilyMember, values map[string]any) {
 	if value, ok := values["gender"].(string); ok {
 		member.Gender = value
+	}
+	if value, ok := values["portrait_hair_style"].(string); ok {
+		member.PortraitHairStyle = value
+	}
+	if value, ok := values["portrait_glasses_style"].(string); ok {
+		member.PortraitGlassesStyle = value
+	}
+	if value, ok := values["portrait_avatar_style"].(string); ok {
+		member.PortraitAvatarStyle = value
 	}
 	if value, ok := values["birth_date"].(*time.Time); ok {
 		member.BirthDate = value
@@ -680,8 +959,12 @@ func memberVO(row *memberrepo.MemberRow, canManage bool) vo.Member {
 	}
 	result := vo.Member{
 		MemberID: row.ID, FamilyID: row.FamilyID, Name: row.DisplayName, Gender: row.Gender,
+		PortraitHairStyle: row.PortraitHairStyle, PortraitGlassesStyle: row.PortraitGlassesStyle, PortraitAvatarStyle: row.PortraitAvatarStyle,
 		IsAlive: row.IsLiving, AvatarURL: profile.AvatarURL, Description: description, MemorialVisible: row.MemorialVisible,
 		Status: row.Status, UserBindingPolicy: row.UserBindingPolicy,
+		Revision: row.Revision, ProfileSourceType: row.ProfileSourceType,
+		ProfileVerificationStatus: row.ProfileVerificationStatus,
+		ProfileConfirmedAt:        row.ProfileConfirmedAt, ProfileConfirmedByUserID: row.ProfileConfirmedByUserID,
 		BoundUserID: row.BoundUserID, BoundFamilyRole: row.BoundFamilyRole,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}

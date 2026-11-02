@@ -8,8 +8,8 @@ import (
 	"gorm.io/gorm"
 
 	authservice "tree/backend/internal/auth/service"
-	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/contentsafety"
+	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/family/invitation/dto"
 	invitationmodel "tree/backend/internal/family/invitation/model"
 	inviterepo "tree/backend/internal/family/invitation/repository"
@@ -47,7 +47,7 @@ func TestInvitationAcceptRespectsJoinedQuotaFreshAccount(t *testing.T) {
 	}
 	freshquota.CreateFamily(t, freshquota.NewFamilyService(tx, quotaSvc), guestID, "自")
 
-	host := freshquota.CreateActiveUser(t, tx, "邀请主持", false)
+	host := freshquota.CreateActiveUser(t, tx, "邀请主持", true)
 	familyID, memberID := freshquota.SeedHostFamilyWithGuest(t, tx, host, "邀")
 	graphBefore := freshquota.GraphVersion(t, tx, familyID)
 	created, err := inviteSvc.Create(ctx, host.ID, familyID, memberID, dto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, AuditInput{})
@@ -97,7 +97,7 @@ func TestInvitationAcceptJoinedQuotaExceededKeepsPending(t *testing.T) {
 	freshquota.CreateFamily(t, freshquota.NewFamilyService(tx, quotaSvc), guestID, "自")
 	freshquota.SeedJoinedFamily(t, tx, freshquota.LoadUser(t, tx, guestID), "已加入")
 
-	host := freshquota.CreateActiveUser(t, tx, "超额主持", false)
+	host := freshquota.CreateActiveUser(t, tx, "超额主持", true)
 	familyID, memberID := freshquota.SeedHostFamilyWithGuest(t, tx, host, "超额")
 	graphBefore := freshquota.GraphVersion(t, tx, familyID)
 	created, err := inviteSvc.Create(ctx, host.ID, familyID, memberID, dto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, AuditInput{})

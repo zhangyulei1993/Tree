@@ -106,13 +106,14 @@ func CreateActiveUser(t *testing.T, tx *gorm.DB, nickname string, phoneLoginEnab
 		}
 		if err := tx.Model(user).Updates(map[string]any{
 			"phone": phone, "phone_hash": phoneHash, "password_hash": passwordHash,
-			"phone_login_enabled": true,
+			"phone_verified": true, "phone_login_enabled": true,
 		}).Error; err != nil {
 			t.Fatalf("enable phone login: %v", err)
 		}
 		user.Phone = &phone
 		user.PhoneHash = &phoneHash
 		user.PasswordHash = &passwordHash
+		user.PhoneVerified = true
 		user.PhoneLoginEnabled = true
 	}
 	return user

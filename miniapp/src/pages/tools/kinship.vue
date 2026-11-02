@@ -6,20 +6,20 @@
       <view>
         <text class="archive-kicker">Tree Tools</text>
         <text class="archive-title">称谓查询</text>
-        <text class="archive-subtitle">从「我」开始选关系，按需补充性别与长幼</text>
+        <text class="archive-subtitle">从“我”开始推导亲属称谓</text>
       </view>
       <view class="archive-seal">亲</view>
     </view>
 
     <MiniNotice tone="info" class="beta-notice">规则持续完善中</MiniNotice>
     <MiniNotice tone="security" class="local-only-notice" title="本地处理说明">
-      本工具仅在当前设备本地推测称谓，不上传你的性别、年龄或关系路径信息至服务器。
+      仅在本机推导称谓，不上传关系信息。
     </MiniNotice>
 
     <view v-if="steps.length > 0" class="archive-form-panel kinship-panel">
       <view class="archive-section-head">
         <text class="archive-section-title">关系路径</text>
-        <text class="archive-section-subtitle">从「我」出发，沿家庭关系推导</text>
+        <text class="archive-section-subtitle">从“我”出发逐层推导</text>
       </view>
       <view class="path-tag-chain">
         <text class="path-tag path-tag-self">我</text>
@@ -48,7 +48,7 @@
     <view class="archive-form-panel kinship-panel">
       <view class="archive-section-head">
         <text class="archive-section-title">选择下一层关系</text>
-        <text class="archive-section-subtitle">点击纸签添加下一层亲属节点</text>
+        <text class="archive-section-subtitle">点击添加下一层关系</text>
       </view>
       <view class="relation-grid">
         <text

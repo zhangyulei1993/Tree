@@ -8,8 +8,8 @@ import (
 
 	"gorm.io/gorm"
 
-	"tree/backend/internal/common/enums"
 	"tree/backend/internal/common/contentsafety"
+	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	familymodel "tree/backend/internal/family/core/model"
 	membermodel "tree/backend/internal/family/member/model"
@@ -381,6 +381,66 @@ func TestAddChildCreatesParentChildInCorrectDirection(t *testing.T) {
 	}
 }
 
+func TestAddChildWithSelectedSpouseCreatesBothParents(t *testing.T) {
+	repo := newFakeRepository()
+	coParentID := uint64(4)
+	repo.members[coParentID] = &membermodel.FamilyMember{
+		ID: coParentID, FamilyID: 2, DisplayName: "李母", Gender: string(enums.GenderFemale),
+		MemberType: "SPOUSE", Status: string(enums.StatusActive),
+	}
+	repo.relationships[20] = &relationshipmodel.FamilyRelationship{
+		ID: 20, FamilyID: 2, FromMemberID: 3, ToMemberID: coParentID,
+		RelationshipType: "SPOUSE", Status: string(enums.StatusActive),
+	}
+	req := createRequest("ADD_CHILD", "Child")
+	req.CoParentMemberID = &coParentID
+
+	result, businessErr := testService(repo, true).Create(context.Background(), 8, 2, req, AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("Create returned error: %v", businessErr)
+	}
+	if len(result.Relationships) != 2 {
+		t.Fatalf("expected two parent-child relationships, got %#v", result.Relationships)
+	}
+	parents := map[uint64]bool{}
+	for _, relationship := range result.Relationships {
+		if relationship.RelationshipType != "PARENT_CHILD" || relationship.ToMemberID != result.CreatedMember.MemberID {
+			t.Fatalf("unexpected child relationship: %#v", relationship)
+		}
+		parents[relationship.FromMemberID] = true
+	}
+	if !parents[3] || !parents[coParentID] {
+		t.Fatalf("expected base parent and selected spouse, got %#v", parents)
+	}
+}
+
+func TestAddingExplicitFormerSpouseDoesNotDemoteOtherSpouses(t *testing.T) {
+	repo := newFakeRepository()
+	currentSpouseID := uint64(4)
+	repo.members[currentSpouseID] = &membermodel.FamilyMember{
+		ID: currentSpouseID, FamilyID: 2, DisplayName: "现任", Gender: string(enums.GenderFemale),
+		MemberType: "SPOUSE", Status: string(enums.StatusActive),
+	}
+	repo.relationships[20] = &relationshipmodel.FamilyRelationship{
+		ID: 20, FamilyID: 2, FromMemberID: 3, ToMemberID: currentSpouseID,
+		RelationshipType: "SPOUSE", Status: string(enums.StatusActive),
+	}
+	req := createRequest("ADD_SPOUSE", "前任")
+	former := "EX_WIFE"
+	req.Relationship.RelationNoteType = &former
+
+	result, businessErr := testService(repo, true).Create(context.Background(), 8, 2, req, AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("Create returned error: %v", businessErr)
+	}
+	if result.Relationships[0].RelationNoteType == nil || *result.Relationships[0].RelationNoteType != former {
+		t.Fatalf("expected explicit former spouse display, got %#v", result.Relationships[0])
+	}
+	if repo.relationships[20].RelationNoteType != nil {
+		t.Fatalf("existing spouse must remain unchanged, got %#v", repo.relationships[20].RelationNoteType)
+	}
+}
+
 func TestAddFatherAndMotherDirections(t *testing.T) {
 	tests := []struct {
 		addType string
@@ -482,15 +542,15 @@ func TestDuplicatePrimaryParentsReturnSpecificErrors(t *testing.T) {
 	}
 }
 
-func TestSpouseLikeExistingParentAllowsStepParent(t *testing.T) {
+func TestSpouseLikeExistingParentBlocksDuplicateParent(t *testing.T) {
 	tests := []struct {
-		name     string
-		addType  string
-		gender   string
-		noteType string
+		name    string
+		addType string
+		gender  string
+		code    int
 	}{
-		{name: "step father", addType: "ADD_FATHER", gender: "MALE", noteType: "STEP_FATHER"},
-		{name: "step mother", addType: "ADD_MOTHER", gender: "FEMALE", noteType: "STEP_MOTHER"},
+		{name: "spouse-like father", addType: "ADD_FATHER", gender: "MALE", code: int(CodePrimaryFatherExists)},
+		{name: "spouse-like mother", addType: "ADD_MOTHER", gender: "FEMALE", code: int(CodePrimaryMotherExists)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -506,22 +566,15 @@ func TestSpouseLikeExistingParentAllowsStepParent(t *testing.T) {
 				RelationshipType: "PARENT_CHILD", ParentLinkType: &primary, Status: string(enums.StatusActive),
 			}
 
-			result, businessErr := testService(repo, true).Create(context.Background(), 8, 2, createRequest(tt.addType, "Step Parent"), AuditInput{})
-			if businessErr != nil {
-				t.Fatalf("Create returned error: %v", businessErr)
-			}
-			relationship := result.Relationships[0]
-			if relationship.ParentLinkType == nil || *relationship.ParentLinkType != "STEP" {
-				t.Fatalf("expected STEP parent link, got %#v", relationship.ParentLinkType)
-			}
-			if relationship.RelationNoteType == nil || *relationship.RelationNoteType != tt.noteType {
-				t.Fatalf("expected note type %s, got %#v", tt.noteType, relationship.RelationNoteType)
+			_, businessErr := testService(repo, true).Create(context.Background(), 8, 2, createRequest(tt.addType, "Duplicate Parent"), AuditInput{})
+			if businessErr == nil || int(businessErr.Code) != tt.code {
+				t.Fatalf("expected code %d, got %#v", tt.code, businessErr)
 			}
 		})
 	}
 }
 
-func TestNonFamilySurnameExistingParentAllowsStepParent(t *testing.T) {
+func TestNonFamilySurnameExistingParentBlocksDuplicateParent(t *testing.T) {
 	repo := newFakeRepository()
 	repo.family.FamilySurname = "张"
 	parentID := uint64(9)
@@ -535,16 +588,9 @@ func TestNonFamilySurnameExistingParentAllowsStepParent(t *testing.T) {
 		RelationshipType: "PARENT_CHILD", ParentLinkType: &primary, Status: string(enums.StatusActive),
 	}
 
-	result, businessErr := testService(repo, true).Create(context.Background(), 8, 2, createRequest("ADD_MOTHER", "Step Mother"), AuditInput{})
-	if businessErr != nil {
-		t.Fatalf("Create returned error: %v", businessErr)
-	}
-	relationship := result.Relationships[0]
-	if relationship.ParentLinkType == nil || *relationship.ParentLinkType != "STEP" {
-		t.Fatalf("expected STEP parent link, got %#v", relationship.ParentLinkType)
-	}
-	if relationship.RelationNoteType == nil || *relationship.RelationNoteType != "STEP_MOTHER" {
-		t.Fatalf("expected STEP_MOTHER note, got %#v", relationship.RelationNoteType)
+	_, businessErr := testService(repo, true).Create(context.Background(), 8, 2, createRequest("ADD_MOTHER", "Duplicate Mother"), AuditInput{})
+	if businessErr == nil || businessErr.Code != CodePrimaryMotherExists {
+		t.Fatalf("expected primary mother conflict, got %#v", businessErr)
 	}
 }
 
@@ -700,6 +746,23 @@ func TestUpdateRejectsStructuralFieldsAndIncrementsGraphVersion(t *testing.T) {
 	}
 }
 
+func TestUpdateRejectsUnsupportedSpouseDisplayType(t *testing.T) {
+	repo := newFakeRepository()
+	relationship := seedRelationship(repo)
+	spouseType := "SPOUSE"
+	relationship.RelationshipType = spouseType
+	unsupported := "CURRENT_WIFE"
+	_, businessErr := testService(repo, true).Update(context.Background(), 8, 2, relationship.ID, dto.UpdateRelationshipRequest{
+		RelationNoteType: &unsupported,
+	}, AuditInput{})
+	if businessErr == nil || businessErr.Code != CodeRelationshipType {
+		t.Fatalf("expected unsupported spouse display type rejection, got %#v", businessErr)
+	}
+	if repo.graphVersion != 1 {
+		t.Fatalf("rejected update changed graph version")
+	}
+}
+
 func TestUpdateToPrimaryRejectsDuplicateFather(t *testing.T) {
 	repo := newFakeRepository()
 	step := "STEP"
@@ -796,6 +859,48 @@ func TestPlaceExistingMemberRejectsAlreadyLocatedMember(t *testing.T) {
 	}
 	if repo.graphVersion != 1 || len(repo.relationships) != 1 {
 		t.Fatalf("rejected placement changed data")
+	}
+}
+
+func TestPlaceExistingLocatedChildCanAddRecordedFormerSpouseAsMissingParent(t *testing.T) {
+	repo := newFakeRepository()
+	coParentID := uint64(4)
+	childID := uint64(5)
+	primary := "PRIMARY"
+	formerWife := "EX_WIFE"
+	repo.members[coParentID] = &membermodel.FamilyMember{
+		ID: coParentID, FamilyID: 2, DisplayName: "前妻", Gender: string(enums.GenderFemale),
+		MemberType: "SPOUSE", Status: string(enums.StatusActive),
+	}
+	repo.members[childID] = &membermodel.FamilyMember{
+		ID: childID, FamilyID: 2, DisplayName: "孩子", Gender: string(enums.GenderMale),
+		MemberType: "LINEAGE_MEMBER", Status: string(enums.StatusActive),
+	}
+	repo.relationships[20] = &relationshipmodel.FamilyRelationship{
+		ID: 20, FamilyID: 2, FromMemberID: 3, ToMemberID: coParentID,
+		RelationshipType: "SPOUSE", RelationNoteType: &formerWife, Status: string(enums.StatusActive),
+	}
+	repo.relationships[21] = &relationshipmodel.FamilyRelationship{
+		ID: 21, FamilyID: 2, FromMemberID: 3, ToMemberID: childID,
+		RelationshipType: "PARENT_CHILD", ParentLinkType: &primary, Status: string(enums.StatusActive),
+	}
+	repo.nextRelationID = 21
+
+	result, businessErr := testService(repo, true).PlaceExisting(context.Background(), 8, 2, dto.PlaceExistingMemberRequest{
+		BaseMemberID:     3,
+		CoParentMemberID: &coParentID,
+		MemberID:         childID,
+		AddType:          "ADD_CHILD",
+		Relationship:     dto.RelationshipInput{ParentLinkType: &primary},
+	}, AuditInput{})
+	if businessErr != nil {
+		t.Fatalf("PlaceExisting returned error: %v", businessErr)
+	}
+	if len(result.Relationships) != 1 || result.Relationships[0].FromMemberID != coParentID || result.Relationships[0].ToMemberID != childID {
+		t.Fatalf("expected only missing co-parent relationship, got %#v", result.Relationships)
+	}
+	if result.GraphVersion != 2 || len(repo.relationships) != 3 {
+		t.Fatalf("expected one relationship and graph increment, got version=%d relationships=%#v", result.GraphVersion, repo.relationships)
 	}
 }
 

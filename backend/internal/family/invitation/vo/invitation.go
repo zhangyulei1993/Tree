@@ -8,7 +8,6 @@ type Invitation struct {
 	FamilyName            string     `json:"familyName"`
 	TargetMemberID        uint64     `json:"targetMemberId"`
 	TargetMemberName      string     `json:"targetMemberName"`
-	PendingMemberLabel    *string    `json:"pendingMemberLabel,omitempty"`
 	InviterDisplayName    string     `json:"inviterDisplayName"`
 	InviterRole           string     `json:"inviterRole"`
 	InviteType            string     `json:"inviteType"`
@@ -18,6 +17,8 @@ type Invitation struct {
 	Status                string     `json:"status"`
 	ExpiredAt             time.Time  `json:"expiredAt"`
 	AcceptedAt            *time.Time `json:"acceptedAt,omitempty"`
+	AcceptedByUserID      *uint64    `json:"acceptedByUserId,omitempty"`
+	AcceptedByDisplayName string     `json:"acceptedByDisplayName,omitempty"`
 	RejectedAt            *time.Time `json:"rejectedAt,omitempty"`
 	CancelledAt           *time.Time `json:"cancelledAt,omitempty"`
 	CreatedAt             time.Time  `json:"createdAt"`

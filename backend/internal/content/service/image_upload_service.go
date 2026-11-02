@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +27,36 @@ func ContentImageStorageRoot() string {
 		return filepath.Join(root, "content")
 	}
 	return "./uploads/content"
+}
+
+// DeleteContentImageByPublicPath removes only files created by the content image uploader.
+// Paths outside the managed content prefix are ignored to prevent accidental deletion.
+func DeleteContentImageByPublicPath(publicPath string) error {
+	parsed, err := url.Parse(strings.TrimSpace(publicPath))
+	if err != nil {
+		return err
+	}
+	path := parsed.Path
+	prefix := contentImagePublicPrefix + "/"
+	if !strings.HasPrefix(path, prefix) {
+		return nil
+	}
+
+	root, err := filepath.Abs(ContentImageStorageRoot())
+	if err != nil {
+		return err
+	}
+	target, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(path, prefix))))
+	if err != nil {
+		return err
+	}
+	if target != root && !strings.HasPrefix(target, root+string(os.PathSeparator)) {
+		return fmt.Errorf("content image path escapes storage root")
+	}
+	if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 func (s *service) UploadImage(ctx context.Context, adminID uint64, role string, input UploadImageInput) (*vo.ImageUploadResult, *apperrors.BusinessError) {

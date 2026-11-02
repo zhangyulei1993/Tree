@@ -24,6 +24,7 @@ type Family struct {
 	PublicContactVisible     bool       `gorm:"column:public_contact_visible;not null;default:1"`
 	TreeMode                 string     `gorm:"column:tree_mode;size:40;not null;default:LIST_TREE"`
 	GraphVersion             int64      `gorm:"column:graph_version;not null;default:1"`
+	Revision                 int64      `gorm:"column:revision;not null;default:1"`
 	PublicAppliedAt          *time.Time `gorm:"column:public_applied_at"`
 	PublicApprovedAt         *time.Time `gorm:"column:public_approved_at"`
 	PublicEnabledAt          *time.Time `gorm:"column:public_enabled_at"`

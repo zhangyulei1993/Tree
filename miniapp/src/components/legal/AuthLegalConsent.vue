@@ -1,7 +1,7 @@
 <template>
   <view class="auth-legal-consent">
     <view class="consent-row" @click="toggle">
-      <checkbox :checked="modelValue" color="#2F6B57" @click.stop="toggle" />
+      <checkbox class="consent-checkbox" :checked="modelValue" color="#2F6B57" @click.stop="toggle" />
       <text class="consent-text">
         我已阅读并同意
         <text class="consent-link" @click.stop="openUserAgreement">《用户协议》</text>
@@ -46,7 +46,7 @@ function toggle() {
   opacity: 0.78;
 }
 
-checkbox {
+.consent-checkbox {
   flex-shrink: 0;
   transform: scale(0.86);
 }

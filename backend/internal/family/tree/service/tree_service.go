@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"time"
 
@@ -22,6 +23,7 @@ const (
 
 	treeModeListTree = "LIST_TREE"
 	treeCacheTTL     = 24 * time.Hour
+	grayAccessTTL    = 5 * time.Minute
 	grayAccessKey    = "GRAY_ACCESS"
 )
 
@@ -63,12 +65,31 @@ func (s *treeService) GetPrivateTree(ctx context.Context, actorID uint64, family
 	if businessErr != nil {
 		return nil, businessErr
 	}
-	enabled, err := s.repo.FamilyFounderHasFeatureOverride(ctx, familyID, grayAccessKey)
+	enabled, err := s.grayAccessEnabled(ctx, familyID)
 	if err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
 	result.GrayAccessEnabled = enabled
 	return result, nil
+}
+
+func (s *treeService) grayAccessEnabled(ctx context.Context, familyID uint64) (bool, error) {
+	key := "family:%d:feature:%s"
+	key = fmt.Sprintf(key, familyID, grayAccessKey)
+	if data, err := s.cache.Get(ctx, key); err == nil {
+		var enabled bool
+		if json.Unmarshal(data, &enabled) == nil {
+			return enabled, nil
+		}
+	}
+	enabled, err := s.repo.FamilyFounderHasFeatureOverride(ctx, familyID, grayAccessKey)
+	if err != nil {
+		return false, err
+	}
+	if data, err := json.Marshal(enabled); err == nil {
+		_ = s.cache.Set(ctx, key, data, grayAccessTTL)
+	}
+	return enabled, nil
 }
 
 func (s *treeService) GetPublicTree(ctx context.Context, familyID uint64) (*vo.TreeResult, *apperrors.BusinessError) {
@@ -238,6 +259,7 @@ func nodeVO(row treerepo.MemberRow) vo.Node {
 	result := vo.Node{
 		MemberID: row.ID, DisplayName: row.DisplayName, Surname: row.Surname,
 		GenerationCharacter: row.GenerationCharacter, Gender: row.Gender,
+		PortraitHairStyle: row.PortraitHairStyle, PortraitGlassesStyle: row.PortraitGlassesStyle, PortraitAvatarStyle: row.PortraitAvatarStyle,
 		MemberType: row.MemberType, IsLiving: row.IsLiving,
 		UserBindingState: bindingState(row), CanExpand: !row.IsTerminalNode,
 		StopReason: row.TerminalReason,
@@ -262,6 +284,7 @@ func edgeVO(relationship relationshipmodel.FamilyRelationship) vo.Edge {
 		ParentLinkType:   relationship.ParentLinkType,
 		RelationNoteType: relationship.RelationNoteType,
 		RelationNote:     relationship.RelationNote,
+		Revision:         relationship.Revision,
 	}
 }
 

@@ -270,8 +270,13 @@ function spouseTitleOfCollateral(title: string): string {
   if (title === '兄长') return '嫂子'
   if (title === '弟弟') return '弟媳'
   if (title === '姐姐') return '姐夫'
-  if (title === '妹妹') return '妹夫'
-  return ''
+	if (title === '妹妹') return '妹夫'
+	// The direct mappings above cover close relatives and collateral branches.
+	// Higher-generation direct ancestors share the same suffix pattern, for example
+	// 外曾祖父 -> 外曾祖母 and 外高祖母 -> 外高祖父.
+	if (title.endsWith('祖父')) return title.replace(/祖父$/, '祖母')
+	if (title.endsWith('祖母')) return title.replace(/祖母$/, '祖父')
+	return ''
 }
 
 function ancestorSpouseTitleFromViewer(

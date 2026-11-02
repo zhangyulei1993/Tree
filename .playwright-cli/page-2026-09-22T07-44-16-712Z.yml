@@ -1,0 +1,14 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: T
+      - heading "Tree 管理后台" [level=1] [ref=e7]
+      - paragraph [ref=e8]: 使用管理员账号登录管理后台。
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11]: 用户名
+        - textbox "用户名" [ref=e15]
+      - generic [ref=e16]:
+        - generic [ref=e17]: 密码
+        - textbox "密码" [ref=e21]
+      - button "登录" [disabled] [ref=e22]

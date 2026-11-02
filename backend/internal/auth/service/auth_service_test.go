@@ -23,6 +23,7 @@ import (
 type userRepoFake struct {
 	authrepo.UserRepository
 	user             *usermodel.User
+	identities       []*usermodel.UserAuthIdentity
 	recordLoginCalls int
 }
 
@@ -47,6 +48,45 @@ func (r *userRepoFake) Create(_ context.Context, user *usermodel.User) error {
 	copy := *user
 	r.user = &copy
 	return nil
+}
+func (r *userRepoFake) UpdateUser(_ context.Context, userID uint64, values map[string]any) error {
+	if r.user == nil || r.user.ID != userID {
+		return gorm.ErrRecordNotFound
+	}
+	if value, ok := values["phone"].(string); ok {
+		r.user.Phone = &value
+	}
+	if value, ok := values["phone_hash"].(string); ok {
+		r.user.PhoneHash = &value
+	}
+	if value, ok := values["phone_verified"].(bool); ok {
+		r.user.PhoneVerified = value
+	}
+	return nil
+}
+func (r *userRepoFake) CreateIdentity(_ context.Context, identity *usermodel.UserAuthIdentity) error {
+	copy := *identity
+	copy.ID = uint64(len(r.identities) + 1)
+	r.identities = append(r.identities, &copy)
+	return nil
+}
+func (r *userRepoFake) FindIdentityByOpenIDHash(_ context.Context, provider, appID, openIDHash string) (*usermodel.UserAuthIdentity, error) {
+	for _, identity := range r.identities {
+		if identity.Provider == provider && identity.ProviderAppID != nil && *identity.ProviderAppID == appID &&
+			identity.OpenIDHash != nil && *identity.OpenIDHash == openIDHash && identity.IdentityStatus == string(enums.StatusActive) {
+			copy := *identity
+			return &copy, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+func (r *userRepoFake) UpdateIdentity(_ context.Context, identityID uint64, _ map[string]any) error {
+	for _, identity := range r.identities {
+		if identity.ID == identityID {
+			return nil
+		}
+	}
+	return gorm.ErrRecordNotFound
 }
 func (r *userRepoFake) RecordLoginSuccess(context.Context, uint64, string, string, time.Time) error {
 	r.recordLoginCalls++

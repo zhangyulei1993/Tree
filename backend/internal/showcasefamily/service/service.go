@@ -186,6 +186,7 @@ func (s *service) Update(ctx context.Context, adminID uint64, role string, id ui
 		"display_name": values.displayName, "region_text": values.regionText, "summary": values.summary,
 		"cover_image_url": values.coverImageURL, "tree_image_url": values.treeImageURL, "sort_order": values.sortOrder,
 		"updated_by_admin_id": adminID,
+		"status":              StatusDraft,
 	}); err != nil {
 		return nil, mapRepoError(err)
 	}
@@ -249,7 +250,8 @@ func (s *service) CreateMember(ctx context.Context, adminID uint64, role string,
 	if !canManage(role) {
 		return nil, apperrors.New(apperrors.CodeForbidden)
 	}
-	if _, businessErr := s.find(ctx, showcaseFamilyID); businessErr != nil {
+	family, businessErr := s.find(ctx, showcaseFamilyID)
+	if businessErr != nil {
 		return nil, businessErr
 	}
 	values, businessErr := normalizeMember(req)
@@ -260,6 +262,9 @@ func (s *service) CreateMember(ctx context.Context, adminID uint64, role string,
 	if err := s.repo.CreateMember(ctx, member); err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
+	if businessErr := s.markDraftAfterPublishedChange(ctx, adminID, role, family); businessErr != nil {
+		return nil, businessErr
+	}
 	s.writeLog(ctx, adminID, role, "CREATE_SHOWCASE_MEMBER", member.ID, nil, member)
 	result := treeMemberVO(*member)
 	return &result, nil
@@ -268,6 +273,10 @@ func (s *service) CreateMember(ctx context.Context, adminID uint64, role string,
 func (s *service) UpdateMember(ctx context.Context, adminID uint64, role string, showcaseFamilyID, memberID uint64, req showcasedto.MemberRequest) (*vo.TreeMember, *apperrors.BusinessError) {
 	if !canManage(role) {
 		return nil, apperrors.New(apperrors.CodeForbidden)
+	}
+	family, businessErr := s.find(ctx, showcaseFamilyID)
+	if businessErr != nil {
+		return nil, businessErr
 	}
 	before, businessErr := s.findMember(ctx, showcaseFamilyID, memberID)
 	if businessErr != nil {
@@ -279,6 +288,9 @@ func (s *service) UpdateMember(ctx context.Context, adminID uint64, role string,
 	}
 	if err := s.repo.UpdateMember(ctx, showcaseFamilyID, memberID, map[string]any{"display_name": values.displayName, "identity_text": values.identityText, "member_type": values.memberType, "gender": values.gender, "birth_year": values.birthYear, "sort_order": values.sortOrder}); err != nil {
 		return nil, mapRepoError(err)
+	}
+	if businessErr := s.markDraftAfterPublishedChange(ctx, adminID, role, family); businessErr != nil {
+		return nil, businessErr
 	}
 	after, err := s.repo.FindMemberByID(ctx, showcaseFamilyID, memberID)
 	if err != nil {
@@ -292,6 +304,10 @@ func (s *service) UpdateMember(ctx context.Context, adminID uint64, role string,
 func (s *service) DeleteMember(ctx context.Context, adminID uint64, role string, showcaseFamilyID, memberID uint64) *apperrors.BusinessError {
 	if !canManage(role) {
 		return apperrors.New(apperrors.CodeForbidden)
+	}
+	family, businessErr := s.find(ctx, showcaseFamilyID)
+	if businessErr != nil {
+		return businessErr
 	}
 	before, businessErr := s.findMember(ctx, showcaseFamilyID, memberID)
 	if businessErr != nil {
@@ -317,6 +333,9 @@ func (s *service) DeleteMember(ctx context.Context, adminID uint64, role string,
 	if err := s.repo.DeleteMember(ctx, showcaseFamilyID, memberID); err != nil {
 		return mapRepoError(err)
 	}
+	if businessErr := s.markDraftAfterPublishedChange(ctx, adminID, role, family); businessErr != nil {
+		return businessErr
+	}
 	s.writeLog(ctx, adminID, role, "DELETE_SHOWCASE_MEMBER", memberID, before, nil)
 	return nil
 }
@@ -325,7 +344,8 @@ func (s *service) CreateRelationship(ctx context.Context, adminID uint64, role s
 	if !canManage(role) {
 		return nil, apperrors.New(apperrors.CodeForbidden)
 	}
-	if _, businessErr := s.find(ctx, showcaseFamilyID); businessErr != nil {
+	family, businessErr := s.find(ctx, showcaseFamilyID)
+	if businessErr != nil {
 		return nil, businessErr
 	}
 	if req.FromMemberID == 0 || req.ToMemberID == 0 || req.FromMemberID == req.ToMemberID || (req.RelationshipType != "PARENT_CHILD" && req.RelationshipType != "SPOUSE") {
@@ -372,6 +392,9 @@ func (s *service) CreateRelationship(ctx context.Context, adminID uint64, role s
 	if err := s.repo.CreateRelationship(ctx, relationship); err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
 	}
+	if businessErr := s.markDraftAfterPublishedChange(ctx, adminID, role, family); businessErr != nil {
+		return nil, businessErr
+	}
 	s.writeLog(ctx, adminID, role, "CREATE_SHOWCASE_RELATIONSHIP", relationship.ID, nil, relationship)
 	result := treeRelationshipVO(*relationship)
 	return &result, nil
@@ -381,16 +404,35 @@ func (s *service) DeleteRelationship(ctx context.Context, adminID uint64, role s
 	if !canManage(role) {
 		return apperrors.New(apperrors.CodeForbidden)
 	}
-	if _, businessErr := s.find(ctx, showcaseFamilyID); businessErr != nil {
+	family, businessErr := s.find(ctx, showcaseFamilyID)
+	if businessErr != nil {
 		return businessErr
 	}
 	if relationshipID == 0 {
 		return showcaseError(CodeNotFound, "展示家庭关系不存在")
 	}
+	relationships, err := s.repo.ListRelationships(ctx, showcaseFamilyID)
+	if err != nil {
+		return apperrors.New(apperrors.CodeSystemError)
+	}
+	var before *showcasemodel.ShowcaseFamilyRelationship
+	for index := range relationships {
+		if relationships[index].ID == relationshipID {
+			row := relationships[index]
+			before = &row
+			break
+		}
+	}
+	if before == nil {
+		return showcaseError(CodeNotFound, "展示家庭关系不存在")
+	}
 	if err := s.repo.DeleteRelationship(ctx, showcaseFamilyID, relationshipID); err != nil {
 		return mapRepoError(err)
 	}
-	s.writeLog(ctx, adminID, role, "DELETE_SHOWCASE_RELATIONSHIP", relationshipID, nil, nil)
+	if businessErr := s.markDraftAfterPublishedChange(ctx, adminID, role, family); businessErr != nil {
+		return businessErr
+	}
+	s.writeLog(ctx, adminID, role, "DELETE_SHOWCASE_RELATIONSHIP", relationshipID, before, nil)
 	return nil
 }
 
@@ -398,7 +440,8 @@ func (s *service) AddRelative(ctx context.Context, adminID uint64, role string, 
 	if !canManage(role) {
 		return nil, apperrors.New(apperrors.CodeForbidden)
 	}
-	if _, businessErr := s.find(ctx, showcaseFamilyID); businessErr != nil {
+	family, businessErr := s.find(ctx, showcaseFamilyID)
+	if businessErr != nil {
 		return nil, businessErr
 	}
 	anchorMember, businessErr := s.findMember(ctx, showcaseFamilyID, anchorMemberID)
@@ -464,6 +507,9 @@ func (s *service) AddRelative(ctx context.Context, adminID uint64, role string, 
 	}
 	if err := s.repo.CreateRelative(ctx, showcaseFamilyID, anchorMemberID, relationKind, member, existingSpouseID, spouse); err != nil {
 		return nil, apperrors.New(apperrors.CodeSystemError)
+	}
+	if businessErr := s.markDraftAfterPublishedChange(ctx, adminID, role, family); businessErr != nil {
+		return nil, businessErr
 	}
 	s.writeLog(ctx, adminID, role, "ADD_SHOWCASE_RELATIVE", member.ID, nil, map[string]any{"anchorMemberID": anchorMemberID, "relationKind": relationKind, "member": treeMemberVO(*member), "newSpouse": treeMemberVOPtr(spouse)})
 	result := &vo.AddRelativeResult{Member: treeMemberVO(*member), Spouse: treeMemberVOPtr(spouse)}
@@ -546,8 +592,30 @@ func mapRepoError(err error) *apperrors.BusinessError {
 	return apperrors.New(apperrors.CodeSystemError)
 }
 
+func hasUnpublishedChanges(row showcasemodel.ShowcaseFamily) bool {
+	return row.Status == StatusDraft && row.PublishedAt != nil
+}
+
+func (s *service) markDraftAfterPublishedChange(ctx context.Context, adminID uint64, role string, family *showcasemodel.ShowcaseFamily) *apperrors.BusinessError {
+	if family == nil || family.Status != StatusPublished {
+		return nil
+	}
+	if err := s.repo.Update(ctx, family.ID, map[string]any{
+		"status":              StatusDraft,
+		"updated_by_admin_id": adminID,
+	}); err != nil {
+		return mapRepoError(err)
+	}
+	after, err := s.repo.FindByID(ctx, family.ID)
+	if err != nil {
+		return apperrors.New(apperrors.CodeSystemError)
+	}
+	s.writeLog(ctx, adminID, role, "MARK_SHOWCASE_UNPUBLISHED_AFTER_CHANGE", family.ID, family, after)
+	return nil
+}
+
 func toVO(row showcasemodel.ShowcaseFamily) vo.ShowcaseFamily {
-	return vo.ShowcaseFamily{ID: row.ID, DisplayName: row.DisplayName, RegionText: row.RegionText, Summary: row.Summary, CoverImageURL: row.CoverImageURL, TreeImageURL: row.TreeImageURL, Status: row.Status, SortOrder: row.SortOrder, PublishedAt: row.PublishedAt, UpdatedAt: row.UpdatedAt}
+	return vo.ShowcaseFamily{ID: row.ID, DisplayName: row.DisplayName, RegionText: row.RegionText, Summary: row.Summary, CoverImageURL: row.CoverImageURL, TreeImageURL: row.TreeImageURL, Status: row.Status, SortOrder: row.SortOrder, HasUnpublishedChanges: hasUnpublishedChanges(row), PublishedAt: row.PublishedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func (s *service) toVOs(ctx context.Context, rows []showcasemodel.ShowcaseFamily) ([]vo.ShowcaseFamily, *apperrors.BusinessError) {

@@ -86,7 +86,7 @@ import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import { openWechatOfficialArticle } from '@/features/content/wechatOfficialArticle'
-import { buildArticleSharePayload } from '@/features/share/wechatShare'
+import { buildArticleSharePayload, loadShareConfigs } from '@/features/share/wechatShare'
 import type { ContentArticleDetail } from '@/types/api'
 
 const articleId = ref('')
@@ -165,6 +165,7 @@ function formatPublishDate(value?: string | null) {
 
 onLoad((options) => {
   articleId.value = String(options?.id || '').trim()
+  void loadShareConfigs()
   void loadArticle()
 })
 

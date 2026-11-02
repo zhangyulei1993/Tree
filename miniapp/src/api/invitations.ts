@@ -54,38 +54,6 @@ export async function createInvitation(
   )
 }
 
-export async function createFamilyInvitation(
-  familyId: number | string,
-  input: CreateInvitationInput
-): Promise<CreatedInvitation> {
-  if (!isRealApiMode) {
-    const now = new Date()
-    const invitation: Invitation = {
-      ...mockInvitation,
-      invitationId: `mock_family_invitation_${Date.now()}`,
-      familyId,
-      targetMemberId: `pending_member_${Date.now()}`,
-      targetMemberName: input.pendingMemberLabel || '待确认成员',
-      pendingMemberLabel: input.pendingMemberLabel || '待确认成员',
-      inviteType: 'JOIN_FAMILY_PENDING_MEMBER',
-      inviteChannel: input.inviteChannel,
-      inviteMessage: input.inviteMessage || null,
-      familyRoleAfterAccept: input.familyRoleAfterAccept,
-      createdAt: now.toISOString(),
-      expiredAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
-    }
-    mockInvitations.unshift(invitation)
-    return { invitation: { ...invitation }, inviteToken: `mock_family_invite_${Date.now()}` }
-  }
-  return request<CreatedInvitation, CreateInvitationInput>(
-    `/families/${familyId}/invitations`,
-    {
-      method: 'POST',
-      data: input
-    }
-  )
-}
-
 export async function getInvitationDetail(inviteToken: string): Promise<Invitation> {
   if (!isRealApiMode) return { ...mockInvitation }
   return request<Invitation>(`/invitations/${encodeURIComponent(inviteToken)}`, { public: true })

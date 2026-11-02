@@ -2,6 +2,7 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	membermodel "tree/backend/internal/family/member/model"
 	memberrepo "tree/backend/internal/family/member/repository"
@@ -36,9 +37,57 @@ func TestMemberValuesRejectsDeathBeforeBirth(t *testing.T) {
 	birth := "2000-01-01"
 	death := "1999-12-31"
 
-	_, businessErr := memberValues(nil, &birth, nil, &death, nil, nil, nil, nil, nil, nil)
+	_, businessErr := memberValues(nil, nil, nil, nil, &birth, nil, &death, nil, nil, nil, nil, nil, nil)
 	if businessErr == nil || businessErr.Code != CodeMemberInvalidField {
 		t.Fatalf("expected CodeMemberInvalidField, got %#v", businessErr)
+	}
+}
+
+func TestMemberValuesAllowsExplicitEmptyBirthDateToClearExistingValue(t *testing.T) {
+	empty := ""
+
+	values, businessErr := memberValues(nil, nil, nil, nil, &empty, nil, nil, nil, nil, nil, nil, nil, nil)
+	if businessErr != nil {
+		t.Fatalf("memberValues returned error: %v", businessErr)
+	}
+	birth, ok := values["birth_date"].(*time.Time)
+	if !ok || birth != nil {
+		t.Fatalf("expected explicit empty birth date to clear value, got %#v", values["birth_date"])
+	}
+}
+
+func TestMemberValuesAllowsOnlyFemaleHairChoices(t *testing.T) {
+	male := "MALE"
+	hair := "BRAIDS"
+	if _, businessErr := memberValues(&male, &hair, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil); businessErr == nil {
+		t.Fatal("expected male member hair choice to be rejected")
+	}
+
+	female := "FEMALE"
+	values, businessErr := memberValues(&female, &hair, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	if businessErr != nil || values["portrait_hair_style"] != hair {
+		t.Fatalf("expected female hair choice to persist, values=%#v err=%v", values, businessErr)
+	}
+}
+
+func TestMemberValuesStoresCompletePortraitAvatarSelection(t *testing.T) {
+	style := "GLASSES_12"
+	values, businessErr := memberValues(nil, nil, nil, &style, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	if businessErr != nil {
+		t.Fatalf("memberValues returned error: %v", businessErr)
+	}
+	if values["portrait_avatar_style"] != style {
+		t.Fatalf("expected portrait avatar style %s, got %#v", style, values["portrait_avatar_style"])
+	}
+	if values["portrait_hair_style"] != portraitStyleAuto || values["portrait_glasses_style"] != portraitStyleAuto {
+		t.Fatalf("new portrait style should clear legacy preferences, values=%#v", values)
+	}
+}
+
+func TestMemberValuesRejectsUnknownPortraitAvatarSelection(t *testing.T) {
+	style := "GLASSES_13"
+	if _, businessErr := memberValues(nil, nil, nil, &style, nil, nil, nil, nil, nil, nil, nil, nil, nil); businessErr == nil {
+		t.Fatal("expected unknown portrait selection to be rejected")
 	}
 }
 

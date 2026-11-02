@@ -1,0 +1,1 @@
+ALTER TABLE family_capacity_orders DROP COLUMN refund_window_minutes;

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -24,9 +25,21 @@ type ListQuery struct {
 	PageSize int
 }
 
+type QualityEligibility struct {
+	MemberCount          int64 `gorm:"column:member_count"`
+	RelationshipCount    int64 `gorm:"column:relationship_count"`
+	BoundMemberCount     int64 `gorm:"column:bound_member_count"`
+	ProfileCompleteCount int64 `gorm:"column:profile_complete_count"`
+	UnknownGenderCount   int64 `gorm:"column:unknown_gender_count"`
+	ProfileComplete      bool
+}
+
 type Repository interface {
 	WithTx(*gorm.DB) Repository
 	FindFamily(context.Context, uint64, bool) (*familymodel.Family, error)
+	EvaluateQualityEligibility(context.Context, uint64) (*QualityEligibility, error)
+	GetQualityEligibilityConfig(context.Context) (*publicmodel.QualityEligibilityConfig, error)
+	UpdateQualityEligibilityConfig(context.Context, map[string]any) error
 	UpdateFamilyPublicStatus(context.Context, uint64, map[string]any) error
 	FindPendingByFamily(context.Context, uint64) (*publicmodel.FamilyPublicApplication, error)
 	Create(context.Context, *publicmodel.FamilyPublicApplication) error
@@ -49,6 +62,55 @@ func (r *GormRepository) FindFamily(ctx context.Context, familyID uint64, lock b
 	}
 	err := query.Where("id = ? AND deleted_at IS NULL", familyID).First(&family).Error
 	return &family, err
+}
+
+func (r *GormRepository) EvaluateQualityEligibility(ctx context.Context, familyID uint64) (*QualityEligibility, error) {
+	var result QualityEligibility
+	if err := r.db.WithContext(ctx).Raw(`
+		SELECT
+			(SELECT COUNT(*) FROM family_members WHERE family_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL) AS member_count,
+			(SELECT COUNT(*) FROM family_relationships WHERE family_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL) AS relationship_count,
+			(SELECT COUNT(DISTINCT member_id) FROM family_member_user_links WHERE family_id = ? AND link_status = 'ACTIVE') AS bound_member_count,
+			(SELECT COUNT(*) FROM family_members WHERE family_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL AND gender <> 'UNKNOWN' AND birth_date IS NOT NULL) AS profile_complete_count,
+			(SELECT COUNT(*) FROM family_members WHERE family_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL AND gender = 'UNKNOWN') AS unknown_gender_count
+	`, familyID, familyID, familyID, familyID, familyID).Scan(&result).Error; err != nil {
+		return nil, err
+	}
+	var profile struct {
+		Description *string
+		RegionText  *string
+		NativePlace *string
+	}
+	if err := r.db.WithContext(ctx).Table("families").Select("description, region_text, native_place").Where("id = ? AND deleted_at IS NULL", familyID).Scan(&profile).Error; err != nil {
+		return nil, err
+	}
+	result.ProfileComplete = strings.TrimSpace(valueOrEmpty(profile.Description)) != "" &&
+		(strings.TrimSpace(valueOrEmpty(profile.RegionText)) != "" || strings.TrimSpace(valueOrEmpty(profile.NativePlace)) != "")
+	return &result, nil
+}
+
+func (r *GormRepository) GetQualityEligibilityConfig(ctx context.Context) (*publicmodel.QualityEligibilityConfig, error) {
+	var value publicmodel.QualityEligibilityConfig
+	err := r.db.WithContext(ctx).First(&value, 1).Error
+	return &value, err
+}
+
+func (r *GormRepository) UpdateQualityEligibilityConfig(ctx context.Context, values map[string]any) error {
+	result := r.db.WithContext(ctx).Model(&publicmodel.QualityEligibilityConfig{}).Where("id = 1").Updates(values)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func (r *GormRepository) UpdateFamilyPublicStatus(ctx context.Context, familyID uint64, values map[string]any) error {

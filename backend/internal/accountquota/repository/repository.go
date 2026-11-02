@@ -37,6 +37,8 @@ type Repository interface {
 	CountOwnedFamilies(ctx context.Context, userID uint64) (int, error)
 	CountJoinedFamilies(ctx context.Context, userID uint64) (int, error)
 	CountActiveMembers(ctx context.Context, familyID uint64) (int, error)
+	SumActivePurchasedMembers(ctx context.Context, familyID uint64) (int, error)
+	SumActiveInvitationRewardMembers(ctx context.Context, familyID uint64) (int, error)
 	FindFounderUserID(ctx context.Context, familyID uint64) (uint64, error)
 	ListJoinedUserIDsByFamily(ctx context.Context, familyID uint64) ([]uint64, error)
 	ListOwnedFamilyIDs(ctx context.Context, userID uint64) ([]uint64, error)
@@ -158,7 +160,7 @@ func (r *GormRepository) LockUser(ctx context.Context, userID uint64) (*usermode
 }
 
 func (r *GormRepository) ResolveTrustTier(user *usermodel.User) string {
-	if user != nil && user.PhoneLoginEnabled {
+	if user != nil && user.PhoneVerified {
 		return quotaenum.TrustTierPhoneBound
 	}
 	return quotaenum.TrustTierWechatOnly
@@ -224,6 +226,25 @@ func (r *GormRepository) CountActiveMembers(ctx context.Context, familyID uint64
 	return int(count), err
 }
 
+func (r *GormRepository) SumActivePurchasedMembers(ctx context.Context, familyID uint64) (int, error) {
+	var total int64
+	err := r.db.WithContext(ctx).
+		Table("family_capacity_entitlements").
+		Where("family_id = ? AND status = 'ACTIVE'", familyID).
+		Select("COALESCE(SUM(added_members), 0)").
+		Scan(&total).Error
+	return int(total), err
+}
+
+func (r *GormRepository) SumActiveInvitationRewardMembers(ctx context.Context, familyID uint64) (int, error) {
+	var count int
+	err := r.db.WithContext(ctx).Table("family_invitation_reward_grants").
+		Select("COALESCE(SUM(added_members), 0)").
+		Where("family_id = ? AND status = 'ACTIVE'", familyID).
+		Scan(&count).Error
+	return count, err
+}
+
 func (r *GormRepository) FindFounderUserID(ctx context.Context, familyID uint64) (uint64, error) {
 	var userID uint64
 	err := r.db.WithContext(ctx).
@@ -273,7 +294,7 @@ SELECT COUNT(*) FROM (
   JOIN family_member_user_links link ON link.user_id = u.id AND link.link_status = 'ACTIVE' AND link.family_role = 'FOUNDER'
   JOIN families family ON family.id = link.family_id AND family.deleted_at IS NULL AND family.status <> 'DISSOLVED'
   WHERE u.deleted_at IS NULL
-    AND ((? = 'PHONE_BOUND' AND u.phone_login_enabled = 1) OR (? = 'WECHAT_ONLY' AND u.phone_login_enabled = 0))
+    AND ((? = 'PHONE_BOUND' AND u.phone_verified = 1) OR (? = 'WECHAT_ONLY' AND u.phone_verified = 0))
   GROUP BY u.id
   HAVING COUNT(DISTINCT family.id) > ?
 ) t`, tier, tier, maxOwned).Scan(&count).Error
@@ -289,7 +310,7 @@ SELECT COUNT(*) FROM (
   JOIN family_member_user_links link ON link.user_id = u.id AND link.link_status = 'ACTIVE' AND link.family_role IN ('MEMBER', 'FAMILY_ADMIN')
   JOIN families family ON family.id = link.family_id AND family.deleted_at IS NULL AND family.status <> 'DISSOLVED'
   WHERE u.deleted_at IS NULL
-    AND ((? = 'PHONE_BOUND' AND u.phone_login_enabled = 1) OR (? = 'WECHAT_ONLY' AND u.phone_login_enabled = 0))
+    AND ((? = 'PHONE_BOUND' AND u.phone_verified = 1) OR (? = 'WECHAT_ONLY' AND u.phone_verified = 0))
   GROUP BY u.id
   HAVING COUNT(DISTINCT family.id) > ?
 ) t`, tier, tier, maxJoined).Scan(&count).Error
@@ -305,7 +326,7 @@ SELECT COUNT(DISTINCT user_id) FROM (
   JOIN family_member_user_links link ON link.user_id = u.id AND link.link_status = 'ACTIVE' AND link.family_role = 'FOUNDER'
   JOIN families family ON family.id = link.family_id AND family.deleted_at IS NULL AND family.status <> 'DISSOLVED'
   WHERE u.deleted_at IS NULL
-    AND ((? = 'PHONE_BOUND' AND u.phone_login_enabled = 1) OR (? = 'WECHAT_ONLY' AND u.phone_login_enabled = 0))
+    AND ((? = 'PHONE_BOUND' AND u.phone_verified = 1) OR (? = 'WECHAT_ONLY' AND u.phone_verified = 0))
   GROUP BY u.id
   HAVING COUNT(DISTINCT family.id) > ?
   UNION
@@ -314,7 +335,7 @@ SELECT COUNT(DISTINCT user_id) FROM (
   JOIN family_member_user_links link ON link.user_id = u.id AND link.link_status = 'ACTIVE' AND link.family_role IN ('MEMBER', 'FAMILY_ADMIN')
   JOIN families family ON family.id = link.family_id AND family.deleted_at IS NULL AND family.status <> 'DISSOLVED'
   WHERE u.deleted_at IS NULL
-    AND ((? = 'PHONE_BOUND' AND u.phone_login_enabled = 1) OR (? = 'WECHAT_ONLY' AND u.phone_login_enabled = 0))
+    AND ((? = 'PHONE_BOUND' AND u.phone_verified = 1) OR (? = 'WECHAT_ONLY' AND u.phone_verified = 0))
   GROUP BY u.id
   HAVING COUNT(DISTINCT family.id) > ?
 ) affected_users`, tier, tier, maxOwned, tier, tier, maxJoined).Scan(&count).Error
@@ -330,7 +351,7 @@ SELECT COUNT(*) FROM (
   JOIN family_member_user_links founder_link ON founder_link.family_id = family.id AND founder_link.link_status = 'ACTIVE' AND founder_link.family_role = 'FOUNDER'
   JOIN users founder_user ON founder_user.id = founder_link.user_id AND founder_user.deleted_at IS NULL
   WHERE family.deleted_at IS NULL AND family.status <> 'DISSOLVED'
-    AND ((? = 'PHONE_BOUND' AND founder_user.phone_login_enabled = 1) OR (? = 'WECHAT_ONLY' AND founder_user.phone_login_enabled = 0))
+    AND ((? = 'PHONE_BOUND' AND founder_user.phone_verified = 1) OR (? = 'WECHAT_ONLY' AND founder_user.phone_verified = 0))
   GROUP BY family.id
   HAVING (
     SELECT COUNT(*) FROM family_members m

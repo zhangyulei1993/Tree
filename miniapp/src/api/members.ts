@@ -6,6 +6,14 @@ import type {
   UpdateMemberInput
 } from '@/types/api'
 
+export type RecoverableMember = {
+  memberId: number
+  name: string
+  deletedAt: string
+  recoverableUntil: string
+  deleteReason?: string | null
+}
+
 let mockMembers: FamilyMember[] = treeNodes.map((node, index) => ({
   memberId: index + 1,
   familyId: 1,
@@ -23,8 +31,55 @@ let mockMembers: FamilyMember[] = treeNodes.map((node, index) => ({
   updatedAt: new Date(0).toISOString()
 }))
 
+const mockCreatedFamiliesKey = 'tree_miniapp_mock_created_families'
+
+function mockCreatedFamily(familyId: number | string): {
+  familySurname?: string
+  familyName?: string
+  founderName?: string
+  founderGender?: FamilyMember['gender']
+  founderBirthYear?: number
+} | null {
+  try {
+    const stored = uni.getStorageSync(mockCreatedFamiliesKey)
+    if (!stored) return null
+    const parsed = typeof stored === 'string' ? JSON.parse(stored) : stored
+    if (!Array.isArray(parsed)) return null
+    return parsed.find((item) => String(item.id) === String(familyId)) || null
+  } catch {
+    return null
+  }
+}
+
+function mockCreatedFamilyMembers(familyId: number | string): FamilyMember[] {
+  const family = mockCreatedFamily(familyId)
+  if (!family) return []
+  const now = new Date().toISOString()
+  const surname = family.familySurname || family.familyName?.slice(0, 1) || '我'
+  return [
+    {
+      memberId: 1,
+      familyId: Number(familyId) || 1,
+      name: family.founderName || `${surname}本人`,
+      gender: family.founderGender || 'UNKNOWN',
+      birthYear: family.founderBirthYear,
+      isAlive: true,
+      description: '创建家庭时自动生成的本人节点',
+      memorialVisible: true,
+      status: 'ACTIVE',
+      userBindingPolicy: 'OPTIONAL',
+      boundUserId: 1,
+      boundFamilyRole: 'FOUNDER',
+      createdAt: now,
+      updatedAt: now
+    }
+  ]
+}
+
 export async function listFamilyMembers(familyId: number | string): Promise<FamilyMember[]> {
   if (!isRealApiMode) {
+    const createdMembers = mockCreatedFamilyMembers(familyId)
+    if (createdMembers.length > 0) return createdMembers
     return mockMembers.map((member) => ({ ...member, familyId: Number(familyId) || 1 }))
   }
   return request<FamilyMember[]>(`/families/${familyId}/members`)
@@ -98,6 +153,16 @@ export async function updateFamilyMember(
   })
 }
 
+export function confirmFamilyMemberProfile(
+  familyId: number | string,
+  memberId: number | string,
+  input: { status: 'SELF_CONFIRMED' | 'FAMILY_CONFIRMED' | 'NEEDS_REVIEW'; expectedRevision?: number }
+) {
+  return request<FamilyMember, typeof input>(`/families/${familyId}/members/${memberId}/profile-confirmation`, {
+    method: 'POST', data: input
+  })
+}
+
 export async function deleteFamilyMember(
   familyId: number | string,
   memberId: number | string,
@@ -111,6 +176,18 @@ export async function deleteFamilyMember(
     `/families/${familyId}/members/${memberId}`,
     { method: 'DELETE', data: reason ? { reason } : {} }
   )
+}
+
+export function listRecoverableFamilyMembers(familyId: number | string) {
+  return request<RecoverableMember[]>(`/families/${familyId}/recoverable-members`)
+}
+
+export function restoreFamilyMember(familyId: number | string, memberId: number | string) {
+  return request<{ status: string }>(`/families/${familyId}/members/${memberId}/restore`, { method: 'POST' })
+}
+
+export function discardFamilyMemberRecovery(familyId: number | string, memberId: number | string) {
+  return request<{ status: string }>(`/families/${familyId}/members/${memberId}/discard-recovery`, { method: 'POST' })
 }
 
 export async function unbindFamilyMemberUser(

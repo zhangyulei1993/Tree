@@ -44,6 +44,39 @@ func (h *MemberHandler) List(ctx *gin.Context) {
 	writeResult(ctx, http.StatusOK, result, businessErr)
 }
 
+func (h *MemberHandler) ListRecoverable(ctx *gin.Context) {
+	actorID, familyID, ok := actorAndFamily(ctx)
+	if !ok {
+		return
+	}
+	result, businessErr := h.service.ListRecoverable(ctx.Request.Context(), actorID, familyID)
+	writeResult(ctx, http.StatusOK, result, businessErr)
+}
+
+func (h *MemberHandler) Restore(ctx *gin.Context) {
+	actorID, familyID, memberID, ok := actorFamilyMember(ctx)
+	if !ok {
+		return
+	}
+	if businessErr := h.service.Restore(ctx.Request.Context(), actorID, familyID, memberID, audit(ctx)); businessErr != nil {
+		writeError(ctx, businessErr)
+		return
+	}
+	response.OK(ctx, gin.H{"status": "ok"})
+}
+
+func (h *MemberHandler) DiscardRecovery(ctx *gin.Context) {
+	actorID, familyID, memberID, ok := actorFamilyMember(ctx)
+	if !ok {
+		return
+	}
+	if businessErr := h.service.DiscardRecovery(ctx.Request.Context(), actorID, familyID, memberID, audit(ctx)); businessErr != nil {
+		writeError(ctx, businessErr)
+		return
+	}
+	response.OK(ctx, gin.H{"status": "ok"})
+}
+
 func (h *MemberHandler) Detail(ctx *gin.Context) {
 	actorID, familyID, memberID, ok := actorFamilyMember(ctx)
 	if !ok {
@@ -64,6 +97,20 @@ func (h *MemberHandler) Update(ctx *gin.Context) {
 		return
 	}
 	result, businessErr := h.service.Update(ctx.Request.Context(), actorID, familyID, memberID, req, audit(ctx))
+	writeResult(ctx, http.StatusOK, result, businessErr)
+}
+
+func (h *MemberHandler) ConfirmProfile(ctx *gin.Context) {
+	actorID, familyID, memberID, ok := actorFamilyMember(ctx)
+	if !ok {
+		return
+	}
+	var req dto.ConfirmMemberProfileRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	result, businessErr := h.service.ConfirmProfile(ctx.Request.Context(), actorID, familyID, memberID, req, audit(ctx))
 	writeResult(ctx, http.StatusOK, result, businessErr)
 }
 

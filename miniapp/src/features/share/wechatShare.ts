@@ -18,7 +18,7 @@ export const DEFAULT_MINI_PROGRAM_SHARE_IMAGE = `${shareImageBaseURL}/static/con
 
 export const INVITATION_SHARE_IMAGE = `${shareImageBaseURL}/static/content/share/family-invitation.jpg`
 
-type ShareConfigKey = 'HOME' | 'PUBLIC_FAMILY' | 'INVITATION_NODE' | 'INVITATION_PENDING_MEMBER'
+type ShareConfigKey = 'HOME' | 'PUBLIC_FAMILY' | 'PUBLIC_FAMILY_TIMELINE' | 'INVITATION_NODE' | 'INVITATION_REWARD' | 'INVITATION_DETAIL' | 'CONTENT_ARTICLE'
 
 interface RuntimeShareConfig {
   configKey: ShareConfigKey
@@ -28,9 +28,12 @@ interface RuntimeShareConfig {
 
 const defaultShareConfigs: Record<ShareConfigKey, RuntimeShareConfig> = {
   HOME: { configKey: 'HOME', titleTemplate: MINI_PROGRAM_SHARE_TITLE, imageUrl: DEFAULT_MINI_PROGRAM_SHARE_IMAGE },
-  PUBLIC_FAMILY: { configKey: 'PUBLIC_FAMILY', titleTemplate: '{{familyName}}｜公开家庭主页', imageUrl: DEFAULT_MINI_PROGRAM_SHARE_IMAGE },
+  PUBLIC_FAMILY: { configKey: 'PUBLIC_FAMILY', titleTemplate: '{{familyName}}｜优质家庭案例', imageUrl: DEFAULT_MINI_PROGRAM_SHARE_IMAGE },
+  PUBLIC_FAMILY_TIMELINE: { configKey: 'PUBLIC_FAMILY_TIMELINE', titleTemplate: '{{familyName}}｜优质家庭案例', imageUrl: DEFAULT_MINI_PROGRAM_SHARE_IMAGE },
   INVITATION_NODE: { configKey: 'INVITATION_NODE', titleTemplate: '{{familyName}}邀请你确认「{{targetMemberName}}」身份并加入家庭树', imageUrl: INVITATION_SHARE_IMAGE },
-  INVITATION_PENDING_MEMBER: { configKey: 'INVITATION_PENDING_MEMBER', titleTemplate: '{{familyName}}邀请你加入家庭（{{targetMemberName}}）', imageUrl: INVITATION_SHARE_IMAGE }
+  INVITATION_REWARD: { configKey: 'INVITATION_REWARD', titleTemplate: '邀请你帮{{familyName}}助力解锁名额', imageUrl: `${shareImageBaseURL}/static/content/share/family-invitation-v2.jpg` },
+  INVITATION_DETAIL: { configKey: 'INVITATION_DETAIL', titleTemplate: '{{familyName}}邀请你确认家庭成员身份', imageUrl: `${shareImageBaseURL}/static/content/share/family-invitation-v2.jpg` },
+  CONTENT_ARTICLE: { configKey: 'CONTENT_ARTICLE', titleTemplate: '{{articleTitle}}｜家脉阅读', imageUrl: DEFAULT_MINI_PROGRAM_SHARE_IMAGE }
 }
 
 const runtimeShareConfigs = new Map<ShareConfigKey, RuntimeShareConfig>()
@@ -71,7 +74,7 @@ function shareConfig(key: ShareConfigKey) {
 }
 
 function renderTitle(template: string, values: Record<string, string>) {
-  return template.replace(/\{\{(familyName|targetMemberName)\}\}/g, (_, key: string) => values[key] || '')
+  return template.replace(/\{\{(familyName|targetMemberName|articleTitle)\}\}/g, (_, key: string) => values[key] || '')
 }
 
 export interface WechatSharePayload {
@@ -100,12 +103,12 @@ export function buildPublicFamilySharePath(familyId: string | number): string {
   return `/pages/family/public-profile?familyId=${encodeURIComponent(normalized)}`
 }
 
-export function resolveArticleShareImage(coverUrl?: string | null): string {
+export function resolveArticleShareImage(coverUrl?: string | null, fallback = DEFAULT_MINI_PROGRAM_SHARE_IMAGE): string {
   const trimmed = coverUrl?.trim()
   if (trimmed && /^https:\/\//i.test(trimmed)) {
     return trimmed
   }
-  return DEFAULT_MINI_PROGRAM_SHARE_IMAGE
+  return fallback
 }
 
 export function buildHomeSharePayload(): WechatSharePayload {
@@ -123,10 +126,11 @@ export function buildArticleSharePayload(input: {
   coverUrl?: string | null
 }): WechatSharePayload {
   const title = input.title.trim() || '阅读精选'
+  const config = shareConfig('CONTENT_ARTICLE')
   return {
-    title,
+    title: renderTitle(config.titleTemplate, { articleTitle: title }),
     path: buildContentDetailSharePath(input.id),
-    imageUrl: resolveArticleShareImage(input.coverUrl)
+    imageUrl: resolveArticleShareImage(input.coverUrl, config.imageUrl)
   }
 }
 
@@ -134,7 +138,7 @@ export function buildPublicFamilySharePayload(input: {
   id: string | number
   familyName: string
 }): WechatSharePayload {
-  const familyName = input.familyName.trim() || '公开家庭'
+  const familyName = input.familyName.trim() || '优质家庭案例'
   const config = shareConfig('PUBLIC_FAMILY')
   return {
     title: renderTitle(config.titleTemplate, { familyName }),
@@ -147,11 +151,12 @@ export function buildPublicFamilyTimelinePayload(input: {
   id: string | number
   familyName: string
 }): WechatTimelineSharePayload {
-  const familyName = input.familyName.trim() || '公开家庭'
+  const familyName = input.familyName.trim() || '优质家庭案例'
+  const config = shareConfig('PUBLIC_FAMILY_TIMELINE')
   return {
-    title: `${familyName}｜公开家庭主页`,
+    title: renderTitle(config.titleTemplate, { familyName }),
     query: `familyId=${encodeURIComponent(String(input.id).trim())}`,
-    imageUrl: DEFAULT_MINI_PROGRAM_SHARE_IMAGE
+    imageUrl: config.imageUrl
   }
 }
 
@@ -161,10 +166,37 @@ export function buildInviteSharePayload(input: {
   targetMemberName: string
   inviteType?: string
 }): WechatSharePayload {
-  const config = shareConfig(input.inviteType === 'JOIN_FAMILY_PENDING_MEMBER' ? 'INVITATION_PENDING_MEMBER' : 'INVITATION_NODE')
+  const config = shareConfig('INVITATION_NODE')
   return {
     title: renderTitle(config.titleTemplate, { familyName: input.familyName.trim(), targetMemberName: input.targetMemberName.trim() }),
     path: buildInviteSharePath(input.inviteToken),
+    imageUrl: config.imageUrl
+  }
+}
+
+export function buildInvitationDetailSharePayload(input: {
+  inviteToken: string
+  familyName: string
+  status?: string
+}): WechatSharePayload {
+  const config = shareConfig('INVITATION_DETAIL')
+  const familyName = input.familyName.trim() || '家庭'
+  return {
+    title: renderTitle(config.titleTemplate, { familyName }),
+    path: buildInviteSharePath(input.inviteToken),
+    imageUrl: config.imageUrl
+  }
+}
+
+export function buildInvitationRewardSharePayload(input: {
+  familyId: string | number
+  referralCode: string
+  familyName?: string
+}): WechatSharePayload {
+  const config = shareConfig('INVITATION_REWARD')
+  return {
+    title: renderTitle(config.titleTemplate, { familyName: input.familyName?.trim() || '家庭' }),
+    path: `/pages/family/invitation-reward?familyId=${encodeURIComponent(String(input.familyId))}&referralCode=${encodeURIComponent(input.referralCode)}`,
     imageUrl: config.imageUrl
   }
 }

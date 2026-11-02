@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,12 +12,23 @@ import (
 	"tree/backend/internal/common/response"
 )
 
+type UserAuthState struct {
+	Status        string
+	PhoneVerified bool
+}
+
+type UserAuthStateLookup func(context.Context, uint64) (UserAuthState, error)
+
 func UserAuth(manager *commonjwt.Manager, blacklist redis.TokenBlacklist) gin.HandlerFunc {
-	return auth(manager, blacklist, commonjwt.TokenTypeUser)
+	return auth(manager, blacklist, commonjwt.TokenTypeUser, nil)
+}
+
+func UserAuthWithStateLookup(manager *commonjwt.Manager, blacklist redis.TokenBlacklist, lookup UserAuthStateLookup) gin.HandlerFunc {
+	return auth(manager, blacklist, commonjwt.TokenTypeUser, lookup)
 }
 
 func AdminAuth(manager *commonjwt.Manager, blacklist redis.TokenBlacklist) gin.HandlerFunc {
-	return auth(manager, blacklist, commonjwt.TokenTypeAdmin)
+	return auth(manager, blacklist, commonjwt.TokenTypeAdmin, nil)
 }
 
 func RequirePhoneVerified() gin.HandlerFunc {
@@ -30,7 +42,7 @@ func RequirePhoneVerified() gin.HandlerFunc {
 	}
 }
 
-func auth(manager *commonjwt.Manager, blacklist redis.TokenBlacklist, tokenType commonjwt.TokenType) gin.HandlerFunc {
+func auth(manager *commonjwt.Manager, blacklist redis.TokenBlacklist, tokenType commonjwt.TokenType, lookup UserAuthStateLookup) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		token, err := commonjwt.BearerToken(ctx.GetHeader("Authorization"))
 		if err != nil {
@@ -63,9 +75,23 @@ func auth(manager *commonjwt.Manager, blacklist redis.TokenBlacklist, tokenType 
 		ctx.Set(ContextJWTExpiresAt, claims.ExpiresAt)
 		switch tokenType {
 		case commonjwt.TokenTypeUser:
+			if lookup != nil {
+				state, err := lookup(ctx.Request.Context(), claims.Subject)
+				if err != nil {
+					response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeLoginExpired)
+					return
+				}
+				if state.Status != "ACTIVE" && state.Status != "PENDING_BIND" {
+					response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeLoginDisabled)
+					return
+				}
+				ctx.Set(ContextPhoneVerified, state.PhoneVerified)
+				ctx.Set(ContextUserStatus, state.Status)
+			} else {
+				ctx.Set(ContextPhoneVerified, false)
+			}
 			ctx.Set(ContextUserID, claims.Subject)
-			// TODO(M5): load user status and phone_verified from database/cache.
-			ctx.Set(ContextPhoneVerified, false)
+			ctx.Set(ContextUserRole, claims.Role)
 		case commonjwt.TokenTypeAdmin:
 			ctx.Set(ContextAdminID, claims.Subject)
 			ctx.Set(ContextAdminRole, claims.Role)

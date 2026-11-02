@@ -16,7 +16,7 @@ M14 管理后台 UI 静态原型。
 
 ```bash
 pnpm install
-pnpm dev --host 0.0.0.0 --port 5174
+pnpm dev:local
 ```
 
 访问：
@@ -24,6 +24,16 @@ pnpm dev --host 0.0.0.0 --port 5174
 ```text
 http://127.0.0.1:5174/admin/login
 ```
+
+## API 地址配置
+
+| 场景 | 命令 | 配置 |
+|------|------|------|
+| 本地后端 | `pnpm dev:local` / `pnpm dev` | `.env.development`：`/api` → `http://127.0.0.1:8080` |
+| staging 后端 | `pnpm dev:staging` | `.env.staging`：`/api` → `https://tapi.bigbigboy.cn` |
+| 部署构建 | `pnpm build:real` / `pnpm build:staging` | `VITE_API_BASE_URL=/api`，由 Nginx 反向代理 |
+
+切后台接口时只换命令或 `.env.*`，不需要改 `src/api/client.ts`。
 
 ## 构建方式
 

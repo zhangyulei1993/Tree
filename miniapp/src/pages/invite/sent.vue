@@ -1,6 +1,6 @@
 <template>
   <view class="archive-page sent-page">
-    <MiniBackHome />
+    <MiniBackHome :return-url="returnUrl" :return-label="returnLabel" />
 
     <view v-if="familyName" class="sent-head archive-page-head">
       <view>
@@ -13,135 +13,132 @@
 
     <view v-if="familyName" class="sent-context">
       <text class="archive-chip">{{ familyRoleLabel }}</text>
-      <text class="context-back" @click="openFamilyOverview">返回详情</text>
+      <text class="context-back" @click="openFamilyOverview">{{ returnLabel }}</text>
     </view>
 
-    <template v-if="shareResult">
-      <view class="share-panel archive-form-panel">
-        <view class="share-hero">
-          <view class="share-hero-seal">邀</view>
-          <view class="share-hero-copy">
-            <text class="share-hero-kicker">INVITATION READY</text>
-            <text class="share-hero-title">邀请已准备好</text>
-            <text class="share-hero-desc">确认信息无误后，发送给对应的家人。</text>
-          </view>
-        </view>
-        <view class="share-panel-head">
-          <view class="archive-section-head share-section-head">
-            <text class="archive-section-title">待发送邀请</text>
-            <text class="archive-section-subtitle">
-              {{ shareInvitationSubtitle }}
-            </text>
-          </view>
-          <text class="archive-status-tag is-cinnabar">待接受</text>
-        </view>
+    <MiniNotice v-if="guideMode && familyName" tone="security" title="最后一步：完成邀请">
+      {{ showPhoneBindGate ? '绑定手机号后即可发起邀请。' : '生成邀请后即可完成引导。' }}
+    </MiniNotice>
 
-        <MiniNotice tone="security" title="新邀请已生成">
-          对方点开后可先查看完整邀请信息，再决定是否接受。此前生成的邀请链接已失效。
-        </MiniNotice>
-
-        <view class="share-fields archive-list">
-          <view class="archive-row share-field-row">
-            <text class="share-field-label">邀请加入</text>
-            <text class="share-field-value">{{ shareResult.invitation.familyName }}</text>
-          </view>
-          <view class="archive-row share-field-row">
-            <text class="share-field-label">{{ isPendingMemberInvitation(shareResult.invitation) ? '成员身份' : '确认身份' }}</text>
-            <text class="share-field-value">{{ inviteTargetText(shareResult.invitation) }}</text>
-          </view>
-          <view class="archive-row share-field-row">
-            <text class="share-field-label">邀请方式</text>
-            <text class="share-field-value">{{ inviteChannelText(shareResult.invitation.inviteChannel) }}</text>
-          </view>
-          <view class="archive-row share-field-row">
-            <text class="share-field-label">链接状态</text>
-            <text class="share-field-value share-link-active">新生成 · 待分享</text>
-          </view>
-          <view class="archive-row share-field-row">
-            <text class="share-field-label">有效期至</text>
-            <text class="share-field-value">{{ formatDate(shareResult.invitation.expiredAt) }}</text>
-          </view>
+    <view v-if="activeMemberInvitation" class="share-panel archive-form-panel">
+      <view class="share-panel-head">
+        <view class="archive-section-head share-section-head">
+          <text class="archive-section-title">当前节点已有邀请</text>
+          <text class="archive-section-subtitle">
+            {{ shareInvitationSubtitle }} · 至 {{ formatDate(activeMemberInvitation.expiredAt) }}
+          </text>
         </view>
-
-        <view v-if="shareResult.invitation.inviteMessage" class="share-message">
-          <text class="share-message-label">给对方的说明</text>
-          <text class="share-message-content">{{ shareResult.invitation.inviteMessage }}</text>
-        </view>
-
-        <view class="share-actions">
-          <!-- #ifdef MP-WEIXIN -->
-          <button class="wechat-share-button wechat-share-button--compact" open-type="share">发送给微信好友</button>
-          <!-- #endif -->
-          <MiniButton size="sm" variant="secondary" @click="copyInviteLink">复制邀请链接</MiniButton>
-          <MiniButton size="sm" variant="ghost" @click="clearShareResult">返回邀请列表</MiniButton>
-        </view>
+        <text class="archive-status-tag is-cinnabar">待接受</text>
       </view>
-    </template>
 
-    <template v-else>
-      <view v-if="familyName && memberId" class="member-invite-panel archive-form-panel">
-        <view class="archive-section-head">
-          <text class="archive-section-title">邀请本人绑定节点</text>
-          <text class="archive-section-subtitle">对方接受后会加入家庭，并成为这个家庭树节点本人</text>
-        </view>
-        <view class="archive-list member-invite-summary">
-          <view class="archive-row share-field-row">
-            <text class="share-field-label">目标节点</text>
-            <text class="share-field-value">{{ memberName || '未命名成员' }}</text>
-          </view>
-        </view>
-        <MiniNotice tone="security" title="接受后的结果">
-          对方会绑定到“{{ memberName || '该成员' }}”节点；不会新增其他成员节点。
-        </MiniNotice>
-        <textarea
-          v-model.trim="memberInviteMessage"
-          class="tree-textarea family-invite-message"
-          maxlength="300"
-          placeholder="给对方的说明（可选）"
-        />
+      <MiniNotice v-if="!canShareCurrentInvitation" tone="security" title="邀请仍有效，但本机没有原链接">
+        邀请记录未丢失。出于安全考虑，链接只保存在首次生成的设备；如需从当前设备发送，请重新生成。重新生成后旧链接会失效。
+      </MiniNotice>
+
+      <view class="share-actions">
+        <!-- #ifdef MP-WEIXIN -->
+        <button v-if="canShareCurrentInvitation" class="wechat-share-button wechat-share-button--compact" open-type="share">发送给微信好友</button>
+        <!-- #endif -->
         <MiniButton
           size="sm"
-          :loading="actingType === 'create-member'"
-          :disabled="Boolean(actingId) || actingType === 'create-member'"
-          @click="createMemberBindingInvitation"
+          :loading="actingId === activeMemberInvitation.invitationId && actingType === 'regenerate'"
+          :disabled="Boolean(actingId)"
+          @click="confirmRegenerate(activeMemberInvitation)"
         >
-          生成节点绑定邀请
+          {{ canShareCurrentInvitation ? '重新生成邀请' : '重新生成并发送' }}
         </MiniButton>
-      </view>
-
-      <view v-if="familyName && !isNodeInviteMode" class="family-invite-panel archive-form-panel">
-        <view class="archive-section-head">
-          <text class="archive-section-title">邀请加入家庭</text>
-          <text class="archive-section-subtitle">适合确认对方属于本家庭，但暂不确认具体家庭树节点</text>
-        </view>
-        <MiniNotice tone="security" title="接受后的结果">
-          对方会加入家庭；接受前不会生成成员，接受后会按身份标签新增一位待接入成员，后续再确认分支。
-        </MiniNotice>
-        <input
-          v-model.trim="pendingMemberLabel"
-          class="tree-input pending-member-label"
-          maxlength="40"
-          placeholder="待确认身份标签，如：二房长子（待确认）"
-        />
-        <textarea
-          v-model.trim="familyInviteMessage"
-          class="tree-textarea family-invite-message"
-          maxlength="300"
-          placeholder="给对方的说明（可选）"
-        />
-        <MiniNotice tone="security" title="身份待确认">
-          对方接受前不会出现在成员表；接受后会以你填写的身份标签进入家庭，便于后续区分多个待确认成员。
-        </MiniNotice>
         <MiniButton
           size="sm"
-          :loading="actingType === 'create-family'"
-          :disabled="Boolean(actingId) || actingType === 'create-family'"
-          @click="createPendingFamilyInvitation"
+          variant="secondary"
+          :loading="actingId === activeMemberInvitation.invitationId && actingType === 'cancel'"
+          :disabled="Boolean(actingId)"
+          @click="confirmCancel(activeMemberInvitation)"
         >
-          生成加入家庭邀请
+          取消邀请
+        </MiniButton>
+        <MiniButton size="sm" variant="ghost" @click="toggleInvitationHistory">
+          {{ showHistory ? '收起邀请记录' : `查看邀请记录（${invitations.length}）` }}
         </MiniButton>
       </view>
+    </view>
 
+    <view v-else-if="familyName && memberId" class="member-invite-panel archive-form-panel">
+      <view class="archive-section-head">
+        <text class="archive-section-title">生成节点邀请</text>
+        <text class="archive-section-subtitle">对方接受后绑定该节点</text>
+      </view>
+      <view v-if="showPhoneBindGate" class="invite-phone-bind">
+        <MiniNotice tone="security" title="需要先绑定手机号">
+          绑定手机号后即可生成邀请。
+        </MiniNotice>
+        <!-- #ifdef MP-WEIXIN -->
+        <button
+          class="wechat-phone-bind-button"
+          open-type="getPhoneNumber"
+          :disabled="bindingWechatPhone"
+          @getphonenumber="bindWithWechatPhone"
+        >
+          {{ bindingWechatPhone ? '绑定中...' : '绑定微信手机号' }}
+        </button>
+        <!-- #endif -->
+      </view>
+      <view class="archive-list member-invite-summary">
+        <view class="archive-row share-field-row">
+          <text class="share-field-label">目标节点</text>
+          <text class="share-field-value">{{ memberName || '未命名成员' }}</text>
+        </view>
+      </view>
+      <textarea
+        v-model.trim="memberInviteMessage"
+        class="tree-textarea family-invite-message"
+        maxlength="300"
+        placeholder="给对方的说明（可选）"
+      />
+      <MiniButton
+        size="sm"
+        :loading="actingType === 'create-member'"
+        :disabled="showPhoneBindGate || Boolean(actingId) || actingType === 'create-member'"
+        @click="createMemberBindingInvitation"
+      >
+        生成邀请
+      </MiniButton>
+      <MiniButton v-if="invitations.length > 0" size="sm" variant="ghost" class="history-trigger" @click="toggleInvitationHistory">
+        {{ showHistory ? '收起邀请记录' : `查看邀请记录（${invitations.length}）` }}
+      </MiniButton>
+    </view>
+
+    <view v-if="familyName && !memberId" class="archive-segment-tabs invitation-tabs">
+      <view class="archive-segment-tab" :class="{ active: inviteTab === 'INVITABLE' }" @tap="inviteTab = 'INVITABLE'">可邀请</view>
+      <view class="archive-segment-tab" :class="{ active: inviteTab === 'PENDING', 'has-pending': pendingCount > 0 }" @tap="inviteTab = 'PENDING'">待处理 {{ pendingCount ? `(${pendingCount})` : '' }}</view>
+      <view class="archive-segment-tab" :class="{ active: inviteTab === 'HISTORY' }" @tap="inviteTab = 'HISTORY'">历史记录</view>
+    </view>
+
+    <view v-if="!memberId && inviteTab === 'INVITABLE' && availableInviteMembers.length" class="member-picker archive-form-panel">
+      <view class="archive-section-head">
+        <text class="archive-section-title">选择成员发起邀请</text>
+        <text class="archive-section-subtitle">仅展示尚未绑定账号的成员节点</text>
+      </view>
+      <view class="archive-list">
+        <view
+          v-for="member in availableInviteMembers"
+          :key="member.memberId"
+          class="archive-row"
+          @tap="openMemberInvitation(member.memberId, member.name)"
+        >
+          <view class="archive-row-main">
+            <text class="archive-row-title">{{ member.name || '未命名成员' }}</text>
+            <text class="archive-row-desc">{{ member.gender === 'MALE' ? '男性' : member.gender === 'FEMALE' ? '女性' : '性别待确认' }} · 发起本人邀请</text>
+          </view>
+          <text class="archive-arrow">›</text>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="!memberId && inviteTab === 'INVITABLE' && !loading && !availableInviteMembers.length" class="sent-state archive-form-panel">
+      <MiniEmptyState symbol="邀" title="暂无可邀请成员" description="成员均已绑定或已有待处理邀请。" />
+    </view>
+
+    <template v-if="memberId ? showHistory : inviteTab !== 'INVITABLE'">
       <view v-if="loading && invitations.length === 0" class="sent-state archive-form-panel">
         <MiniEmptyState symbol="…" title="正在加载" description="正在加载发出的家庭邀请..." />
       </view>
@@ -156,13 +153,11 @@
         />
       </view>
 
-      <view v-else-if="invitations.length === 0" class="sent-state archive-form-panel">
+      <view v-else-if="visibleInvitationGroups.length === 0" class="sent-state archive-form-panel">
         <MiniEmptyState
           symbol="邀"
-          title="暂无发出的家庭邀请"
-          description="此处用于邀请加入家庭；如需绑定指定家庭树节点，请前往成员表或点击未绑定节点。"
-          action-text="前往成员表绑定节点"
-          @action="openMembers"
+          :title="inviteTab === 'PENDING' ? '暂无待处理邀请' : '暂无历史邀请记录'"
+          :description="inviteTab === 'PENDING' ? '当前没有等待对方接受的邀请。' : '邀请被接受、拒绝、取消或失效后会显示在这里。'"
         />
       </view>
 
@@ -174,7 +169,7 @@
           </MiniButton>
         </view>
 
-        <view v-for="group in invitationGroups" :key="group.key" class="sent-group archive-form-panel">
+        <view v-for="group in visibleInvitationGroups" :key="group.key" class="sent-group archive-form-panel">
           <view class="archive-section-head">
             <text class="archive-section-title">{{ group.title }}</text>
             <text class="archive-section-subtitle">{{ group.subtitle }}</text>
@@ -184,7 +179,8 @@
               v-for="item in group.items"
               :key="item.invitationId"
               class="sent-item"
-              :class="{ actionable: canRegenerate(item) }"
+              :class="{ actionable: canRegenerate(item), reopenable: displayStatus(item) === 'PENDING' }"
+              @tap="openInvitationForSending(item)"
             >
               <view class="sent-item-head">
                 <view class="archive-row-main">
@@ -199,11 +195,11 @@
               <view class="sent-meta">
                 <text>邀请方式：{{ inviteChannelText(item.inviteChannel) }}</text>
                 <text>链接状态：{{ inviteLinkStatusText(item) }}</text>
-                <text class="sent-meta-weak">有效期至：{{ formatDate(item.expiredAt) }}</text>
-                <text class="sent-meta-weak">创建时间：{{ formatDate(item.createdAt) }}</text>
+                <text class="sent-meta-weak">至 {{ formatDate(item.expiredAt) }}</text>
+                <text class="sent-meta-weak">创建于 {{ formatDate(item.createdAt) }}</text>
               </view>
 
-              <view v-if="canRegenerate(item)" class="sent-actions">
+              <view v-if="canRegenerate(item) && displayStatus(item) !== 'PENDING'" class="sent-actions">
                 <MiniButton
                   size="sm"
                   :loading="actingId === item.invitationId && actingType === 'regenerate'"
@@ -227,9 +223,10 @@
           </view>
         </view>
       </template>
-
-      <text v-if="operationError" class="tree-field-error sent-error">{{ operationError }}</text>
     </template>
+
+    <text v-if="operationError" class="tree-field-error sent-error">{{ operationError }}</text>
+
   </view>
 </template>
 
@@ -242,56 +239,92 @@ import { getFamilyDetail } from '@/api/families'
 import {
   cancelInvitation,
   createInvitation,
-  createFamilyInvitation,
   listFamilyInvitations,
   regenerateInvitation
 } from '@/api/invitations'
+import { listFamilyMembers } from '@/api/members'
 import { buildHomeSharePayload, buildInviteSharePayload, loadShareConfigs } from '@/features/share/wechatShare'
+import { requestSubscribeMessages } from '@/features/notifications/subscribe'
 import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import { invitationStatusText } from '@/components/base/formatStatus'
 import MiniNotice from '@/components/base/MiniNotice.vue'
+import { markNewUserGuideMilestone } from '@/features/onboarding/newUserGuide'
 import { useSessionStore } from '@/stores/session'
-import type { CreatedInvitation, Invitation } from '@/types/api'
-import { optionalText, validateTextField, validateTextFields } from '@/utils/inputValidation'
+import type { CreatedInvitation, FamilyMember, Invitation } from '@/types/api'
+import { optionalText, validateTextFields } from '@/utils/inputValidation'
 
 const session = useSessionStore()
 const familyId = ref('')
+const returnTo = ref('')
 const familyName = ref('')
 const familySurname = ref('')
 const familyRole = ref('')
 const inviteMode = ref('')
 const memberId = ref('')
 const memberName = ref('')
+const guideMode = ref(false)
 const invitations = ref<Invitation[]>([])
+const familyMembers = ref<FamilyMember[]>([])
 const loading = ref(false)
 const loadError = ref('')
 const operationError = ref('')
 const actingId = ref<number | string | null>(null)
-const actingType = ref<'' | 'cancel' | 'regenerate' | 'create-family' | 'create-member'>('')
+const actingType = ref<'' | 'cancel' | 'regenerate' | 'create-member'>('')
+const bindingWechatPhone = ref(false)
 const shareResult = ref<CreatedInvitation | null>(null)
-const familyInviteMessage = ref('')
 const memberInviteMessage = ref('')
-const pendingMemberLabel = ref('')
+const showHistory = ref(false)
+const inviteTab = ref<'INVITABLE' | 'PENDING' | 'HISTORY'>('INVITABLE')
 const familyRoleLabel = computed(() => (familyRole.value === 'FOUNDER' ? '创建者' : '管理员'))
+const returnUrl = computed(() => returnTo.value === 'tree'
+  ? `/pages/family/private-tree?familyId=${encodeURIComponent(familyId.value)}`
+  : returnTo.value === 'health'
+    ? `/pages/family/health?familyId=${encodeURIComponent(familyId.value)}`
+    : `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}`)
+const returnLabel = computed(() => returnTo.value === 'tree' ? '返回家庭树' : returnTo.value === 'health' ? '返回家庭健康' : '返回家庭详情')
 const familySealLetter = computed(() => familySurname.value.slice(0, 1) || familyName.value.slice(0, 1) || '邀')
-const isNodeInviteMode = computed(() => inviteMode.value === 'node' && Boolean(memberId.value))
-const pageTitle = computed(() => (isNodeInviteMode.value ? '邀请本人绑定节点' : '邀请加入家庭'))
+const pageTitle = computed(() => '邀请本人绑定节点')
 const pageSubtitle = computed(() =>
-  isNodeInviteMode.value
-    ? `${familyName.value} · 接受后成为指定家庭树节点本人`
-    : `${familyName.value} · 接受后先加入家庭，节点身份可后续确认`
+  `${familyName.value} · 接受后成为指定家庭树节点本人`
 )
 const pendingCount = computed(() =>
   invitations.value.filter((item) => displayStatus(item) === 'PENDING').length
 )
+const showPhoneBindGate = computed(() => session.isLoggedIn && !session.user?.phoneVerified)
+const pendingInviteMemberIds = computed(() => new Set(
+  invitations.value
+    .filter((item) => displayStatus(item) === 'PENDING')
+    .map((item) => String(item.targetMemberId))
+))
+const availableInviteMembers = computed(() => familyMembers.value.filter((member) =>
+  member.status === 'ACTIVE'
+    && !member.boundUserId
+    && member.userBindingPolicy !== 'NOT_REQUIRED'
+    && !pendingInviteMemberIds.value.has(String(member.memberId))
+))
+const activeMemberInvitation = computed(() => {
+  const freshInvitation = shareResult.value?.invitation
+  if (freshInvitation) {
+    const latest = invitations.value.find((item) => item.invitationId === freshInvitation.invitationId)
+    if (!latest || displayStatus(latest) === 'PENDING') return latest || freshInvitation
+  }
+  return invitations.value.find((item) =>
+    String(item.targetMemberId) === memberId.value && displayStatus(item) === 'PENDING'
+  ) || null
+})
+const canShareCurrentInvitation = computed(() =>
+  Boolean(
+    shareResult.value?.inviteToken
+    && activeMemberInvitation.value
+    && shareResult.value.invitation.invitationId === activeMemberInvitation.value.invitationId
+  )
+)
 const shareInvitationSubtitle = computed(() => {
-  const invitation = shareResult.value?.invitation
+  const invitation = activeMemberInvitation.value
   if (!invitation) return ''
-  return isPendingMemberInvitation(invitation)
-    ? `对方将先加入家庭，身份标签：${inviteTargetText(invitation)}`
-    : `对方将绑定“${invitation.targetMemberName}”节点`
+  return `对方将绑定“${invitation.targetMemberName}”节点`
 })
 const invitationGroups = computed(() => {
   const current = invitations.value.filter((item) => displayStatus(item) === 'PENDING')
@@ -301,6 +334,12 @@ const invitationGroups = computed(() => {
     { key: 'history', title: '历史邀请', subtitle: '已接受、拒绝、取消或过期的记录', items: history }
   ].filter((group) => group.items.length > 0)
 })
+const visibleInvitationGroups = computed(() => {
+  if (memberId.value) return invitationGroups.value
+  if (inviteTab.value === 'PENDING') return invitationGroups.value.filter((group) => group.key === 'current')
+  if (inviteTab.value === 'HISTORY') return invitationGroups.value.filter((group) => group.key === 'history')
+  return []
+})
 
 loadShareConfigs()
 
@@ -309,6 +348,7 @@ function currentRoute() {
   if (inviteMode.value) query.push(`mode=${encodeURIComponent(inviteMode.value)}`)
   if (memberId.value) query.push(`memberId=${encodeURIComponent(memberId.value)}`)
   if (memberName.value) query.push(`memberName=${encodeURIComponent(memberName.value)}`)
+  if (guideMode.value) query.push('guide=1')
   return `/pages/invite/sent?${query.join('&')}`
 }
 
@@ -331,7 +371,9 @@ function inviteChannelText(channel: string) {
 
 function inviteLinkStatusText(item: Invitation) {
   const status = displayStatus(item)
-  if (status === 'PENDING') return '链接有效'
+  if (status === 'PENDING') {
+    return hasStoredInviteToken(item) ? '可继续发送' : '邀请有效，需重新生成链接'
+  }
   if (status === 'EXPIRED') return '链接已失效'
   if (status === 'ACCEPTED') return '对方已接受'
   if (status === 'REJECTED') return '对方已拒绝'
@@ -339,18 +381,18 @@ function inviteLinkStatusText(item: Invitation) {
   return '不可分享'
 }
 
-function isPendingMemberInvitation(item: Invitation) {
-  return item.inviteType === 'JOIN_FAMILY_PENDING_MEMBER'
+function hasStoredInviteToken(item: Invitation) {
+  const stored = uni.getStorageSync(inviteShareStorageKey(item.invitationId)) as Partial<StoredInviteShareLink> | undefined
+  return typeof stored?.inviteToken === 'string' && stored.inviteToken.length > 0 && stored.expiredAt === item.expiredAt
 }
 
 function inviteTargetText(item: Invitation) {
-  return isPendingMemberInvitation(item)
-    ? item.pendingMemberLabel || item.targetMemberName || '待确认成员'
-    : item.targetMemberName
+  return item.targetMemberName
 }
 
 function resetTransientUI() {
   shareResult.value = null
+  showHistory.value = false
   operationError.value = ''
   actingId.value = null
   actingType.value = ''
@@ -366,6 +408,8 @@ function resetPageData() {
   memberId.value = ''
   memberName.value = ''
   invitations.value = []
+  familyMembers.value = []
+  inviteTab.value = 'INVITABLE'
   resetTransientUI()
 }
 
@@ -385,14 +429,17 @@ async function loadInvitations() {
   loadError.value = ''
   operationError.value = ''
   try {
-    const [family, invitationRows] = await Promise.all([
+    const [family, invitationRows, members] = await Promise.all([
       getFamilyDetail(familyId.value),
-      listFamilyInvitations(familyId.value)
+      listFamilyInvitations(familyId.value),
+      listFamilyMembers(familyId.value)
     ])
     familyName.value = family.familyName
     familySurname.value = family.familySurname
     familyRole.value = family.role
     invitations.value = invitationRows
+    familyMembers.value = members
+    restoreStoredInviteShareLink(invitationRows)
   } catch (error) {
     loadError.value = apiErrorMessage(error, '发出的家庭邀请加载失败。')
   } finally {
@@ -418,12 +465,25 @@ function canRegenerate(item: Invitation) {
     && (item.status === 'PENDING' || item.status === 'EXPIRED')
 }
 
-function openMembers() {
-  uni.navigateTo({ url: `/pages/family/members?familyId=${encodeURIComponent(familyId.value)}` })
+function openMemberInvitation(targetMemberId: number | string, targetMemberName: string) {
+  uni.navigateTo({
+    url: `/pages/invite/sent?familyId=${encodeURIComponent(familyId.value)}&mode=node&memberId=${encodeURIComponent(String(targetMemberId))}&memberName=${encodeURIComponent(targetMemberName)}${['tree', 'health'].includes(returnTo.value) ? `&returnTo=${encodeURIComponent(returnTo.value)}` : ''}`
+  })
 }
 
 function openFamilyOverview() {
-  uni.redirectTo({ url: `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}` })
+  uni.redirectTo({ url: returnUrl.value })
+}
+
+function openInvitationForSending(item: Invitation) {
+  if (displayStatus(item) !== 'PENDING') return
+  if (String(item.targetMemberId) === memberId.value) {
+    showHistory.value = false
+    return
+  }
+  uni.navigateTo({
+    url: `/pages/invite/sent?familyId=${encodeURIComponent(familyId.value)}&mode=node&memberId=${encodeURIComponent(String(item.targetMemberId))}&memberName=${encodeURIComponent(item.targetMemberName)}${['tree', 'health'].includes(returnTo.value) ? `&returnTo=${encodeURIComponent(returnTo.value)}` : ''}`
+  })
 }
 
 function confirmCancel(item: Invitation) {
@@ -442,6 +502,10 @@ async function cancel(item: Invitation) {
   operationError.value = ''
   try {
     await cancelInvitation(item.invitationId, { reason: '小程序已发邀请页面取消' })
+    removeStoredInviteShareLink(item.invitationId)
+    if (shareResult.value?.invitation.invitationId === item.invitationId) {
+      shareResult.value = null
+    }
     await loadInvitations()
   } catch (error) {
     operationError.value = apiErrorMessage(error, '取消邀请失败。')
@@ -452,6 +516,7 @@ async function cancel(item: Invitation) {
 }
 
 function confirmRegenerate(item: Invitation) {
+  if (!ensurePhoneBoundForInvitation()) return
   uni.showModal({
     title: '重新生成邀请',
     content: '重新生成后，旧邀请链接将立即失效。是否继续？',
@@ -461,42 +526,9 @@ function confirmRegenerate(item: Invitation) {
   })
 }
 
-async function createPendingFamilyInvitation() {
-  const labelError = validateTextField({
-    label: '待确认身份标签',
-    value: pendingMemberLabel.value,
-    kind: 'name',
-    required: true,
-    maxLength: 40
-  })
-  const validationMessage = labelError || validateTextFields([
-    { value: familyInviteMessage.value, label: '邀请说明', kind: 'multiLine', maxLength: 300 }
-  ])
-  if (validationMessage) {
-    operationError.value = validationMessage
-    return
-  }
-  actingType.value = 'create-family'
-  operationError.value = ''
-  try {
-    shareResult.value = await createFamilyInvitation(familyId.value, {
-      inviteChannel: 'SHARE_LINK',
-      inviteMessage: familyInviteMessage.value.trim() || undefined,
-      pendingMemberLabel: pendingMemberLabel.value.trim(),
-      familyRoleAfterAccept: 'MEMBER'
-    })
-    familyInviteMessage.value = ''
-    pendingMemberLabel.value = ''
-    await loadInvitations()
-  } catch (error) {
-    operationError.value = apiErrorMessage(error, '生成家庭邀请失败。')
-  } finally {
-    actingType.value = ''
-  }
-}
-
 async function createMemberBindingInvitation() {
   if (!memberId.value) return
+  if (!ensurePhoneBoundForInvitation()) return
   const validationMessage = validateTextFields([
     { value: memberInviteMessage.value, label: '邀请说明', kind: 'multiLine', maxLength: 300 }
   ])
@@ -507,12 +539,15 @@ async function createMemberBindingInvitation() {
   actingType.value = 'create-member'
   operationError.value = ''
   try {
+    await requestSubscribeMessages(['member', 'memberChange'])
     shareResult.value = await createInvitation(familyId.value, memberId.value, {
       inviteChannel: 'SHARE_LINK',
       inviteMessage: memberInviteMessage.value.trim() || undefined,
       familyRoleAfterAccept: 'MEMBER'
     })
+    persistInviteShareLink(shareResult.value)
     memberInviteMessage.value = ''
+    markNewUserGuideMilestone('INVITE_GUIDE_OPENED')
     await loadInvitations()
   } catch (error) {
     operationError.value = apiErrorMessage(error, '生成节点邀请失败。')
@@ -521,12 +556,88 @@ async function createMemberBindingInvitation() {
   }
 }
 
+function ensurePhoneBoundForInvitation() {
+  if (session.user?.phoneVerified) return true
+  operationError.value = '请先点击上方“绑定微信手机号”，完成后再生成邀请。'
+  return false
+}
+
+type PhoneNumberEvent = {
+  detail?: {
+    code?: string
+    errMsg?: string
+  }
+}
+
+type StoredInviteShareLink = {
+  inviteToken: string
+  expiredAt: string
+}
+
+function inviteShareStorageKey(invitationID: number | string) {
+  return `tree:invite-share-link:${session.user?.id || 'guest'}:${familyId.value}:${invitationID}`
+}
+
+function persistInviteShareLink(result: CreatedInvitation) {
+  if (!result.inviteToken) return
+  uni.setStorageSync(inviteShareStorageKey(result.invitation.invitationId), {
+    inviteToken: result.inviteToken,
+    expiredAt: result.invitation.expiredAt
+  } satisfies StoredInviteShareLink)
+}
+
+function removeStoredInviteShareLink(invitationID: number | string) {
+  uni.removeStorageSync(inviteShareStorageKey(invitationID))
+}
+
+function restoreStoredInviteShareLink(rows: Invitation[]) {
+  const targetRows = rows.filter((item) => String(item.targetMemberId) === memberId.value)
+  const active = targetRows.find((item) => displayStatus(item) === 'PENDING')
+  for (const item of targetRows) {
+    if (item !== active) removeStoredInviteShareLink(item.invitationId)
+  }
+  if (!active) {
+    shareResult.value = null
+    return
+  }
+  const stored = uni.getStorageSync(inviteShareStorageKey(active.invitationId)) as Partial<StoredInviteShareLink> | undefined
+  if (typeof stored?.inviteToken !== 'string' || !stored.inviteToken || stored.expiredAt !== active.expiredAt) {
+    if (shareResult.value?.invitation.invitationId !== active.invitationId) shareResult.value = null
+    return
+  }
+  shareResult.value = { invitation: active, inviteToken: stored.inviteToken }
+}
+
+async function bindWithWechatPhone(event: PhoneNumberEvent) {
+  const phoneCode = event.detail?.code || ''
+  if (!phoneCode) {
+    const errMsg = event.detail?.errMsg || ''
+    operationError.value = /deny|cancel|拒绝|取消/i.test(errMsg)
+      ? '你已取消手机号授权。'
+      : '手机号授权失败，请稍后重试。'
+    return
+  }
+  bindingWechatPhone.value = true
+  operationError.value = ''
+  try {
+    await session.bindWechatPhone({ phoneCode })
+    await session.refreshMe().catch(() => undefined)
+    uni.showToast({ title: '绑定成功', icon: 'success' })
+  } catch (error) {
+    operationError.value = apiErrorMessage(error, '手机号绑定失败，请稍后重试。')
+  } finally {
+    bindingWechatPhone.value = false
+  }
+}
+
 async function regenerate(item: Invitation) {
   actingId.value = item.invitationId
   actingType.value = 'regenerate'
   operationError.value = ''
   try {
+    await requestSubscribeMessages(['member', 'memberChange'])
     shareResult.value = await regenerateInvitation(item.invitationId)
+    persistInviteShareLink(shareResult.value)
     await loadInvitations()
   } catch (error) {
     operationError.value = apiErrorMessage(error, '重新生成邀请失败。')
@@ -536,17 +647,8 @@ async function regenerate(item: Invitation) {
   }
 }
 
-function copyInviteLink() {
-  const token = shareResult.value?.inviteToken
-  if (!token) return
-  uni.setClipboardData({
-    data: `https://tree.bigbigboy.cn/invite/${encodeURIComponent(token)}`,
-    success: () => uni.showToast({ title: '邀请链接已复制', icon: 'success' })
-  })
-}
-
-function clearShareResult() {
-  shareResult.value = null
+function toggleInvitationHistory() {
+  showHistory.value = !showHistory.value
 }
 
 function safeDecodeRouteParam(value: unknown) {
@@ -577,13 +679,15 @@ onLoad((options) => {
   inviteMode.value = String(options?.mode || '')
   memberId.value = String(options?.memberId || '')
   memberName.value = safeDecodeRouteParam(options?.memberName)
+  returnTo.value = String(options?.returnTo || '')
+  guideMode.value = String(options?.guide || '') === '1'
   session.restoreSession()
   if (session.isLoggedIn && familyId.value) {
     loading.value = true
   }
 })
 onShow(() => {
-  void loadShareConfigs({ force: true })
+  void loadShareConfigs()
   loadInvitations()
 })
 onHide(resetTransientUI)
@@ -621,9 +725,19 @@ onUnload(resetPageData)
   margin-bottom: 22rpx;
 }
 
+.invitation-tabs {
+  margin-bottom: 20rpx;
+}
+
+.invitation-tabs .archive-segment-tab.has-pending {
+  color: var(--archive-cinnabar);
+  font-weight: 700;
+}
+
 .sent-group,
 .share-panel,
 .member-invite-panel,
+.member-picker,
 .family-invite-panel,
 .sent-state {
   margin-bottom: 24rpx;
@@ -636,6 +750,38 @@ onUnload(resetPageData)
 
 .member-invite-summary {
   margin: 8rpx 0 14rpx;
+}
+
+.invite-phone-bind {
+  margin: 0 0 18rpx;
+}
+
+.invite-phone-bind :deep(.mini-notice) {
+  margin-bottom: 14rpx;
+}
+
+.wechat-phone-bind-button {
+  display: flex;
+  min-height: 82rpx;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0;
+  border: 1rpx solid rgba(31, 58, 95, 0.22);
+  border-radius: var(--tree-radius-md, 16rpx);
+  background: rgba(255, 252, 245, 0.92);
+  color: var(--archive-blue);
+  font-size: 27rpx;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.wechat-phone-bind-button::after {
+  border: 0;
+}
+
+.wechat-phone-bind-button[disabled] {
+  opacity: 0.58;
 }
 
 .family-invite-panel :deep(.mini-notice) {
@@ -659,6 +805,14 @@ onUnload(resetPageData)
   background: linear-gradient(90deg, rgba(168, 59, 45, 0.03), transparent 42%);
 }
 
+.sent-item.reopenable {
+  cursor: pointer;
+}
+
+.sent-item.reopenable:active {
+  background: rgba(22, 51, 83, 0.05);
+}
+
 .sent-item-head {
   display: flex;
   align-items: flex-start;
@@ -673,7 +827,7 @@ onUnload(resetPageData)
   min-height: 42rpx;
   border: 1rpx solid var(--archive-line);
   padding: 0 12rpx;
-  font-size: 20rpx;
+  font-size: 22rpx;
   font-weight: 650;
   line-height: 1.2;
 }
@@ -707,6 +861,14 @@ onUnload(resetPageData)
 
 .sent-meta-weak {
   opacity: 0.88;
+}
+
+.sent-meta > text {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-all;
 }
 
 .sent-actions,

@@ -20,21 +20,24 @@ type RelationshipInput struct {
 }
 
 type CreateRelationshipRequest struct {
-	BaseMemberID uint64            `json:"baseMemberId" binding:"required"`
-	AddType      string            `json:"addType" binding:"required"`
-	NewMember    NewMemberInput    `json:"newMember" binding:"required"`
-	Relationship RelationshipInput `json:"relationship"`
+	BaseMemberID     uint64            `json:"baseMemberId" binding:"required"`
+	CoParentMemberID *uint64           `json:"coParentMemberId"`
+	AddType          string            `json:"addType" binding:"required"`
+	NewMember        NewMemberInput    `json:"newMember" binding:"required"`
+	Relationship     RelationshipInput `json:"relationship"`
 }
 
 type PlaceExistingMemberRequest struct {
-	BaseMemberID uint64            `json:"baseMemberId" binding:"required"`
-	MemberID     uint64            `json:"memberId" binding:"required"`
-	AddType      string            `json:"addType" binding:"required"`
-	MemberType   *string           `json:"memberType"`
-	Relationship RelationshipInput `json:"relationship"`
+	BaseMemberID     uint64            `json:"baseMemberId" binding:"required"`
+	CoParentMemberID *uint64           `json:"coParentMemberId"`
+	MemberID         uint64            `json:"memberId" binding:"required"`
+	AddType          string            `json:"addType" binding:"required"`
+	MemberType       *string           `json:"memberType"`
+	Relationship     RelationshipInput `json:"relationship"`
 }
 
 type UpdateRelationshipRequest struct {
+	ExpectedRevision *int64  `json:"expectedRevision"`
 	ParentLinkType   *string `json:"parentLinkType"`
 	RelationNoteType *string `json:"relationNoteType"`
 	RelationNote     *string `json:"relationNote"`

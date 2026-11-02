@@ -14,6 +14,8 @@ import (
 	"tree/backend/internal/family/core/dto"
 	familymodel "tree/backend/internal/family/core/model"
 	familyrepo "tree/backend/internal/family/core/repository"
+	membermodel "tree/backend/internal/family/member/model"
+	relationshipmodel "tree/backend/internal/family/relationship/model"
 )
 
 func publicSearchToken(t *testing.T) string {
@@ -426,6 +428,56 @@ func TestPublicDetailMasksSensitiveFields(t *testing.T) {
 	}
 	if result.PublicContactWechat == nil || *result.PublicContactWechat != "wx****01" {
 		t.Fatalf("masked wechat = %#v", result.PublicContactWechat)
+	}
+}
+
+func TestPublicPlatformStatsCountsActiveTreeData(t *testing.T) {
+	ctx := context.Background()
+	tx := transactionalTestDB(t)
+	service := publicSearchService(tx)
+	before, businessErr := service.PublicPlatformStats(ctx)
+	if businessErr != nil {
+		t.Fatalf("PublicPlatformStats before: %v", businessErr)
+	}
+	token := publicSearchToken(t)
+	activeFamily := insertPublicSearchFamily(t, tx, familymodel.Family{
+		FamilyName: token + "_active", FamilySurname: "张", Status: "NORMAL",
+	})
+	dissolvedFamily := insertPublicSearchFamily(t, tx, familymodel.Family{
+		FamilyName: token + "_dissolved", FamilySurname: "李", Status: "DISSOLVED",
+	})
+
+	activeMembers := []membermodel.FamilyMember{
+		{FamilyID: activeFamily.ID, DisplayName: token + "_祖", Gender: "MALE", MemberType: "LINEAGE_MEMBER", UserBindingPolicy: "OPTIONAL", Status: "ACTIVE"},
+		{FamilyID: activeFamily.ID, DisplayName: token + "_父", Gender: "MALE", MemberType: "LINEAGE_MEMBER", UserBindingPolicy: "OPTIONAL", Status: "ACTIVE"},
+	}
+	for index := range activeMembers {
+		if err := tx.Create(&activeMembers[index]).Error; err != nil {
+			t.Fatalf("insert active member: %v", err)
+		}
+	}
+	if err := tx.Create(&membermodel.FamilyMember{
+		FamilyID: dissolvedFamily.ID, DisplayName: token + "_hidden", Gender: "UNKNOWN", MemberType: "LINEAGE_MEMBER", UserBindingPolicy: "OPTIONAL", Status: "ACTIVE",
+	}).Error; err != nil {
+		t.Fatalf("insert dissolved member: %v", err)
+	}
+	if err := tx.Create(&relationshipmodel.FamilyRelationship{
+		FamilyID: activeFamily.ID, FromMemberID: activeMembers[0].ID, ToMemberID: activeMembers[1].ID, RelationshipType: "PARENT_CHILD", Status: "ACTIVE",
+	}).Error; err != nil {
+		t.Fatalf("insert active relationship: %v", err)
+	}
+	if err := tx.Create(&relationshipmodel.FamilyRelationship{
+		FamilyID: dissolvedFamily.ID, FromMemberID: 90001, ToMemberID: 90002, RelationshipType: "PARENT_CHILD", Status: "ACTIVE",
+	}).Error; err != nil {
+		t.Fatalf("insert dissolved relationship: %v", err)
+	}
+
+	result, businessErr := service.PublicPlatformStats(ctx)
+	if businessErr != nil {
+		t.Fatalf("PublicPlatformStats: %v", businessErr)
+	}
+	if result.FamilyCount != before.FamilyCount+1 || result.MemberCount != before.MemberCount+2 || result.RelationshipCount != before.RelationshipCount+1 {
+		t.Fatalf("unexpected stats: %#v", result)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"tree/backend/internal/common/response"
 	"tree/backend/internal/family/publicdisplay/dto"
 	publicservice "tree/backend/internal/family/publicdisplay/service"
+	"tree/backend/internal/family/publicdisplay/vo"
 )
 
 type Handler struct{ service publicservice.Service }
@@ -29,6 +30,45 @@ func (h *Handler) Submit(ctx *gin.Context) {
 	}
 	result, err := h.service.Submit(ctx.Request.Context(), userID, familyID, req, audit(ctx))
 	write(ctx, http.StatusCreated, result, err)
+}
+
+func (h *Handler) QualityEligibility(ctx *gin.Context) {
+	userID, familyID, ok := userAndFamily(ctx)
+	if !ok {
+		return
+	}
+	result, err := h.service.QualityEligibility(ctx.Request.Context(), userID, familyID)
+	write(ctx, http.StatusOK, result, err)
+}
+
+func (h *Handler) AdminQualityEligibilityConfig(ctx *gin.Context) {
+	role, err := middleware.CurrentAdminRole(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	result, businessErr := h.service.GetQualityEligibilityConfig(ctx.Request.Context(), role)
+	write(ctx, http.StatusOK, result, businessErr)
+}
+
+func (h *Handler) AdminUpdateQualityEligibilityConfig(ctx *gin.Context) {
+	adminID, err := middleware.CurrentAdminID(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	role, err := middleware.CurrentAdminRole(ctx)
+	if err != nil {
+		response.Abort(ctx, http.StatusUnauthorized, apperrors.CodeUnauthorized)
+		return
+	}
+	var req vo.QualityEligibilityConfig
+	if ctx.ShouldBindJSON(&req) != nil {
+		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
+		return
+	}
+	result, businessErr := h.service.UpdateQualityEligibilityConfig(ctx.Request.Context(), adminID, role, req)
+	write(ctx, http.StatusOK, result, businessErr)
 }
 
 func (h *Handler) ListFamily(ctx *gin.Context) {

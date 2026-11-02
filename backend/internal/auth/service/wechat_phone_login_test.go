@@ -61,6 +61,7 @@ func newWechatPhoneService(t *testing.T, users *userRepoFake, wechatClient wecha
 
 func wechatPhoneLoginInput(phoneCode string) WechatMiniPhoneLoginInput {
 	return WechatMiniPhoneLoginInput{
+		Code:       "wechat-login-code",
 		PhoneCode:  phoneCode,
 		ClientType: ClientWechatMini,
 		IP:         "127.0.0.1",
@@ -128,7 +129,8 @@ func TestWechatMiniPhoneLoginCreatesActiveUserWithoutPassword(t *testing.T) {
 	phoneCode := "wx-phone-code-new-user"
 	users := &userRepoFake{}
 	logs := &authLogCapture{}
-	service := newWechatPhoneService(t, users, &wechatClientFake{phone: phone}, logs)
+	client := &wechatClientFake{phone: phone, openID: "openid-new-user"}
+	service := newWechatPhoneService(t, users, client, logs)
 
 	result, businessErr := service.WechatMiniPhoneLogin(context.Background(), wechatPhoneLoginInput(phoneCode))
 	if businessErr != nil {
@@ -151,7 +153,16 @@ func TestWechatMiniPhoneLoginCreatesActiveUserWithoutPassword(t *testing.T) {
 	if result.User.Phone == nil || *result.User.Phone != phone || !result.User.PhoneVerified {
 		t.Fatalf("unexpected login user info: %#v", result.User)
 	}
-	if len(logs.success) != 1 || logs.success[0].Action != actionWechatPhoneLogin {
+	if len(users.identities) != 1 || users.identities[0].UserID != users.user.ID {
+		t.Fatalf("expected phone user to receive a WeChat identity: %#v", users.identities)
+	}
+	wechatResult, wechatErr := service.WechatMiniLogin(context.Background(), WechatMiniLoginInput{
+		Code: "later-normal-wechat-login-code", ClientType: ClientWechatMini,
+	})
+	if wechatErr != nil || wechatResult.User.ID != result.User.ID {
+		t.Fatalf("ordinary WeChat login must reuse the phone-authorized account: %#v %#v", wechatResult, wechatErr)
+	}
+	if len(logs.success) != 2 || logs.success[0].Action != actionWechatPhoneLogin || logs.success[1].Action != actionWechatLogin {
 		t.Fatalf("unexpected success log: %#v", logs.success)
 	}
 	assertLogsSanitized(t, logs, phoneCode, phone)
@@ -169,7 +180,7 @@ func TestWechatMiniPhoneLoginExistingActiveUser(t *testing.T) {
 		PhoneVerified: true, Status: string(enums.StatusActive),
 	}}
 	logs := &authLogCapture{}
-	service := newWechatPhoneService(t, users, &wechatClientFake{phone: phone}, logs)
+	service := newWechatPhoneService(t, users, &wechatClientFake{phone: phone, openID: "openid-existing-user"}, logs)
 
 	result, businessErr := service.WechatMiniPhoneLogin(context.Background(), wechatPhoneLoginInput("existing-user-code"))
 	if businessErr != nil {
@@ -201,7 +212,7 @@ func TestWechatMiniPhoneLoginRejectsInvalidAccountStatus(t *testing.T) {
 				PhoneVerified: true, Status: test.status,
 			}}
 			logs := &authLogCapture{}
-			service := newWechatPhoneService(t, users, &wechatClientFake{phone: phone}, logs)
+			service := newWechatPhoneService(t, users, &wechatClientFake{phone: phone, openID: "openid-status-test"}, logs)
 			result, businessErr := service.WechatMiniPhoneLogin(context.Background(), wechatPhoneLoginInput("status-test-code"))
 			if result != nil || businessErr == nil || businessErr.Code != apperrors.CodeWechatPhoneLoginInvalid {
 				t.Fatalf("unexpected result/error: %#v %#v", result, businessErr)
@@ -222,7 +233,7 @@ func TestWechatMiniPhoneLoginPasswordSetFlag(t *testing.T) {
 			ID: 77, Phone: stringPointer(phone), PhoneHash: &phoneHash,
 			PasswordHash: nil, PhoneVerified: true, Status: string(enums.StatusActive),
 		}}
-		service := newWechatPhoneService(t, users, &wechatClientFake{phone: phone}, &authLogCapture{})
+		service := newWechatPhoneService(t, users, &wechatClientFake{phone: phone, openID: "openid-no-password"}, &authLogCapture{})
 		result, businessErr := service.WechatMiniPhoneLogin(context.Background(), wechatPhoneLoginInput("no-password-code"))
 		if businessErr != nil {
 			t.Fatalf("WechatMiniPhoneLogin: %v", businessErr)
@@ -238,7 +249,7 @@ func TestWechatMiniPhoneLoginPasswordSetFlag(t *testing.T) {
 			ID: 78, Phone: stringPointer(phone), PhoneHash: &phoneHash,
 			PasswordHash: &hash, PhoneVerified: true, Status: string(enums.StatusActive),
 		}}
-		service := newWechatPhoneService(t, users, &wechatClientFake{phone: phone}, &authLogCapture{})
+		service := newWechatPhoneService(t, users, &wechatClientFake{phone: phone, openID: "openid-has-password"}, &authLogCapture{})
 		result, businessErr := service.WechatMiniPhoneLogin(context.Background(), wechatPhoneLoginInput("has-password-code"))
 		if businessErr != nil {
 			t.Fatalf("WechatMiniPhoneLogin: %v", businessErr)

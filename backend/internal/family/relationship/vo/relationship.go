@@ -20,6 +20,7 @@ type RelationshipVO struct {
 	RelationNoteType *string    `json:"relationNoteType,omitempty"`
 	RelationNote     *string    `json:"relationNote,omitempty"`
 	Status           string     `json:"status"`
+	Revision         int64      `json:"revision"`
 	CreatedAt        time.Time  `json:"createdAt"`
 	UpdatedAt        time.Time  `json:"updatedAt"`
 	DeletedAt        *time.Time `json:"deletedAt,omitempty"`

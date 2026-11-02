@@ -21,7 +21,13 @@ const (
 )
 
 var allowedKeys = map[string]bool{
-	"HOME": true, "PUBLIC_FAMILY": true, "INVITATION_NODE": true, "INVITATION_PENDING_MEMBER": true,
+	"HOME":                   true,
+	"PUBLIC_FAMILY":          true,
+	"PUBLIC_FAMILY_TIMELINE": true,
+	"INVITATION_NODE":        true,
+	"INVITATION_REWARD":      true,
+	"INVITATION_DETAIL":      true,
+	"CONTENT_ARTICLE":        true,
 }
 
 type Service interface {
@@ -51,6 +57,9 @@ func (s *service) List(ctx context.Context) ([]vo.ShareConfig, *apperrors.Busine
 }
 
 func (s *service) Update(ctx context.Context, adminID uint64, role, key string, req sharedto.UpdateRequest) (*vo.ShareConfig, *apperrors.BusinessError) {
+	if !canManage(role) {
+		return nil, apperrors.New(apperrors.CodeForbidden)
+	}
 	key = strings.ToUpper(strings.TrimSpace(key))
 	if !allowedKeys[key] {
 		return nil, shareError(CodeNotFound, "分享配置不存在")
@@ -93,6 +102,10 @@ func (s *service) Update(ctx context.Context, adminID uint64, role, key string, 
 	roleCopy := role
 	_ = s.logs.WriteSuccess(ctx, operationlog.WriteInput{OperatorType: "ADMIN", OperatorAdminID: &admin, OperatorRole: &roleCopy, Module: "SHARE_CONFIG", Action: "UPDATE_SHARE_CONFIG", TargetType: stringPtr("share_config"), TargetID: &updated.ID, BeforeJSON: before, AfterJSON: after})
 	return ptrVO(toVO(*updated)), nil
+}
+
+func canManage(role string) bool {
+	return role == "ROOT_ADMIN" || role == "SUPER_ADMIN"
 }
 
 func toVO(row sharemodel.ShareConfig) vo.ShareConfig {

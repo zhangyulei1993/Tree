@@ -13,12 +13,20 @@ const (
 	ContextJWTID         = "currentJWTID"
 	ContextJWTExpiresAt  = "currentJWTExpiresAt"
 	ContextPhoneVerified = "currentPhoneVerified"
+	ContextUserStatus    = "currentUserStatus"
+	ContextUserRole      = "currentUserRole"
 )
 
 var ErrContextValueMissing = errors.New("context value missing")
 
 func CurrentUserID(ctx *gin.Context) (uint64, error) {
 	return uint64Value(ctx, ContextUserID)
+}
+
+func IsAssistanceSession(ctx *gin.Context) bool {
+	value, _ := ctx.Get(ContextUserRole)
+	role, _ := value.(string)
+	return role == "ASSISTANCE"
 }
 
 func CurrentAdminID(ctx *gin.Context) (uint64, error) {

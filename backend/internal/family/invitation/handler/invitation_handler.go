@@ -39,24 +39,6 @@ func (h *Handler) Create(ctx *gin.Context) {
 	write(ctx, http.StatusCreated, result, err)
 }
 
-func (h *Handler) CreateFamily(ctx *gin.Context) {
-	actor, ok := userID(ctx)
-	if !ok {
-		return
-	}
-	family, ok := pathID(ctx, "familyId")
-	if !ok {
-		return
-	}
-	var req dto.CreateInvitationRequest
-	if ctx.ShouldBindJSON(&req) != nil {
-		response.Abort(ctx, http.StatusBadRequest, apperrors.CodeInvalidParams)
-		return
-	}
-	result, err := h.service.CreateFamily(ctx, actor, family, req, audit(ctx))
-	write(ctx, http.StatusCreated, result, err)
-}
-
 func (h *Handler) Detail(ctx *gin.Context) {
 	result, err := h.service.Detail(ctx, ctx.Param("inviteToken"))
 	write(ctx, http.StatusOK, result, err)
@@ -104,6 +86,12 @@ func (h *Handler) ListMine(ctx *gin.Context) {
 	if !ok {
 		return
 	}
+	if ctx.Query("page") != "" {
+		page, size := listPage(ctx)
+		result, err := h.service.ListMinePage(ctx, actor, page, size)
+		write(ctx, http.StatusOK, result, err)
+		return
+	}
 	result, err := h.service.ListMine(ctx, actor)
 	write(ctx, http.StatusOK, result, err)
 }
@@ -117,8 +105,29 @@ func (h *Handler) ListFamily(ctx *gin.Context) {
 	if !ok {
 		return
 	}
+	if ctx.Query("page") != "" {
+		page, size := listPage(ctx)
+		result, err := h.service.ListFamilyPage(ctx, actor, family, page, size)
+		write(ctx, http.StatusOK, result, err)
+		return
+	}
 	result, err := h.service.ListFamily(ctx, actor, family)
 	write(ctx, http.StatusOK, result, err)
+}
+
+func listPage(ctx *gin.Context) (int, int) {
+	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
+	size, _ := strconv.Atoi(ctx.DefaultQuery("pageSize", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if size < 1 {
+		size = 20
+	}
+	if size > 100 {
+		size = 100
+	}
+	return page, size
 }
 
 func (h *Handler) Regenerate(ctx *gin.Context) {

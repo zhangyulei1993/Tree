@@ -97,7 +97,19 @@ fi
 ln -sfn "$release_dir" "$current_link"
 
 sudo systemctl restart "$STAGING_SERVICE_NAME"
-curl --fail --silent --show-error --max-time 15 "$STAGING_HEALTH_URL" >/dev/null
+
+# Nginx may briefly retain a closed upstream connection while systemd replaces
+# the API process. Retry the public health endpoint before declaring a release
+# unhealthy, rather than treating that short handover window as a failed deploy.
+health_ok=0
+for attempt in $(seq 1 15); do
+  if curl --fail --silent --show-error --max-time 5 "$STAGING_HEALTH_URL" >/dev/null; then
+    health_ok=1
+    break
+  fi
+  sleep 2
+done
+[[ "$health_ok" -eq 1 ]] || die "Health check failed after restart: $STAGING_HEALTH_URL"
 
 trap - ERR
 printf 'Staging deployment completed: %s\n' "$RELEASE_ID"

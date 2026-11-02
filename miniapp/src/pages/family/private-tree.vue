@@ -1,6 +1,6 @@
 <template>
   <view class="archive-page private-tree-page">
-    <MiniBackHome />
+    <MiniBackHome :return-url="familyReturnUrl" :return-label="familyReturnLabel" />
 
     <view v-if="errorMessage && !tree" class="tree-error archive-panel">
       <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
@@ -17,31 +17,66 @@
         <text class="archive-kicker">Family Tree</text>
         <text class="archive-title">家庭树</text>
         <text class="archive-subtitle">
-            {{ family?.familyName || '家庭关系' }} · 家庭树 · {{ tree.nodes.length }} 位成员
+            {{ family?.familyName || '家庭关系' }} · 家庭树 · {{ family?.memberCount ?? tree.nodes.length }} / {{ family?.memberLimit || '—' }} 位成员
         </text>
         </view>
-        <view v-if="family" class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
+        <view class="tree-head-actions">
+          <view class="tree-export-action" :class="{ loading: treeExporting }" @tap="exportFamilyTree">
+            <text>{{ treeExporting ? '生成中' : '导出家庭树' }}</text>
+          </view>
+          <view v-if="family" class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
+        </view>
       </view>
 
-      <view class="archive-segment-tabs family-tree-tabs">
-        <view class="archive-segment-tab active">
-          <text>家庭树</text>
-        </view>
-        <view class="archive-segment-tab" @click="openMembers">
-          <text>成员表</text>
-        </view>
-      </view>
+      <MiniNotice v-if="guideMode" tone="security" class="tree-guide-note" title="从这里认识家庭树">
+        先看“当前视角”是谁；点击任意人物可查看称谓、切换视角或继续处理该节点。资料或关系待补充会显示红点。
+      </MiniNotice>
 
       <view v-if="tree.nodes.length > 0" class="viewer-panel archive-form-panel">
         <view class="viewer-copy">
           <text class="viewer-label">当前视角</text>
           <text class="viewer-name">{{ currentViewerName }}</text>
-          <text class="viewer-hint">点击成员纸签，可切换到对应视角查看称谓。</text>
+          <text class="viewer-hint">深蓝为直系关系，点击人物卡可切换视角。</text>
+        </view>
+        <view class="viewer-actions">
+          <view v-if="canResetViewerToSelf" class="viewer-action" @tap="resetViewerToSelf">回到我的视角</view>
+          <view v-if="viewerMemberId !== null" class="viewer-action" @tap="showAllTree">查看全树</view>
         </view>
       </view>
 
-      <view v-if="canManageFamily" class="genealogy-tools">
-        <button v-if="canManageFamily" class="genealogy-tool-link" @click="openManage">添加与调整</button>
+      <view class="tree-affairs archive-form-panel" @tap="openTreeAffairs">
+        <view class="tree-affairs-copy">
+          <text class="tree-affairs-title">家庭事务</text>
+          <text class="tree-affairs-desc">{{ treeAffairsDescription }}</text>
+        </view>
+        <view class="tree-affairs-meta">
+          <text v-if="treeIssueCount" class="tree-affairs-count">{{ treeIssueCount }}</text>
+          <text class="archive-arrow">›</text>
+        </view>
+      </view>
+
+      <view v-if="Object.keys(healthHints).length" class="tree-health-note">
+        <text class="tree-health-dot">!</text>
+        <text>红点表示资料或关系待补充，可点击人物卡处理或查看家庭健康。</text>
+      </view>
+
+      <view class="tree-status-legend" aria-label="家庭树状态说明">
+        <view class="tree-status-item">
+          <text class="legend-sample health">!</text>
+          <text>资料或关系待补充</text>
+        </view>
+        <view class="tree-status-item">
+          <text class="legend-sample deceased">名</text>
+          <text>已离世亲人</text>
+        </view>
+        <view class="tree-status-item">
+          <text class="legend-sample binding">已绑</text>
+          <text>已绑定账号</text>
+        </view>
+        <view class="tree-status-item">
+          <text class="legend-sample pending">待绑</text>
+          <text>尚未绑定账号</text>
+        </view>
       </view>
 
       <view class="tree-mode-line ui-simplified-hidden">
@@ -62,25 +97,30 @@
       </view>
 
       <view class="tree-scroll-note ui-simplified-hidden">
-        <text>关系图可左右滑动查看；配偶为浅纸签，不作为关系扩展入口。</text>
+        <text>树状家谱可左右滑动查看；配偶卡带有婚嫁标记，不作为关系扩展入口。</text>
       </view>
 
       <template v-if="viewMode === 'structure'">
-        <MiniEmptyState
-          v-if="tree.nodes.length === 0"
-          symbol="树"
-          title="暂无成员"
-          description="请先在家庭树成员中添加成员后再查看关系图。"
-        />
+        <view v-if="tree.nodes.length === 0" class="empty-tree-guide archive-form-panel">
+          <MiniEmptyState
+            symbol="树"
+            title="暂无成员"
+            description="请先添加家庭成员，再查看树状家谱。"
+          />
+        </view>
         <FamilyTreeStructureView
           v-else
           class="archive-tree-structure"
           :tree="displayTree || tree"
           :viewer-member-id="viewerMemberId"
           show-binding
-          :interactive="canManageFamily"
+          :interactive="true"
           selectable-all
           :selectable-deceased="grayAccessAvailable"
+          :health-hints="healthHints"
+          portrait-theme="regional"
+          :portrait-region="family?.regionText || family?.nativePlace"
+          :portrait-region-code="family?.regionCode"
           @select="openNodeActions"
         />
       </template>
@@ -94,6 +134,52 @@
         />
         <RelationSentenceList v-else class="relation-list" :items="relationSentences" />
       </template>
+
+      <view v-if="selectedNode" class="node-action-panel archive-form-panel">
+        <view class="node-action-head">
+          <view class="node-action-copy">
+            <text class="node-action-label">已选成员</text>
+            <text class="node-action-name">{{ selectedNode.displayName || '未命名成员' }}</text>
+          </view>
+          <view class="node-action-head-actions">
+            <view v-if="nodeActionMenu !== 'MAIN'" class="node-action-back" @tap="openNodeActionMenu('MAIN')">返回</view>
+            <view class="node-action-close" @tap="closeNodeActions">收起</view>
+          </view>
+        </view>
+        <text class="node-action-hint">{{ nodeActionMenuTitle }}</text>
+        <view v-if="nodeActionMenu === 'MAIN'" class="node-action-grid">
+          <view
+            v-for="action in selectedNodeActions"
+            :key="action.label"
+            class="node-action-item"
+            :class="{ danger: action.danger, primary: action.primary }"
+            @tap="runNodeAction(action)"
+          >
+            {{ action.label }}
+          </view>
+        </view>
+        <view v-else-if="nodeActionMenu === 'RELATION'" class="node-action-grid">
+          <view
+            v-for="relation in selectedNodeRelationAdditions"
+            :key="relation.addType"
+            class="node-action-item primary"
+            @tap="openSelectedNodeRelation(relation.addType)"
+          >
+            {{ relation.label }}
+          </view>
+        </view>
+        <view v-else class="node-action-grid">
+          <view
+            v-for="action in selectedNodeMoreActions"
+            :key="action.label"
+            class="node-action-item"
+            :class="{ danger: action.danger }"
+            @tap="runNodeAction(action)"
+          >
+            {{ action.label }}
+          </view>
+        </view>
+      </view>
 
       <view class="tree-legend ui-simplified-hidden">
         <view class="legend-item">
@@ -151,21 +237,34 @@
           <view class="memorial-actions">
             <view class="memorial-action secondary" @click="closeMemorial">关闭</view>
             <view class="memorial-action secondary" @click="switchMemorialViewer">以此亲人为视角</view>
-            <view v-if="canManageFamily" class="memorial-action primary" @click="editMemorial">编辑资料</view>
+            <view class="memorial-action primary" @click="viewMemorialMember">查看资料</view>
           </view>
-          <view v-if="canManageFamily" class="memorial-delete-action" @click="deleteMemorialMember">删除节点</view>
+          <view v-if="canDeleteMemorialMember" class="memorial-action danger memorial-delete-action" @click="deleteMemorialMember">删除节点</view>
+          <text v-else-if="memorialDeleteRestriction" class="memorial-delete-restriction">{{ memorialDeleteRestriction }}</text>
         </view>
       </view>
     </view>
+
+    <MiniPhoneUpgradeDialog v-model:visible="phoneUpgradeVisible" @bound="continueAfterPhoneUpgrade" />
+    <canvas
+      v-if="treePosterCanvasHeight"
+      canvas-id="privateTreePosterCanvas"
+      id="privateTreePosterCanvas"
+      class="tree-export-canvas"
+      :style="{ width: `${treePosterCanvasWidth}px`, height: `${treePosterCanvasHeight}px` }"
+      :width="treePosterCanvasWidth"
+      :height="treePosterCanvasHeight"
+    />
   </view>
 </template>
 
 <script setup lang="ts">
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
-import { computed, ref } from 'vue'
+import { computed, getCurrentInstance, nextTick, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
-import { getFamilyDetail } from '@/api/families'
+import { fetchCapabilities } from '@/api/capabilities'
+import { getFamilyDetail, leaveFamily } from '@/api/families'
 import { listFamilyInvitations } from '@/api/invitations'
 import { deleteFamilyMember, getFamilyMember, listFamilyMembers, updateFamilyMember } from '@/api/members'
 import { getPrivateTree } from '@/api/tree'
@@ -173,17 +272,27 @@ import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
+import MiniPhoneUpgradeDialog from '@/components/base/MiniPhoneUpgradeDialog.vue'
 import FamilyTreeStructureView from '@/components/family/FamilyTreeStructureView.vue'
 import RelationSentenceList from '@/components/family/RelationSentenceList.vue'
 import { resolveCurrentMemberId } from '@/features/family-tree/resolveCurrentMember'
 import { buildRelationSentences, countVisibleEdges } from '@/features/family-tree/relationSentences'
+import { inspectRelationshipHealth } from '@/features/family-tree/relationshipHealth'
+import { buildFamilyTreePosterPage, drawExportTreePoster, resolveExportTreePortraitPaths } from '@/features/family-tree/exportTreePoster'
 import type { FamilyTreeViewMode } from '@/features/family-tree/types'
 import { isLineageMember, isSpouseMember, isExternalMember } from '@/features/family-tree/graph'
+import { markNewUserGuideMilestone } from '@/features/onboarding/newUserGuide'
 import { useSessionStore } from '@/stores/session'
-import type { FamilyDetail, FamilyMember, FamilyTreeResult, Invitation, TreeNode } from '@/types/api'
+import type { FamilyDetail, FamilyMember, FamilyTreeResult, Invitation, RelationshipAddType, TreeNode, UserCapabilities } from '@/types/api'
 
 const session = useSessionStore()
 const familyId = ref('')
+const returnTo = ref('')
+const guideMode = ref(false)
+const familyReturnUrl = computed(() => returnTo.value === 'health'
+  ? `/pages/family/health?familyId=${encodeURIComponent(familyId.value)}`
+  : `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}`)
+const familyReturnLabel = computed(() => returnTo.value === 'health' ? '返回家庭健康' : '返回家庭详情')
 const family = ref<FamilyDetail | null>(null)
 const tree = ref<FamilyTreeResult | null>(null)
 const invitations = ref<Invitation[]>([])
@@ -191,14 +300,39 @@ const loading = ref(false)
 const errorMessage = ref('')
 const viewMode = ref<FamilyTreeViewMode>('structure')
 const viewerMemberId = ref<number | null>(null)
+const requestedViewerMemberId = ref<number | null>(null)
+const requestedRelationAddType = ref<RelationshipAddType | null>(null)
+const requestedNodeAction = ref<'INVITE' | null>(null)
 const currentUserMemberId = ref<number | null>(null)
 const memorialMember = ref<FamilyMember | null>(null)
 const memorialNode = ref<TreeNode | null>(null)
 const grayAccessAvailable = ref(false)
+const phoneUpgradeVisible = ref(false)
+const treeExporting = ref(false)
+const treePosterPaths = ref<string[]>([])
+const treePosterCanvasWidth = ref(750)
+const treePosterCanvasHeight = ref(0)
+const instance = getCurrentInstance()
+const leaving = ref(false)
+const pendingAddNode = ref<TreeNode | null>(null)
+const pendingAddType = ref<RelationshipAddType | null>(null)
+type NodeAction = {
+  label: string
+  primary?: boolean
+  danger?: boolean
+  keepPanelOpen?: boolean
+  run: () => void
+}
+type NodeActionMenu = 'MAIN' | 'RELATION' | 'MORE'
+const selectedNode = ref<TreeNode | null>(null)
+const nodeActionMenu = ref<NodeActionMenu>('MAIN')
 const edgeCount = computed(() => (tree.value ? countVisibleEdges(tree.value) : 0))
 const relationSentences = computed(() => (tree.value ? buildRelationSentences(tree.value) : []))
 const canManageFamily = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
+)
+const canLeaveCurrentFamily = computed(() =>
+  family.value?.role !== 'FOUNDER' && family.value?.status === 'NORMAL' && currentUserMemberId.value != null
 )
 const viewerNodes = computed(() => tree.value?.nodes || [])
 const pendingInviteMemberIds = computed(() => {
@@ -209,6 +343,32 @@ const pendingInviteMemberIds = computed(() => {
       .map((item) => Number(item.targetMemberId))
       .filter((memberId) => Number.isFinite(memberId))
   )
+})
+const healthHints = computed<Record<number, string[]>>(() => {
+  const hints: Record<number, string[]> = {}
+  const relationshipHints = inspectRelationshipHealth(tree.value).hintsByMemberId
+  const itemsByMemberID = new Map((tree.value?.tree || []).map((item) => [item.memberId, item]))
+  for (const node of tree.value?.nodes || []) {
+    const nodeHints: string[] = []
+    if (node.gender === 'UNKNOWN') nodeHints.push('待补性别')
+    if (!node.birthDate) nodeHints.push('待补出生年份')
+    const item = itemsByMemberID.get(node.memberId)
+    if (item && item.parentIds.length === 0 && item.childrenIds.length === 0 && item.spouseIds.length === 0 && (tree.value?.nodes.length || 0) > 1) nodeHints.push('待补关系')
+    nodeHints.push(...(relationshipHints[node.memberId] || []))
+    if (nodeHints.length) hints[node.memberId] = nodeHints
+  }
+  return hints
+})
+const treeIssueCount = computed(() => Object.keys(healthHints.value).length)
+const treeAffairsDescription = computed(() => {
+  if (canManageFamily.value) {
+    return treeIssueCount.value
+      ? `${treeIssueCount.value} 个成员资料或关系待补充，也可处理邀请与管理申请`
+      : '处理邀请、审核与家庭设置'
+  }
+  return treeIssueCount.value
+    ? `${treeIssueCount.value} 个成员资料或关系待补充`
+    : '查看家庭健康并生成家谱长卷'
 })
 const displayTree = computed<FamilyTreeResult | null>(() => {
   if (!tree.value || pendingInviteMemberIds.value.size === 0) return tree.value
@@ -224,20 +384,30 @@ const displayTree = computed<FamilyTreeResult | null>(() => {
 const currentViewerNode = computed(() =>
   viewerNodes.value.find((node) => node.memberId === viewerMemberId.value) || null
 )
-const currentViewerName = computed(() => currentViewerNode.value?.displayName || '未选择')
-const locatedMemberIds = computed(() => {
-  const ids = new Set<number>()
-  for (const item of displayTree.value?.tree || []) {
-    ids.add(item.memberId)
-    for (const parentId of item.parentIds || []) ids.add(parentId)
-    for (const childId of item.childrenIds || []) ids.add(childId)
-    for (const spouseId of item.spouseIds || []) ids.add(spouseId)
-  }
-  return ids
+const currentViewerName = computed(() => currentViewerNode.value?.displayName || '全树视角')
+const canResetViewerToSelf = computed(() => {
+  const selfViewerId = normalizeViewerMemberId(currentUserMemberId.value || tree.value?.nodes[0]?.memberId || null)
+  return viewerMemberId.value !== selfViewerId
 })
 
+function deleteRestriction(node: TreeNode | null | undefined): string {
+  if (!node || !canManageFamily.value) return ''
+  if (node.memberId === family.value?.currentFounderMemberId) return '当前创建人需先完成转让，不能删除。'
+  const hasChildren = (tree.value?.edges || []).some((edge) =>
+    edge.relationshipType === 'PARENT_CHILD' && edge.fromMemberId === node.memberId
+  )
+  return hasChildren ? '该成员已有子女，不能删除。' : ''
+}
+
+function canDeleteTreeNode(node: TreeNode) {
+  return canManageFamily.value && !deleteRestriction(node)
+}
+
+const memorialDeleteRestriction = computed(() => deleteRestriction(memorialNode.value))
+const canDeleteMemorialMember = computed(() => Boolean(memorialNode.value && canDeleteTreeNode(memorialNode.value)))
+
 function canSwitchViewer(node: TreeNode) {
-  return locatedMemberIds.value.has(node.memberId)
+	return Boolean(tree.value?.nodes.some((item) => item.memberId === node.memberId))
 }
 
 function normalizeViewerMemberId(memberId: number | null | undefined): number | null {
@@ -265,12 +435,16 @@ function resetPageData() {
   loading.value = false
   errorMessage.value = ''
   tree.value = null
+  requestedViewerMemberId.value = null
+  requestedRelationAddType.value = null
+  requestedNodeAction.value = null
   invitations.value = []
   family.value = null
   viewerMemberId.value = null
   currentUserMemberId.value = null
   memorialMember.value = null
   memorialNode.value = null
+  selectedNode.value = null
   grayAccessAvailable.value = false
 }
 
@@ -301,7 +475,7 @@ async function loadTree() {
     invitations.value = invitationResult
     grayAccessAvailable.value = Boolean(treeResult.grayAccessEnabled)
     let resolvedViewerId = currentUserMemberId.value
-    if (session.user?.id) {
+    if (session.user?.id && currentUserMemberId.value == null) {
       try {
         const memberList = await listFamilyMembers(familyId.value)
         resolvedViewerId = resolveCurrentMemberId(session.user.id, memberList)
@@ -309,6 +483,24 @@ async function loadTree() {
       } catch {
         // Tree nodes lack userId; members list is the supported way to locate "me".
       }
+    }
+    const requestedViewer = requestedViewerMemberId.value
+    if (requestedViewer && treeResult.nodes.some((node) => node.memberId === requestedViewer)) {
+      viewerMemberId.value = normalizeViewerMemberId(requestedViewer)
+      requestedViewerMemberId.value = null
+      const addType = requestedRelationAddType.value
+      requestedRelationAddType.value = null
+      const nodeAction = requestedNodeAction.value
+      requestedNodeAction.value = null
+      if (addType && canManageFamily.value) {
+        const target = treeResult.nodes.find((node) => node.memberId === requestedViewer)
+        if (target) setTimeout(() => { void openAddRelation(target, addType) }, 0)
+      }
+      if (nodeAction === 'INVITE' && canManageFamily.value) {
+        const target = treeResult.nodes.find((node) => node.memberId === requestedViewer)
+        if (target) setTimeout(() => openInviteMember(target), 0)
+      }
+      return
     }
     const hasCurrentViewer = treeResult.nodes.some((node) => node.memberId === viewerMemberId.value)
     if (!hasCurrentViewer) {
@@ -323,83 +515,212 @@ async function loadTree() {
   }
 }
 
+function treeCanvasToTempFilePath(width: number, height: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    uni.canvasToTempFilePath({
+      canvasId: 'privateTreePosterCanvas', x: 0, y: 0, width, height,
+      destWidth: width, destHeight: height, fileType: 'png',
+      success: (result) => resolve(result.tempFilePath), fail: reject
+    }, instance?.proxy)
+  })
+}
+
+async function exportFamilyTree() {
+  if (!tree.value || !family.value || treeExporting.value) return
+  treeExporting.value = true
+  try {
+    // Tree export intentionally keeps the complete current family graph. Archive
+    // export remains the separate, scope-controlled long-scroll workflow.
+    const page = buildFamilyTreePosterPage(
+      tree.value,
+      `${family.value.familyName}家庭树`,
+      `${family.value.memberCount ?? tree.value.nodes.length} 位成员 · 完整家庭树`
+    )
+    treePosterCanvasWidth.value = page.width
+    treePosterCanvasHeight.value = page.height
+    await nextTick()
+    const context = uni.createCanvasContext('privateTreePosterCanvas', instance?.proxy)
+    const portraitPaths = await resolveExportTreePortraitPaths(page.avatarUrlByMemberId)
+    drawExportTreePoster(context, page, portraitPaths)
+    await new Promise<void>((resolve) => context.draw(false, resolve))
+    treePosterPaths.value = [await treeCanvasToTempFilePath(page.width, page.height)]
+    uni.showActionSheet({
+      itemList: ['保存到相册', '预览或分享图片'],
+      success: (result) => {
+        if (result.tapIndex === 0) void saveFamilyTreeImage()
+        else shareFamilyTreeImage()
+      }
+    })
+  } catch (error) {
+    uni.showModal({ title: '生成失败', content: apiErrorMessage(error, '家庭树图片生成失败，请稍后重试。'), showCancel: false })
+  } finally {
+    treeExporting.value = false
+  }
+}
+
+async function saveFamilyTreeImage() {
+  const filePath = treePosterPaths.value[0]
+  if (!filePath) return
+  try {
+    await new Promise<void>((resolve, reject) => uni.saveImageToPhotosAlbum({ filePath, success: () => resolve(), fail: reject }))
+    uni.showToast({ title: '已保存到相册', icon: 'success' })
+  } catch {
+    uni.showModal({ title: '无法保存图片', content: '请允许小程序保存到相册后重试。', showCancel: false })
+  }
+}
+
+function shareFamilyTreeImage() {
+  const filePath = treePosterPaths.value[0]
+  if (!filePath) return
+  const wxApi = (globalThis as typeof globalThis & { wx?: { showShareImageMenu?: (options: { path: string }) => void } }).wx
+  if (wxApi?.showShareImageMenu) {
+    wxApi.showShareImageMenu({ path: filePath })
+    return
+  }
+  uni.previewImage({ urls: treePosterPaths.value, current: filePath })
+}
+
 function openFamilyOverview() {
   uni.redirectTo({ url: `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}` })
 }
 
-function openMembers() {
-  uni.redirectTo({ url: `/pages/family/members?familyId=${encodeURIComponent(familyId.value)}` })
+function resetViewerToSelf() {
+  viewerMemberId.value = normalizeViewerMemberId(currentUserMemberId.value || tree.value?.nodes[0]?.memberId || null)
+  uni.showToast({ title: '已回到我的视角', icon: 'success' })
 }
 
-function openManage() {
-  uni.navigateTo({
-    url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}`
-  })
+function showAllTree() {
+  viewerMemberId.value = null
+  uni.showToast({ title: '已显示全树', icon: 'success' })
 }
 
 function switchViewerToNode(node: TreeNode) {
-  if (!canSwitchViewer(node)) {
-    uni.showToast({ title: '暂未接入关系图', icon: 'none' })
-    return
-  }
-  viewerMemberId.value = normalizeViewerMemberId(node.memberId)
+	if (!canSwitchViewer(node)) return
+	viewerMemberId.value = normalizeViewerMemberId(node.memberId)
   viewMode.value = 'structure'
   uni.showToast({ title: '已切换视角', icon: 'success' })
 }
 
 function openNodeActions(node: TreeNode) {
   if (node.isLiving === false && grayAccessAvailable.value) {
+    selectedNode.value = null
     showMemorial(node)
     return
   }
-  const items = canSwitchViewer(node) ? ['切换到此视角'] : []
-  if (canManageFamily.value) {
-    items.push('编辑资料')
-    if (node.userBindingState === 'UNBOUND') items.push('邀请本人绑定')
-    if (!isSpouseMember(node) && !isExternalMember(node)) items.push('添加或调整关系')
-    if (node.isLiving === true) items.push('标记为已故')
-    else if (node.isLiving === false) items.push('标记为健在')
-    else items.push('更新健在状态')
-    items.push('删除节点')
+  nodeActionMenu.value = 'MAIN'
+  selectedNode.value = node
+}
+
+const selectedNodeRelationAdditions = computed(() => {
+  const node = selectedNode.value
+  if (!node || !canManageFamily.value || isSpouseMember(node) || isExternalMember(node)) return []
+  return availableRelationAdditions(node)
+})
+
+const selectedNodeActions = computed<NodeAction[]>(() => {
+  const node = selectedNode.value
+  if (!node) return []
+  const actions: NodeAction[] = []
+  const relationAdditions = selectedNodeRelationAdditions.value
+  actions.push({ label: '查看资料', primary: true, run: () => openMemberView(node) })
+  if (healthHints.value[node.memberId]?.length && (canManageFamily.value || node.memberId === currentUserMemberId.value)) {
+    actions.push({ label: '补充资料', primary: true, run: () => openMemberEdit(node) })
   }
-  if (items.length === 0) return
-  uni.showActionSheet({
-    itemList: items,
+  if (canManageFamily.value) {
+    if (node.userBindingState === 'UNBOUND') {
+      actions.push({ label: '邀请本人绑定', primary: true, run: () => openInviteMember(node) })
+    }
+    if (node.userBindingState === 'INVITING') {
+      actions.push({ label: '继续邀请', primary: true, run: () => openInviteMember(node) })
+    }
+    if (relationAdditions.length > 0) {
+      actions.push({ label: '添加关系', primary: true, keepPanelOpen: true, run: () => openNodeActionMenu('RELATION') })
+    }
+  }
+  if (selectedNodeMoreActions.value.length > 0) {
+    actions.push({ label: '更多操作', keepPanelOpen: true, run: () => openNodeActionMenu('MORE') })
+  }
+  return actions
+})
+
+const selectedNodeMoreActions = computed<NodeAction[]>(() => {
+  const node = selectedNode.value
+  if (!node) return []
+  const actions: NodeAction[] = []
+  if (canManageFamily.value) {
+    if (selectedNodeRelationAdditions.value.length > 0) {
+      actions.push({ label: '调整已有关系', run: () => openAdjustRelation(node) })
+    }
+    if (node.isLiving === true) {
+      actions.push({ label: '标记为已故', run: () => updateLivingState(node, false) })
+    } else if (node.isLiving === false) {
+      actions.push({ label: '标记为健在', run: () => updateLivingState(node, true) })
+    } else {
+      actions.push({ label: '标记健在状态', run: () => openLivingStateActions(node) })
+    }
+    if (canDeleteTreeNode(node)) actions.push({ label: '删除节点', danger: true, run: () => confirmDeleteMember(node) })
+  }
+  if (canSwitchViewer(node)) actions.push({ label: '切换到此视角', run: () => switchViewerToNode(node) })
+  if (canLeaveCurrentFamily.value && node.memberId === currentUserMemberId.value) {
+    actions.push({ label: '退出当前家庭', danger: true, run: () => confirmLeave() })
+  }
+  return actions
+})
+
+const nodeActionMenuTitle = computed(() => {
+  if (nodeActionMenu.value === 'RELATION') return '选择要添加的关系'
+  if (nodeActionMenu.value === 'MORE') return '更多成员操作'
+  return '请选择下一步操作'
+})
+
+function openNodeActionMenu(menu: NodeActionMenu) {
+  nodeActionMenu.value = menu
+}
+
+function closeNodeActions() {
+  selectedNode.value = null
+  nodeActionMenu.value = 'MAIN'
+}
+
+function runNodeAction(action: NodeAction) {
+  if (!action.keepPanelOpen) closeNodeActions()
+  action.run()
+}
+
+function openSelectedNodeRelation(addType: RelationshipAddType) {
+  const node = selectedNode.value
+  if (!node) return
+  closeNodeActions()
+  void openAddRelation(node, addType)
+}
+
+function confirmLeave() {
+  if (!family.value || leaving.value) return
+  uni.showModal({
+    title: '确认退出家庭',
+    content: '退出后将解除你与当前成员节点的绑定，家庭树资料不会删除。再次加入需要重新申请或接受邀请。',
+    confirmColor: '#B5473C',
     success: (result) => {
-      const action = items[result.tapIndex]
-      if (action === '切换到此视角') {
-        switchViewerToNode(node)
-        return
-      }
-      if (action === '编辑资料') {
-        openMemberEdit(node)
-        return
-      }
-      if (action === '邀请本人绑定') {
-        openInviteMember(node)
-        return
-      }
-      if (action === '添加或调整关系') {
-        openRelationActions(node)
-        return
-      }
-      if (action === '标记为已故') {
-        updateLivingState(node, false)
-        return
-      }
-      if (action === '标记为健在') {
-        updateLivingState(node, true)
-        return
-      }
-      if (action === '更新健在状态') {
-        openLivingStateActions(node)
-        return
-      }
-      if (action === '删除节点') {
-        confirmDeleteMember(node)
-      }
+      if (result.confirm) void submitLeave()
     }
   })
+}
+
+async function submitLeave() {
+  leaving.value = true
+  try {
+    await leaveFamily(familyId.value, '用户从家庭树退出')
+    uni.showToast({ title: '已退出家庭', icon: 'success' })
+    setTimeout(() => uni.switchTab({ url: '/pages/family/my' }), 500)
+  } catch (error) {
+    uni.showModal({
+      title: '退出失败',
+      content: apiErrorMessage(error, '暂时无法退出该家庭。'),
+      showCancel: false
+    })
+  } finally {
+    leaving.value = false
+  }
 }
 
 function formatDeathTime(member: { deathDate?: string | null; deathYear?: number | null }) {
@@ -439,10 +760,10 @@ function closeMemorial() {
   memorialNode.value = null
 }
 
-function editMemorial() {
+function viewMemorialMember() {
   const node = memorialNode.value
   closeMemorial()
-  if (node) openMemberEdit(node)
+  if (node) openMemberView(node)
 }
 
 function switchMemorialViewer() {
@@ -457,16 +778,25 @@ function deleteMemorialMember() {
   if (node) confirmDeleteMember(node)
 }
 
-function openRelationActions(node: TreeNode) {
-  const items = ['添加亲属（以此人为基准）', '调整已有关系']
-  uni.showActionSheet({
-    itemList: items,
-    success: (result) => {
-      const action = items[result.tapIndex]
-      if (action === '添加亲属（以此人为基准）') openAddRelation(node)
-      if (action === '调整已有关系') openAdjustRelation(node)
-    }
-  })
+function availableRelationAdditions(node: TreeNode) {
+  const parentIds = new Set(
+    (tree.value?.edges || [])
+      .filter((edge) => edge.relationshipType === 'PARENT_CHILD' && edge.toMemberId === node.memberId)
+      .map((edge) => edge.fromMemberId)
+  )
+  const parents = (tree.value?.nodes || []).filter((item) => parentIds.has(item.memberId))
+  const hasFather = parents.some((parent) => parent.gender === 'MALE')
+  const hasMother = parents.some((parent) => parent.gender === 'FEMALE')
+  const canExpandByGender = node.gender === 'MALE' || node.gender === 'FEMALE'
+  const additions: Array<{ label: string; addType: RelationshipAddType }> = []
+  if (!hasFather) additions.push({ label: '添加父亲', addType: 'ADD_FATHER' })
+  if (!hasMother) additions.push({ label: '添加母亲', addType: 'ADD_MOTHER' })
+  if (canExpandByGender) {
+    additions.push({ label: '添加子女', addType: 'ADD_CHILD' })
+    additions.push({ label: '添加配偶', addType: 'ADD_SPOUSE' })
+  }
+  if (parents.length > 0) additions.push({ label: '添加兄弟姐妹', addType: 'ADD_SIBLING' })
+  return additions
 }
 
 function openLivingStateActions(node: TreeNode) {
@@ -485,27 +815,81 @@ function openLivingStateActions(node: TreeNode) {
   })
 }
 
+function openMemberView(node: TreeNode) {
+  uni.navigateTo({
+    url: `/pages/family/member-view?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(String(node.memberId))}&returnTo=tree`
+  })
+}
+
 function openMemberEdit(node: TreeNode) {
   uni.navigateTo({
-    url: `/pages/family/member-edit?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(String(node.memberId))}`
+    url: `/pages/family/member-edit?familyId=${encodeURIComponent(familyId.value)}&memberId=${encodeURIComponent(String(node.memberId))}&returnTo=tree`
+  })
+}
+
+function openTreeAffairs() {
+  const page = canManageFamily.value ? 'manage-center' : 'health'
+  uni.navigateTo({
+    url: `/pages/family/${page}?familyId=${encodeURIComponent(familyId.value)}&returnTo=tree`
   })
 }
 
 function openInviteMember(node: TreeNode) {
   uni.navigateTo({
-    url: `/pages/invite/sent?familyId=${encodeURIComponent(familyId.value)}&mode=node&memberId=${encodeURIComponent(String(node.memberId))}&memberName=${encodeURIComponent(node.displayName || '')}`
+    url: `/pages/invite/sent?familyId=${encodeURIComponent(familyId.value)}&mode=node&memberId=${encodeURIComponent(String(node.memberId))}&memberName=${encodeURIComponent(node.displayName || '')}&returnTo=tree`
   })
 }
 
-function openAddRelation(node: TreeNode) {
+async function openAddRelation(node: TreeNode, addType: RelationshipAddType) {
+  if (!await ensureMemberCapacity(node, addType)) return
   uni.navigateTo({
-    url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=node&baseMemberId=${encodeURIComponent(String(node.memberId))}`
+    url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=node&baseMemberId=${encodeURIComponent(String(node.memberId))}&addType=${encodeURIComponent(addType)}&returnTo=tree`
   })
+}
+
+async function ensureMemberCapacity(node: TreeNode, addType: RelationshipAddType) {
+  let capabilities: UserCapabilities
+  try {
+    capabilities = await fetchCapabilities()
+  } catch {
+    uni.showModal({
+      title: '容量信息暂不可用',
+      content: '暂时无法确认当前家庭容量，请稍后重试。',
+      showCancel: false
+    })
+    return false
+  }
+  const usage = capabilities.usage.membersPerOwnedFamily[String(familyId.value)]
+  const limit = capabilities.usage.membersLimitsByFamily?.[String(familyId.value)] ?? capabilities.limits.maxMembersPerOwnedFamily
+  if (typeof usage !== 'number' || usage < limit) return true
+  if (!session.user?.phoneVerified) {
+    pendingAddNode.value = node
+    pendingAddType.value = addType
+    phoneUpgradeVisible.value = true
+    return false
+  }
+  openCapacityPurchase(usage, limit)
+  return false
+}
+
+function openCapacityPurchase(usage: number, limit: number) {
+  uni.showActionSheet({ itemList: [`购买扩容（当前 ${usage}/${limit}）`, '邀请家人解锁奖励名额'], success: (result) => {
+    const page = result.tapIndex === 0 ? 'capacity' : 'invitation-reward'
+    uni.navigateTo({ url: `/pages/family/${page}?familyId=${encodeURIComponent(familyId.value)}&returnTo=tree` })
+  } })
+}
+
+function continueAfterPhoneUpgrade() {
+  const node = pendingAddNode.value
+  const addType = pendingAddType.value
+  pendingAddNode.value = null
+  pendingAddType.value = null
+  if (node && addType) void openAddRelation(node, addType)
 }
 
 function openAdjustRelation(node: TreeNode) {
   uni.navigateTo({
-    url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=relations&baseMemberId=${encodeURIComponent(String(node.memberId))}`
+    url: `/pages/family/manage?familyId=${encodeURIComponent(familyId.value)}&section=relations&baseMemberId=${encodeURIComponent(String(node.memberId))}&returnTo=tree`
   })
 }
 
@@ -524,9 +908,14 @@ async function updateLivingState(node: TreeNode, isAlive: boolean) {
 }
 
 function confirmDeleteMember(node: TreeNode) {
+  const restriction = deleteRestriction(node)
+  if (restriction) {
+    uni.showModal({ title: '暂不能删除', content: restriction, showCancel: false })
+    return
+  }
   uni.showModal({
     title: '删除节点',
-    content: `确定删除“${node.displayName || '该成员'}”吗？没有子女时会一并解除父母/配偶关系；已有子女时系统会拒绝。`,
+    content: `确定删除“${node.displayName || '该成员'}”吗？相关父母或配偶关系会一并解除。`,
     success: (result) => {
       if (result.confirm) deleteMember(node)
     }
@@ -549,6 +938,13 @@ async function deleteMember(node: TreeNode) {
 
 onLoad((options) => {
   familyId.value = String(options?.familyId || '')
+  returnTo.value = String(options?.returnTo || '')
+  guideMode.value = String(options?.guide || '') === '1'
+  if (guideMode.value) markNewUserGuideMilestone('TREE_GUIDE_OPENED')
+  const memberId = Number(options?.memberId)
+  requestedViewerMemberId.value = Number.isFinite(memberId) && memberId > 0 ? memberId : null
+  requestedRelationAddType.value = String(options?.task || '') === 'ADD_SPOUSE' ? 'ADD_SPOUSE' : null
+  requestedNodeAction.value = String(options?.task || '') === 'INVITE' ? 'INVITE' : null
 })
 onShow(loadTree)
 onUnload(resetPageData)
@@ -584,6 +980,39 @@ onUnload(resetPageData)
   margin-bottom: 24rpx;
 }
 
+.tree-head-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.tree-export-action {
+  padding: 10rpx 14rpx;
+  border: 1rpx solid var(--archive-line-strong);
+  border-radius: 5rpx;
+  background: rgba(255, 250, 239, 0.72);
+  color: var(--archive-blue);
+  font-size: 21rpx;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.tree-export-action:active,
+.tree-export-action.loading {
+  background: var(--archive-paper-deep);
+  opacity: 0.72;
+}
+
+.tree-export-canvas {
+  position: fixed;
+  top: -10000px;
+  left: -10000px;
+  pointer-events: none;
+  opacity: 0;
+}
+
 .family-tree-tabs {
   margin-bottom: 20rpx;
 }
@@ -592,9 +1021,11 @@ onUnload(resetPageData)
   display: flex;
   align-items: center;
   margin-bottom: 20rpx;
-  padding: 18rpx 0;
-  border-left: 0;
-  border-right: 0;
+  padding: 18rpx;
+  border: 1rpx solid rgba(22, 51, 83, 0.16);
+  border-left: 5rpx solid var(--archive-blue);
+  border-radius: 8rpx;
+  background: rgba(255, 251, 242, 0.54);
 }
 
 .viewer-copy {
@@ -618,12 +1049,179 @@ onUnload(resetPageData)
   font-size: 31rpx;
   font-weight: 750;
   line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .viewer-hint {
   color: var(--archive-ink-soft);
   font-size: 21rpx;
   line-height: 1.45;
+}
+.viewer-actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 10rpx;
+  margin-left: 18rpx;
+}
+.viewer-action {
+  padding: 10rpx 14rpx;
+  border: 1rpx solid var(--archive-line-strong);
+  border-radius: 6rpx;
+  color: var(--archive-blue);
+  background: rgba(255, 250, 239, 0.72);
+  font-size: 21rpx;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.viewer-action:active {
+  background: var(--archive-paper-deep);
+  opacity: 0.76;
+}
+
+.tree-health-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10rpx;
+  margin: 0 0 20rpx;
+  padding: 12rpx 14rpx;
+  border-left: 3rpx solid var(--archive-cinnabar);
+  background: rgba(168, 59, 45, 0.045);
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.55;
+}
+
+.tree-affairs {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin: -2rpx 0 20rpx;
+}
+
+.tree-affairs:active {
+  background: rgba(31, 58, 95, 0.045);
+}
+
+.tree-affairs-copy {
+  min-width: 0;
+}
+
+.tree-affairs-title,
+.tree-affairs-desc {
+  display: block;
+}
+
+.tree-affairs-title {
+  color: var(--archive-ink);
+  font-size: 28rpx;
+  font-weight: 800;
+}
+
+.tree-affairs-desc {
+  margin-top: 6rpx;
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
+  line-height: 1.5;
+}
+
+.tree-affairs-meta {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.tree-affairs-count {
+  min-width: 38rpx;
+  box-sizing: border-box;
+  padding: 4rpx 10rpx;
+  border-radius: 999rpx;
+  background: var(--archive-cinnabar);
+  color: #fff;
+  font-size: 21rpx;
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.tree-health-dot {
+  display: grid;
+  flex: 0 0 auto;
+  width: 22rpx;
+  height: 22rpx;
+  margin-top: 4rpx;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--archive-cinnabar);
+  color: #fff;
+  font-size: 16rpx;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.tree-status-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx 20rpx;
+  margin: -6rpx 0 20rpx;
+  padding: 0 2rpx;
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.35;
+}
+
+.tree-guide-note {
+  margin: 16rpx 0 20rpx;
+}
+.tree-status-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6rpx;
+  white-space: nowrap;
+}
+.legend-sample {
+  display: inline-grid;
+  width: 28rpx;
+  height: 28rpx;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1rpx solid var(--archive-line-strong);
+  border-radius: 4rpx;
+  background: var(--archive-paper, #fff7e8);
+  color: var(--archive-blue);
+  font-size: 15rpx;
+  font-weight: 700;
+  line-height: 1;
+}
+.legend-sample.health {
+  width: 22rpx;
+  height: 22rpx;
+  border: 0;
+  border-radius: 50%;
+  background: var(--archive-cinnabar);
+  color: #fff;
+  font-size: 14rpx;
+}
+.legend-sample.deceased {
+  border-color: rgba(101, 112, 128, 0.32);
+  background: #eee7d8;
+  color: rgba(36, 50, 68, 0.58);
+}
+.legend-sample.binding {
+  border-color: rgba(42, 112, 87, 0.28);
+  background: rgba(42, 112, 87, 0.09);
+  color: var(--archive-green, #2a7057);
+  font-size: 17rpx;
+}
+.legend-sample.pending {
+  border-color: rgba(168, 59, 45, 0.28);
+  background: rgba(168, 59, 45, 0.07);
+  color: var(--archive-cinnabar);
+  font-size: 17rpx;
 }
 
 .genealogy-tools {
@@ -687,6 +1285,133 @@ onUnload(resetPageData)
 .archive-tree-structure {
   margin-left: -8rpx;
   margin-right: -8rpx;
+}
+
+.node-action-panel {
+  position: fixed;
+  right: 20rpx;
+  bottom: calc(20rpx + env(safe-area-inset-bottom));
+  left: 20rpx;
+  z-index: 98;
+  max-height: 720rpx;
+  margin: 0;
+  overflow-y: auto;
+  padding: 20rpx;
+  border: 1rpx solid rgba(22, 51, 83, 0.22);
+  border-left: 5rpx solid var(--archive-blue);
+  border-radius: 8rpx;
+  background: rgba(255, 251, 242, 0.84);
+  box-shadow: 0 10rpx 34rpx rgba(27, 42, 57, 0.24);
+}
+
+.node-action-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.node-action-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.node-action-label {
+  color: var(--archive-cinnabar);
+  font-size: 20rpx;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.node-action-name {
+  overflow: hidden;
+  color: var(--archive-blue);
+  font-family: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  font-size: 31rpx;
+  font-weight: 750;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-action-close {
+  flex: 0 0 auto;
+  padding: 8rpx 4rpx;
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
+  line-height: 1.2;
+}
+
+.node-action-head-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 18rpx;
+}
+
+.node-action-back {
+  padding: 8rpx 4rpx;
+  color: var(--archive-blue);
+  font-size: 22rpx;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.node-action-hint {
+  display: block;
+  margin: 12rpx 0 14rpx;
+  color: var(--archive-ink-soft);
+  font-size: 21rpx;
+  line-height: 1.4;
+}
+
+.node-action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+}
+
+.node-action-item {
+  display: flex;
+  min-height: 66rpx;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 10rpx 12rpx;
+  border: 1rpx solid var(--archive-line-strong);
+  border-radius: 5rpx;
+  color: var(--archive-blue);
+  background: rgba(255, 249, 238, 0.72);
+  font-size: 22rpx;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.node-action-item.primary {
+  border-color: rgba(31, 79, 121, 0.48);
+  background: rgba(31, 79, 121, 0.08);
+}
+
+.node-action-item.danger {
+  border-color: rgba(168, 59, 45, 0.42);
+  color: var(--archive-cinnabar);
+}
+
+.node-action-item:active,
+.node-action-close:active,
+.node-action-back:active {
+  opacity: 0.64;
+}
+
+.empty-tree-guide {
+  padding: 28rpx 0;
+}
+
+.empty-tree-action {
+  margin-top: 18rpx;
 }
 
 .relation-list {
@@ -903,6 +1628,15 @@ onUnload(resetPageData)
 .memorial-action.primary {
   border-color: var(--archive-cinnabar);
   color: var(--archive-cinnabar);
+}
+
+.memorial-delete-restriction {
+  display: block;
+  margin-top: 20rpx;
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
+  line-height: 1.55;
+  text-align: right;
 }
 
 .memorial-delete-action {

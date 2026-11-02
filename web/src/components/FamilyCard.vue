@@ -3,7 +3,7 @@
     <div class="card-head">
       <div class="seal">{{ family.surname.slice(0, 1) }}</div>
       <div>
-        <span class="status-pill">{{ family.publicStatus === 'APPROVED' ? '已公开' : '未公开' }}</span>
+        <span class="status-pill">优质家庭</span>
         <h3>{{ family.name }}</h3>
         <p>{{ family.description }}</p>
       </div>
@@ -16,9 +16,8 @@
     </dl>
     <p class="muted">{{ family.publicContact || '该家庭未设置公开联系方式，如需联系请通过平台协助。' }}</p>
     <div class="actions">
-      <RouterLink class="button" :to="`/families/${family.id}/public`">查看公开主页</RouterLink>
-      <RouterLink class="button secondary" :to="`/families/${family.id}/tree/public`">查看公开树</RouterLink>
-      <RouterLink class="button ghost" :to="`/families/${family.id}/join`">申请加入</RouterLink>
+      <RouterLink class="button" :to="`/families/${family.id}/public`">查看案例</RouterLink>
+      <RouterLink class="button secondary" :to="`/families/${family.id}/tree/public`">学习家庭树</RouterLink>
     </div>
   </article>
 </template>

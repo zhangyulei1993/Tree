@@ -114,7 +114,7 @@ func TestAdminDynamicConfigDrivesCapabilitiesAndBoundaries(t *testing.T) {
 	}
 
 	for i := 0; i < wechatCfg.MaxJoinedFamilies; i++ {
-		host := freshquota.CreateActiveUser(t, tx, fmt.Sprintf("主持%d", i), false)
+		host := freshquota.CreateActiveUser(t, tx, fmt.Sprintf("主持%d", i), true)
 		familyID, memberID := freshquota.SeedHostFamilyWithGuest(t, tx, host, fmt.Sprintf("外%d", i))
 		created, err := inviteSvc.Create(ctx, host.ID, familyID, memberID, invitedto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, invitationservice.AuditInput{})
 		if err != nil {
@@ -124,7 +124,7 @@ func TestAdminDynamicConfigDrivesCapabilitiesAndBoundaries(t *testing.T) {
 			t.Fatalf("accept %d: %v", i, err)
 		}
 	}
-	hostExtra := freshquota.CreateActiveUser(t, tx, "主持超额", false)
+	hostExtra := freshquota.CreateActiveUser(t, tx, "主持超额", true)
 	familyExtra, memberExtra := freshquota.SeedHostFamilyWithGuest(t, tx, hostExtra, "超额")
 	createdExtra, err := inviteSvc.Create(ctx, hostExtra.ID, familyExtra, memberExtra, invitedto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, invitationservice.AuditInput{})
 	if err != nil {
@@ -134,13 +134,11 @@ func TestAdminDynamicConfigDrivesCapabilitiesAndBoundaries(t *testing.T) {
 		t.Fatalf("expected 41503 at joined=%d, got %#v", wechatCfg.MaxJoinedFamilies, err)
 	}
 
-	phone := freshquota.UniquePhone(runID, "dynamic-bind")
-	password := "dynamic-pass-" + runID[len(runID)-4:]
-	if _, err := authSvc.BindPhoneCredential(ctx, authservice.BindPhoneCredentialInput{
-		UserID: userID, Phone: phone, Password: password, ConfirmPassword: password,
+	if _, err := authSvc.BindWechatPhone(ctx, authservice.BindWechatPhoneInput{
+		UserID: userID, PhoneCode: runID + "-dynamic-bind", ClientType: "WECHAT_MINI_PROGRAM",
 		IP: "127.0.0.1", UserAgent: "fresh-quota-test",
 	}); err != nil {
-		t.Fatalf("BindPhoneCredential: %v", err)
+		t.Fatalf("BindWechatPhone: %v", err)
 	}
 	phoneCaps, err := svc.GetCapabilities(ctx, userID)
 	if err != nil {
@@ -172,7 +170,7 @@ func TestAdminDynamicConfigDrivesCapabilitiesAndBoundaries(t *testing.T) {
 	}
 
 	for i := 0; i < phoneCfg.MaxJoinedFamilies-wechatCfg.MaxJoinedFamilies; i++ {
-		host := freshquota.CreateActiveUser(t, tx, fmt.Sprintf("手机主持%d", i), false)
+		host := freshquota.CreateActiveUser(t, tx, fmt.Sprintf("手机主持%d", i), true)
 		familyID, memberID := freshquota.SeedHostFamilyWithGuest(t, tx, host, fmt.Sprintf("手机外%d", i))
 		created, err := inviteSvc.Create(ctx, host.ID, familyID, memberID, invitedto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, invitationservice.AuditInput{})
 		if err != nil {
@@ -189,7 +187,7 @@ func TestAdminDynamicConfigDrivesCapabilitiesAndBoundaries(t *testing.T) {
 	if phoneCaps.Usage.JoinedFamilies != phoneCfg.MaxJoinedFamilies {
 		t.Fatalf("expected phone joined=%d, got %#v", phoneCfg.MaxJoinedFamilies, phoneCaps.Usage)
 	}
-	hostPhoneExtra := freshquota.CreateActiveUser(t, tx, "手机主持超额", false)
+	hostPhoneExtra := freshquota.CreateActiveUser(t, tx, "手机主持超额", true)
 	familyPhoneExtra, memberPhoneExtra := freshquota.SeedHostFamilyWithGuest(t, tx, hostPhoneExtra, "手机超额")
 	createdPhoneExtra, err := inviteSvc.Create(ctx, hostPhoneExtra.ID, familyPhoneExtra, memberPhoneExtra, invitedto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, invitationservice.AuditInput{})
 	if err != nil {

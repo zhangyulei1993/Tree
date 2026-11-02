@@ -7,6 +7,15 @@
     :family-surname="familySurname"
     :interactive="interactive"
     :selectable="selectable"
+    :in-focus="inFocus"
+    :is-root="isRoot"
+    :lineage-role="lineageRole"
+    :spouse-relation-label="spouseRelationLabel"
+    :health-hints="healthHints"
+    :portrait-theme="portraitTheme"
+    :portrait-region="portraitRegion"
+    :portrait-region-code="portraitRegionCode"
+    :portrait-appearance-variant="portraitAppearanceVariant"
     compact
     @select="emit('select', $event)"
   />
@@ -24,6 +33,15 @@ defineProps<{
   familySurname?: string
   interactive?: boolean
   selectable?: boolean
+  inFocus?: boolean
+  isRoot?: boolean
+  lineageRole?: string
+  spouseRelationLabel?: string
+  healthHints?: string[]
+  portraitTheme?: 'default' | 'imperial' | 'regional'
+  portraitRegion?: string | null
+  portraitRegionCode?: string | null
+  portraitAppearanceVariant?: number
 }>()
 
 const emit = defineEmits<{

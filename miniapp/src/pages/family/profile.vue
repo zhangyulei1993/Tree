@@ -12,9 +12,9 @@
     <template v-else-if="family">
       <view class="profile-head archive-page-head">
         <view>
-          <text class="archive-kicker">Family Dossier</text>
-          <text class="archive-title">家庭档案</text>
-          <text class="archive-subtitle">基本资料与公开展示摘要</text>
+          <text class="archive-kicker">Family Profile</text>
+          <text class="archive-title">编辑家庭资料</text>
+          <text class="archive-subtitle">基本资料与家庭说明</text>
         </view>
         <view class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
       </view>
@@ -29,7 +29,6 @@
           <text class="profile-name">{{ family.familyName }}</text>
           <text class="profile-region">{{ regionSummary }}</text>
           <view class="profile-status-line">
-            <text class="profile-status-badge">{{ publicStatusText(family.publicDisplayStatus) }}</text>
             <text v-if="family.nativePlace" class="archive-chip">{{ family.nativePlace }}</text>
             <text v-if="family.regionText" class="archive-chip">{{ family.regionText }}</text>
           </view>
@@ -61,11 +60,10 @@
             <text class="readonly-value">{{ family.familySurname }}</text>
           </view>
           <input v-model.trim="profileForm.familyName" class="tree-input" maxlength="120" placeholder="家庭名称" />
-          <input v-model.trim="profileForm.nativePlace" class="tree-input" maxlength="120" placeholder="籍贯" />
-          <input v-model.trim="profileForm.regionText" class="tree-input" maxlength="120" placeholder="地区" />
+          <FamilyRegionSelector v-model="selectedRegion" />
           <textarea v-model.trim="profileForm.description" class="tree-textarea" maxlength="1000" placeholder="家庭简介" />
           <MiniNotice tone="security" title="资料范围">
-            主姓氏创建后不可在此修改；公开联系方式、搜索开关和公开审核在“家庭设置”中管理。
+            主姓氏创建后不可在此修改；家庭简介仅用于家庭成员内部查看。
           </MiniNotice>
           <text v-if="profileError" class="tree-field-error">{{ profileError }}</text>
           <MiniButton class="profile-action" :loading="savingProfile" :disabled="savingProfile" @click="saveProfile">
@@ -100,25 +98,6 @@
         <text class="profile-description">{{ family.description || '未设置' }}</text>
       </view>
 
-      <view v-if="!editingProfile" class="archive-form-panel">
-        <view class="archive-section-head">
-          <text class="archive-section-title">公开展示摘要</text>
-          <text class="archive-section-subtitle">公开状态与联系方式在“家庭设置”中维护</text>
-        </view>
-        <view class="tree-info-row">
-          <text class="tree-info-label">公开状态</text>
-          <text class="tree-info-value">{{ publicStatusText(family.publicDisplayStatus) }}</text>
-        </view>
-        <view class="tree-info-row">
-          <text class="tree-info-label">允许被搜索</text>
-          <text class="tree-info-value">{{ family.searchable ? '是' : '否' }}</text>
-        </view>
-        <view class="tree-info-row">
-          <text class="tree-info-label">公开联系方式</text>
-          <text class="tree-info-value">{{ publicContactText }}</text>
-        </view>
-      </view>
-
       <view v-if="family.role !== 'FOUNDER'" class="archive-danger-panel">
         <text class="archive-danger-title">退出家庭</text>
         <text class="archive-danger-desc">
@@ -142,6 +121,7 @@ import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniFamilyPageSkeleton from '@/components/base/MiniFamilyPageSkeleton.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
+import FamilyRegionSelector, { type FamilyRegionValue } from '@/components/family/FamilyRegionSelector.vue'
 import { useSessionStore } from '@/stores/session'
 import type { FamilyDetail } from '@/types/api'
 import { normalizeText, optionalText, validateTextFields } from '@/utils/inputValidation'
@@ -158,19 +138,9 @@ const profileError = ref('')
 const profileForm = reactive({
   familyName: '',
   nativePlace: '',
+  regionCode: '',
   regionText: '',
   description: ''
-})
-
-const publicContactText = computed(() => {
-  if (!family.value?.publicContactVisible) return '未公开'
-  const contacts = [
-    family.value.publicContactName,
-    family.value.publicContactPhone,
-    family.value.publicContactWechat,
-    family.value.publicContactNote
-  ].filter(Boolean)
-  return contacts.length > 0 ? contacts.join(' / ') : '未设置'
 })
 
 const regionSummary = computed(() => {
@@ -202,7 +172,7 @@ async function loadFamily() {
     family.value = await getFamilyDetail(familyId.value)
     fillProfileForm()
   } catch (error) {
-    errorMessage.value = apiErrorMessage(error, '家庭档案加载失败。')
+    errorMessage.value = apiErrorMessage(error, '家庭资料加载失败。')
   } finally {
     loading.value = false
   }
@@ -224,6 +194,7 @@ function fillProfileForm() {
   if (!family.value) return
   profileForm.familyName = family.value.familyName || ''
   profileForm.nativePlace = family.value.nativePlace || ''
+  profileForm.regionCode = family.value.regionCode || ''
   profileForm.regionText = family.value.regionText || ''
   profileForm.description = family.value.description || ''
 }
@@ -234,6 +205,11 @@ function toggleProfileEdit() {
   profileError.value = ''
   if (editingProfile.value) fillProfileForm()
 }
+
+const selectedRegion = computed<FamilyRegionValue>({
+  get: () => ({ nativePlace: profileForm.nativePlace, regionCode: profileForm.regionCode, regionText: profileForm.regionText }),
+  set: (value) => Object.assign(profileForm, value)
+})
 
 async function saveProfile() {
   if (!family.value || savingProfile.value) return
@@ -254,8 +230,10 @@ async function saveProfile() {
       ...profileForm,
       familyName: normalizeText(profileForm.familyName),
       nativePlace: optionalText(profileForm.nativePlace),
+      regionCode: optionalText(profileForm.regionCode),
       regionText: optionalText(profileForm.regionText),
-      description: optionalText(profileForm.description)
+      description: optionalText(profileForm.description),
+      expectedRevision: family.value.revision
     })
     editingProfile.value = false
     uni.showToast({ title: '家庭资料已保存', icon: 'success' })
@@ -267,10 +245,6 @@ async function saveProfile() {
 }
 
 function openFamilyDetail() {
-  if (getCurrentPages().length > 1) {
-    uni.navigateBack({ delta: 1 })
-    return
-  }
   uni.redirectTo({ url: `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}` })
 }
 
@@ -303,16 +277,6 @@ async function submitLeave() {
   } finally {
     leaving.value = false
   }
-}
-
-function publicStatusText(status: string) {
-  return ({
-    APPROVED: '已公开',
-    PENDING: '待审核',
-    REJECTED: '已拒绝',
-    PRIVATE: '未公开',
-    TAKEN_DOWN: '已下架'
-  } as Record<string, string>)[status] || '未知状态'
 }
 
 onLoad((options) => {

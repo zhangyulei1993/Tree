@@ -17,9 +17,10 @@ import (
 
 type InvitationRow struct {
 	invitationmodel.FamilyInvitation
-	FamilyName         string `gorm:"column:family_name"`
-	TargetMemberName   string `gorm:"column:target_member_name"`
-	InviterDisplayName string `gorm:"column:inviter_display_name"`
+	FamilyName            string `gorm:"column:family_name"`
+	TargetMemberName      string `gorm:"column:target_member_name"`
+	InviterDisplayName    string `gorm:"column:inviter_display_name"`
+	AcceptedByDisplayName string `gorm:"column:accepted_by_display_name"`
 }
 
 type Repository interface {
@@ -27,14 +28,11 @@ type Repository interface {
 	DB() *gorm.DB
 	FindFamily(context.Context, uint64, bool) (*familymodel.Family, error)
 	FindMember(context.Context, uint64, uint64, bool) (*membermodel.FamilyMember, error)
-	FindMemberAnyStatus(context.Context, uint64, uint64, bool) (*membermodel.FamilyMember, error)
 	FindUser(context.Context, uint64, bool) (*usermodel.User, error)
 	FindActiveLinkByMember(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
 	FindActiveLinkByUser(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
 	FindPendingByMember(context.Context, uint64, uint64, time.Time) (*invitationmodel.FamilyInvitation, error)
-	CreateMember(context.Context, *membermodel.FamilyMember) error
 	Create(context.Context, *invitationmodel.FamilyInvitation) error
-	IncrementGraphVersion(context.Context, uint64) error
 	FindByID(context.Context, uint64, bool) (*invitationmodel.FamilyInvitation, error)
 	FindRowByID(context.Context, uint64) (*InvitationRow, error)
 	FindByTokenHash(context.Context, string) (*InvitationRow, error)
@@ -43,7 +41,6 @@ type Repository interface {
 	CancelPendingJoinRequestsForUser(context.Context, uint64, uint64, time.Time) (int64, error)
 	UpdateStatus(context.Context, uint64, string, map[string]any) error
 	CreateLink(context.Context, *rolemodel.FamilyMemberUserLink) error
-	UpdateMember(context.Context, uint64, uint64, map[string]any) error
 	WriteLog(context.Context, operationlog.WriteInput) error
 	WriteFailedLog(context.Context, operationlog.WriteInput) error
 }
@@ -71,16 +68,6 @@ func (r *GormRepository) FindMember(ctx context.Context, familyID, memberID uint
 		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
 	}
 	err := query.Where("id = ? AND family_id = ? AND status = ? AND deleted_at IS NULL", memberID, familyID, "ACTIVE").First(&value).Error
-	return &value, err
-}
-
-func (r *GormRepository) FindMemberAnyStatus(ctx context.Context, familyID, memberID uint64, lock bool) (*membermodel.FamilyMember, error) {
-	var value membermodel.FamilyMember
-	query := r.db.WithContext(ctx)
-	if lock {
-		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
-	}
-	err := query.Where("id = ? AND family_id = ? AND deleted_at IS NULL", memberID, familyID).First(&value).Error
 	return &value, err
 }
 
@@ -118,16 +105,6 @@ func (r *GormRepository) Create(ctx context.Context, value *invitationmodel.Fami
 	return r.db.WithContext(ctx).Create(value).Error
 }
 
-func (r *GormRepository) CreateMember(ctx context.Context, value *membermodel.FamilyMember) error {
-	return r.db.WithContext(ctx).Create(value).Error
-}
-
-func (r *GormRepository) IncrementGraphVersion(ctx context.Context, familyID uint64) error {
-	return r.db.WithContext(ctx).Model(&familymodel.Family{}).
-		Where("id = ?", familyID).
-		UpdateColumn("graph_version", gorm.Expr("graph_version + 1")).Error
-}
-
 func (r *GormRepository) FindByID(ctx context.Context, id uint64, lock bool) (*invitationmodel.FamilyInvitation, error) {
 	var value invitationmodel.FamilyInvitation
 	query := r.db.WithContext(ctx)
@@ -145,6 +122,7 @@ func (r *GormRepository) FindRowByID(ctx context.Context, id uint64) (*Invitatio
 		Joins("JOIN families AS f ON f.id = i.family_id").
 		Joins("LEFT JOIN family_members AS m ON m.id = i.target_member_id").
 		Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").
+		Joins("LEFT JOIN users AS accepter ON accepter.id = i.accepted_by_user_id AND accepter.deleted_at IS NULL").
 		Where("i.id = ?", id).First(&value).Error
 	return &value, err
 }
@@ -156,6 +134,7 @@ func (r *GormRepository) FindByTokenHash(ctx context.Context, hash string) (*Inv
 		Joins("JOIN families AS f ON f.id = i.family_id").
 		Joins("LEFT JOIN family_members AS m ON m.id = i.target_member_id").
 		Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").
+		Joins("LEFT JOIN users AS accepter ON accepter.id = i.accepted_by_user_id AND accepter.deleted_at IS NULL").
 		Where("i.invite_token = ?", hash).First(&value).Error
 	return &value, err
 }
@@ -167,7 +146,8 @@ func (r *GormRepository) ListForUser(ctx context.Context, userID uint64) ([]Invi
 		Joins("JOIN families AS f ON f.id = i.family_id").
 		Joins("LEFT JOIN family_members AS m ON m.id = i.target_member_id").
 		Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").
-		Where("i.target_user_id = ?", userID).Order("i.id DESC").Scan(&values).Error
+		Joins("LEFT JOIN users AS accepter ON accepter.id = i.accepted_by_user_id AND accepter.deleted_at IS NULL").
+		Where("i.target_user_id = ?", userID).Order("CASE WHEN i.status = 'PENDING' THEN 0 ELSE 1 END, i.id DESC").Limit(100).Scan(&values).Error
 	return values, err
 }
 
@@ -178,15 +158,45 @@ func (r *GormRepository) ListForFamily(ctx context.Context, familyID uint64) ([]
 		Joins("JOIN families AS f ON f.id = i.family_id").
 		Joins("LEFT JOIN family_members AS m ON m.id = i.target_member_id").
 		Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").
-		Where("i.family_id = ?", familyID).Order("i.id DESC").Scan(&values).Error
+		Joins("LEFT JOIN users AS accepter ON accepter.id = i.accepted_by_user_id AND accepter.deleted_at IS NULL").
+		Where("i.family_id = ?", familyID).Order("CASE WHEN i.status = 'PENDING' THEN 0 ELSE 1 END, i.id DESC").Limit(100).Scan(&values).Error
 	return values, err
+}
+
+func (r *GormRepository) ListForUserPage(ctx context.Context, userID uint64, page, pageSize int) ([]InvitationRow, int64, error) {
+	return r.listPage(ctx, "i.target_user_id = ?", userID, page, pageSize)
+}
+
+func (r *GormRepository) ListForFamilyPage(ctx context.Context, familyID uint64, page, pageSize int) ([]InvitationRow, int64, error) {
+	return r.listPage(ctx, "i.family_id = ?", familyID, page, pageSize)
+}
+
+func (r *GormRepository) listPage(ctx context.Context, condition string, id uint64, page, pageSize int) ([]InvitationRow, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	base := r.db.WithContext(ctx).Table("family_invitations AS i").Joins("JOIN families AS f ON f.id = i.family_id").Joins("LEFT JOIN family_members AS m ON m.id = i.target_member_id").Joins("LEFT JOIN users AS inviter ON inviter.id = i.inviter_user_id AND inviter.deleted_at IS NULL").Joins("LEFT JOIN users AS accepter ON accepter.id = i.accepted_by_user_id AND accepter.deleted_at IS NULL").Where(condition, id)
+	var total int64
+	if err := base.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var values []InvitationRow
+	err := base.Select(invitationRowSelect).Order("CASE WHEN i.status = 'PENDING' THEN 0 ELSE 1 END, i.id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Scan(&values).Error
+	return values, total, err
 }
 
 const invitationRowSelect = `
 	i.*,
 	f.family_name,
-	COALESCE(NULLIF(m.display_name, ''), NULLIF(i.pending_member_label, ''), '待确认成员') AS target_member_name,
-	COALESCE(NULLIF(inviter.nickname, ''), NULLIF(inviter.real_name, ''), '家庭管理员') AS inviter_display_name
+	COALESCE(NULLIF(m.display_name, ''), '未指定成员') AS target_member_name,
+	COALESCE(NULLIF(inviter.nickname, ''), NULLIF(inviter.real_name, ''), '家庭管理员') AS inviter_display_name,
+	COALESCE(NULLIF(accepter.nickname, ''), NULLIF(accepter.real_name, ''), '') AS accepted_by_display_name
 `
 
 func (r *GormRepository) CancelPendingJoinRequestsForUser(ctx context.Context, familyID, userID uint64, now time.Time) (int64, error) {
@@ -213,12 +223,6 @@ func (r *GormRepository) UpdateStatus(ctx context.Context, id uint64, current st
 
 func (r *GormRepository) CreateLink(ctx context.Context, value *rolemodel.FamilyMemberUserLink) error {
 	return r.db.WithContext(ctx).Create(value).Error
-}
-
-func (r *GormRepository) UpdateMember(ctx context.Context, familyID, memberID uint64, values map[string]any) error {
-	return r.db.WithContext(ctx).Model(&membermodel.FamilyMember{}).
-		Where("id = ? AND family_id = ? AND deleted_at IS NULL", memberID, familyID).
-		Updates(values).Error
 }
 
 func (r *GormRepository) WriteLog(ctx context.Context, input operationlog.WriteInput) error {

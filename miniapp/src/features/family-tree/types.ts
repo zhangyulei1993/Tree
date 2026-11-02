@@ -84,6 +84,8 @@ export interface RenderLinkSegment {
 export interface RenderTreeLink {
   id: string
   segments: RenderLinkSegment[]
+  sourceMemberIds: number[]
+  targetMemberIds: number[]
   highlighted?: boolean
 }
 

@@ -12,6 +12,7 @@ type FamilyRelationship struct {
 	RelationNoteType *string    `gorm:"column:relation_note_type;size:80"`
 	RelationNote     *string    `gorm:"column:relation_note;size:500"`
 	Status           string     `gorm:"column:status;size:40;not null;default:ACTIVE"`
+	Revision         int64      `gorm:"column:revision;not null;default:1"`
 	CreatedByUserID  *uint64    `gorm:"column:created_by_user_id"`
 	CreatedByAdminID *uint64    `gorm:"column:created_by_admin_id"`
 	DeletedAt        *time.Time `gorm:"column:deleted_at"`

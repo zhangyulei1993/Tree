@@ -15,6 +15,23 @@
           <span>姓氏 <strong>*</strong></span>
           <input v-model.trim="form.surname" class="field" maxlength="50" placeholder="例如：张" />
         </label>
+        <div class="form-grid">
+          <label>
+            <span>本人姓名 <strong>*</strong></span>
+            <input v-model.trim="form.founderName" class="field" maxlength="80" placeholder="用于家庭树中的本人节点" />
+          </label>
+          <label>
+            <span>性别 <strong>*</strong></span>
+            <select v-model="form.founderGender" class="field">
+              <option value="MALE">男</option>
+              <option value="FEMALE">女</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          <span>出生年份 <strong>*</strong></span>
+          <input v-model.number="form.founderBirthYear" class="field" type="number" min="1" :max="currentYear" placeholder="例如：1990" />
+        </label>
         <label>
           <span>家庭名称</span>
           <input v-model.trim="form.familyName" class="field" maxlength="100" placeholder="例如：张氏家族" />
@@ -52,13 +69,17 @@ import { useRouter } from 'vue-router'
 import { apiErrorMessage } from '@/api/client'
 import { createFamily } from '@/api/families'
 import PageShell from '@/components/PageShell.vue'
-import type { ApiResponse, CreateFamilyInput } from '@/types/api'
+import type { ApiResponse, CreateFamilyInput, Gender } from '@/types/api'
 
 const router = useRouter()
 const submitting = ref(false)
 const error = ref('')
+const currentYear = new Date().getFullYear()
 const form = reactive({
   surname: '',
+  founderName: '',
+  founderGender: 'MALE' as Gender,
+  founderBirthYear: undefined as number | undefined,
   familyName: '',
   nativePlace: '',
   regionText: '',
@@ -74,13 +95,20 @@ function errorText(requestError: unknown) {
 
 async function submit() {
   error.value = ''
-  if (!form.surname) {
-    error.value = '姓氏不能为空。'
+  if (!form.surname || !form.founderName) {
+    error.value = '请填写姓氏和本人姓名。'
+    return
+  }
+  if (!Number.isInteger(form.founderBirthYear) || !form.founderBirthYear || form.founderBirthYear < 1 || form.founderBirthYear > currentYear) {
+    error.value = `请输入 1 到 ${currentYear} 之间的出生年份。`
     return
   }
 
   const input: CreateFamilyInput = {
     surname: form.surname,
+    founderName: form.founderName,
+    founderGender: form.founderGender,
+    founderBirthYear: form.founderBirthYear,
     familyName: form.familyName || undefined,
     nativePlace: form.nativePlace || undefined,
     regionText: form.regionText || undefined,

@@ -2,21 +2,45 @@
   <view v-if="visible" class="mini-back-home">
     <button class="back-button" @click="goHome">
       <text class="back-icon">‹</text>
-      <text>返回首页</text>
+      <text>{{ label }}</text>
     </button>
   </view>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+
+const props = defineProps<{
+  returnUrl?: string
+  returnLabel?: string
+}>()
 
 const visible = ref(false)
+const label = computed(() => props.returnLabel || (getCurrentPages().length > 1 ? '返回上一页' : '返回首页'))
 
 onMounted(() => {
-  visible.value = getCurrentPages().length <= 1
+  visible.value = true
 })
 
 function goHome() {
+  if (props.returnUrl) {
+    const pages = getCurrentPages()
+    const targetPath = props.returnUrl.split('?')[0]
+    const targetPageIndex = pages
+      .slice(0, -1)
+      .map((page) => `/${page.route}`)
+      .lastIndexOf(targetPath)
+    if (targetPageIndex >= 0) {
+      uni.navigateBack({ delta: pages.length - 1 - targetPageIndex })
+      return
+    }
+    if (props.returnUrl.startsWith('/pages/home/') || props.returnUrl.startsWith('/pages/family/my')) {
+      uni.switchTab({ url: props.returnUrl })
+    } else {
+      uni.redirectTo({ url: props.returnUrl })
+    }
+    return
+  }
   const pages = getCurrentPages()
   if (pages.length > 1) {
     uni.navigateBack()

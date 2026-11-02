@@ -56,12 +56,29 @@ func sanitizeDetailValue(value any) any {
 }
 
 func isSensitiveDetailField(field string) bool {
-	normalized := strings.Map(func(r rune) rune {
+	_, sensitive := sensitiveDetailFields[normalizeSensitiveField(field)]
+	return sensitive
+}
+
+func normalizeSensitiveField(field string) string {
+	return strings.Map(func(r rune) rune {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
 			return unicode.ToLower(r)
 		}
 		return -1
 	}, field)
-	_, sensitive := sensitiveDetailFields[normalized]
-	return sensitive
+}
+
+func sanitizeErrorMessage(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	normalized := normalizeSensitiveField(*value)
+	for field := range sensitiveDetailFields {
+		if strings.Contains(normalized, field) {
+			redacted := redactedValue
+			return &redacted
+		}
+	}
+	return value
 }

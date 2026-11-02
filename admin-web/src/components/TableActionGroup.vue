@@ -49,6 +49,20 @@ const emit = defineEmits<{
 </script>
 
 <style scoped>
-.table-action-group { display: flex; align-items: center; gap: 6px; min-width: 140px; white-space: nowrap; }
+.table-action-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: nowrap;
+  width: auto;
+  min-width: 0;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.table-action-group :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 :deep(.el-dropdown-menu__item.is-danger) { color: var(--el-color-danger); }
 </style>

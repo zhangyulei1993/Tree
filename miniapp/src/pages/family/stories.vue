@@ -268,7 +268,7 @@ function operationActionText(action: string) {
     CREATE_RELATIONSHIP: '建立家庭关系',
     UPDATE_RELATIONSHIP: '调整家庭关系',
     DELETE_RELATIONSHIP: '解除家庭关系',
-    PLACE_EXISTING_MEMBER: '接入暂存成员'
+    PLACE_EXISTING_MEMBER: '定位已有成员'
   } as Record<string, string>)[action] || '更新家庭记录'
 }
 

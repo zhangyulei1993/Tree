@@ -36,9 +36,11 @@
           <template #default="{ row }"><StatusTag :status="row.status" /></template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" min-width="170" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
-        <el-table-column label="操作" width="90" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
+        <el-table-column label="操作" width="180" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
           <template #default="{ row }">
             <el-button size="small" @click="$router.push(`/admin/users/${row.id}`)">详情</el-button>
+            <el-button v-if="row.status === 'ACTIVE'" size="small" type="warning" @click="changeStatus(row, 'DISABLED')">禁用</el-button>
+            <el-button v-else-if="row.status === 'DISABLED'" size="small" type="success" @click="changeStatus(row, 'ACTIVE')">启用</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -57,7 +59,8 @@
 import { onMounted, ref } from 'vue'
 
 import { getApiErrorMessage } from '@/api/client'
-import { listUsers } from '@/api/management'
+import { listUsers, setUserStatus } from '@/api/management'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import DataTable from '@/components/DataTable.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import SearchPanel from '@/components/SearchPanel.vue'
@@ -73,7 +76,7 @@ const loading = ref(false)
 const error = ref('')
 
 function trustTierLabel(tier: string) {
-  return tier === 'PHONE_BOUND' ? '备用登录已开启' : '仅微信'
+  return tier === 'PHONE_BOUND' ? '已绑定手机号' : '仅微信登录'
 }
 
 function accountOriginText(origin: string) {
@@ -106,6 +109,10 @@ function search() {
 function changePage(v: number) {
   page.value = v
   void load()
+}
+
+async function changeStatus(row: ManagedUser, next: 'ACTIVE' | 'DISABLED') {
+  try { await ElMessageBox.confirm(`确认${next === 'DISABLED' ? '禁用' : '启用'}该用户？`, '操作确认'); await setUserStatus(row.id, next); ElMessage.success('操作成功'); await load() } catch (e: any) { if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e)) }
 }
 
 onMounted(load)

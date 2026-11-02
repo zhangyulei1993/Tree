@@ -8,8 +8,8 @@ import (
 	"gorm.io/gorm"
 
 	adminmodel "tree/backend/internal/admin/model"
-	"tree/backend/internal/common/enums"
 	"tree/backend/internal/common/contentsafety"
+	"tree/backend/internal/common/enums"
 	apperrors "tree/backend/internal/common/errors"
 	familymodel "tree/backend/internal/family/core/model"
 	membermodel "tree/backend/internal/family/member/model"
@@ -218,6 +218,13 @@ func TestTransferCreateRules(t *testing.T) {
 		result, err := newTestService(repo).Current(context.Background(), 9, 2)
 		if err != nil || result.RequestID != created.RequestID || result.RequestStatus != transferenum.StatusPending {
 			t.Fatalf("unexpected %#v %#v", result, err)
+		}
+	})
+	t.Run("active family member receives an empty current request when none is pending", func(t *testing.T) {
+		repo := newFakeRepo()
+		result, err := newTestService(repo).Current(context.Background(), 9, 2)
+		if err != nil || result != nil {
+			t.Fatalf("expected successful empty result, got %#v %#v", result, err)
 		}
 	})
 	t.Run("outsider cannot read current request", func(t *testing.T) {

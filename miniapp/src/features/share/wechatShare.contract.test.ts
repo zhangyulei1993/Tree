@@ -10,6 +10,8 @@ import {
   buildHomeSharePayload,
   buildInviteSharePath,
   buildInviteSharePayload,
+  buildInvitationDetailSharePayload,
+  buildInvitationRewardSharePayload,
   buildPublicFamilySharePath,
   buildPublicFamilySharePayload,
   buildPublicFamilyTimelinePayload,
@@ -77,7 +79,7 @@ test('public family share returns to the approved public profile', () => {
     id: 20,
     familyName: '张氏家族'
   })
-  assert.equal(payload.title, '张氏家族｜公开家庭主页')
+  assert.equal(payload.title, '张氏家族｜优质家庭案例')
   assert.equal(payload.path, '/pages/family/public-profile?familyId=20')
   assert.equal(payload.path.includes('/pages/join/'), false)
   assert.equal(payload.path.includes('inviteToken'), false)
@@ -86,9 +88,18 @@ test('public family share returns to the approved public profile', () => {
     id: 'family/20',
     familyName: '张氏家族'
   })
-  assert.equal(timeline.title, '张氏家族｜公开家庭主页')
+  assert.equal(timeline.title, '张氏家族｜优质家庭案例')
   assert.equal(timeline.query, 'familyId=family%2F20')
   assert.equal(timeline.query.includes('inviteToken'), false)
+})
+
+test('admin-managed share scenes keep their target paths and variables', () => {
+  const invitation = buildInvitationDetailSharePayload({ inviteToken: 't1', familyName: '张氏家族' })
+  assert.match(invitation.title, /张氏家族/)
+  assert.match(invitation.path, /inviteToken=t1/)
+  const reward = buildInvitationRewardSharePayload({ familyId: 8, referralCode: 'r1', familyName: '张氏家族' })
+  assert.match(reward.title, /张氏家族/)
+  assert.match(reward.path, /referralCode=r1/)
 })
 
 test('content detail page wires wechat share button and handler', () => {

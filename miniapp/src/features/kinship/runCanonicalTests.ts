@@ -51,6 +51,7 @@ export function runAllCanonicalKinshipTests(): {
     pathChecks.failures.length === 0 &&
     relativeTitle.failed === 0 &&
     relativeTitle.cacheOk &&
+    relativeTitle.registryCoverageFailures.length === 0 &&
     matrix.failures.length === 0 &&
     fullMatrix.registryViolations === 0 &&
     fullMatrix.forbiddenBareViolations === 0 &&
@@ -81,7 +82,7 @@ if (isDirectRun) {
     `path kinship: ${result.pathChecks.passed}/${result.pathChecks.total} passed (${result.pathChecks.failures.length} failures)`
   )
   console.log(
-    `relative title: ${result.relativeTitle.passed}/${result.relativeTitle.total} passed, cache=${result.relativeTitle.cacheOk ? 'OK' : 'FAIL'}`
+    `relative title: ${result.relativeTitle.passed}/${result.relativeTitle.total} passed, cache=${result.relativeTitle.cacheOk ? 'OK' : 'FAIL'}, registryCoverage=${result.relativeTitle.registryCoverageFailures.length === 0 ? 'OK' : 'FAIL'}`
   )
   console.log(
     `matrix: centers=${result.matrix.lineageCenterCount}, golden=${result.matrix.goldenPassed}/${result.matrix.goldenTotal}, spouseRejected=${result.matrix.spouseRejected}`
@@ -100,6 +101,7 @@ if (isDirectRun) {
   const allFailures = [
     ...result.pathChecks.failures.slice(0, 20),
     ...result.relativeTitle.failures.map((f) => `relative: ${f.name} expected ${f.expected} got ${f.actual}`),
+    ...result.relativeTitle.registryCoverageFailures.map((failure) => `registry: ${failure}`),
     ...result.matrix.failures,
     ...result.fullMatrix.failures,
     ...result.reverse.failures,

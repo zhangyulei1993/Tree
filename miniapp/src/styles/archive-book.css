@@ -52,6 +52,10 @@ page {
   font-weight: 700;
   letter-spacing: 2rpx;
   line-height: 1.25;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .archive-subtitle {
@@ -60,6 +64,10 @@ page {
   color: var(--archive-ink-soft);
   font-size: 25rpx;
   line-height: 1.65;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .archive-seal {
@@ -113,25 +121,36 @@ page {
 .archive-row-title {
   display: block;
   color: var(--archive-ink);
-  font-size: 29rpx;
+  font-size: 30rpx;
   font-weight: 650;
   line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .archive-row-desc {
   display: block;
   margin-top: 6rpx;
   color: var(--archive-ink-soft);
-  font-size: 22rpx;
+  font-size: 24rpx;
   line-height: 1.45;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .archive-row-meta {
   flex-shrink: 0;
+  max-width: 150rpx;
+  overflow: hidden;
   color: var(--archive-ink-soft);
-  font-size: 22rpx;
+  font-size: 23rpx;
   line-height: 1.4;
   text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .archive-arrow {
@@ -206,6 +225,10 @@ page {
   padding: 0 14rpx;
   font-size: 21rpx;
   line-height: 1.2;
+  max-width: 220rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .archive-thin-button {
@@ -245,6 +268,11 @@ page {
   margin-bottom: 24rpx;
 }
 
+.archive-page-head > view:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
 .archive-segment-tabs {
   display: flex;
   align-items: center;
@@ -258,7 +286,7 @@ page {
   position: relative;
   padding: 0 0 16rpx;
   color: var(--archive-ink-soft);
-  font-size: 25rpx;
+  font-size: 26rpx;
   line-height: 1.4;
 }
 
@@ -304,7 +332,7 @@ page {
   display: block;
   margin-top: 8rpx;
   color: var(--archive-ink-soft);
-  font-size: 22rpx;
+  font-size: 24rpx;
   line-height: 1.5;
 }
 

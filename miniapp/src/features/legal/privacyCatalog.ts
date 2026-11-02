@@ -35,18 +35,18 @@ export const LOCAL_ONLY_INFO = [
 export const COLLECTED_INFO_ITEMS: CollectedInfoItem[] = [
   {
     category: '账号与身份',
-    fields: '微信登录凭证 code（服务端换取 openid/unionid）、昵称、头像（可选）',
-    purpose: '微信登录、身份识别、资料展示与账号注销重新认证',
-    method: '你授权微信登录；昵称与头像由你主动填写或选择',
+    fields: '微信登录凭证 code（服务端换取 openid/unionid）、微信手机号授权 code（服务端换取手机号）、昵称、头像（可选）',
+    purpose: '微信登录、手机号授权绑定、身份识别、资料展示与账号注销重新认证',
+    method: '你授权微信登录或手机号授权绑定；昵称与头像由你主动填写或选择',
     necessary: '使用家庭协作、加入申请、邀请绑定等功能需登录并设置昵称；浏览展示家庭页面、经分享链接访问公开家庭主页、使用本地称谓工具可不登录',
     retention: LEGAL_RETENTION_TEXT
   },
   {
-    category: '手机号登录凭证',
-    fields: '手机号、登录密码单向哈希值（不存储明文密码）',
-    purpose: '设置或使用手机密码登录、提升账号权益等级',
-    method: '你在完善昵称后主动填写手机号并设置密码；登录时输入手机号与密码',
-    necessary: '可选；不设置仍可使用微信登录及基础功能；设置后可使用手机号密码登录并获得更高权益',
+    category: '手机号绑定信息',
+    fields: '微信手机号授权 code（服务端换取手机号）',
+    purpose: '绑定手机号、提升账号权益等级，并在发起邀请等敏感操作前完成校验',
+    method: '你在敏感操作前或账号资料中主动授权微信手机号绑定',
+    necessary: '可选；不授权手机号仍可使用微信登录及基础功能；绑定后可获得更高权益并可发起邀请',
     retention: LEGAL_RETENTION_TEXT
   },
   {
@@ -74,11 +74,19 @@ export const COLLECTED_INFO_ITEMS: CollectedInfoItem[] = [
     retention: LEGAL_RETENTION_TEXT
   },
   {
-    category: '公开家庭展示',
-    fields: '家庭名称、姓氏、地区、简介、脱敏后的公开联系方式、经审核的公开树字段',
-    purpose: '在展示家庭页面与分享链接中公开展示家庭主页与公开树',
-    method: '家庭管理员申请并经平台审核后，在展示家庭页面或通过分享链接对外展示',
-    necessary: '公开展示所必需；未申请公开前不对游客展示私有成员详情；公开姓名与联系方式将脱敏处理',
+    category: '家庭容量订单与退款',
+    fields: '订单号、商品名称、购买名额、金额、支付交易标识、订单状态、退款申请理由和审核结果',
+    purpose: '完成家庭容量购买、退款审核、原路退款、对账和争议处理',
+    method: '你主动购买容量或提交退款申请时由服务端记录；支付由微信支付处理',
+    necessary: '购买、退款与售后处理所必需；我们不直接保存完整支付账户信息',
+    retention: LEGAL_RETENTION_TEXT
+  },
+  {
+    category: '历史世系示例与分享浏览',
+    fields: '平台整理的历史世系示例字段、经家庭成员主动分享链接访问时所需的脱敏展示字段',
+    purpose: '展示平台整理的历史示例，或支持通过家庭成员分享链接浏览必要信息',
+    method: '平台整理发布，或由家庭成员主动分享链接触发访问',
+    necessary: '示例浏览和分享访问所必需；私有家庭资料默认不进入平台示例页面',
     retention: LEGAL_RETENTION_TEXT
   },
   {
@@ -99,6 +107,12 @@ export const WECHAT_PRIVACY_DECLARATIONS: WechatPrivacyDeclaration[] = [
     usedInCode: 'pages/auth/wechat-login.vue、pages/account/cancel.vue、stores/session.ts'
   },
   {
+    apiOrScene: 'getPhoneNumber（手机号授权绑定）',
+    information: '手机号授权 code；服务端获取手机号',
+    purpose: '绑定手机号以提升账号权益并支持敏感操作前身份校验',
+    usedInCode: 'pages/me/account-security.vue、pages/invite/sent.vue、api/auth.ts、stores/session.ts'
+  },
+  {
     apiOrScene: 'chooseAvatar（选择头像）',
     information: '头像图片',
     purpose: '设置账号头像，便于家庭成员识别',
@@ -110,26 +124,19 @@ export const WECHAT_PRIVACY_DECLARATIONS: WechatPrivacyDeclaration[] = [
     purpose: '设置或更新账号昵称',
     usedInCode: 'pages/me/profile.vue'
   },
-  {
-    apiOrScene: '用户主动填写（手机号与密码）',
-    information: '手机号、登录密码（服务端仅保存密码单向哈希，不存明文）',
-    purpose: '可选备用登录方式；不验证号码所有权，不采集短信验证码',
-    usedInCode: 'pages/me/profile.vue、pages/auth/phone-login.vue'
-  }
 ]
 
 /** 代码中未使用、不得在隐私指引中声明的能力 */
 export const NOT_COLLECTED_IN_APP = [
   '短信验证码',
-  '微信手机号一键获取（getPhoneNumber）',
   '通讯录、地理位置、麦克风、摄像头（除头像选择外）、蓝牙、日历、运动数据',
-  '支付账号与交易信息（小程序当前无支付功能）'
+  '完整支付账号、银行卡号或支付密码（支付由微信支付处理）'
 ] as const
 
 export const THIRD_PARTY_PROCESSORS = [
   {
     name: '深圳市腾讯计算机系统有限公司',
-    role: '微信开放平台（登录、头像选择等微信能力）',
+    role: '微信开放平台与微信支付（登录、手机号授权、头像选择、支付与退款等微信能力）',
     region: '中国境内'
   },
   {

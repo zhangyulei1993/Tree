@@ -33,7 +33,10 @@ const routes: RouteRecordRaw[] = [
   { path: '/families/:familyId/tree', component: () => import('@/views/FamilyTree.vue'), meta: { requiresAuth: true } },
   { path: '/families/:familyId/manage', component: () => import('@/views/FamilyManagement.vue'), meta: { requiresAuth: true } },
   { path: '/invite/:inviteToken', component: () => import('@/views/InviteDetail.vue') },
-  { path: '/families/:familyId/join', component: () => import('@/views/JoinApply.vue') }
+  {
+    path: '/families/:familyId/join',
+    redirect: (to) => `/families/${String(to.params.familyId)}/public`
+  }
 ]
 
 const router = createRouter({

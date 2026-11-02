@@ -1,8 +1,10 @@
 import type { MemberType, TreeEdge, TreeNode } from '@/types/api'
 
 import { buildRelGraph } from './relativeGraph'
+import { resolveRelativeTitle } from './relativeRules'
 import { buildTitleCacheKey, clearRelativeTitleCache, setCachedRelativeTitle } from './relativeTitleCache'
 import { buildKinshipTitleMap, getRelativeTitle } from './relativeTitle'
+import { validateRegistryRelativeTitle } from '../kinship/officialCanonicalTitles'
 
 export interface RelativeTitleTestCase {
   name: string
@@ -277,6 +279,90 @@ function zhangCases(): RelativeTitleTestCase[] {
     { name: 'spouse-viewer-father-same-as-lineage', viewerMemberId: ids.spouse, targetMemberId: ids.fu, expected: '父亲', ...base },
     { name: 'spouse-viewer-cousin-same-as-lineage', viewerMemberId: ids.spouse, targetMemberId: ids.tangGe, expected: '堂兄', ...base }
   ]
+}
+
+/**
+ * 线上家庭 31 的镜像回归：鲁彦康 -> 张玉贤 -> 张达建 -> 张声团。
+ * 张声团补齐一位兄、一位妹，并以共同父母表达同胞关系，覆盖跨三代的母系旁支称谓。
+ */
+function luYankangCases(): RelativeTitleTestCase[] {
+  const nodes = [
+    n(557, '张德安', 'MALE', '1890-01-01'),
+    n(558, '张声林', 'MALE', '1918-01-01'),
+    n(559, '张声团', 'MALE', '1920-01-01'),
+    n(560, '黄宝珍', 'FEMALE', '1922-01-01', 'SPOUSE'),
+    n(561, '张声兰', 'FEMALE', '1924-01-01'),
+    n(562, '张达建', 'MALE', '1950-01-01'),
+    n(569, '张玉贤', 'FEMALE', '1975-01-01'),
+    n(577, '鲁彦康', 'MALE', '2000-01-01'),
+    n(578, '李淑华', 'FEMALE', '1892-01-01', 'SPOUSE')
+  ]
+  const edges = [
+    sp(557, 578, 1),
+    pc(557, 558, 2),
+    pc(578, 558, 3),
+    pc(557, 559, 4),
+    pc(578, 559, 5),
+    pc(557, 561, 6),
+    pc(578, 561, 7),
+    sp(559, 560, 8),
+    pc(559, 562, 9),
+    pc(562, 569, 10),
+    pc(569, 577, 11)
+  ]
+  return [
+    { name: 'lu-yankang-maternal-great-grandfather', viewerMemberId: 577, targetMemberId: 559, nodes, edges, expected: '外曾祖父' },
+    { name: 'lu-yankang-maternal-great-grandmother-by-ancestor-spouse', viewerMemberId: 577, targetMemberId: 560, nodes, edges, expected: '外曾祖母' },
+    { name: 'lu-yankang-maternal-great-granduncle', viewerMemberId: 577, targetMemberId: 558, nodes, edges, expected: '外曾伯祖父' },
+    { name: 'lu-yankang-maternal-great-grandaunt', viewerMemberId: 577, targetMemberId: 561, nodes, edges, expected: '外曾姑祖母' },
+    { name: 'lu-yankang-maternal-great-great-grandfather', viewerMemberId: 577, targetMemberId: 557, nodes, edges, expected: '外高祖父' },
+    { name: 'lu-yankang-maternal-great-great-grandmother', viewerMemberId: 577, targetMemberId: 578, nodes, edges, expected: '外高祖母' },
+    { name: 'zhang-shengtuan-elder-brother', viewerMemberId: 559, targetMemberId: 558, nodes, edges, expected: '兄长' },
+    { name: 'zhang-shengtuan-younger-sister', viewerMemberId: 559, targetMemberId: 561, nodes, edges, expected: '妹妹' },
+    { name: 'zhang-dajian-paternal-uncle', viewerMemberId: 562, targetMemberId: 558, nodes, edges, expected: '伯父' },
+    { name: 'zhang-dajian-paternal-aunt', viewerMemberId: 562, targetMemberId: 561, nodes, edges, expected: '姑母' },
+    { name: 'zhang-yuxian-paternal-granduncle', viewerMemberId: 569, targetMemberId: 558, nodes, edges, expected: '伯祖父' },
+    { name: 'zhang-yuxian-paternal-grandaunt', viewerMemberId: 569, targetMemberId: 561, nodes, edges, expected: '姑祖母' }
+  ]
+}
+
+/** 家庭 31 的真实线上关系快照，防止仅用简化结构掩盖旁系配偶与表亲路径。 */
+function family31ActualCases(): RelativeTitleTestCase[] {
+  const nodes = [
+    n(556, 'Chance', 'MALE', '1993-01-01'), n(557, '王玥', 'FEMALE', '1993-01-01', 'SPOUSE'),
+    n(558, '张七林', 'MALE', '1970-01-01'), n(559, '张声团', 'MALE', '1938-01-01'),
+    n(560, '黄宝珍', 'FEMALE', '1937-01-01', 'SPOUSE'), n(561, '张达望', 'MALE', '1961-01-01'),
+    n(562, '张达建', 'MALE', '1965-01-01'), n(563, '张冬梅', 'FEMALE', '1976-01-01'),
+    n(564, '张魁', 'FEMALE', '1987-01-01'), n(565, '张玉顺', 'MALE', '1991-01-01'),
+    n(567, '樊侯懿', 'MALE', '2000-01-01'), n(568, '樊一瑾', 'FEMALE', '2011-01-01'),
+    n(569, '张玉贤', 'FEMALE', '1990-01-01'), n(570, '张京煜', 'MALE', '2023-01-01'),
+    n(571, '张绍璋', 'MALE', '2013-01-01'), n(572, '樊俊元', 'MALE', '1976-01-01', 'SPOUSE'),
+    n(573, '陈会巧', 'FEMALE', '1968-01-01', 'SPOUSE'), n(575, '乔红英', 'FEMALE', '1963-01-01', 'SPOUSE'),
+    n(576, '鲁勃', 'MALE', '1970-01-01', 'SPOUSE'), n(577, '鲁彦康', 'MALE', '2019-01-01'),
+    n(578, '程许兰', 'FEMALE', '1974-01-01', 'SPOUSE')
+  ]
+  const pairs: Array<[number, number, 'PARENT_CHILD' | 'SPOUSE']> = [
+    [556, 557, 'SPOUSE'], [558, 556, 'PARENT_CHILD'], [559, 558, 'PARENT_CHILD'], [559, 560, 'SPOUSE'],
+    [559, 561, 'PARENT_CHILD'], [559, 562, 'PARENT_CHILD'], [559, 563, 'PARENT_CHILD'], [561, 564, 'PARENT_CHILD'],
+    [561, 565, 'PARENT_CHILD'], [563, 567, 'PARENT_CHILD'], [563, 568, 'PARENT_CHILD'], [562, 569, 'PARENT_CHILD'],
+    [565, 570, 'PARENT_CHILD'], [564, 571, 'PARENT_CHILD'], [563, 572, 'SPOUSE'], [558, 573, 'SPOUSE'],
+    [562, 575, 'SPOUSE'], [569, 576, 'SPOUSE'], [569, 577, 'PARENT_CHILD'], [561, 578, 'SPOUSE']
+  ]
+  const edges = pairs.map(([fromMemberId, toMemberId, relationshipType], index) => ({ relationshipId: 2000 + index, fromMemberId, toMemberId, relationshipType }))
+  const expected: Array<[number, string]> = [
+    [556, '表叔'], [558, '外叔祖父'], [559, '外曾祖父'], [560, '外曾祖母'], [561, '外伯祖父'],
+    [562, '外祖父'], [563, '外姑祖母'], [564, '表姨'], [565, '表叔'], [567, '表叔'], [568, '表姨'],
+    [569, '母亲'], [570, '表弟'], [571, '表兄'], [572, '外姑祖父'], [573, '外叔祖母'],
+    [575, '外祖母'], [576, '父亲'], [578, '外伯祖母']
+  ]
+  return expected.map(([targetMemberId, title]) => ({
+    name: `family-31-ruyan-kang-${targetMemberId}`,
+    viewerMemberId: 577,
+    targetMemberId,
+    nodes,
+    edges,
+    expected: title
+  }))
 }
 
 function siblingCases(): RelativeTitleTestCase[] {
@@ -976,6 +1062,8 @@ function cousinPeerSeniorityCounterCases(): RelativeTitleTestCase[] {
 export function allRelativeTitleTestCases(): RelativeTitleTestCase[] {
   return [
     ...zhangCases(),
+	...luYankangCases(),
+    ...family31ActualCases(),
     ...siblingCases(),
     ...siblingUnknownSeniorityCases(),
     ...collateralUnknownSeniorityCases(),
@@ -999,11 +1087,13 @@ export function runRelativeTitleSelfCheck(): {
   passed: number
   failed: number
   failures: Array<{ name: string; expected: string; actual: string }>
+  registryCoverageFailures: string[]
   cacheOk: boolean
 } {
   clearRelativeTitleCache()
   const cases = allRelativeTitleTestCases()
   const failures: Array<{ name: string; expected: string; actual: string }> = []
+  const registryCoverageFailures = new Set<string>()
 
   for (const testCase of cases) {
     const graph = buildRelGraph(testCase.nodes, testCase.edges)
@@ -1011,6 +1101,19 @@ export function runRelativeTitleSelfCheck(): {
       getRelativeTitle(testCase.viewerMemberId, testCase.targetMemberId, graph) ?? ''
     if (actual !== testCase.expected) {
       failures.push({ name: testCase.name, expected: testCase.expected, actual })
+    }
+
+    // Exercise every view-target pair in each fixture. A parser result may never
+    // silently bypass the canonical registry, even when it is not a golden case.
+    for (const viewer of testCase.nodes) {
+      for (const target of testCase.nodes) {
+        if (viewer.memberId === target.memberId) continue
+        const resolved = resolveRelativeTitle(graph, viewer.memberId, target.memberId)
+        if (!resolved) continue
+        if (!validateRegistryRelativeTitle(resolved).ok) {
+          registryCoverageFailures.add(`未登记规范称谓：${resolved}`)
+        }
+      }
     }
   }
 
@@ -1021,6 +1124,7 @@ export function runRelativeTitleSelfCheck(): {
     passed: cases.length - failures.length,
     failed: failures.length,
     failures,
+    registryCoverageFailures: [...registryCoverageFailures],
     cacheOk
   }
 }

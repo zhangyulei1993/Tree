@@ -5,8 +5,8 @@ import { test } from 'node:test'
 
 const page = readFileSync(join(process.cwd(), 'src', 'pages', 'tools', 'kinship.vue'), 'utf8')
 
-test('kinship first step keeps gender and relation selection visible', () => {
-  assert.match(page, /<text class="archive-section-title">本人信息（可选）<\/text>/)
+test('kinship first step keeps relation selection visible and requests self gender only when needed', () => {
+  assert.match(page, /<view v-if="showSelfGenderPanel" class="archive-form-panel kinship-panel self-gender-panel">[\s\S]*补充本人性别/)
   assert.match(page, /<text class="archive-section-title">选择下一层关系<\/text>/)
   assert.match(page, /<view v-if="steps\.length > 0" class="archive-form-panel kinship-panel">[\s\S]*关系路径/)
   assert.match(page, /<view v-if="pendingRelation" class="archive-form-panel kinship-panel">[\s\S]*补充这个人的信息/)

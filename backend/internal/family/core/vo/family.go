@@ -2,6 +2,35 @@ package vo
 
 import "time"
 
+type FamilyArchiveExport struct {
+	Scope         string                `json:"scope"`
+	GeneratedAt   time.Time             `json:"generatedAt"`
+	Family        FamilyDetail          `json:"family"`
+	Members       []ArchiveMember       `json:"members"`
+	Relationships []ArchiveRelationship `json:"relationships"`
+	Quality       ArchiveQuality        `json:"quality"`
+}
+
+type ArchiveQuality struct {
+	IncompleteMemberCount int      `json:"incompleteMemberCount"`
+	MissingFields         []string `json:"missingFields"`
+}
+
+type ArchiveMember struct {
+	MemberID    uint64  `json:"memberId"`
+	Name        string  `json:"name"`
+	Gender      string  `json:"gender,omitempty"`
+	BirthYear   *int    `json:"birthYear,omitempty"`
+	DeathYear   *int    `json:"deathYear,omitempty"`
+	Description *string `json:"description,omitempty"`
+}
+
+type ArchiveRelationship struct {
+	FromMemberID     uint64 `json:"fromMemberId"`
+	ToMemberID       uint64 `json:"toMemberId"`
+	RelationshipType string `json:"relationshipType"`
+}
+
 type FamilySummary struct {
 	ID                       uint64     `json:"id"`
 	FamilyName               string     `json:"familyName"`
@@ -40,7 +69,10 @@ type FamilyDetail struct {
 	PublicContactVisible     bool       `json:"publicContactVisible"`
 	CurrentFounderMemberID   *uint64    `json:"currentFounderMemberId,omitempty"`
 	GraphVersion             int64      `json:"graphVersion"`
+	Revision                 int64      `json:"revision"`
 	Role                     string     `json:"role"`
+	MemberCount              int        `json:"memberCount"`
+	MemberLimit              int        `json:"memberLimit"`
 }
 
 type PublicFamily struct {
@@ -85,6 +117,12 @@ type PublicFamilyShowcaseItem struct {
 	PublicApprovedAt *time.Time `json:"publicApprovedAt,omitempty"`
 	CreatedAt        time.Time  `json:"createdAt"`
 	UpdatedAt        time.Time  `json:"updatedAt"`
+}
+
+type PublicPlatformStats struct {
+	FamilyCount       int64 `json:"familyCount"`
+	MemberCount       int64 `json:"memberCount"`
+	RelationshipCount int64 `json:"relationshipCount"`
 }
 
 type OperationLogItem struct {

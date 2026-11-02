@@ -1,0 +1,198 @@
+- generic [ref=e24]:
+  - complementary [ref=e25]:
+    - generic [ref=e26]:
+      - generic [ref=e27]: T
+      - generic [ref=e28]:
+        - strong [ref=e29]: Tree
+        - generic [ref=e30]: 管理后台
+    - menubar [ref=e31]:
+      - listitem [ref=e32]:
+        - generic [ref=e33]: 业务总览
+        - list [ref=e34]:
+          - menuitem "仪表盘" [ref=e35] [cursor=pointer]
+          - menuitem "用户管理" [ref=e40] [cursor=pointer]
+          - menuitem "家庭管理" [ref=e45] [cursor=pointer]
+      - listitem [ref=e50]:
+        - generic [ref=e51]: 内容与运营
+        - list [ref=e52]:
+          - menuitem "内容中心" [ref=e53] [cursor=pointer]
+          - menuitem "分享配置" [ref=e58] [cursor=pointer]
+          - menuitem "帝王世家配置" [ref=e64] [cursor=pointer]
+          - menuitem "常用工具配置" [ref=e69] [cursor=pointer]
+      - listitem [ref=e77]:
+        - generic [ref=e78]: 审核与风控
+        - list [ref=e79]:
+          - menuitem "公开申请审核" [ref=e80] [cursor=pointer]
+          - menuitem "创始人转让审核" [ref=e85] [cursor=pointer]
+          - menuitem "家庭解散审核" [ref=e91] [cursor=pointer]
+          - menuitem "操作日志" [ref=e96] [cursor=pointer]
+      - listitem [ref=e101]:
+        - generic [ref=e102]: 平台设置
+        - list [ref=e103]:
+          - menuitem "账号权益配置" [ref=e104] [cursor=pointer]
+          - menuitem "后台管理员管理" [ref=e112] [cursor=pointer]
+  - main [ref=e117]:
+    - generic [ref=e118]:
+      - generic [ref=e119]:
+        - strong [ref=e120]: 家庭树
+        - generic [ref=e121]: Tree 家脉亲缘平台
+      - generic [ref=e122]:
+        - generic [ref=e123]: admin
+        - generic [ref=e124]: 根管理员
+        - button "退出" [ref=e126] [cursor=pointer]
+    - generic [ref=e129]:
+      - generic [ref=e130]:
+        - generic [ref=e131]:
+          - navigation "Breadcrumb" [ref=e132]:
+            - generic [ref=e133]:
+              - link "后台" [ref=e134]
+              - text: /
+            - link "家庭树" [ref=e136]
+          - heading "家庭树" [level=1] [ref=e137]
+          - paragraph [ref=e138]: 后台成员管理主入口：选中成员后查看资料、亲属关系与后续操作。
+        - generic [ref=e139]:
+          - button "返回家庭详情" [ref=e140] [cursor=pointer]
+          - button "成员索引" [ref=e142] [cursor=pointer]
+      - generic [ref=e144]:
+        - generic [ref=e145]:
+          - generic [ref=e146]:
+            - generic [ref=e148]:
+              - generic [ref=e149]:
+                - strong [ref=e150]: 树结构
+                - generic [ref=e151]: 配偶以同一单元并列；父母与子女用连线表示。
+              - button "刷新" [ref=e152] [cursor=pointer]
+            - generic [ref=e154]:
+              - generic [ref=e158]:
+                - button "回归父亲 男 · 已故 未绑定" [ref=e160] [cursor=pointer]:
+                  - strong [ref=e161]: 回归父亲
+                  - generic [ref=e162]: 男 · 已故
+                  - generic [ref=e163]: 未绑定
+                - button "回归兄弟姐妹 女 · 状态未录 未绑定" [ref=e165] [cursor=pointer]:
+                  - strong [ref=e166]: 回归兄弟姐妹
+                  - generic [ref=e167]: 女 · 状态未录
+                  - generic [ref=e168]: 未绑定
+                - button "回归创建者102826 未记录 · 状态未录 已绑定" [ref=e170] [cursor=pointer]:
+                  - strong [ref=e171]: 回归创建者102826
+                  - generic [ref=e172]: 未记录 · 状态未录
+                  - generic [ref=e173]: 已绑定
+                - button "回归子女 男 · 状态未录 未绑定" [ref=e175] [cursor=pointer]:
+                  - strong [ref=e176]: 回归子女
+                  - generic [ref=e177]: 男 · 状态未录
+                  - generic [ref=e178]: 未绑定
+              - paragraph [ref=e179]: 共 11 位成员，树中展示 4 位；可左右、上下滚动查看。
+              - generic [ref=e180]:
+                - strong [ref=e181]: 未定位成员
+                - generic [ref=e182]: 以下成员尚未接入当前主干关系图。
+                - generic [ref=e183]:
+                  - button "受邀绑定成员 女 · 健在 已绑定" [ref=e184] [cursor=pointer]:
+                    - strong [ref=e185]: 受邀绑定成员
+                    - generic [ref=e186]: 女 · 健在
+                    - generic [ref=e187]: 已绑定
+                  - button "转让目标成员 男 · 健在 已绑定" [ref=e188] [cursor=pointer]:
+                    - strong [ref=e189]: 转让目标成员
+                    - generic [ref=e190]: 男 · 健在
+                    - generic [ref=e191]: 已绑定
+                  - button "加入申请绑定成员 男 · 健在 已绑定" [ref=e192] [cursor=pointer]:
+                    - strong [ref=e193]: 加入申请绑定成员
+                    - generic [ref=e194]: 男 · 健在
+                    - generic [ref=e195]: 已绑定
+                  - button "回归母亲 女 · 状态未录 未绑定" [ref=e196] [cursor=pointer]:
+                    - strong [ref=e197]: 回归母亲
+                    - generic [ref=e198]: 女 · 状态未录
+                    - generic [ref=e199]: 未绑定
+                  - button "站内邀请成员 未记录 · 健在 未绑定" [ref=e200] [cursor=pointer]:
+                    - strong [ref=e201]: 站内邀请成员
+                    - generic [ref=e202]: 未记录 · 健在
+                    - generic [ref=e203]: 未绑定
+                  - button "撤销邀请成员 未记录 · 健在 未绑定" [ref=e204] [cursor=pointer]:
+                    - strong [ref=e205]: 撤销邀请成员
+                    - generic [ref=e206]: 未记录 · 健在
+                    - generic [ref=e207]: 未绑定
+          - complementary [ref=e208]:
+            - generic [ref=e209]:
+              - generic [ref=e211]:
+                - generic [ref=e212]:
+                  - strong [ref=e213]: 回归创建者102826
+                  - generic [ref=e214]: 成员 11 · 亲属关系 5 · 家谱版本 16
+                - generic [ref=e215]:
+                  - button "成员索引" [ref=e216] [cursor=pointer]
+                  - button "编辑" [ref=e218] [cursor=pointer]
+                  - button "删除" [disabled] [ref=e221]
+              - generic [ref=e223]:
+                - table [ref=e226]:
+                  - rowgroup [ref=e227]:
+                    - row [ref=e228]:
+                      - cell "成员 ID" [ref=e229]
+                      - cell "97" [ref=e230]
+                    - row [ref=e231]:
+                      - cell "性别" [ref=e232]
+                      - cell "未记录" [ref=e233]
+                    - row [ref=e234]:
+                      - cell "状态" [ref=e235]
+                      - cell "状态未录" [ref=e236]
+                    - row [ref=e237]:
+                      - cell "出生日期" [ref=e238]
+                      - cell "未记录" [ref=e239]
+                    - row [ref=e240]:
+                      - cell "节点类型" [ref=e241]
+                      - cell "本家成员" [ref=e242]
+                    - row [ref=e243]:
+                      - cell "绑定状态" [ref=e244]
+                      - cell "已绑定" [ref=e245]
+                - generic [ref=e246]:
+                  - generic [ref=e247]:
+                    - generic [ref=e248]: 父母
+                    - generic [ref=e249]:
+                      - button "回归父亲" [ref=e250] [cursor=pointer]
+                      - button "回归母亲" [ref=e251] [cursor=pointer]
+                    - generic [ref=e252]: 决定上代结构与同辈联动
+                  - generic [ref=e253]:
+                    - generic [ref=e254]: 配偶
+                    - strong [ref=e255]: 未记录
+                    - generic [ref=e256]: 影响配偶并列和共同子女
+                  - generic [ref=e257]:
+                    - generic [ref=e258]: 子女
+                    - button "回归子女" [ref=e260] [cursor=pointer]
+                    - generic [ref=e261]: 影响下代展开和删除限制
+                  - generic [ref=e262]:
+                    - generic [ref=e263]: 同辈
+                    - button "回归兄弟姐妹" [ref=e265] [cursor=pointer]
+                    - generic [ref=e266]: 由共同父母推导，不单独入库
+                - paragraph [ref=e267]: 后台变更会写入操作日志并刷新家谱版本；小程序会按同一套成员与关系数据重新计算亲属称谓。
+        - generic [ref=e268]:
+          - strong [ref=e270]: 关系明细
+          - generic [ref=e273]:
+            - table [ref=e275]:
+              - rowgroup [ref=e281]:
+                - row [ref=e282]:
+                  - columnheader "关系" [ref=e283]
+                  - columnheader "起点" [ref=e285]
+                  - columnheader "终点" [ref=e287]
+                  - columnheader "属性" [ref=e289]
+            - table [ref=e295]:
+              - rowgroup [ref=e301]:
+                - row [ref=e302]:
+                  - cell "父母子女" [ref=e303]
+                  - cell "回归父亲" [ref=e305]
+                  - cell "回归创建者102826" [ref=e307]
+                  - cell "PRIMARY" [ref=e309]
+                - row [ref=e311]:
+                  - cell "父母子女" [ref=e312]
+                  - cell "回归母亲" [ref=e314]
+                  - cell "回归创建者102826" [ref=e316]
+                  - cell "PRIMARY" [ref=e318]
+                - row [ref=e320]:
+                  - cell "父母子女" [ref=e321]
+                  - cell "回归创建者102826" [ref=e323]
+                  - cell "回归子女" [ref=e325]
+                  - cell "PRIMARY" [ref=e327]
+                - row [ref=e329]:
+                  - cell "父母子女" [ref=e330]
+                  - cell "回归父亲" [ref=e332]
+                  - cell "回归兄弟姐妹" [ref=e334]
+                  - cell "PRIMARY" [ref=e336]
+                - row [ref=e338]:
+                  - cell "父母子女" [ref=e339]
+                  - cell "回归母亲" [ref=e341]
+                  - cell "回归兄弟姐妹" [ref=e343]
+                  - cell "PRIMARY" [ref=e345]

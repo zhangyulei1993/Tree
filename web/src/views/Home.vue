@@ -9,7 +9,7 @@
             <span>把家族记忆长期保存</span>
           </h1>
           <p class="hero-lead">
-            Tree 用家庭空间管理成员、关系、邀请与公开展示。私密资料留在家庭内部，公开主页经过审核后再对外展示。
+            Tree 用家庭空间管理成员、关系、邀请与优质家庭案例。私密资料留在家庭内部，学习案例经过审核后再对外展示。
           </p>
           <div class="hero-tags">
             <span>私密协作</span>
@@ -41,7 +41,7 @@
           <div class="panel-steps">
             <span>成员资料</span>
             <span>亲缘关系</span>
-            <span>公开展示</span>
+            <span>优质家庭</span>
           </div>
         </div>
       </div>
@@ -100,13 +100,13 @@
         <span class="eyebrow">公开家族</span>
         <div>
           <h2>看看别人如何展示家族主页</h2>
-          <p>经审核后对外展示家族简介、公开树和已审核留言。</p>
+          <p>经审核后对外展示家族简介、联系方式和公开树。</p>
         </div>
       </div>
       <div class="grid families">
         <FamilyCard v-for="family in homeFamilyCards" :key="family.id" :family="family" />
         <p v-if="familyError" class="section-state">{{ familyError }}</p>
-        <p v-else-if="!familiesLoading && publicFamilies.length === 0" class="section-state">暂无已公开家庭</p>
+        <p v-else-if="!familiesLoading && publicFamilies.length === 0" class="section-state">暂无优质家庭案例</p>
       </div>
     </section>
 
@@ -114,7 +114,7 @@
       <div class="workflow-copy">
         <span class="eyebrow">使用流程</span>
         <h2>从核心成员开始，逐步整理完整家谱。</h2>
-        <p>不需要一次性录完全部资料。先建立家庭，再邀请亲人共同补充，最后按需申请公开展示。</p>
+        <p>不需要一次性录完全部资料。先建立家庭，再邀请亲人共同补充，最后按需申请成为优质家庭案例。</p>
       </div>
       <div class="workflow-list">
         <div v-for="step in workflowSteps" :key="step.title" class="workflow-item">
@@ -172,7 +172,7 @@ async function loadHomeData() {
   if (familiesResult.status === 'fulfilled') {
     publicFamilies.value = familiesResult.value.items
   } else {
-    familyError.value = '公开家庭暂时无法加载，请稍后重试。'
+    familyError.value = '优质家庭案例暂时无法加载，请稍后重试。'
   }
   if (contentResult.status === 'fulfilled') {
     featuredArticle.value = contentResult.value.items[0] || null

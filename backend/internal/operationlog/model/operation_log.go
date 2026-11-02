@@ -28,5 +28,3 @@ type OperationLog struct {
 func (OperationLog) TableName() string {
 	return "operation_logs"
 }
-
-// TODO(service): filter sensitive fields before writing operation_logs.

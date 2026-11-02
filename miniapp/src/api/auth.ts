@@ -1,25 +1,16 @@
 import { isRealApiMode, request } from '@/api/client'
 import { mockUser } from '@/mock/data'
-import type {
-  BindPhoneCredentialInput,
-  CancelAccountByWechatInput,
-  ChangePhoneLoginPasswordInput,
-  LoginPhoneInput,
-  LoginResult,
-  UserInfo
-} from '@/types/api'
+import type { BindWechatPhoneInput, CancelAccountByWechatInput, LoginResult, UserInfo } from '@/types/api'
 
 const clientType = 'WECHAT_MINI_PROGRAM'
 
-function mockUserInfo(withProfile = true, phoneLoginEnabled = false): UserInfo {
+function mockUserInfo(withProfile = true, phoneVerified = false): UserInfo {
   return {
     id: 'mock_user',
-    phone: phoneLoginEnabled ? '13800000000' : null,
-    phoneVerified: phoneLoginEnabled,
-    phoneLoginEnabled,
+    phone: phoneVerified ? '13800000000' : null,
+    phoneVerified,
     nickname: withProfile ? mockUser.nickname : null,
     status: 'ACTIVE',
-    passwordSet: phoneLoginEnabled
   }
 }
 
@@ -39,55 +30,36 @@ export async function wechatMiniLogin(code: string) {
   )
 }
 
-export async function loginPhone(input: LoginPhoneInput) {
-  if (!isRealApiMode) {
-    return {
-      accessToken: mockUser.token,
-      tokenType: 'Bearer',
-      user: {
-        ...mockUserInfo(true, true),
-        phone: '13800000000'
-      }
-    } satisfies LoginResult
-  }
-  return request<LoginResult, LoginPhoneInput & { clientType: string }>(
-    '/auth/login-phone',
+export async function wechatMiniPhoneLogin(phoneCode: string, code: string) {
+  if (!isRealApiMode) return mockWechatLoginResult(true)
+  return request<LoginResult, { phoneCode: string; code: string; clientType: string }>(
+    '/auth/wechat-mini/phone-login',
     {
       method: 'POST',
       public: true,
-      data: { ...input, clientType }
+      data: { phoneCode, code, clientType }
     }
   )
 }
+export async function redeemAssistanceCode(phone: string, code: string) { return request<LoginResult, { phone: string; code: string }>('/auth/assistance/redeem', { method: 'POST', public: true, data: { phone, code } }) }
 
-export async function bindPhoneCredential(input: BindPhoneCredentialInput) {
+export async function bindWechatPhone(input: BindWechatPhoneInput) {
   if (!isRealApiMode) {
     return {
       accessToken: mockUser.token,
       tokenType: 'Bearer',
       user: {
-        ...mockUserInfo(true, true),
+        ...mockUserInfo(true, true, false),
         phone: '13800000000'
       }
     } satisfies LoginResult
   }
-  return request<LoginResult, BindPhoneCredentialInput>(
-    '/auth/wechat-mini/bind-phone-credential',
-    { method: 'POST', data: input }
-  )
-}
-
-export async function changePhoneLoginPassword(input: ChangePhoneLoginPasswordInput) {
-  if (!isRealApiMode) {
-    return {
-      accessToken: mockUser.token,
-      tokenType: 'Bearer',
-      user: mockUserInfo(true, true)
-    } satisfies LoginResult
-  }
-  return request<LoginResult, ChangePhoneLoginPasswordInput>(
-    '/auth/wechat-mini/change-phone-login-password',
-    { method: 'POST', data: input }
+  return request<LoginResult, BindWechatPhoneInput & { clientType: string }>(
+    '/auth/wechat-mini/bind-phone',
+    {
+      method: 'POST',
+      data: { ...input, clientType }
+    }
   )
 }
 
@@ -95,6 +67,11 @@ export async function logoutUser() {
   if (!isRealApiMode) return
   await request<{ status: string }>('/auth/logout', { method: 'POST' })
 }
+
+export type AssistanceCodeStatus = { id: number; status: string; expiresAt: string; createdAt: string; lastUsedAt?: string }
+export async function createAssistanceCode(validDays = 1) { return request<{ code: string; expiresAt: string; validDays: number; replacedPrevious: boolean }, { validDays: number }>('/users/me/assistance-codes', { method: 'POST', data: { validDays } }) }
+export async function listAssistanceCodes() { return request<AssistanceCodeStatus[]>('/users/me/assistance-codes') }
+export async function revokeAssistanceCode(codeId: number) { return request<{ status: string }>(`/users/me/assistance-codes/${codeId}/revoke`, { method: 'POST' }) }
 
 export async function cancelAccountByWechat(input: CancelAccountByWechatInput) {
   return request<{ status: string }, CancelAccountByWechatInput>(

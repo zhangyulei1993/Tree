@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 
-import { bindPhoneCredential as bindPhoneCredentialApi, changePhoneLoginPassword as changePhoneLoginPasswordApi, loginPhone, logoutUser, wechatMiniLogin } from '@/api/auth'
+import { bindWechatPhone as bindWechatPhoneApi, logoutUser, redeemAssistanceCode, wechatMiniLogin, wechatMiniPhoneLogin } from '@/api/auth'
 import { fetchCapabilities } from '@/api/capabilities'
 import { getMe, updateProfile, uploadAvatar } from '@/api/profile'
 import {
@@ -12,7 +12,7 @@ import {
 import { mockUser, type UserState } from '@/mock/data'
 import { isProfileComplete } from '@/features/session/profileComplete'
 import { isMpWeixinPlatform, resolveWechatLoginUnsupportedMessage } from '@/features/session/wechatLogin'
-import type { BindPhoneCredentialInput, LoginPhoneInput, UserCapabilities, UserInfo } from '@/types/api'
+import type { BindWechatPhoneInput, UserCapabilities, UserInfo } from '@/types/api'
 
 function restoredUser(): UserInfo | null {
   const value = uni.getStorageSync(sessionUserKey)
@@ -76,18 +76,8 @@ export const useSessionStore = defineStore('session', {
       }
       return { user, capabilities }
     },
-    async loginWithPhone(input: LoginPhoneInput) {
-      const result = await loginPhone(input)
-      this.persistSession(result.accessToken, result.user)
-      return this.refreshAuthContext()
-    },
-    async bindPhoneCredential(input: BindPhoneCredentialInput) {
-      const result = await bindPhoneCredentialApi(input)
-      this.persistSession(result.accessToken, result.user)
-      return this.refreshAuthContext()
-    },
-    async changePhoneLoginPassword(input: { currentPassword: string; newPassword: string }) {
-      const result = await changePhoneLoginPasswordApi(input)
+    async bindWechatPhone(input: BindWechatPhoneInput) {
+      const result = await bindWechatPhoneApi(input)
       this.persistSession(result.accessToken, result.user)
       return this.refreshAuthContext()
     },
@@ -120,6 +110,24 @@ export const useSessionStore = defineStore('session', {
       this.persistSession(result.accessToken, result.user)
       return result
     },
+    async loginWithWechatPhone(phoneCode: string) {
+      if (!isMpWeixinPlatform()) {
+        throw new Error('微信手机号快捷登录仅支持微信小程序。')
+      }
+      if (!phoneCode) {
+        throw new Error('手机号授权失败，请稍后重试。')
+      }
+      const loginResult = await new Promise<UniApp.LoginRes>((resolve, reject) => {
+        uni.login({ provider: 'weixin', success: resolve, fail: reject })
+      })
+      if (!loginResult.code) {
+        throw new Error('微信身份验证失败，请稍后重试。')
+      }
+      const result = await wechatMiniPhoneLogin(phoneCode, loginResult.code)
+      this.persistSession(result.accessToken, result.user)
+      return result
+    },
+    async loginWithAssistanceCode(phone: string, code: string) { const result = await redeemAssistanceCode(phone, code); this.persistSession(result.accessToken, result.user); return result },
     async refreshMe() {
       const user = await getMe()
       this.persistSession(this.token, user)
@@ -151,7 +159,7 @@ export const useSessionStore = defineStore('session', {
       }
       if (!this.isProfileComplete) {
         if (route) uni.setStorageSync(pendingRouteKey, route)
-        uni.redirectTo({ url: '/pages/me/profile?onboarding=1' })
+        uni.redirectTo({ url: '/pages/me/profile?onboarding=1&required=1' })
         return false
       }
       return true
@@ -162,10 +170,8 @@ export const useSessionStore = defineStore('session', {
       uni.reLaunch({ url: pending || defaultRoute })
     },
     routeAfterAuth() {
-      if (!this.isProfileComplete) {
-        uni.redirectTo({ url: '/pages/me/profile?onboarding=1' })
-        return
-      }
+      // WeChat login is sufficient to enter the app. Collect profile details only
+      // when a later workflow actually needs them.
       this.finishLogin()
     },
     finishProfile() {
@@ -176,10 +182,8 @@ export const useSessionStore = defineStore('session', {
         id: 'mock_user',
         phone: null,
         phoneVerified: false,
-        phoneLoginEnabled: false,
         nickname: withProfile ? mockUser.nickname : null,
         status: mockUser.status,
-        passwordSet: false
       })
     },
     async logout() {

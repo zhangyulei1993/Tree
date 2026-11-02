@@ -3,22 +3,22 @@
     <view class="showcase-head archive-page-head">
       <view>
         <text class="archive-kicker">Public Archive</text>
-        <text class="archive-title">展示家庭</text>
-        <text class="archive-subtitle">浏览经平台审核的家庭简介与公开家庭树</text>
+        <text class="archive-title">优质家庭</text>
+        <text class="archive-subtitle">浏览经平台审核、供学习参考的家庭案例</text>
       </view>
       <view class="archive-seal">展</view>
     </view>
 
     <view class="showcase-notice archive-panel">
-      <text class="showcase-notice-label">公开册页</text>
-      <text class="showcase-notice-text">加入家庭请通过成员邀请。你可以通过家人分享的链接访问家庭主页。</text>
+      <text class="showcase-notice-label">学习案例</text>
+      <text class="showcase-notice-text">优质家庭仅供学习参考，不开放陌生人申请加入。家庭成员请通过内部邀请加入。</text>
     </view>
 
     <view v-if="loading && items.length === 0" class="showcase-state archive-form-panel">
-      <MiniEmptyState symbol="展" title="正在加载" description="正在读取展示家庭列表，请稍候。" />
+        <MiniEmptyState symbol="展" title="正在加载" description="正在读取优质家庭列表，请稍候。" />
     </view>
 
-    <view v-else-if="errorMessage" class="showcase-state archive-form-panel">
+    <view v-else-if="errorMessage && !items.length" class="showcase-state archive-form-panel">
       <MiniNotice tone="warm" title="加载失败">{{ errorMessage }}</MiniNotice>
       <MiniButton variant="secondary" class="retry-button" @click="reload">重新加载</MiniButton>
     </view>
@@ -28,7 +28,7 @@
         <view class="showcase-section-head">
           <view>
             <text class="archive-kicker">Catalog</text>
-            <text class="showcase-section-title">公开展示</text>
+        <text class="showcase-section-title">优质家庭案例</text>
           </view>
           <text class="showcase-count">共 {{ total }} 个</text>
         </view>
@@ -50,11 +50,16 @@
         </view>
       </view>
 
+      <view v-if="loadMoreError && items.length" class="showcase-more-error">
+        <MiniNotice tone="warm" title="更多案例加载失败">{{ loadMoreError }}</MiniNotice>
+        <MiniButton variant="secondary" size="sm" @click="retryLoadMore">重试加载更多</MiniButton>
+      </view>
+
       <view v-else class="showcase-state archive-form-panel">
         <MiniEmptyState
           symbol="展"
-          title="暂无展示家庭"
-          description="当前没有可浏览的展示家庭。你可以通过家人分享的链接访问家庭主页。"
+          title="暂无优质家庭"
+          description="当前没有可浏览的优质家庭案例。"
         />
       </view>
 
@@ -75,6 +80,7 @@
 import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
+import { formatFamilyRegionText } from '@/features/native-place/geoHierarchy'
 import { listPublicFamilyShowcase } from '@/api/families'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
@@ -88,12 +94,14 @@ const pageSize = 20
 const loading = ref(false)
 const loadingMore = ref(false)
 const errorMessage = ref('')
+const loadMoreError = ref('')
 
 const hasMore = computed(() => items.value.length < total.value)
 
 async function fetchPage(nextPage: number, append: boolean) {
   if (append) {
     loadingMore.value = true
+    loadMoreError.value = ''
   } else {
     loading.value = true
     errorMessage.value = ''
@@ -108,7 +116,11 @@ async function fetchPage(nextPage: number, append: boolean) {
       items.value = []
       total.value = 0
     }
-    errorMessage.value = apiErrorMessage(error, '展示家庭列表加载失败。')
+    if (append) {
+      loadMoreError.value = apiErrorMessage(error, '优质家庭列表加载失败。')
+    } else {
+      errorMessage.value = apiErrorMessage(error, '优质家庭列表加载失败。')
+    }
   } finally {
     loading.value = false
     loadingMore.value = false
@@ -117,11 +129,17 @@ async function fetchPage(nextPage: number, append: boolean) {
 
 function reload() {
   page.value = 1
+  loadMoreError.value = ''
   fetchPage(1, false)
 }
 
 function loadMore() {
-  if (!hasMore.value || loadingMore.value) return
+  if (!hasMore.value || loading.value || loadingMore.value) return
+  fetchPage(page.value + 1, true)
+}
+
+function retryLoadMore() {
+  if (!hasMore.value || loading.value || loadingMore.value) return
   fetchPage(page.value + 1, true)
 }
 
@@ -132,7 +150,7 @@ function openFamily(familyId: number | string) {
 }
 
 function familyRegionLabel(family: PublicFamilyShowcaseItem) {
-  return family.regionText || family.nativePlace || ''
+  return formatFamilyRegionText(family)
 }
 
 function familyCardDesc(family: PublicFamilyShowcaseItem) {
@@ -227,6 +245,14 @@ reload()
   display: flex;
   justify-content: center;
   margin-top: 24rpx;
+}
+
+.showcase-more-error {
+  margin-top: 20rpx;
+}
+
+.showcase-more-error :deep(.mini-notice) {
+  margin-bottom: 14rpx;
 }
 
 .showcase-load-more .disabled {

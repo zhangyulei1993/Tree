@@ -13,10 +13,10 @@ uni-app 微信小程序 + H5。
 
 | 场景 | 命令 | `VITE_API_BASE_URL` |
 |------|------|---------------------|
-| H5 本地开发 | `pnpm dev:h5:local` | `/api`（Vite proxy → `127.0.0.1:8080`） |
-| H5 staging | `pnpm dev:h5:staging` / `pnpm build:h5:staging` | `/api`（Vite proxy → `tapi.bigbigboy.cn`） |
-| 微信小程序本地开发 | `pnpm dev:mp-weixin:local` / `pnpm build:mp-weixin:local` | `http://127.0.0.1:8080/api` |
-| 微信小程序 staging | `pnpm dev:mp-weixin:staging` / `pnpm build:mp-weixin:staging` | `https://tapi.bigbigboy.cn/api` |
+| H5 本地开发 | `pnpm dev:h5:local` | `.env.development`：`/api`（Vite proxy → `127.0.0.1:8080`） |
+| H5 staging | `pnpm dev:h5:staging` / `pnpm build:h5:staging` | `.env.staging-h5`：`/api`（Vite proxy → `tapi.bigbigboy.cn`） |
+| 微信小程序本地开发 | `pnpm dev:mp-weixin:local` / `pnpm build:mp-weixin:local` | `.env.mp-local`：`http://127.0.0.1:8080/api` |
+| 微信小程序 staging | `pnpm dev:mp-weixin:staging` / `pnpm build:mp-weixin:staging` | `.env.staging-mp`：`https://tapi.bigbigboy.cn/api` |
 
 **重要：** 微信小程序真机/体验版不能使用 `/api`、`localhost` 或 `127.0.0.1`。必须使用完整 HTTPS 域名，并在微信公众平台配置以下合法域名（域名填 `tapi.bigbigboy.cn`，不要带路径）：
 
@@ -28,7 +28,7 @@ uni-app 微信小程序 + H5。
 
 仅配置 request 域名时，登录接口可用，但头像上传会报 `uploadFile:fail url not in domain list`。
 
-复制 `/.env.staging.example` 为本地 `.env.production.local` 时，请确保使用 staging HTTPS 地址，不要写 localhost。
+以后切接口环境只改命令或 `.env.*` 文件，微信开发者工具固定打开同一个小程序产物目录，不需要来回切项目目录，也不需要手改源码。
 
 若 MP-WEIXIN real 模式 baseURL 配置错误，`src/api/client.ts` 会在请求前给出可读错误提示。
 
@@ -63,9 +63,9 @@ pnpm build:h5:local
 pnpm build:h5:staging
 ```
 
-`pnpm build:mp-weixin` 保留为 staging 构建兼容命令，产物仍为 `dist/build/mp-weixin`；新流程请优先使用带环境后缀的命令。
+`pnpm build:mp-weixin` 保留为 staging 构建兼容命令；新流程请优先使用带环境后缀的命令。
 
-构建产物目录：本地为 `dist/build/mp-weixin-local`，staging 为 `dist/build/mp-weixin-staging`。
+微信开发者工具固定打开 `miniapp/dist/mp-weixin`。开发、联调、上传前构建都写入这个目录。切换接口环境或上传前，只需要停止当前命令并重新运行对应命令，工具里重新编译或上传即可，不需要手动同步目录。
 
 ## 看不到界面更新？
 
@@ -75,10 +75,10 @@ pnpm build:h5:staging
 
 | 命令 | 应导入的目录 |
 |------|----------------|
-| `pnpm dev:mp-weixin:local` | `miniapp/dist/dev/mp-weixin-local` |
-| `pnpm dev:mp-weixin:staging` | `miniapp/dist/dev/mp-weixin-staging` |
-| `pnpm build:mp-weixin:local` | `miniapp/dist/build/mp-weixin-local` |
-| `pnpm build:mp-weixin:staging` | `miniapp/dist/build/mp-weixin-staging` |
+| `pnpm dev:mp-weixin:local` | `miniapp/dist/mp-weixin` |
+| `pnpm dev:mp-weixin:staging` | `miniapp/dist/mp-weixin` |
+| `pnpm build:mp-weixin:local` | `miniapp/dist/mp-weixin` |
+| `pnpm build:mp-weixin:staging` | `miniapp/dist/mp-weixin` |
 
 **不要**导入 `miniapp` 根目录或 `miniapp/src`。
 
@@ -89,9 +89,9 @@ pnpm build:h5:staging
 ```bash
 cd miniapp
 pnpm install
-pnpm dev:mp-weixin:staging   # 开发：保持终端运行，改代码后点开发者工具「编译」
+pnpm dev:mp-weixin:staging   # 开发：保持终端运行，微信开发者工具打开 dist/mp-weixin
 # 或
-pnpm build:mp-weixin:staging # 构建：再导入 dist/build/mp-weixin-staging
+pnpm build:mp-weixin:staging # 构建：上传前仍使用 dist/mp-weixin
 ```
 
 ### 3. 清缓存
@@ -118,8 +118,6 @@ pnpm build:mp-weixin:staging # 构建：再导入 dist/build/mp-weixin-staging
 ## 主要页面
 
 - `pages/auth/wechat-login` — 微信登录
-- `pages/auth/bind-phone` — 绑定手机号并设置密码
-- `pages/auth/phone-login` — 手机号密码登录
 - `pages/family/my` — 我的家庭
 - `pages/invite/detail` — 邀请确认
 - `pages/join/apply` — 加入申请

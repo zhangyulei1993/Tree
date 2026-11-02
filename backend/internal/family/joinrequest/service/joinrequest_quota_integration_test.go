@@ -8,8 +8,8 @@ import (
 	"gorm.io/gorm"
 
 	authservice "tree/backend/internal/auth/service"
-	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/contentsafety"
+	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/family/joinrequest/dto"
 	joinmodel "tree/backend/internal/family/joinrequest/model"
 	joinrepo "tree/backend/internal/family/joinrequest/repository"

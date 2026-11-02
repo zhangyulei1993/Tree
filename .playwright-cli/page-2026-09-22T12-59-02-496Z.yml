@@ -1,0 +1,50 @@
+- generic [ref=f1e314]:
+  - generic [ref=f1e316]:
+    - generic [ref=f1e318] [cursor=pointer]
+    - generic [ref=f1e321]: 添加与调整
+  - generic [ref=f1e326]:
+    - generic [ref=f1e480]:
+      - generic [ref=f1e481]:
+        - generic [ref=f1e482]: Family Tree Edit
+        - generic [ref=f1e483]: 添加与调整
+        - generic [ref=f1e484]: 测氏测试家族205306 · 先确认关系，再选择添加、暂存或调整
+      - generic [ref=f1e485]: 测
+    - generic [ref=f1e486]: 返回家庭树
+    - generic [ref=f1e488]:
+      - generic [ref=f1e489]: 添加节点
+      - generic [ref=f1e491]: 添加暂存
+      - generic [ref=f1e493]: 接入暂存
+      - generic [ref=f1e495]: 调关系
+    - generic [ref=f1e497]:
+      - generic [ref=f1e498]: 关系已确定
+      - generic [ref=f1e499]: 选择一位已有成员，再添加其父母、子女、配偶或兄弟姐妹。新成员会立即进入家庭树。
+    - generic [ref=f1e500]:
+      - generic [ref=f1e501]:
+        - generic [ref=f1e502]: 添加节点
+        - generic [ref=f1e503]: 已确认亲属关系时，直接添加到家庭树
+      - generic [ref=f1e506] [cursor=pointer]:
+        - generic [ref=f1e507]: 和谁有关：
+        - text: 测试用户205306
+      - generic [ref=f1e510] [cursor=pointer]:
+        - generic [ref=f1e511]: 准备添加：
+        - text: 配偶
+      - generic [ref=f1e512]:
+        - generic [ref=f1e513]: 关系预览
+        - generic [ref=f1e514]: 将为“测试用户205306”添加一位配偶。
+      - generic [ref=f1e522]:
+        - generic: 新成员姓名
+        - textbox [ref=f1e523]
+      - generic [ref=f1e524] [cursor=pointer]: 性别：女
+      - generic [ref=f1e528]:
+        - generic: 出生年份（可选）
+        - spinbutton [ref=f1e529]
+      - generic [ref=f1e530]:
+        - generic [ref=f1e531]: 目前健在
+        - generic [ref=f1e532] [cursor=pointer]
+      - generic [ref=f1e536]:
+        - generic [ref=f1e537]: 关系备注（可选）
+        - textbox [ref=f1e538]
+      - generic [ref=f1e539]:
+        - generic [ref=f1e540]: 操作说明
+        - generic [ref=f1e541]: 此操作会同时创建新成员和关系，不用于连接两个已有成员。重复父亲、母亲或配偶由系统校验并给出提示。
+      - generic [ref=f1e543]: 创建并接入家庭树

@@ -92,7 +92,7 @@ func runWechatOnlyTierBoundaries(t *testing.T) {
 	}
 
 	for i := 0; i < wechatLimits.MaxJoinedFamilies; i++ {
-		host := freshquota.CreateActiveUser(t, tx, fmt.Sprintf("主持%d", i), false)
+		host := freshquota.CreateActiveUser(t, tx, fmt.Sprintf("主持%d", i), true)
 		familyID, memberID := freshquota.SeedHostFamilyWithGuest(t, tx, host, fmt.Sprintf("外%d", i))
 		created, err := inviteSvc.Create(ctx, host.ID, familyID, memberID, invitedto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, invitationservice.AuditInput{})
 		if err != nil {
@@ -110,7 +110,7 @@ func runWechatOnlyTierBoundaries(t *testing.T) {
 		t.Fatalf("expected joined=%d, got %#v", wechatLimits.MaxJoinedFamilies, caps)
 	}
 
-	host2 := freshquota.CreateActiveUser(t, tx, "主持超额", false)
+	host2 := freshquota.CreateActiveUser(t, tx, "主持超额", true)
 	family2, member2 := freshquota.SeedHostFamilyWithGuest(t, tx, host2, "超额")
 	created2, err := inviteSvc.Create(ctx, host2.ID, family2, member2, invitedto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, invitationservice.AuditInput{})
 	if err != nil {
@@ -153,13 +153,11 @@ func TestPhoneVerifiedTierBoundariesAfterBindPhone(t *testing.T) {
 		freshquota.AddMember(t, memberSvc, userID, ownedID, fmt.Sprintf("旧成员%d", i))
 	}
 
-	phone := freshquota.UniquePhone(runID, "upgrade")
-	password := "bind-pass-" + runID[len(runID)-4:]
-	if _, err := authSvc.BindPhoneCredential(ctx, authservice.BindPhoneCredentialInput{
-		UserID: userID, Phone: phone, Password: password, ConfirmPassword: password,
+	if _, err := authSvc.BindWechatPhone(ctx, authservice.BindWechatPhoneInput{
+		UserID: userID, PhoneCode: runID + "-upgrade", ClientType: "WECHAT_MINI_PROGRAM",
 		IP: "127.0.0.1", UserAgent: "fresh-quota-test",
 	}); err != nil {
-		t.Fatalf("BindPhoneCredential: %v", err)
+		t.Fatalf("BindWechatPhone: %v", err)
 	}
 
 	caps, err := quotaSvc.GetCapabilities(ctx, userID)
@@ -192,7 +190,7 @@ func TestPhoneVerifiedTierBoundariesAfterBindPhone(t *testing.T) {
 
 	inviteSvc := freshfamily.NewInvitationService(tx, quotaSvc)
 	for i := 0; i < phoneLimits.MaxJoinedFamilies; i++ {
-		host := freshquota.CreateActiveUser(t, tx, fmt.Sprintf("主持%d", i), false)
+		host := freshquota.CreateActiveUser(t, tx, fmt.Sprintf("主持%d", i), true)
 		familyID, memberID := freshquota.SeedHostFamilyWithGuest(t, tx, host, fmt.Sprintf("外%d", i))
 		created, err := inviteSvc.Create(ctx, host.ID, familyID, memberID, invitedto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, invitationservice.AuditInput{})
 		if err != nil {
@@ -209,7 +207,7 @@ func TestPhoneVerifiedTierBoundariesAfterBindPhone(t *testing.T) {
 	if caps.Usage.JoinedFamilies != phoneLimits.MaxJoinedFamilies {
 		t.Fatalf("expected joined=%d, got %#v", phoneLimits.MaxJoinedFamilies, caps)
 	}
-	hostExtra := freshquota.CreateActiveUser(t, tx, "主持超额", false)
+	hostExtra := freshquota.CreateActiveUser(t, tx, "主持超额", true)
 	familyExtra, memberExtra := freshquota.SeedHostFamilyWithGuest(t, tx, hostExtra, "超额")
 	createdExtra, err := inviteSvc.Create(ctx, hostExtra.ID, familyExtra, memberExtra, invitedto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, invitationservice.AuditInput{})
 	if err != nil {

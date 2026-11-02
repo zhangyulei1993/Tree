@@ -62,7 +62,7 @@ export function treeViewLabel(mode: string): string {
     case 'LIST_TREE':
       return '成员列表'
     case 'GRAPH_TREE':
-      return '关系图'
+      return '树状家谱'
     default:
       return '家庭树'
   }

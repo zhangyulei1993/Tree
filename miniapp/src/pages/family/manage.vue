@@ -1,6 +1,6 @@
 <template>
   <view class="archive-page manage-page">
-    <MiniBackHome />
+    <MiniBackHome :return-url="returnUrl" :return-label="returnLabel" />
 
     <view v-if="loading" class="manage-state archive-form-panel">
       <MiniEmptyState symbol="…" title="正在加载" description="正在读取家庭成员与关系..." />
@@ -16,7 +16,7 @@
           <text class="archive-kicker">Family Tree Edit</text>
           <text class="archive-title">添加与调整</text>
           <text class="archive-subtitle">
-            {{ family.familyName }} · 先确认关系，再选择添加、暂存或调整
+            {{ family.familyName }} · 按关系添加或调整成员
           </text>
         </view>
         <view class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
@@ -42,20 +42,6 @@
         </view>
         <view
           class="archive-segment-tab"
-          :class="{ active: manageSection === 'pending' }"
-          @click="manageSection = 'pending'"
-        >
-          <text>添加暂存</text>
-        </view>
-        <view
-          class="archive-segment-tab"
-          :class="{ active: manageSection === 'place' }"
-          @click="manageSection = 'place'"
-        >
-          <text>接入暂存</text>
-        </view>
-        <view
-          class="archive-segment-tab"
           :class="{ active: manageSection === 'relations' }"
           @click="manageSection = 'relations'"
         >
@@ -66,11 +52,16 @@
         <text class="manage-flow-title">{{ sectionGuide.title }}</text>
         <text>{{ sectionGuide.description }}</text>
       </view>
+      <MiniNotice v-if="guideMode" tone="security" class="manage-guide-note">
+        {{ manageSection === 'node'
+          ? '引导第 1 步：选择一位熟悉的家人和关系，填好姓名后即可直接接入家庭树。'
+          : '引导第 2 步：先检查已有亲属是否已连线；需要补关系时切回“添加节点”，选择对应关系即可。' }}
+      </MiniNotice>
 
       <view v-if="manageSection === 'node'" class="archive-form-panel">
         <view class="archive-section-head">
           <text class="archive-section-title">添加节点</text>
-          <text class="archive-section-subtitle">已确认亲属关系时，直接添加到家庭树</text>
+          <text class="archive-section-subtitle">选择成员和关系，直接加入家庭树</text>
         </view>
         <picker :range="memberLabels" :value="baseMemberIndex" @change="onBaseMemberChange">
           <view class="field-picker">
@@ -82,7 +73,17 @@
             <text class="field-picker-prefix">准备添加：</text>{{ relationLabels[relationIndex] }}
           </view>
         </picker>
-        <MiniNotice tone="security" title="关系预览">{{ relativePreview }}</MiniNotice>
+        <MiniNotice
+          :key="`${selectedBaseMember?.memberId || 'member'}-${relationValues[relationIndex]}`"
+          tone="security"
+          title="关系预览"
+        >{{ relativePreview }}</MiniNotice>
+        <picker v-if="showChildCoParentPicker" :range="childCoParentLabels" :value="childCoParentIndex" @change="onChildCoParentChange">
+          <view class="field-picker">
+            <text class="field-picker-prefix">另一位家长：</text>{{ childCoParentLabels[childCoParentIndex] }}
+          </view>
+        </picker>
+        <text v-if="showChildCoParentPicker" class="field-help">请选择实际共同父母；前任、现任配偶均可选。未记录时可暂不选择，后续在子女资料中补充。</text>
         <picker
           v-if="showParentRolePicker"
           :range="parentRoleLabels"
@@ -94,12 +95,16 @@
           </view>
         </picker>
         <text v-if="showParentRolePicker" class="field-help">
-          仅影响关系图纸签样式，不改变亲属关系；已有另一位家庭成员父/母时，可选择“家庭成员的配偶”。
+          仅影响树状家谱成员卡样式，不改变亲属关系；已有另一位家庭成员父/母时，可选择“家庭成员的配偶”。
         </text>
         <input v-model.trim="relativeName" class="tree-input" maxlength="80" placeholder="新成员姓名" />
         <picker :range="genderLabels" :value="relativeGenderIndex" @change="onRelativeGenderChange">
           <view class="field-picker">性别：{{ genderLabels[relativeGenderIndex] }}</view>
         </picker>
+        <picker v-if="showSpouseDisplayPicker" :range="spouseDisplayLabels" :value="spouseDisplayIndex" @change="onSpouseDisplayChange">
+          <view class="field-picker"><text class="field-picker-prefix">婚姻身份：</text>{{ spouseDisplayLabels[spouseDisplayIndex] }}</view>
+        </picker>
+        <text v-if="showSpouseDisplayPicker" class="field-help">前妻、前夫仅记录历史婚姻；现任妻、现任夫用于当前婚姻展示。子女需另行选择实际共同父母。</text>
         <input v-model="relativeBirthYear" class="tree-input" type="number" placeholder="出生年份（可选）" />
         <view class="switch-row">
           <text>目前健在</text>
@@ -112,83 +117,14 @@
           placeholder="关系备注（可选）"
         />
         <MiniNotice tone="security" title="操作说明">
-          此操作会同时创建新成员和关系，不用于连接两个已有成员。重复父亲、母亲或配偶由系统校验并给出提示。
+          会同时创建成员和关系。重复父母或配偶会被拦截。
         </MiniNotice>
+        <MiniNotice v-if="relativeDraftRestored" tone="info">已恢复上次未提交的添加内容。</MiniNotice>
         <text v-if="operationError" class="tree-field-error">{{ operationError }}</text>
+        <MiniButton v-if="hasRelativeDraft" size="sm" variant="ghost" :disabled="submitting" @click="clearRelativeDraft">清空草稿</MiniButton>
         <MiniButton class="manage-action" :loading="submitting" :disabled="submitting" @click="submitRelative">
           创建并接入家庭树
         </MiniButton>
-      </view>
-
-      <view v-if="manageSection === 'pending'" class="archive-form-panel">
-        <view class="archive-section-head">
-          <text class="archive-section-title">添加暂存</text>
-          <text class="archive-section-subtitle">知道姓名但分支身份还不确定时，先暂存为成员档案</text>
-        </view>
-        <input v-model.trim="unlocatedName" class="tree-input" maxlength="80" placeholder="成员姓名" />
-        <picker :range="genderLabels" :value="unlocatedGenderIndex" @change="onUnlocatedGenderChange">
-          <view class="field-picker">性别：{{ genderLabels[unlocatedGenderIndex] }}</view>
-        </picker>
-        <view class="switch-row">
-          <text>目前健在</text>
-          <switch :checked="unlocatedIsAlive" color="#163353" @change="onUnlocatedAliveChange" />
-        </view>
-        <MiniButton
-          class="manage-action"
-          variant="secondary"
-          :loading="creatingUnlocated"
-          :disabled="creatingUnlocated"
-          @click="submitUnlocated"
-        >
-          暂存成员
-        </MiniButton>
-      </view>
-
-      <view v-if="manageSection === 'place'" class="archive-form-panel">
-        <view class="archive-section-head">
-          <text class="archive-section-title">接入暂存</text>
-          <text class="archive-section-subtitle">确认分支后，再把暂存成员接入家庭树</text>
-        </view>
-        <MiniEmptyState
-          v-if="unlocatedMembers.length === 0"
-          symbol="位"
-          title="没有待接入成员"
-          description="暂存但尚未建立任何关系的成员会显示在这里。"
-        />
-        <template v-else>
-          <picker :range="unlocatedMemberLabels" :value="placeMemberIndex" @change="onPlaceMemberChange">
-            <view class="field-picker">待接入：{{ selectedPlaceMember?.name || '选择成员' }}</view>
-          </picker>
-          <picker :range="placementBaseLabels" :value="placeBaseIndex" @change="onPlaceBaseChange">
-            <view class="field-picker">和谁有关：{{ selectedPlaceBase?.name || '选择成员' }}</view>
-          </picker>
-          <picker :range="relationLabels" :value="placeRelationIndex" @change="onPlaceRelationChange">
-            <view class="field-picker">确认关系为：{{ relationLabels[placeRelationIndex] }}</view>
-          </picker>
-          <MiniNotice tone="security" title="接入预览">{{ placementPreview }}</MiniNotice>
-          <picker
-            v-if="showPlaceParentRolePicker"
-            :range="parentRoleLabels"
-            :value="placeParentRoleIndex"
-            @change="onPlaceParentRoleChange"
-          >
-            <view class="field-picker">父母身份（图示）：{{ parentRoleLabels[placeParentRoleIndex] }}</view>
-          </picker>
-          <text v-if="showPlaceParentRolePicker" class="field-help">
-            仅影响关系图纸签样式，不改变亲属关系；已有另一位家庭成员父/母时，可选择“家庭成员的配偶”。
-          </text>
-          <MiniNotice v-if="unlocatedTypeAnomalies.length > 0" tone="warm" title="成员类型数据异常">
-            以下暂存成员缺少 memberType，已从待接入列表排除：{{
-              unlocatedTypeAnomalies.map((member) => member.name).join('、')
-            }}
-          </MiniNotice>
-          <MiniNotice tone="security" title="接入说明">
-            例如选择“子女”，表示这位暂存成员是所选成员的子女。
-          </MiniNotice>
-          <MiniButton class="manage-action" :loading="placingMember" :disabled="placingMember" @click="submitPlacement">
-            接入家庭树
-          </MiniButton>
-        </template>
       </view>
 
       <view v-if="manageSection === 'relations'" class="archive-form-panel">
@@ -199,7 +135,7 @@
           </text>
         </view>
         <MiniNotice tone="security" title="操作影响">
-          删除或调整关系会立即影响家庭树位置和称谓；如果只是还没确认分支，建议先使用「添加暂存」。
+          删除或调整关系会立即影响家庭树位置和称谓，请确认后操作。
         </MiniNotice>
         <MiniEmptyState
           v-if="visibleRelationshipEdges.length === 0"
@@ -229,23 +165,20 @@
       </view>
       </template>
     </template>
+    <MiniPhoneUpgradeDialog v-model:visible="phoneUpgradeVisible" @bound="continueAfterPhoneUpgrade" />
   </view>
 </template>
 
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { getFamilyDetail } from '@/api/families'
-import {
-  createFamilyMember,
-  listFamilyMembers
-} from '@/api/members'
+import { listFamilyMembers } from '@/api/members'
 import {
   createRelationship,
   deleteRelationship,
-  placeExistingMember,
   updateRelationship
 } from '@/api/relationships'
 import { getPrivateTree } from '@/api/tree'
@@ -253,7 +186,9 @@ import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
-import { filterUnlocatedLineageMemberIds } from '@/features/family-tree/graph'
+import MiniPhoneUpgradeDialog from '@/components/base/MiniPhoneUpgradeDialog.vue'
+import { markNewUserGuideMilestone } from '@/features/onboarding/newUserGuide'
+import { spouseDisplayOptions, spouseRelationLabel } from '@/features/family-tree/spouseRelationLabel'
 import { useSessionStore } from '@/stores/session'
 import type {
   FamilyDetail,
@@ -268,6 +203,7 @@ import { normalizeText, optionalText, validateTextFields } from '@/utils/inputVa
 
 const session = useSessionStore()
 const familyId = ref('')
+const returnTo = ref('')
 const family = ref<FamilyDetail | null>(null)
 const members = ref<FamilyMember[]>([])
 const tree = ref<FamilyTreeResult>({
@@ -278,9 +214,15 @@ const tree = ref<FamilyTreeResult>({
   edges: [],
   tree: []
 })
+const returnUrl = computed(() => returnTo.value === 'tree'
+  ? `/pages/family/private-tree?familyId=${encodeURIComponent(familyId.value)}`
+  : `/pages/family/detail?familyId=${encodeURIComponent(familyId.value)}`)
+const returnLabel = computed(() => returnTo.value === 'tree' ? '返回家庭树' : '返回家庭详情')
 const loading = ref(false)
 const loadError = ref('')
 const operationError = ref('')
+const phoneUpgradeVisible = ref(false)
+const pendingCapacityAction = ref<'create' | null>(null)
 
 const relationValues: RelationshipAddType[] = [
   'ADD_FATHER',
@@ -303,23 +245,18 @@ const relativeBirthYear = ref('')
 const relativeIsAlive = ref(true)
 const relationNote = ref('')
 const submitting = ref(false)
-const unlocatedName = ref('')
-const unlocatedGenderIndex = ref(0)
-const unlocatedIsAlive = ref(true)
-const creatingUnlocated = ref(false)
-const placeMemberIndex = ref(0)
-const placeBaseIndex = ref(0)
-const placeRelationIndex = ref(0)
-const placeParentRoleIndex = ref(0)
-const placingMember = ref(false)
-const manageSection = ref<'node' | 'pending' | 'place' | 'relations'>('node')
+const manageSection = ref<'node' | 'relations'>('node')
 const initialBaseMemberId = ref('')
 const initialAddType = ref<RelationshipAddType | ''>('')
+const guideMode = ref(false)
 const initialSelectionApplied = ref(false)
 const hasLoadedOnce = ref(false)
 const selectedBaseMemberId = ref('')
-const selectedPlaceMemberId = ref('')
-const selectedPlaceBaseMemberId = ref('')
+const relativeDraftReady = ref(false)
+const relativeDraftRestored = ref(false)
+const hasRelativeDraft = ref(false)
+const childCoParentIndex = ref(0)
+const spouseDisplayIndex = ref(0)
 
 const canManage = computed(() =>
   family.value?.role === 'FOUNDER' || family.value?.role === 'FAMILY_ADMIN'
@@ -328,14 +265,6 @@ const sectionGuide = computed(() => ({
   node: {
     title: '关系已确定',
     description: '选择一位已有成员，再添加其父母、子女、配偶或兄弟姐妹。新成员会立即进入家庭树。'
-  },
-  pending: {
-    title: '关系暂未确认',
-    description: '先保存姓名和基础资料，不进入关系图；确认分支后再接入家庭树。'
-  },
-  place: {
-    title: '把暂存成员接入家庭树',
-    description: '选择待接入成员及其关系对象，确认后才会出现在对应分支。'
   },
   relations: {
     title: '修正已有关系',
@@ -348,51 +277,26 @@ const relativePreview = computed(() => {
   const baseName = selectedBaseMember.value?.name || '所选成员'
   return `将为“${baseName}”添加一位${relationLabels[relationIndex.value]}。`
 })
-const relatedMemberIDs = computed(() => {
-  const ids = new Set<number>()
-  tree.value.edges.forEach((edge) => {
-    ids.add(edge.fromMemberId)
-    ids.add(edge.toMemberId)
-  })
-  return ids
+const childCoParentOptions = computed(() => {
+  const baseMemberId = selectedBaseMember.value?.memberId
+  if (!baseMemberId) return []
+  return tree.value.edges
+    .filter((edge) => edge.relationshipType === 'SPOUSE' && (edge.fromMemberId === baseMemberId || edge.toMemberId === baseMemberId))
+    .map((edge) => {
+      const memberId = edge.fromMemberId === baseMemberId ? edge.toMemberId : edge.fromMemberId
+      const member = members.value.find((item) => item.memberId === memberId)
+      return member ? { memberId, label: `${member.name}（${spouseRelationLabel(edge.relationNoteType, member.gender)}）` } : null
+    })
+    .filter((item): item is { memberId: number; label: string } => Boolean(item))
 })
-const treeMemberTypeById = computed(() => {
-  const map = new Map<number, string>()
-  tree.value.nodes.forEach((node) => map.set(node.memberId, node.memberType))
-  return map
-})
-const unlocatedTypeAnomalies = computed(() =>
-  members.value.filter((member) => {
-    if (relatedMemberIDs.value.has(member.memberId)) return false
-    return !treeMemberTypeById.value.has(member.memberId)
-  })
-)
-const unlocatedMembers = computed(() =>
-  members.value.filter((member) =>
-    filterUnlocatedLineageMemberIds(
-      [member.memberId],
-      relatedMemberIDs.value,
-      treeMemberTypeById.value
-    ).includes(member.memberId)
-  )
-)
+const childCoParentLabels = computed(() => ['暂不记录另一位家长', ...childCoParentOptions.value.map((item) => item.label)])
+const showChildCoParentPicker = computed(() => relationValues[relationIndex.value] === 'ADD_CHILD' && childCoParentOptions.value.length > 0)
+const spouseDisplayOptionsForRelative = computed(() => spouseDisplayOptions(genderValues[relativeGenderIndex.value]))
+const spouseDisplayLabels = computed(() => spouseDisplayOptionsForRelative.value.map((option) => option.label))
+const showSpouseDisplayPicker = computed(() => relationValues[relationIndex.value] === 'ADD_SPOUSE')
 const showParentRolePicker = computed(() => {
   const addType = relationValues[relationIndex.value]
   return addType === 'ADD_FATHER' || addType === 'ADD_MOTHER'
-})
-const showPlaceParentRolePicker = computed(() => {
-  const addType = relationValues[placeRelationIndex.value]
-  return addType === 'ADD_FATHER' || addType === 'ADD_MOTHER'
-})
-const unlocatedMemberLabels = computed(() => unlocatedMembers.value.map((member) => member.name))
-const selectedPlaceMember = computed(() => unlocatedMembers.value[placeMemberIndex.value])
-const placementBaseMembers = computed(() => members.value.filter((member) => member.memberId !== selectedPlaceMember.value?.memberId))
-const placementBaseLabels = computed(() => placementBaseMembers.value.map((member) => member.name))
-const selectedPlaceBase = computed(() => placementBaseMembers.value[placeBaseIndex.value])
-const placementPreview = computed(() => {
-  const memberName = selectedPlaceMember.value?.name || '该暂存成员'
-  const baseName = selectedPlaceBase.value?.name || '所选成员'
-  return `确认后，“${memberName}”将作为“${baseName}”的${relationLabels[placeRelationIndex.value]}接入家庭树。`
 })
 const relationScopeMember = computed(() =>
   members.value.find((member) => String(member.memberId) === initialBaseMemberId.value) || null
@@ -413,12 +317,29 @@ function onBaseMemberChange(event: { detail: { value: string | number } }) {
   baseMemberIndex.value = asIndex(event)
   selectedBaseMemberId.value = String(selectedBaseMember.value?.memberId || '')
   applyRelationGenderDefault()
+  childCoParentIndex.value = 0
+  spouseDisplayIndex.value = 0
 }
 
 function onRelationChange(event: { detail: { value: string | number } }) {
-  relationIndex.value = asIndex(event)
+  const nextIndex = asIndex(event)
+  const nextType = relationValues[nextIndex]
+  if (
+    selectedBaseMember.value?.gender === 'UNKNOWN' &&
+    (nextType === 'ADD_CHILD' || nextType === 'ADD_SPOUSE')
+  ) {
+    operationError.value = '该成员性别尚未确认，暂不能直接添加子女或配偶；可以先补充父母或编辑成员资料。'
+    return
+  }
+  relationIndex.value = nextIndex
+  childCoParentIndex.value = 0
+  spouseDisplayIndex.value = 0
   parentRoleIndex.value = defaultParentRoleIndex(relationValues[relationIndex.value], selectedBaseMember.value?.memberId)
   applyRelationGenderDefault()
+}
+
+function onChildCoParentChange(event: { detail: { value: string | number } }) {
+  childCoParentIndex.value = asIndex(event)
 }
 
 function onParentRoleChange(event: { detail: { value: string | number } }) {
@@ -427,42 +348,15 @@ function onParentRoleChange(event: { detail: { value: string | number } }) {
 
 function onRelativeGenderChange(event: { detail: { value: string | number } }) {
   relativeGenderIndex.value = asIndex(event)
+  spouseDisplayIndex.value = 0
+}
+
+function onSpouseDisplayChange(event: { detail: { value: string | number } }) {
+  spouseDisplayIndex.value = asIndex(event)
 }
 
 function onRelativeAliveChange(event: { detail: { value: boolean } }) {
   relativeIsAlive.value = Boolean(event.detail.value)
-}
-
-function onUnlocatedGenderChange(event: { detail: { value: string | number } }) {
-  unlocatedGenderIndex.value = asIndex(event)
-}
-
-function onUnlocatedAliveChange(event: { detail: { value: boolean } }) {
-  unlocatedIsAlive.value = Boolean(event.detail.value)
-}
-
-function onPlaceMemberChange(event: { detail: { value: string | number } }) {
-  placeMemberIndex.value = asIndex(event)
-  selectedPlaceMemberId.value = String(selectedPlaceMember.value?.memberId || '')
-  placeBaseIndex.value = 0
-  selectedPlaceBaseMemberId.value = String(selectedPlaceBase.value?.memberId || '')
-}
-
-function onPlaceBaseChange(event: { detail: { value: string | number } }) {
-  placeBaseIndex.value = asIndex(event)
-  selectedPlaceBaseMemberId.value = String(selectedPlaceBase.value?.memberId || '')
-}
-
-function onPlaceRelationChange(event: { detail: { value: string | number } }) {
-  placeRelationIndex.value = asIndex(event)
-  placeParentRoleIndex.value = defaultParentRoleIndex(
-    relationValues[placeRelationIndex.value],
-    selectedPlaceBase.value?.memberId
-  )
-}
-
-function onPlaceParentRoleChange(event: { detail: { value: string | number } }) {
-  placeParentRoleIndex.value = asIndex(event)
 }
 
 function applyRelationGenderDefault() {
@@ -478,6 +372,17 @@ function defaultParentRoleIndex(addType: RelationshipAddType | undefined, baseMe
   if (addType === 'ADD_MOTHER' && hasLineageParentByGender(baseMemberId, 'MALE')) return 1
   if (addType === 'ADD_FATHER' && hasLineageParentByGender(baseMemberId, 'FEMALE')) return 1
   return 0
+}
+
+function hasParentByGender(childMemberId: number | undefined, gender: Gender) {
+  if (!childMemberId) return false
+  const parentIds = tree.value.edges
+    .filter((edge) => edge.relationshipType === 'PARENT_CHILD' && edge.toMemberId === childMemberId)
+    .map((edge) => edge.fromMemberId)
+  return tree.value.nodes.some((node) =>
+    parentIds.includes(node.memberId) &&
+    node.gender === gender
+  )
 }
 
 function hasLineageParentByGender(childMemberId: number | undefined, gender: Gender) {
@@ -502,35 +407,69 @@ function syncCreateBaseSelection(preferredMemberId = selectedBaseMemberId.value)
   selectedBaseMemberId.value = String(selectedBaseMember.value?.memberId || '')
 }
 
-function syncPlacementSelection(
-  preferredMemberId = selectedPlaceMemberId.value,
-  preferredBaseMemberId = selectedPlaceBaseMemberId.value
-) {
-  const memberIndex = unlocatedMembers.value.findIndex(
-    (member) => String(member.memberId) === preferredMemberId
-  )
-  if (memberIndex >= 0) {
-    placeMemberIndex.value = memberIndex
-  } else {
-    placeMemberIndex.value = Math.min(placeMemberIndex.value, Math.max(0, unlocatedMembers.value.length - 1))
-  }
-  selectedPlaceMemberId.value = String(selectedPlaceMember.value?.memberId || '')
-
-  const baseIndex = placementBaseMembers.value.findIndex(
-    (member) => String(member.memberId) === preferredBaseMemberId
-  )
-  if (baseIndex >= 0) {
-    placeBaseIndex.value = baseIndex
-  } else {
-    placeBaseIndex.value = Math.min(placeBaseIndex.value, Math.max(0, placementBaseMembers.value.length - 1))
-  }
-  selectedPlaceBaseMemberId.value = String(selectedPlaceBase.value?.memberId || '')
-}
-
 function yearValue(value: string) {
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
 }
+
+function relativeDraftKey() {
+  return `tree_miniapp_relative_draft_${session.user?.id || 'guest'}_${familyId.value}`
+}
+
+function restoreRelativeDraft() {
+  if (relativeDraftReady.value || !members.value.length) return
+  relativeDraftReady.value = true
+  try {
+    const stored = uni.getStorageSync(relativeDraftKey())
+    const parsed = typeof stored === 'string' ? JSON.parse(stored) : stored
+    if (!parsed || typeof parsed !== 'object') return
+    const draft = parsed as Record<string, unknown>
+    const baseIndex = members.value.findIndex((member) => String(member.memberId) === String(draft.baseMemberId || ''))
+    if (baseIndex >= 0) baseMemberIndex.value = baseIndex
+    const savedRelation = relationValues.indexOf(draft.relationType as RelationshipAddType)
+    if (savedRelation >= 0) relationIndex.value = savedRelation
+    if (typeof draft.name === 'string') relativeName.value = draft.name
+    if (typeof draft.birthYear === 'string') relativeBirthYear.value = draft.birthYear
+    if (typeof draft.note === 'string') relationNote.value = draft.note
+    if (typeof draft.genderIndex === 'number' && draft.genderIndex >= 0 && draft.genderIndex < genderValues.length) relativeGenderIndex.value = draft.genderIndex
+    if (typeof draft.parentRoleIndex === 'number' && draft.parentRoleIndex >= 0 && draft.parentRoleIndex < parentRoleValues.length) parentRoleIndex.value = draft.parentRoleIndex
+    if (typeof draft.isAlive === 'boolean') relativeIsAlive.value = draft.isAlive
+    selectedBaseMemberId.value = String(selectedBaseMember.value?.memberId || '')
+    hasRelativeDraft.value = true
+    relativeDraftRestored.value = true
+  } catch {
+    uni.removeStorageSync(relativeDraftKey())
+  }
+}
+
+function clearRelativeDraft() {
+  uni.removeStorageSync(relativeDraftKey())
+  hasRelativeDraft.value = false
+  relativeDraftRestored.value = false
+  relativeName.value = ''
+  relativeBirthYear.value = ''
+  relativeIsAlive.value = true
+  relationNote.value = ''
+}
+
+watch(
+  [selectedBaseMemberId, relationIndex, parentRoleIndex, relativeName, relativeGenderIndex, relativeBirthYear, relativeIsAlive, relationNote],
+  () => {
+    if (!relativeDraftReady.value || submitting.value) return
+    const hasContent = Boolean(relativeName.value.trim() || relativeBirthYear.value.trim() || relationNote.value.trim())
+    if (!hasContent) {
+      uni.removeStorageSync(relativeDraftKey())
+      hasRelativeDraft.value = false
+      return
+    }
+    uni.setStorageSync(relativeDraftKey(), JSON.stringify({
+      baseMemberId: selectedBaseMember.value?.memberId || '', relationType: relationValues[relationIndex.value],
+      parentRoleIndex: parentRoleIndex.value, name: relativeName.value, genderIndex: relativeGenderIndex.value,
+      birthYear: relativeBirthYear.value, isAlive: relativeIsAlive.value, note: relationNote.value
+    }))
+    hasRelativeDraft.value = true
+  }
+)
 
 async function loadData() {
   if (!familyId.value) {
@@ -544,8 +483,6 @@ async function loadData() {
   loadError.value = ''
   try {
     const previousBaseMemberId = selectedBaseMemberId.value || String(selectedBaseMember.value?.memberId || '')
-    const previousPlaceMemberId = selectedPlaceMemberId.value || String(selectedPlaceMember.value?.memberId || '')
-    const previousPlaceBaseMemberId = selectedPlaceBaseMemberId.value || String(selectedPlaceBase.value?.memberId || '')
     const shouldApplyInitialSelection = !initialSelectionApplied.value
     const [familyResult, memberResult, treeResult] = await Promise.all([
       getFamilyDetail(familyId.value),
@@ -557,18 +494,14 @@ async function loadData() {
     tree.value = treeResult
     applyInitialSelection()
     syncCreateBaseSelection(shouldApplyInitialSelection ? selectedBaseMemberId.value : previousBaseMemberId)
-    syncPlacementSelection(previousPlaceMemberId, previousPlaceBaseMemberId)
     if (shouldApplyInitialSelection) {
       parentRoleIndex.value = defaultParentRoleIndex(
         relationValues[relationIndex.value],
         selectedBaseMember.value?.memberId
       )
-      placeParentRoleIndex.value = defaultParentRoleIndex(
-        relationValues[placeRelationIndex.value],
-        selectedPlaceBase.value?.memberId
-      )
       applyRelationGenderDefault()
     }
+    restoreRelativeDraft()
     hasLoadedOnce.value = true
   } catch (error) {
     loadError.value = apiErrorMessage(error, '家庭管理数据加载失败。')
@@ -605,10 +538,22 @@ async function submitRelative() {
     operationError.value = validationMessage
     return
   }
+  const addType = relationValues[relationIndex.value]
+  if (base.gender === 'UNKNOWN' && (addType === 'ADD_CHILD' || addType === 'ADD_SPOUSE')) {
+    operationError.value = '该成员性别尚未确认，暂不能直接添加子女或配偶；请先编辑成员资料确认性别。'
+    return
+  }
   submitting.value = true
   operationError.value = ''
   try {
-    const addType = relationValues[relationIndex.value]
+    if (addType === 'ADD_FATHER' && hasParentByGender(base.memberId, 'MALE')) {
+      operationError.value = '该成员已有父亲节点，不能重复添加父亲。'
+      return
+    }
+    if (addType === 'ADD_MOTHER' && hasParentByGender(base.memberId, 'FEMALE')) {
+      operationError.value = '该成员已有母亲节点，不能重复添加母亲。'
+      return
+    }
     const newMember: {
       name: string
       gender: Gender
@@ -628,10 +573,14 @@ async function submitRelative() {
     }
     const result = await createRelationship(familyId.value, {
       baseMemberId: base.memberId,
+      coParentMemberId: childCoParentIndex.value > 0 ? childCoParentOptions.value[childCoParentIndex.value - 1]?.memberId : undefined,
       addType,
       newMember,
       relationship: {
         parentLinkType: relationValues[relationIndex.value] === 'ADD_SPOUSE' ? undefined : 'PRIMARY',
+        relationNoteType: addType === 'ADD_SPOUSE'
+          ? spouseDisplayOptionsForRelative.value[spouseDisplayIndex.value]?.noteType || undefined
+          : undefined,
         relationNote: optionalText(relationNote.value)
       }
     })
@@ -639,84 +588,24 @@ async function submitRelative() {
     relativeBirthYear.value = ''
     relativeIsAlive.value = true
     relationNote.value = ''
+    uni.removeStorageSync(relativeDraftKey())
+    hasRelativeDraft.value = false
+    relativeDraftRestored.value = false
     await loadData()
     showContinueAddModal(result.createdMember?.memberId, newMember.name)
   } catch (error) {
+    if (isMemberLimitError(error)) {
+      if (!session.user?.phoneVerified) {
+        pendingCapacityAction.value = 'create'
+        phoneUpgradeVisible.value = true
+      } else {
+        openCapacityPurchase()
+      }
+      return
+    }
     operationError.value = apiErrorMessage(error, '创建亲属失败。')
   } finally {
     submitting.value = false
-  }
-}
-
-async function submitUnlocated() {
-  if (!unlocatedName.value || creatingUnlocated.value) {
-    operationError.value = '请填写成员姓名。'
-    return
-  }
-  const validationMessage = validateTextFields([
-    { value: unlocatedName.value, label: '成员姓名', kind: 'name', required: true, maxLength: 80 }
-  ])
-  if (validationMessage) {
-    operationError.value = validationMessage
-    return
-  }
-  creatingUnlocated.value = true
-  operationError.value = ''
-  try {
-    await createFamilyMember(familyId.value, {
-      name: normalizeText(unlocatedName.value),
-      gender: genderValues[unlocatedGenderIndex.value],
-      isAlive: unlocatedIsAlive.value,
-      userBindingPolicy: 'OPTIONAL'
-    })
-    unlocatedName.value = ''
-    unlocatedIsAlive.value = true
-    await loadData()
-    showPlacePendingModal()
-  } catch (error) {
-    operationError.value = apiErrorMessage(error, '暂存成员失败。')
-  } finally {
-    creatingUnlocated.value = false
-  }
-}
-
-async function submitPlacement() {
-  const member = selectedPlaceMember.value
-  const base = selectedPlaceBase.value
-  if (!member || !base || placingMember.value) {
-    operationError.value = '请选择待接入成员和关联成员。'
-    return
-  }
-  placingMember.value = true
-  operationError.value = ''
-  try {
-    const addType = relationValues[placeRelationIndex.value]
-    const payload: {
-      baseMemberId: number
-      memberId: number
-      addType: RelationshipAddType
-      memberType?: MemberType
-      relationship: { parentLinkType?: string }
-    } = {
-      baseMemberId: base.memberId,
-      memberId: member.memberId,
-      addType,
-      relationship: {
-        parentLinkType: addType === 'ADD_SPOUSE' ? undefined : 'PRIMARY'
-      }
-    }
-    if (addType === 'ADD_FATHER' || addType === 'ADD_MOTHER') {
-      payload.memberType = parentRoleValues[placeParentRoleIndex.value]
-    }
-    await placeExistingMember(familyId.value, payload)
-    placeMemberIndex.value = 0
-    placeBaseIndex.value = 0
-    await loadData()
-    showContinueAddModal(member.memberId, member.name)
-  } catch (error) {
-    operationError.value = apiErrorMessage(error, '接入成员失败。')
-  } finally {
-    placingMember.value = false
   }
 }
 
@@ -740,18 +629,6 @@ function showContinueAddModal(memberId: number | undefined, memberName: string) 
   })
 }
 
-function showPlacePendingModal() {
-  uni.showModal({
-    title: '成员已暂存',
-    content: '该成员暂未进入关系图。确认身份后，可以把 TA 接入家庭树。',
-    confirmText: '去接入',
-    cancelText: '稍后',
-    success: (result) => {
-      if (result.confirm) manageSection.value = 'place'
-    }
-  })
-}
-
 function memberName(memberId: number) {
   return members.value.find((member) => member.memberId === memberId)?.name || '未知成员'
 }
@@ -763,7 +640,11 @@ function relationSentence(edge: TreeEdge) {
 }
 
 function relationshipKind(edge: TreeEdge) {
-  if (edge.relationshipType === 'SPOUSE') return '配偶关系'
+  if (edge.relationshipType === 'SPOUSE') {
+    const spouse = members.value.find((member) => member.memberId === edge.toMemberId)
+      || members.value.find((member) => member.memberId === edge.fromMemberId)
+    return `配偶关系 · 展示身份：${spouseRelationLabel(edge.relationNoteType, spouse?.gender)}`
+  }
   const labels: Record<string, string> = {
     PRIMARY: '亲生父母子女',
     STEP: '继亲父母子女',
@@ -793,7 +674,8 @@ function chooseRelationshipNature(edge: TreeEdge) {
       operationError.value = ''
       try {
         await updateRelationship(familyId.value, edge.relationshipId, {
-          parentLinkType: values[result.tapIndex]
+          parentLinkType: values[result.tapIndex],
+          expectedRevision: edge.revision
         })
         uni.showToast({ title: '关系性质已更新', icon: 'success' })
         await loadData()
@@ -803,6 +685,7 @@ function chooseRelationshipNature(edge: TreeEdge) {
     }
   })
 }
+
 
 async function removeRelationship(relationshipId: number) {
   operationError.value = ''
@@ -816,32 +699,51 @@ async function removeRelationship(relationshipId: number) {
 }
 
 function openPrivateTree() {
-  if (getCurrentPages().length > 1) {
-    uni.navigateBack()
-    return
-  }
   uni.redirectTo({
     url: `/pages/family/private-tree?familyId=${encodeURIComponent(familyId.value)}`
   })
 }
 
+function openCapacityPurchase() {
+  uni.showActionSheet({ itemList: ['购买扩容', '邀请家人解锁奖励名额'], success: (result) => {
+    const page = result.tapIndex === 0 ? 'capacity' : 'invitation-reward'
+    const capacityReturn = page === 'capacity' && pendingCapacityAction.value
+      ? 'add'
+      : returnTo.value === 'tree'
+        ? 'tree'
+        : ''
+    uni.navigateTo({ url: `/pages/family/${page}?familyId=${encodeURIComponent(familyId.value)}${capacityReturn ? `&returnTo=${capacityReturn}` : ''}` })
+  } })
+}
+
+function continueAfterPhoneUpgrade() {
+  const action = pendingCapacityAction.value
+  pendingCapacityAction.value = null
+  if (action === 'create') {
+    void submitRelative()
+    return
+  }
+}
+
+function isMemberLimitError(error: unknown) {
+  return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === 41504
+}
+
 onLoad((options) => {
   familyId.value = String(options?.familyId || '')
+  returnTo.value = String(options?.returnTo || '')
   initialBaseMemberId.value = String(options?.baseMemberId || '')
   const requestedType = String(options?.addType || '') as RelationshipAddType
   initialAddType.value = relationValues.includes(requestedType) ? requestedType : ''
   const requestedSection = String(options?.section || '')
-  if (
-    requestedSection === 'node' ||
-    requestedSection === 'pending' ||
-    requestedSection === 'place' ||
-    requestedSection === 'relations'
-  ) {
+  guideMode.value = String(options?.guide || '') === '1'
+  if (requestedSection === 'node' || requestedSection === 'relations') {
     manageSection.value = requestedSection
   } else if (requestedSection === 'create') {
     manageSection.value = 'node'
-  } else if (requestedSection === 'locate') {
-    manageSection.value = 'place'
+  }
+  if (guideMode.value) {
+    markNewUserGuideMilestone(manageSection.value === 'relations' ? 'RELATION_GUIDE_OPENED' : 'MEMBER_GUIDE_OPENED')
   }
   if (!familyId.value) {
     loadError.value = '缺少家庭信息。'

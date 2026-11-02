@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -11,14 +12,51 @@ import (
 	"tree/backend/internal/common/contentsafety"
 	"tree/backend/internal/common/database"
 	"tree/backend/internal/common/enums"
+	apperrors "tree/backend/internal/common/errors"
 	"tree/backend/internal/common/permission"
+	commonredis "tree/backend/internal/common/redis"
 	"tree/backend/internal/family/core/dto"
 	familymodel "tree/backend/internal/family/core/model"
 	familyrepo "tree/backend/internal/family/core/repository"
 	membermodel "tree/backend/internal/family/member/model"
 	rolemodel "tree/backend/internal/family/role/model"
+	notificationservice "tree/backend/internal/notification/service"
 	usermodel "tree/backend/internal/user/model"
 )
+
+type familyTreeCache struct {
+	deleted []string
+}
+
+type notificationCapture struct {
+	inputs []notificationservice.Input
+}
+
+func (c *notificationCapture) Create(_ context.Context, input notificationservice.Input) {
+	c.inputs = append(c.inputs, input)
+}
+
+func (*notificationCapture) List(context.Context, uint64, int, int) (*notificationservice.Page, *apperrors.BusinessError) {
+	return nil, nil
+}
+
+func (*notificationCapture) MarkRead(context.Context, uint64, uint64) *apperrors.BusinessError {
+	return nil
+}
+func (*notificationCapture) MarkAllRead(context.Context, uint64) *apperrors.BusinessError { return nil }
+
+func (*familyTreeCache) Get(context.Context, string) ([]byte, error) {
+	return nil, commonredis.ErrCacheMiss
+}
+
+func (*familyTreeCache) Set(context.Context, string, []byte, time.Duration) error {
+	return nil
+}
+
+func (c *familyTreeCache) Delete(_ context.Context, key string) error {
+	c.deleted = append(c.deleted, key)
+	return nil
+}
 
 func transactionalTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
@@ -51,8 +89,9 @@ func TestCreateFamilyWithoutPhoneVerified(t *testing.T) {
 
 	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil, contentsafety.AlwaysPass())
 	founderGender := string(enums.GenderMale)
+	founderBirthYear := 1990
 	result, businessErr := service.Create(ctx, user.ID, dto.CreateFamilyRequest{
-		Surname: "测", FounderGender: &founderGender,
+		Surname: "测", FounderName: "测试创建者", FounderGender: &founderGender, FounderBirthYear: &founderBirthYear,
 	}, AuditInput{IP: "127.0.0.1", UserAgent: "p0-test"})
 	if businessErr != nil {
 		t.Fatalf("Create without phone verified: %v", businessErr)
@@ -75,8 +114,9 @@ func TestCreateFamilyInitializesFounderAndGraphVersion(t *testing.T) {
 
 	service := NewFamilyService(tx, familyrepo.NewFamilyRepository(tx), nil, nil, contentsafety.AlwaysPass())
 	founderGender := string(enums.GenderMale)
+	founderBirthYear := 1990
 	result, businessErr := service.Create(ctx, user.ID, dto.CreateFamilyRequest{
-		Surname: "测", FounderGender: &founderGender,
+		Surname: "测", FounderName: "测试创建者", FounderGender: &founderGender, FounderBirthYear: &founderBirthYear,
 	}, AuditInput{IP: "127.0.0.1", UserAgent: "p0-test"})
 	if businessErr != nil {
 		t.Fatalf("Create: %v", businessErr)
@@ -100,7 +140,8 @@ func TestCreateFamilyInitializesFounderAndGraphVersion(t *testing.T) {
 		t.Fatalf("load founder member: %v", err)
 	}
 	if member.FamilyID != family.ID || member.Status != string(enums.StatusActive) ||
-		member.Gender != string(enums.GenderMale) {
+		member.DisplayName != "测试创建者" || member.Gender != string(enums.GenderMale) ||
+		member.BirthDate == nil || member.BirthDate.Year() != founderBirthYear {
 		t.Fatalf("invalid founder member: %#v", member)
 	}
 
@@ -134,7 +175,7 @@ func (p founderFamilyPermission) CanManageFamily(context.Context, uint64, uint64
 
 func (p founderFamilyPermission) GetActiveLink(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error) {
 	return &rolemodel.FamilyMemberUserLink{
-		MemberID: p.memberID,
+		MemberID:   p.memberID,
 		FamilyRole: string(enums.FamilyRoleFounder),
 		LinkStatus: string(enums.StatusActive),
 	}, nil
@@ -162,7 +203,9 @@ func TestMemberCanLeaveWithoutDeletingTreeNodeOrChangingGraphVersion(t *testing.
 		t.Fatalf("create member user: %v", err)
 	}
 	repo := familyrepo.NewFamilyRepository(tx)
-	service := NewFamilyService(tx, repo, nil, nil, contentsafety.AlwaysPass())
+	cache := &familyTreeCache{}
+	notifications := &notificationCapture{}
+	service := NewFamilyServiceWithNotifications(tx, repo, nil, nil, contentsafety.AlwaysPass(), notifications, cache)
 	created, businessErr := service.Create(ctx, founder.ID, dto.CreateFamilyRequest{Surname: "退"}, AuditInput{})
 	if businessErr != nil {
 		t.Fatalf("create family: %v", businessErr)
@@ -204,6 +247,18 @@ func TestMemberCanLeaveWithoutDeletingTreeNodeOrChangingGraphVersion(t *testing.
 	var savedFamily familymodel.Family
 	if err := tx.WithContext(ctx).First(&savedFamily, created.ID).Error; err != nil || savedFamily.GraphVersion != created.GraphVersion {
 		t.Fatalf("leave must not change graph version: %#v %v", savedFamily, err)
+	}
+	if len(cache.deleted) != 1 || cache.deleted[0] != "family:"+fmt.Sprint(created.ID)+":tree:v"+fmt.Sprint(created.GraphVersion) {
+		t.Fatalf("leave must invalidate current tree cache, got %#v", cache.deleted)
+	}
+	if len(notifications.inputs) != 1 {
+		t.Fatalf("expected one member exit notification, got %#v", notifications.inputs)
+	}
+	notification := notifications.inputs[0]
+	expectedRoute := "/pages/family/detail?familyId=" + fmt.Sprint(created.ID) + "&memberId=" + fmt.Sprint(member.ID)
+	expectedPage := "pages/family/detail?familyId=" + fmt.Sprint(created.ID) + "&memberId=" + fmt.Sprint(member.ID)
+	if notification.Route != expectedRoute || notification.Subscribe == nil || notification.Subscribe.Page != expectedPage {
+		t.Fatalf("member exit must open family detail, got route=%q subscribe=%#v", notification.Route, notification.Subscribe)
 	}
 }
 

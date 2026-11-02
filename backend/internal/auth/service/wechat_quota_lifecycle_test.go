@@ -179,16 +179,14 @@ func TestWechatLoginBindPhoneUpgradePreservesIdentity(t *testing.T) {
 	graphBefore := freshquota.GraphVersion(t, tx, ownedFamilyID)
 	memberCountBefore := freshquota.CountActiveMembers(t, tx, ownedFamilyID)
 
-	phone := freshquota.UniquePhone(runID, "bind")
-	password := "bind-pass-" + runID[len(runID)-4:]
-	bindResult, bindErr := authSvc.BindPhoneCredential(ctx, BindPhoneCredentialInput{
-		UserID: userID, Phone: phone, Password: password, ConfirmPassword: password,
+	bindResult, bindErr := authSvc.BindWechatPhone(ctx, BindWechatPhoneInput{
+		UserID: userID, PhoneCode: runID + "-bind", ClientType: ClientWechatMini,
 		IP: "127.0.0.1", UserAgent: "fresh-quota-test",
 	})
 	if bindErr != nil {
-		t.Fatalf("BindPhoneCredential: %v", bindErr)
+		t.Fatalf("BindWechatPhone: %v", bindErr)
 	}
-	if bindResult.User.ID != userID || !bindResult.User.PhoneLoginEnabled {
+	if bindResult.User.ID != userID || !bindResult.User.PhoneVerified || bindResult.User.PhoneLoginEnabled {
 		t.Fatalf("unexpected bind result: %#v", bindResult.User)
 	}
 
@@ -219,7 +217,7 @@ func TestWechatLoginBindPhoneUpgradePreservesIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("relogin after bind: %v", err)
 	}
-	if relogin.User.ID != userID || !relogin.User.PhoneLoginEnabled {
+	if relogin.User.ID != userID || !relogin.User.PhoneVerified || relogin.User.PhoneLoginEnabled {
 		t.Fatalf("relogin should keep same upgraded user: %#v", relogin.User)
 	}
 	caps2, _ := quotaSvc.GetCapabilities(ctx, userID)

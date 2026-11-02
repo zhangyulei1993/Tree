@@ -359,34 +359,6 @@ func TestInvitationCreationRules(t *testing.T) {
 			t.Fatal("operation log contains raw token")
 		}
 	})
-	t.Run("family invite does not create member before accept", func(t *testing.T) {
-		repo := newFakeRepo()
-		svc := testService(repo, true, now)
-		beforeMemberCount := len(repo.members)
-		result, err := svc.CreateFamily(context.Background(), 8, 2, dto.CreateInvitationRequest{
-			InviteChannel:      "SHARE_LINK",
-			PendingMemberLabel: stringPtr("二房长子（待确认）"),
-		}, AuditInput{})
-		if err != nil {
-			t.Fatalf("unexpected error: %#v", err)
-		}
-		if result.Invitation.TargetMemberName != "二房长子（待确认）" {
-			t.Fatalf("unexpected target member name: %s", result.Invitation.TargetMemberName)
-		}
-		if result.Invitation.PendingMemberLabel == nil || *result.Invitation.PendingMemberLabel != "二房长子（待确认）" {
-			t.Fatalf("unexpected pending label: %#v", result.Invitation.PendingMemberLabel)
-		}
-		stored := repo.invitations[result.Invitation.InvitationID]
-		if stored.InviteType != "JOIN_FAMILY_PENDING_MEMBER" || stored.TargetMemberID != 0 {
-			t.Fatalf("unexpected invitation: %#v", stored)
-		}
-		if len(repo.members) != beforeMemberCount {
-			t.Fatalf("member should not be created before accept: before=%d after=%d", beforeMemberCount, len(repo.members))
-		}
-		if repo.family.GraphVersion != 14 {
-			t.Fatalf("graph version should not change before accept: %d", repo.family.GraphVersion)
-		}
-	})
 	t.Run("in-app invite validates target", func(t *testing.T) {
 		repo := newFakeRepo()
 		svc := testService(repo, true, now)
@@ -403,6 +375,17 @@ func TestInvitationCreationRules(t *testing.T) {
 		result, err := testService(repo, true, now).Create(context.Background(), 8, 2, 6, dto.CreateInvitationRequest{InviteChannel: "IN_APP", TargetUserID: &target}, AuditInput{})
 		if err != nil || result.Invitation.InvitationID == 0 {
 			t.Fatalf("unexpected: %#v %#v", result, err)
+		}
+	})
+	t.Run("inviter must bind phone before creating invite", func(t *testing.T) {
+		repo := newFakeRepo()
+		repo.users[8] = usermodel.User{ID: 8, Status: "ACTIVE", PhoneVerified: false}
+		result, err := testService(repo, true, now).Create(context.Background(), 8, 2, 6, dto.CreateInvitationRequest{InviteChannel: "SHARE_LINK"}, AuditInput{})
+		if result != nil || err == nil || err.Code != CodeInvitationForbidden || err.Message != "请先绑定手机号后再发起邀请" {
+			t.Fatalf("unexpected phone required result=%#v err=%#v", result, err)
+		}
+		if len(repo.invitations) != 0 {
+			t.Fatalf("invitation should not be created: %#v", repo.invitations)
 		}
 	})
 	t.Run("duplicate pending rejected", func(t *testing.T) {
@@ -494,54 +477,12 @@ func TestInvitationMutations(t *testing.T) {
 			t.Fatalf("unexpected %#v %#v", result, err)
 		}
 	})
-	t.Run("accept pending family invite activates hidden member", func(t *testing.T) {
+	t.Run("retired pending-member invitation is rejected", func(t *testing.T) {
 		repo := newFakeRepo()
-		repo.members[20] = membermodel.FamilyMember{
-			ID: 20, FamilyID: 2, DisplayName: "二房长子（待确认）", Status: "PENDING", UserBindingPolicy: "OPTIONAL",
-		}
-		repo.invitations[1] = &invitationmodel.FamilyInvitation{
-			ID: 1, FamilyID: 2, TargetMemberID: 20, InviterUserID: uint64Ptr(8),
-			InviteType: "JOIN_FAMILY_PENDING_MEMBER", InviteChannel: "SHARE_LINK",
-			FamilyRoleAfterAccept: "MEMBER", Status: "PENDING", ExpiredAt: now.Add(time.Hour),
-			PendingMemberLabel: stringPtr("二房长子（待确认）"),
-		}
-		result, err := testService(repo, true, now).Accept(context.Background(), 9, 1, AuditInput{})
-		if err != nil || result.Status != "ACCEPTED" {
-			t.Fatalf("unexpected %#v %#v", result, err)
-		}
-		if repo.members[20].Status != "ACTIVE" {
-			t.Fatalf("pending member should activate on accept: %#v", repo.members[20])
-		}
-	})
-	t.Run("accept pending family invite creates member after confirmation", func(t *testing.T) {
-		repo := newFakeRepo()
-		cache := &invitationTreeCache{}
-		beforeGraphVersion := repo.family.GraphVersion
-		repo.invitations[1] = &invitationmodel.FamilyInvitation{
-			ID: 1, FamilyID: 2, TargetMemberID: 0, InviterUserID: uint64Ptr(8),
-			InviteType: "JOIN_FAMILY_PENDING_MEMBER", InviteChannel: "SHARE_LINK",
-			FamilyRoleAfterAccept: "MEMBER", Status: "PENDING", ExpiredAt: now.Add(time.Hour),
-			PendingMemberLabel: stringPtr("二房长子（待确认）"),
-		}
-		result, err := testServiceWithCache(repo, true, now, cache).Accept(context.Background(), 9, 1, AuditInput{})
-		if err != nil || result.Status != "ACCEPTED" {
-			t.Fatalf("unexpected %#v %#v", result, err)
-		}
-		if result.TargetMemberID == 0 {
-			t.Fatalf("target member should be assigned after accept: %#v", result)
-		}
-		member := repo.members[result.TargetMemberID]
-		if member.DisplayName != "二房长子（待确认）" || member.Status != "ACTIVE" || member.UserBindingPolicy != "OPTIONAL" {
-			t.Fatalf("unexpected created member: %#v", member)
-		}
-		if len(repo.links) != 1 || repo.links[0].MemberID != result.TargetMemberID || repo.links[0].UserID != 9 {
-			t.Fatalf("unexpected link: %#v", repo.links)
-		}
-		if repo.family.GraphVersion != beforeGraphVersion+1 {
-			t.Fatalf("graph version should increment when member is created, got %d", repo.family.GraphVersion)
-		}
-		if len(cache.deleted) != 1 || cache.deleted[0] != "family:2:tree:v15" {
-			t.Fatalf("new pending member must invalidate updated tree cache, got %#v", cache.deleted)
+		makeInvite(repo, "SHARE_LINK", "PENDING", nil, now.Add(time.Hour))
+		repo.invitations[1].InviteType = "JOIN_FAMILY_PENDING_MEMBER"
+		if _, err := testService(repo, true, now).Accept(context.Background(), 9, 1, AuditInput{}); err == nil || err.Code != CodeInvitationInvalidStatus {
+			t.Fatalf("unexpected %#v", err)
 		}
 	})
 	t.Run("expired and non-pending rejected", func(t *testing.T) {
@@ -575,6 +516,18 @@ func TestInvitationMutations(t *testing.T) {
 			t.Fatalf("unexpected %#v", err)
 		}
 	})
+}
+
+func TestAcceptedInvitationIdentifiesAccepter(t *testing.T) {
+	acceptedBy := uint64(9)
+	row := &inviterepo.InvitationRow{
+		FamilyInvitation:      invitationmodel.FamilyInvitation{ID: 1, Status: "ACCEPTED", AcceptedByUserID: &acceptedBy},
+		AcceptedByDisplayName: "张三",
+	}
+	result := invitationVO(row)
+	if result.AcceptedByUserID == nil || *result.AcceptedByUserID != acceptedBy || result.AcceptedByDisplayName != "张三" {
+		t.Fatalf("accepted invitation omitted accepter: %+v", result)
+	}
 }
 
 func TestInvitationSenderManagement(t *testing.T) {

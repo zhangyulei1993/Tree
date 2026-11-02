@@ -6,7 +6,7 @@
       <view>
         <text class="archive-kicker">Join Review</text>
         <text class="archive-title">收到的加入申请</text>
-        <text class="archive-subtitle">{{ familyName }} · 审核外部用户提交给该家庭的加入申请</text>
+          <text class="archive-subtitle">{{ familyName }} · 审核加入申请</text>
       </view>
       <view class="archive-seal">{{ familySealLetter }}</view>
     </view>
@@ -24,7 +24,7 @@
     </view>
 
     <MiniNotice tone="security" title="审核说明">
-      仅家庭创建者和管理员可查看与处理。通过前请确认申请人在家庭树中的位置。
+      仅创建者和管理员可处理。通过前请确认节点位置。
     </MiniNotice>
 
     <view v-if="loading && requests.length === 0" class="review-state archive-form-panel">
@@ -56,7 +56,13 @@
           <text class="archive-section-subtitle">{{ group.subtitle }}</text>
         </view>
         <view class="review-list archive-list">
-          <view v-for="item in group.items" :key="item.requestId" class="review-item">
+          <view
+            v-for="item in group.items"
+            :id="`join-request-${item.requestId}`"
+            :key="item.requestId"
+            class="review-item"
+            :class="{ focused: String(item.requestId) === focusedRequestId }"
+          >
             <view class="review-item-head">
               <view class="archive-row-main">
                 <text class="archive-row-title">{{ item.applicantRealName || '未填写姓名' }}</text>
@@ -70,10 +76,10 @@
             <view class="review-meta">
               <text>申请理由：{{ item.applicantMessage || '未填写' }}</text>
               <text>申请性别：{{ genderText(item.applicantGender) }}</text>
-              <text class="review-meta-weak">提交时间：{{ formatDate(item.createdAt) }}</text>
+              <text class="review-meta-weak">提交于 {{ formatDate(item.createdAt) }}</text>
               <text v-if="item.handleComment">处理结果：{{ item.handleComment }}</text>
               <text v-else-if="item.requestStatus !== 'PENDING'" class="review-meta-weak">
-                更新时间：{{ formatDate(item.updatedAt) }}
+                更新于 {{ formatDate(item.updatedAt) }}
               </text>
             </view>
 
@@ -111,13 +117,6 @@
                 >
                   <text>接入新成员</text>
                 </view>
-                <view
-                  class="archive-segment-tab"
-                  :class="{ active: resolveMode === 'standalone' }"
-                  @click="openResolvePanel(item, 'standalone')"
-                >
-                  <text>暂存成员</text>
-                </view>
               </view>
 
               <template v-if="resolveMode === 'bind'">
@@ -135,7 +134,7 @@
                   <view class="field-picker">{{ selectedExistingMemberLabel }}</view>
                 </picker>
                 <MiniNotice v-else tone="warm">
-                  当前没有可绑定成员。可先创建并定位，或暂存为未定位成员。
+                  当前没有可绑定成员。请先在家庭树中创建并定位相应节点，再返回这里绑定申请人。
                 </MiniNotice>
                 <MiniButton
                   size="sm"
@@ -201,28 +200,6 @@
                 </MiniButton>
               </template>
 
-              <template v-else>
-                <view class="archive-section-head">
-                  <text class="archive-section-title">暂存为未定位成员</text>
-                  <text class="archive-section-subtitle">
-                    只创建成员档案并绑定账号，后续需要在成员管理中补充亲属关系
-                  </text>
-                </view>
-                <text class="tree-field-label">新成员姓名</text>
-                <input v-model.trim="resolveForm.name" class="tree-input" maxlength="100" placeholder="请输入成员姓名" />
-                <text class="tree-field-label">新成员性别</text>
-                <picker mode="selector" :range="genderLabels" :value="genderIndex" @change="onSelectGender">
-                  <view class="field-picker">{{ genderLabels[genderIndex] }}</view>
-                </picker>
-                <MiniButton
-                  size="sm"
-                  :disabled="isActing(item)"
-                  :loading="actingId === item.requestId && actingType === 'approve'"
-                  @click="confirmCreateStandalone(item)"
-                >
-                  暂存并通过
-                </MiniButton>
-              </template>
             </view>
           </view>
         </view>
@@ -279,6 +256,7 @@ const familyName = ref('')
 const familySurname = ref('')
 const familyRole = ref('')
 const requests = ref<JoinRequest[]>([])
+const focusedRequestId = ref('')
 const members = ref<FamilyMember[]>([])
 const treeNodes = ref<TreeNode[]>([])
 const treeEdges = ref<TreeEdge[]>([])
@@ -288,7 +266,7 @@ const operationError = ref('')
 const actingId = ref<number | string | null>(null)
 const actingType = ref<'' | 'approve' | 'reject'>('')
 const activeRequestId = ref<number | string | null>(null)
-const resolveMode = ref<'bind' | 'locate' | 'standalone'>('bind')
+const resolveMode = ref<'bind' | 'locate'>('bind')
 const selectedMemberIndex = ref(0)
 const baseMemberIndex = ref(0)
 const genderIndex = ref(0)
@@ -415,6 +393,10 @@ async function loadRequests() {
     treeEdges.value = tree.edges
     normalizePickerIndexes()
     normalizeRelationIndex()
+    if (focusedRequestId.value && requestRows.some((item) => String(item.requestId) === focusedRequestId.value)) {
+      await nextTick()
+      uni.pageScrollTo({ selector: `#join-request-${focusedRequestId.value}`, duration: 220 })
+    }
   } catch (error) {
     loadError.value = apiErrorMessage(error, '加入申请加载失败。')
   } finally {
@@ -455,13 +437,13 @@ function genderText(value?: string | null) {
   return '未填写'
 }
 
-function defaultResolveMode(): 'bind' | 'locate' | 'standalone' {
+function defaultResolveMode(): 'bind' | 'locate' {
   if (bindableMembers.value.length > 0) return 'bind'
   if (members.value.length > 0) return 'locate'
-  return 'standalone'
+  return 'bind'
 }
 
-function openResolvePanel(item: JoinRequest, mode: 'bind' | 'locate' | 'standalone') {
+function openResolvePanel(item: JoinRequest, mode: 'bind' | 'locate') {
   activeRequestId.value = item.requestId
   resolveMode.value = mode
   operationError.value = ''
@@ -523,8 +505,8 @@ function buildRelationOptions(gender: Gender, base?: FamilyMember): RelationOpti
 
 function placementState(base: FamilyMember | undefined, addType: RelationshipAddType): PlacementState {
   if (!base) return { blocked: true, message: '请先选择从谁开始。' }
-  if (addType === 'ADD_FATHER') return parentPlacement(base, 'MALE', '父亲', '继父', 'STEP_FATHER')
-  if (addType === 'ADD_MOTHER') return parentPlacement(base, 'FEMALE', '母亲', '继母', 'STEP_MOTHER')
+  if (addType === 'ADD_FATHER') return parentPlacement(base, 'MALE', '父亲')
+  if (addType === 'ADD_MOTHER') return parentPlacement(base, 'FEMALE', '母亲')
   if (addType === 'ADD_SPOUSE') return spousePlacement(base)
   if (addType === 'ADD_CHILD') {
     if (base.gender !== 'MALE' && base.gender !== 'FEMALE') {
@@ -542,19 +524,10 @@ function placementState(base: FamilyMember | undefined, addType: RelationshipAdd
   return { blocked: false, message: '' }
 }
 
-function parentPlacement(base: FamilyMember, gender: Gender, label: string, stepLabel: string, noteType: string) {
+function parentPlacement(base: FamilyMember, gender: Gender, label: string) {
   const existing = parentNodes(base.memberId).filter((node) => node.gender === gender)
-  if (existing.some(isLineageNode)) {
-    return { blocked: true, message: `该成员已有本家族${label}，不能重复添加。` }
-  }
   if (existing.length > 0) {
-    return {
-      blocked: false,
-      message: `该成员已有配偶类${label}，继续创建将按${stepLabel}处理。`,
-      parentLinkType: 'STEP',
-      relationNoteType: noteType,
-      relationNote: stepLabel
-    }
+    return { blocked: true, message: `该成员已有${label}节点，不能重复添加。` }
   }
   return { blocked: false, message: `将创建${label}关系。`, parentLinkType: 'PRIMARY' }
 }
@@ -565,7 +538,7 @@ function spousePlacement(base: FamilyMember) {
   }
   const spouseGender: Gender = base.gender === 'MALE' ? 'FEMALE' : 'MALE'
   const label = spouseGender === 'MALE' ? '丈夫' : '妻子'
-  const secondLabel = spouseGender === 'MALE' ? '再婚丈夫' : '再婚妻子'
+  const secondLabel = spouseGender === 'MALE' ? '现任丈夫' : '现任妻子'
   const noteType = spouseGender === 'MALE' ? 'SECOND_HUSBAND' : 'SECOND_WIFE'
   const existing = spouseNodes(base.memberId).filter((node) => node.gender === spouseGender)
   if (existing.some(isLineageNode)) {
@@ -664,18 +637,6 @@ function confirmCreateLocated(item: JoinRequest) {
   })
 }
 
-function confirmCreateStandalone(item: JoinRequest) {
-  const name = ensureResolveName()
-  if (!name) return
-  uni.showModal({
-    title: '暂存未定位成员',
-    content: `确定创建「${name}」为未定位成员，并通过申请吗？后续需要补充亲属关系。`,
-    success: (result) => {
-      if (result.confirm) createStandaloneAndApprove(item, name)
-    }
-  })
-}
-
 function confirmReject(item: JoinRequest) {
   uni.showModal({
     title: '驳回申请',
@@ -743,31 +704,6 @@ async function createLocatedAndApprove(item: JoinRequest, name: string, baseMemb
   }
 }
 
-async function createStandaloneAndApprove(item: JoinRequest, name: string) {
-  actingId.value = item.requestId
-  actingType.value = 'approve'
-  operationError.value = ''
-  try {
-    await approveJoinRequest(familyId.value, item.requestId, {
-      approveMode: 'CREATE_NEW_MEMBER',
-      newMember: {
-        name,
-        gender: resolveForm.gender,
-        isAlive: true,
-        userBindingPolicy: 'REQUIRED'
-      },
-      handleComment: '小程序暂存未定位成员后通过申请'
-    })
-    await loadRequests()
-    uni.showToast({ title: '已通过', icon: 'success' })
-  } catch (error) {
-    operationError.value = apiErrorMessage(error, '暂存并通过申请失败。')
-  } finally {
-    actingId.value = null
-    actingType.value = ''
-  }
-}
-
 async function reject(item: JoinRequest) {
   actingId.value = item.requestId
   actingType.value = 'reject'
@@ -788,6 +724,7 @@ async function reject(item: JoinRequest) {
 
 onLoad((options) => {
   familyId.value = String(options?.familyId || '')
+  focusedRequestId.value = String(options?.requestId || '')
 })
 
 onShow(loadRequests)
@@ -843,6 +780,14 @@ onUnload(resetPageData)
   padding: 18rpx 0;
 }
 
+.review-item.focused {
+  margin: 0 -12rpx;
+  border-radius: var(--tree-radius-sm, 12rpx);
+  padding-right: 12rpx;
+  padding-left: 12rpx;
+  background: rgba(168, 59, 45, 0.06);
+}
+
 .review-item:last-child {
   border-bottom: 0;
 }
@@ -895,6 +840,14 @@ onUnload(resetPageData)
 
 .review-meta-weak {
   opacity: 0.88;
+}
+
+.review-meta > text {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-all;
 }
 
 .review-actions {

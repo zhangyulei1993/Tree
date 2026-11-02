@@ -13,11 +13,10 @@ func TestPersonalAuthRouteSurface(t *testing.T) {
 	}
 	body := string(source)
 	allowed := []string{
-		`auth.POST("/login-phone"`,
 		`auth.POST("/wechat-mini/login"`,
+		`auth.POST("/wechat-mini/phone-login"`,
 		`protected.POST("/logout"`,
-		`protected.POST("/wechat-mini/bind-phone-credential"`,
-		`protected.POST("/wechat-mini/change-phone-login-password"`,
+		`protected.POST("/wechat-mini/bind-phone"`,
 		`protected.POST("/cancel-account/wechat-reauth"`,
 	}
 	for _, snippet := range allowed {
@@ -28,10 +27,10 @@ func TestPersonalAuthRouteSurface(t *testing.T) {
 	removed := []string{
 		`auth.POST("/send-code"`,
 		`auth.POST("/register-phone"`,
-		`auth.POST("/wechat-mini/phone-login"`,
-		`protected.POST("/wechat-mini/bind-phone"`,
 		`protected.POST("/change-phone"`,
 		`protected.POST("/cancel-account"`,
+		`protected.POST("/wechat-mini/bind-phone-credential"`,
+		`protected.POST("/wechat-mini/change-phone-login-password"`,
 	}
 	for _, snippet := range removed {
 		if strings.Contains(body, snippet) {

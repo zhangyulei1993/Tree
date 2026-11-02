@@ -55,7 +55,16 @@ func (s *GormFamilyPermissionService) CanCreateMember(ctx context.Context, userI
 }
 
 func (s *GormFamilyPermissionService) CanEditMember(ctx context.Context, userID uint64, familyID uint64, memberID uint64) (bool, error) {
-	return s.IsFamilyAdmin(ctx, userID, familyID)
+	link, err := s.GetActiveLink(ctx, userID, familyID)
+	if err != nil {
+		return false, err
+	}
+	if link.FamilyRole == string(enums.FamilyRoleFounder) || link.FamilyRole == string(enums.FamilyRoleFamilyAdmin) {
+		return true, nil
+	}
+	// A regular member may maintain the genealogy node bound to their own
+	// account, but must not edit another member's node.
+	return link.MemberID == memberID, nil
 }
 
 func (s *GormFamilyPermissionService) CanDeleteMember(ctx context.Context, userID uint64, familyID uint64, memberID uint64) (bool, error) {

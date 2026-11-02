@@ -9,7 +9,7 @@
           <div class="intro-points">
             <span>家庭资料私密保存</span>
             <span>邀请亲人共同维护</span>
-            <span>公开展示需审核</span>
+            <span>优质家庭案例需审核</span>
           </div>
         </div>
         <div class="auth-form">

@@ -1,6 +1,6 @@
 <template>
   <div class="page-stack">
-    <PageHeader title="分享配置" description="修改小程序首页、公开家庭和邀请分享的标题与封面图。保存后新分享立即使用。" />
+    <PageHeader title="分享配置" description="统一管理小程序各分享入口的标题与封面图。保存后新分享立即使用。" />
     <el-alert v-if="loadError" :title="`加载失败：${loadError}`" type="error" show-icon :closable="false" />
     <el-alert v-if="operationError" :title="`保存失败：${operationError}`" type="error" show-icon @close="operationError = ''" />
 
@@ -23,7 +23,7 @@
           <div class="field-block">
             <div class="field-label">分享标题</div>
             <el-input v-model="item.titleTemplate" maxlength="300" show-word-limit />
-            <p class="hint">可用变量：{{ item.configKey === 'HOME' ? '无' : 'familyName、targetMemberName（使用双大括号包裹）' }}</p>
+            <p class="hint">可用变量：{{ variables(item.configKey) || '无' }}</p>
           </div>
           <div class="field-block image-block">
             <div class="field-heading">
@@ -91,7 +91,7 @@
 <script setup lang="ts">
 import type { UploadRequestOptions, UploadRawFile } from 'element-plus'
 import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index'
 import { uploadContentImage } from '@/api/content'
 import { getApiErrorMessage } from '@/api/client'
 import { listShareConfigs, updateShareConfig } from '@/api/shareConfig'
@@ -108,7 +108,26 @@ const failedPreview = reactive<Record<string, boolean>>({})
 const uploading = reactive<Record<string, boolean>>({})
 
 function label(key: string) {
-  return ({ HOME: '首页分享', PUBLIC_FAMILY: '公开家庭分享', INVITATION_NODE: '节点绑定邀请', INVITATION_PENDING_MEMBER: '暂存成员邀请' } as Record<string, string>)[key] || key
+  return ({
+    HOME: '首页分享',
+    PUBLIC_FAMILY: '优质家庭好友分享',
+    PUBLIC_FAMILY_TIMELINE: '优质家庭朋友圈分享',
+    INVITATION_NODE: '节点绑定邀请',
+    INVITATION_REWARD: '家庭邀请助力',
+    INVITATION_DETAIL: '邀请确认页转发',
+    CONTENT_ARTICLE: '文章内容分享',
+  } as Record<string, string>)[key] || key
+}
+
+function variables(key: string) {
+  return ({
+    PUBLIC_FAMILY: 'familyName',
+    PUBLIC_FAMILY_TIMELINE: 'familyName',
+    INVITATION_NODE: 'familyName、targetMemberName',
+    INVITATION_REWARD: 'familyName',
+    INVITATION_DETAIL: 'familyName',
+    CONTENT_ARTICLE: 'articleTitle',
+  } as Record<string, string>)[key] || ''
 }
 
 async function load() {

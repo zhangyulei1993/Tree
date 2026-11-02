@@ -34,6 +34,12 @@ type PublicFamilySearchQuery struct {
 	PageSize      int
 }
 
+type PublicPlatformStats struct {
+	FamilyCount       int64 `json:"familyCount"`
+	MemberCount       int64 `json:"memberCount"`
+	RelationshipCount int64 `json:"relationshipCount"`
+}
+
 const publicFamilyListSelect = "id, family_name, family_surname, native_place, region_text, description, avatar_url, " +
 	"public_contact_visible, public_contact_name, public_contact_note, public_approved_at, created_at, updated_at"
 
@@ -44,11 +50,14 @@ type FamilyRepository interface {
 	CreateMember(ctx context.Context, member *membermodel.FamilyMember) error
 	CreateLink(ctx context.Context, link *rolemodel.FamilyMemberUserLink) error
 	FindActiveLinkForUpdate(ctx context.Context, familyID uint64, userID uint64) (*rolemodel.FamilyMemberUserLink, error)
+	FindMemberByID(ctx context.Context, familyID uint64, memberID uint64) (*membermodel.FamilyMember, error)
+	ListFamilyNotificationRecipientUserIDs(ctx context.Context, familyID uint64, excludeUserID uint64) ([]uint64, error)
 	DeactivateLink(ctx context.Context, linkID uint64, userID uint64, reason *string, at time.Time) error
 	FindFamilyByID(ctx context.Context, familyID uint64) (*familymodel.Family, error)
 	FindFamilyByIDForUpdate(ctx context.Context, familyID uint64) (*familymodel.Family, error)
 	FindPublicFamilyByID(ctx context.Context, familyID uint64) (*familymodel.Family, error)
 	SearchPublicFamilies(ctx context.Context, query PublicFamilySearchQuery) ([]familymodel.Family, int64, error)
+	PublicPlatformStats(ctx context.Context) (*PublicPlatformStats, error)
 	ListByUser(ctx context.Context, userID uint64) ([]FamilyListRow, error)
 	ListOperationLogs(ctx context.Context, familyID uint64, page int, pageSize int) ([]OperationLogRow, int64, error)
 	UpdateFamily(ctx context.Context, familyID uint64, values map[string]any) error
@@ -96,6 +105,20 @@ func (r *GormFamilyRepository) FindActiveLinkForUpdate(ctx context.Context, fami
 		Where("family_id = ? AND user_id = ? AND link_status = ?", familyID, userID, string(enums.StatusActive)).
 		First(&link).Error
 	return &link, err
+}
+
+func (r *GormFamilyRepository) FindMemberByID(ctx context.Context, familyID uint64, memberID uint64) (*membermodel.FamilyMember, error) {
+	var member membermodel.FamilyMember
+	err := r.db.WithContext(ctx).Where("id = ? AND family_id = ? AND deleted_at IS NULL", memberID, familyID).First(&member).Error
+	return &member, err
+}
+
+func (r *GormFamilyRepository) ListFamilyNotificationRecipientUserIDs(ctx context.Context, familyID uint64, excludeUserID uint64) ([]uint64, error) {
+	var ids []uint64
+	err := r.db.WithContext(ctx).Table("family_member_user_links").
+		Where("family_id = ? AND link_status = ? AND family_role IN ? AND user_id <> ?", familyID, "ACTIVE", []string{string(enums.FamilyRoleFounder), string(enums.FamilyRoleFamilyAdmin)}, excludeUserID).
+		Distinct("user_id").Pluck("user_id", &ids).Error
+	return ids, err
 }
 
 func (r *GormFamilyRepository) DeactivateLink(ctx context.Context, linkID uint64, userID uint64, reason *string, at time.Time) error {
@@ -176,6 +199,39 @@ func (r *GormFamilyRepository) SearchPublicFamilies(ctx context.Context, query P
 		Limit(pageSize).
 		Find(&families).Error
 	return families, total, err
+}
+
+func (r *GormFamilyRepository) PublicPlatformStats(ctx context.Context) (*PublicPlatformStats, error) {
+	stats := &PublicPlatformStats{}
+	countedFamilyStatuses := []string{"NORMAL", "DISSOLUTION_PENDING", "DISSOLUTION_COOLDOWN"}
+	if err := r.db.WithContext(ctx).
+		Table("families").
+		Where("deleted_at IS NULL").
+		Where("status IN ?", countedFamilyStatuses).
+		Count(&stats.FamilyCount).Error; err != nil {
+		return nil, err
+	}
+	if err := r.db.WithContext(ctx).
+		Table("family_members AS member").
+		Joins("JOIN families AS family ON family.id = member.family_id").
+		Where("member.deleted_at IS NULL").
+		Where("member.status = ?", "ACTIVE").
+		Where("family.deleted_at IS NULL").
+		Where("family.status IN ?", countedFamilyStatuses).
+		Count(&stats.MemberCount).Error; err != nil {
+		return nil, err
+	}
+	if err := r.db.WithContext(ctx).
+		Table("family_relationships AS relationship").
+		Joins("JOIN families AS family ON family.id = relationship.family_id").
+		Where("relationship.deleted_at IS NULL").
+		Where("relationship.status = ?", "ACTIVE").
+		Where("family.deleted_at IS NULL").
+		Where("family.status IN ?", countedFamilyStatuses).
+		Count(&stats.RelationshipCount).Error; err != nil {
+		return nil, err
+	}
+	return stats, nil
 }
 
 func normalizePublicSearchPage(page, pageSize int) (int, int) {

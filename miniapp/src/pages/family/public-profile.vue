@@ -3,7 +3,7 @@
     <MiniBackHome />
 
     <view v-if="loadingFamily" class="profile-state archive-form-panel">
-      <MiniEmptyState symbol="…" title="正在加载" description="正在加载公开家庭信息..." />
+      <MiniEmptyState symbol="…" title="正在加载" description="正在加载优质家庭案例..." />
     </view>
 
     <view v-else-if="familyError" class="profile-state archive-form-panel">
@@ -15,8 +15,8 @@
       <view class="profile-head archive-page-head">
         <view>
           <text class="archive-kicker">Public Folio</text>
-          <text class="archive-title">公开家庭扉页</text>
-          <text class="archive-subtitle">经平台审核后对外展示的家庭简介</text>
+        <text class="archive-title">优质家庭案例</text>
+        <text class="archive-subtitle">经平台审核、供其他用户学习参考</text>
         </view>
         <view class="archive-seal">{{ family.familySurname.slice(0, 1) }}</view>
       </view>
@@ -27,9 +27,9 @@
           <text class="public-name">{{ family.familyName }}</text>
           <text class="public-desc">{{ family.description || '该家庭暂未填写公开简介。' }}</text>
           <view class="public-status-line">
-            <text class="public-status-badge">已审核公开</text>
+            <text class="public-status-badge">优质家庭</text>
             <text v-if="family.nativePlace" class="archive-chip">{{ family.nativePlace }}</text>
-            <text v-if="family.regionText" class="archive-chip">{{ family.regionText }}</text>
+            <text v-if="displayRegionText" class="archive-chip">{{ displayRegionText }}</text>
           </view>
         </view>
         <view class="public-spine archive-book-spine">
@@ -49,8 +49,8 @@
       <view class="public-directory archive-list">
         <view class="archive-row" @click="openPublicTree">
           <view class="archive-row-main">
-            <text class="archive-row-title">查看公开家庭树</text>
-            <text class="archive-row-desc">浏览经脱敏处理的公开关系图</text>
+          <text class="archive-row-title">学习家庭树结构</text>
+          <text class="archive-row-desc">浏览经脱敏处理的家庭树案例</text>
           </view>
           <text class="archive-row-meta">家庭树</text>
           <text class="archive-arrow">›</text>
@@ -58,7 +58,7 @@
       </view>
 
       <view class="public-actions">
-        <MiniButton @click="openPublicTree">查看公开家庭树</MiniButton>
+        <MiniButton @click="openPublicTree">学习家庭树结构</MiniButton>
         <!-- #ifdef MP-WEIXIN -->
         <view class="public-share-note">
           <view>
@@ -70,25 +70,6 @@
         <!-- #endif -->
       </view>
 
-      <view v-if="family.publicContactVisible && hasPublicContact" class="public-contact archive-form-panel">
-        <view class="archive-section-head">
-          <text class="archive-section-title">联系方式</text>
-          <text class="archive-section-subtitle">家庭选择对外公开的联络方式</text>
-        </view>
-        <view v-if="family.publicContactName" class="tree-info-row">
-          <text class="tree-info-label">联系人</text>
-          <text class="tree-info-value">{{ family.publicContactName }}</text>
-        </view>
-        <view v-if="family.publicContactPhone" class="tree-info-row">
-          <text class="tree-info-label">联系电话</text>
-          <text class="tree-info-value">{{ family.publicContactPhone }}</text>
-        </view>
-        <view v-if="family.publicContactWechat" class="tree-info-row">
-          <text class="tree-info-label">微信</text>
-          <text class="tree-info-value">{{ family.publicContactWechat }}</text>
-        </view>
-        <text class="contact-hint">请通过家庭成员分享的邀请联系。</text>
-      </view>
     </template>
   </view>
 </template>
@@ -103,12 +84,14 @@ import MiniBackHome from '@/components/base/MiniBackHome.vue'
 import MiniButton from '@/components/base/MiniButton.vue'
 import MiniEmptyState from '@/components/base/MiniEmptyState.vue'
 import MiniNotice from '@/components/base/MiniNotice.vue'
+import { formatFamilyRegionText } from '@/features/native-place/geoHierarchy'
 import {
   buildPublicFamilySharePayload,
   buildPublicFamilyTimelinePayload,
   loadShareConfigs
 } from '@/features/share/wechatShare'
 import type { PublicFamily } from '@/types/api'
+import { readQueryParam } from '@/utils/queryString'
 
 const familyId = ref('')
 const family = ref<PublicFamily | null>(null)
@@ -116,16 +99,15 @@ const loadingFamily = ref(false)
 const familyError = ref('')
 let requestVersion = 0
 
-const hasPublicContact = computed(() => Boolean(
-  family.value?.publicContactName ||
-  family.value?.publicContactPhone ||
-  family.value?.publicContactWechat
-))
+const displayRegionText = computed(() => family.value
+  ? formatFamilyRegionText(family.value)
+  : ''
+)
 
 loadShareConfigs()
 
 onShow(() => {
-  void loadShareConfigs({ force: true })
+  void loadShareConfigs()
 })
 
 const dossierItems = computed(() => {
@@ -134,7 +116,7 @@ const dossierItems = computed(() => {
     { label: '姓氏', value: `${family.value.familySurname}氏` },
     { label: '家庭名称', value: family.value.familyName },
     { label: '籍贯', value: family.value.nativePlace || '未公开' },
-    { label: '地区', value: family.value.regionText || '未公开' }
+    { label: '地区', value: displayRegionText.value || '未公开' }
   ]
   return items
 })
@@ -154,7 +136,7 @@ function resetPageState() {
 function familyIdFromCurrentHash() {
   if (typeof window === 'undefined') return ''
   const [, query = ''] = window.location.hash.split('?')
-  return new URLSearchParams(query).get('familyId') || ''
+  return readQueryParam(query, ['familyId'])
 }
 
 function isCurrentProfileRoute() {
@@ -217,12 +199,12 @@ onLoad((options) => {
 
 onShareAppMessage(() => buildPublicFamilySharePayload({
   id: family.value?.id || familyId.value,
-  familyName: family.value?.familyName || '公开家庭'
+  familyName: family.value?.familyName || '优质家庭案例'
 }))
 
 onShareTimeline(() => buildPublicFamilyTimelinePayload({
   id: family.value?.id || familyId.value,
-  familyName: family.value?.familyName || '公开家庭'
+  familyName: family.value?.familyName || '优质家庭案例'
 }))
 
 onMounted(() => {

@@ -443,10 +443,12 @@ func TestJoinRequestApprovalModes(t *testing.T) {
 	})
 	t.Run("create new increments graph version", func(t *testing.T) {
 		repo := newFakeRepo()
+		repo.members[6].Gender = "MALE"
 		addPending(repo, 9)
 		before := repo.family.GraphVersion
 		result, err := testService(repo, true).Approve(context.Background(), 8, 2, 1, dto.ApproveJoinRequest{
-			ApproveMode: "CREATE_NEW_MEMBER", NewMember: &dto.NewMemberInput{Name: "New Member"},
+			ApproveMode: "CREATE_NEW_MEMBER", NewMember: &dto.NewMemberInput{Name: "New Member", Gender: stringPtr("FEMALE")},
+			Location: &dto.MemberLocation{BaseMemberID: 6, AddType: "ADD_CHILD"},
 		}, AuditInput{})
 		if err != nil || result.CreatedMemberID == nil || result.GraphVersion == nil {
 			t.Fatalf("unexpected %#v %#v", result, err)

@@ -3,8 +3,8 @@
     <view class="auth-head archive-page-head">
       <view>
         <text class="archive-kicker">WeChat Entry</text>
-        <text class="archive-title">微信快捷登录</text>
-        <text class="archive-subtitle">使用微信授权，快速进入家脉亲缘</text>
+        <text class="archive-title">微信登录</text>
+        <text class="archive-subtitle">使用微信账号进入 Tree</text>
       </view>
       <view class="archive-seal">登</view>
     </view>
@@ -26,8 +26,8 @@
         <text class="archive-section-subtitle">请先阅读并同意用户协议与隐私政策</text>
       </view>
 
-      <view class="consent-wrap">
-        <AuthLegalConsent v-model="legalAccepted" />
+      <view :class="['consent-wrap', { 'is-required': consentRequired }]">
+        <AuthLegalConsent v-model="legalAccepted" @update:model-value="onLegalAcceptedChanged" />
       </view>
 
       <template v-if="isRealApiMode && isMpWeixin">
@@ -40,11 +40,14 @@
         >
           微信登录
         </MiniButton>
+        <text class="login-note">登录后可直接进入，头像和昵称都可以稍后补充。</text>
+        <text class="login-note">首次使用也请先微信登录；进入添加、邀请等核心操作时再按需绑定手机号。</text>
+        <view class="assist-login" @click="goAssistanceLogin"><text>亲友给了你协助码？</text><text>协助登录 ›</text></view>
       </template>
       <template v-else-if="isRealApiMode">
         <text class="platform-hint">{{ h5LoginHint }}</text>
       </template>
-      <template v-else>
+      <template v-else-if="showLocalMockActions">
         <text class="platform-hint">本地体验模式下，可先体验登录流程。</text>
         <view class="mock-actions">
           <MiniButton class="login-action" @click="mockLogin(false)">
@@ -55,11 +58,11 @@
           </MiniButton>
         </view>
       </template>
+      <template v-else>
+        <text class="platform-hint">当前小程序包不是 real 模式构建，请使用 staging 或正式配置重新构建后再登录。</text>
+      </template>
     </view>
 
-    <view v-if="isRealApiMode" class="auth-foot">
-      <text class="auth-switch-link" @click="goPhoneLogin">使用手机号密码登录</text>
-    </view>
   </view>
 </template>
 
@@ -71,6 +74,7 @@ import MiniButton from '@/components/base/MiniButton.vue'
 import AuthLegalConsent from '@/components/legal/AuthLegalConsent.vue'
 import { ensurePrivacyConsentForLogin } from '@/features/legal/privacyConsent'
 import { LEGAL_PRODUCT_NAME } from '@/features/legal/legalMeta'
+import { markNewUserGuideMilestone } from '@/features/onboarding/newUserGuide'
 import { isMpWeixinPlatform, resolveWechatLoginUnsupportedMessage } from '@/features/session/wechatLogin'
 import { useSessionStore } from '@/stores/session'
 
@@ -79,19 +83,19 @@ const productName = LEGAL_PRODUCT_NAME
 const submitting = ref(false)
 const errorMessage = ref('')
 const legalAccepted = ref(false)
+const consentRequired = ref(false)
 const isMpWeixin = isMpWeixinPlatform()
 const h5LoginHint = computed(() => resolveWechatLoginUnsupportedMessage('h5') || '')
+const showLocalMockActions = computed(() => !isRealApiMode && !isMpWeixin)
 
 async function loginWithWechat() {
-  if (!legalAccepted.value) {
-    errorMessage.value = '请先阅读并同意用户协议与隐私政策。'
-    return
-  }
+  if (!ensureLegalAccepted()) return
   errorMessage.value = ''
   submitting.value = true
   try {
     await ensurePrivacyConsentForLogin()
     await session.loginWithWechat()
+    markNewUserGuideMilestone('LOGIN_DONE')
     uni.showToast({ title: '登录成功', icon: 'success' })
     setTimeout(() => session.routeAfterAuth(), 300)
   } catch (error) {
@@ -101,20 +105,90 @@ async function loginWithWechat() {
   }
 }
 
+function goAssistanceLogin() { uni.navigateTo({ url: '/pages/auth/assistance-login' }) }
+
+function ensureLegalAccepted() {
+  if (legalAccepted.value) {
+    consentRequired.value = false
+    return true
+  }
+  consentRequired.value = true
+  errorMessage.value = '请先勾选《用户协议》和《隐私政策》，再继续登录。'
+  uni.showToast({ title: '请先勾选用户协议和隐私政策', icon: 'none' })
+  return false
+}
+
+function onLegalAcceptedChanged(value: boolean) {
+  if (value) {
+    consentRequired.value = false
+    errorMessage.value = ''
+  }
+}
+
 function mockLogin(withProfile: boolean) {
   session.mockWechatLogin(withProfile)
+  markNewUserGuideMilestone('LOGIN_DONE')
   uni.showToast({ title: '登录成功', icon: 'none' })
   setTimeout(() => session.routeAfterAuth(), 300)
 }
 
-function goPhoneLogin() {
-  uni.navigateTo({ url: '/pages/auth/phone-login' })
-}
 </script>
 
 <style scoped>
 .auth-page {
   padding-top: 48rpx;
+}
+
+.phone-login-action {
+  width: 100%;
+  min-height: 88rpx;
+  margin-top: 18rpx;
+  border: 1rpx solid var(--archive-blue);
+  border-radius: 10rpx;
+  background: transparent;
+  color: var(--archive-blue);
+  font-size: 28rpx;
+  font-weight: 700;
+}
+
+.phone-login-action::after { border: 0; }
+.phone-login-action[disabled] { opacity: .55; }
+.phone-login-note {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--archive-ink-soft);
+  font-size: 22rpx;
+  line-height: 1.55;
+}
+
+.phone-login-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  min-height: 68rpx;
+  margin-top: 16rpx;
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
+}
+.assist-login { display:flex; align-items:center; justify-content:space-between; margin-top:26rpx; padding-top:22rpx; border-top:1rpx solid var(--archive-line); color:var(--archive-ink-soft); font-size:24rpx; }
+.assist-login text:last-child { color:var(--archive-cinnabar); font-weight:650; }
+
+.phone-login-trigger:active,
+.phone-login-collapse:active { opacity: .68; }
+.phone-login-trigger-arrow { color: var(--archive-cinnabar); font-size: 32rpx; line-height: 1; }
+.phone-login-panel {
+  margin-top: 18rpx;
+  border-top: 1rpx solid var(--archive-line);
+  padding-top: 18rpx;
+}
+.phone-login-title { display: block; color: var(--archive-blue); font-size: 26rpx; font-weight: 700; }
+.phone-login-collapse {
+  display: block;
+  margin-top: 16rpx;
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
+  text-align: center;
 }
 
 .auth-folio {
@@ -190,6 +264,11 @@ function goPhoneLogin() {
   margin-top: 8rpx;
 }
 
+.consent-wrap.is-required :deep(.auth-legal-consent) {
+  border-color: var(--archive-cinnabar);
+  box-shadow: 0 0 0 3rpx rgba(168, 59, 45, 0.12);
+}
+
 .consent-wrap :deep(.auth-legal-consent) {
   border-top: 1rpx solid rgba(168, 59, 45, 0.24);
   border-bottom: 1rpx solid rgba(168, 59, 45, 0.16);
@@ -214,6 +293,15 @@ function goPhoneLogin() {
   align-self: stretch;
 }
 
+.login-note {
+  display: block;
+  margin-top: 16rpx;
+  color: var(--archive-ink-soft);
+  font-size: 23rpx;
+  line-height: 1.5;
+  text-align: center;
+}
+
 .mock-actions {
   display: flex;
   flex-direction: column;
@@ -229,20 +317,4 @@ function goPhoneLogin() {
   line-height: 1.6;
 }
 
-.auth-foot {
-  display: flex;
-  justify-content: center;
-  padding: 8rpx 0 24rpx;
-}
-
-.auth-switch-link {
-  display: inline-flex;
-  min-height: 56rpx;
-  align-items: center;
-  color: var(--archive-ink-soft);
-  font-size: 23rpx;
-  line-height: 1.4;
-  text-decoration: underline;
-  text-underline-offset: 4rpx;
-}
 </style>

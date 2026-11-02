@@ -77,17 +77,21 @@ withDefaults(defineProps<{
 }
 
 :deep(.el-table .cell) {
+  display: flex;
+  align-items: center;
   min-height: 56px;
   min-width: 0;
+  width: 100%;
   line-height: 1.5;
+  word-break: break-word;
 }
 
 :deep(.el-table th .cell) {
-  display: flex;
   align-items: center;
   min-height: 48px;
 }
 
+:deep(.el-table .is-center .cell),
 :deep(.el-table .table-column--center .cell) {
   display: flex;
   align-items: center;
@@ -96,14 +100,37 @@ withDefaults(defineProps<{
   text-align: center;
 }
 
-:deep(.el-table .cell > .table-actions) {
+:deep(.el-table .cell > *) {
+  min-width: 0;
+}
+
+:deep(.el-table .cell > .table-actions),
+:deep(.el-table .cell > .tool-actions) {
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  gap: 6px;
+  white-space: normal;
+}
+
+:deep(.el-table .cell > .table-action-group) {
+  justify-content: center;
 }
 
 :deep(.el-table .cell > .el-tag),
 :deep(.el-table .cell > .el-button) {
   flex: 0 0 auto;
+}
+
+:deep(.el-table .el-button + .el-button) {
+  margin-left: 0;
+}
+
+:deep(.el-table .el-button--small) {
+  min-height: 28px;
 }
 
 .data-table--compact :deep(.el-table .cell) {
