@@ -1,0 +1,42 @@
+/* Tree miniapp design tokens — imported via App.vue */
+
+page {
+  --tree-primary: #183653;
+  --tree-primary-deep: #10283f;
+  --tree-green: #2f6b57;
+  --tree-green-light: #e8f3ee;
+  --tree-green-soft: #f3faf7;
+  --tree-accent-blue: #3b6ea8;
+  --tree-accent-blue-light: #eef4fb;
+  --tree-paper: #fbf7ef;
+  --tree-warm-rice: #f4efe6;
+  --tree-gold: #b8955a;
+  --tree-gold-light: #f6f2ea;
+  --tree-gold-text: #7a6a4a;
+  --tree-border-warm: #e8ecf0;
+  --tree-border-green: #d8e5dc;
+  --tree-border-card: #e8ecf0;
+  --tree-border-subtle: #eef1f4;
+  --tree-text: #334155;
+  --tree-text-primary: #1e293b;
+  --tree-text-secondary: #64748b;
+  --tree-text-weak: #94a3b8;
+  --tree-bg-top: #f6efe5;
+  --tree-bg-mid: #f3f6f2;
+  --tree-bg-bottom: #eef4f6;
+  --tree-surface: #ffffff;
+  --tree-surface-muted: #f8fafc;
+  --tree-surface-elevated: rgba(255, 255, 255, 0.92);
+  --tree-radius-lg: 32rpx;
+  --tree-radius-md: 22rpx;
+  --tree-radius-sm: 12rpx;
+  --tree-radius-xs: 10rpx;
+  --tree-space-page: 28rpx;
+  --tree-space-card: 28rpx;
+  --tree-shadow-sm: 0 10rpx 26rpx rgba(24, 54, 83, 0.06);
+  --tree-shadow-md: 0 18rpx 44rpx rgba(24, 54, 83, 0.10);
+  --tree-shadow-lg: 0 28rpx 70rpx rgba(24, 54, 83, 0.16);
+  --tree-lineage-fade: rgba(31, 58, 95, 0.05);
+  --tree-paper-line: rgba(31, 58, 95, 0.06);
+  --tree-paper-grain: rgba(31, 58, 95, 0.02);
+}

@@ -1,0 +1,43 @@
+CREATE TABLE family_members (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  family_id BIGINT NOT NULL,
+  member_type VARCHAR(40) NOT NULL DEFAULT 'LINEAGE_MEMBER',
+  surname VARCHAR(40) NULL,
+  generation_character VARCHAR(40) NULL,
+  given_name VARCHAR(100) NULL,
+  display_name VARCHAR(150) NOT NULL,
+  gender VARCHAR(40) NOT NULL DEFAULT 'UNKNOWN',
+  birth_date DATE NULL,
+  death_date DATE NULL,
+  birth_order INT NULL,
+  manual_order INT NULL,
+  native_place VARCHAR(200) NULL,
+  region_text VARCHAR(200) NULL,
+  is_living TINYINT NULL,
+  user_binding_policy VARCHAR(40) NOT NULL DEFAULT 'OPTIONAL',
+  unbound_reason VARCHAR(80) NULL,
+  unbound_note VARCHAR(500) NULL,
+  manual_lineage_override TINYINT NOT NULL DEFAULT 0,
+  lineage_note_type VARCHAR(80) NULL,
+  lineage_note VARCHAR(500) NULL,
+  is_terminal_node TINYINT NOT NULL DEFAULT 0,
+  terminal_reason VARCHAR(100) NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'ACTIVE',
+  created_by_user_id BIGINT NULL,
+  created_by_admin_id BIGINT NULL,
+  deleted_at DATETIME NULL,
+  deleted_by_user_id BIGINT NULL,
+  deleted_by_admin_id BIGINT NULL,
+  delete_reason VARCHAR(500) NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_fm_family_id (family_id),
+  KEY idx_fm_display_name (display_name),
+  KEY idx_fm_status (status),
+  KEY idx_fm_member_type (member_type),
+  KEY idx_fm_user_binding_policy (user_binding_policy)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- TODO(service): family_members are genealogy nodes and must remain separate from users.
+-- TODO(service): members with descendants cannot be deleted directly.
+-- TODO(service): NOT_REQUIRED members cannot be bound or promoted to family admin.

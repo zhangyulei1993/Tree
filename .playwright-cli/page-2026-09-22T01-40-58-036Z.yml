@@ -1,0 +1,29 @@
+- generic [ref=e467]:
+  - generic [ref=e468]: 微信快捷登录
+  - generic [ref=e475]:
+    - generic [ref=e476]:
+      - generic [ref=e477]:
+        - generic [ref=e478]: WeChat Entry
+        - generic [ref=e479]: 微信快捷登录
+        - generic [ref=e480]: 使用微信授权，快速进入家脉亲缘
+      - generic [ref=e481]: 登
+    - generic [ref=e482]:
+      - generic [ref=e483]:
+        - generic [ref=e484]: Tree
+        - generic [ref=e485]: Tree（家脉亲缘）
+      - generic [ref=e486]:
+        - generic [ref=e487]: 入册登录
+        - generic [ref=e488]: 登录后可创建家庭、维护族谱、处理邀请与加入申请。
+    - generic [ref=e489]:
+      - generic [ref=e490]:
+        - generic [ref=e491]: 登录确认
+        - generic [ref=e492]: 请先阅读并同意用户协议与隐私政策
+      - generic [ref=e495]:
+        - generic [ref=e496] [cursor=pointer]
+        - generic [ref=e500]:
+          - text: 我已阅读并同意
+          - generic [ref=e501]: 《用户协议》
+          - text: 和
+          - generic [ref=e502]: 《隐私政策》
+      - generic [ref=e503]: 微信快捷登录仅支持微信小程序。H5 测试请使用 scripts/tree-fresh-quota-e2e-session.mjs 注入全新模拟微信登录态。
+    - generic [ref=e504]: 使用手机号密码登录

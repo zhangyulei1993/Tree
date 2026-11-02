@@ -1,0 +1,37 @@
+CREATE TABLE users (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  phone VARCHAR(30) NULL,
+  phone_hash VARCHAR(128) NULL,
+  phone_verified TINYINT NOT NULL DEFAULT 0,
+  password_hash VARCHAR(255) NULL,
+  nickname VARCHAR(100) NULL,
+  real_name VARCHAR(100) NULL,
+  avatar_url VARCHAR(500) NULL,
+  account_origin VARCHAR(80) NOT NULL,
+  register_client VARCHAR(80) NOT NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'ACTIVE',
+  merged_to_user_id BIGINT NULL,
+  merged_at DATETIME NULL,
+  claimed_at DATETIME NULL,
+  claimed_via VARCHAR(80) NULL,
+  remark VARCHAR(500) NULL,
+  last_login_at DATETIME NULL,
+  last_login_ip VARCHAR(80) NULL,
+  last_login_client VARCHAR(80) NULL,
+  disabled_at DATETIME NULL,
+  disabled_by_admin_id BIGINT NULL,
+  disabled_reason VARCHAR(500) NULL,
+  cancelled_at DATETIME NULL,
+  cancel_reason VARCHAR(500) NULL,
+  created_by_admin_id BIGINT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at DATETIME NULL,
+  KEY idx_users_phone (phone),
+  KEY idx_users_phone_hash (phone_hash),
+  KEY idx_users_status (status),
+  KEY idx_users_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- TODO(service): enforce that one phone is held by at most one ACTIVE/PENDING_CLAIM user.
+-- TODO(service): set users.phone = NULL when a user is CANCELLED.

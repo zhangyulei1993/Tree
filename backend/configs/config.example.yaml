@@ -1,0 +1,65 @@
+app:
+  env: dev
+  name: Tree
+  port: 8080
+
+mysql:
+  host: mysql
+  port: 3306
+  user: tree_user
+  password: tree_pass
+  database: tree_platform
+  charset: utf8mb4
+
+redis:
+  host: redis
+  port: 6379
+  password: ""
+  db: 0
+
+jwt:
+  user_secret: change_me_user_secret
+  admin_secret: change_me_admin_secret
+  access_token_expire_minutes: 120
+  refresh_token_expire_days: 7
+
+admin_security:
+  lock_max_failures: 5
+  lock_minutes: 30
+
+verify_code:
+  expire_seconds: 300
+  cooldown_seconds: 60
+
+wechat:
+  mini_app_id: ""
+  mini_app_secret: ""
+  mock_enabled: true
+  subscribe:
+    enabled: false
+    audit_template_id: ""
+    payment_template_id: ""
+    refund_template_id: ""
+    member_template_id: ""
+    member_change_template_id: "kYC9F28vTqXCiH0mahyw5kXoU2mFrrr13rcxzoQ2_uc"
+    miniprogram_state: formal
+
+wechat_pay:
+  enabled: false
+  merchant_id: ""
+  merchant_certificate_serial_no: ""
+  merchant_private_key_path: ""
+  api_v3_key: ""
+  public_key_id: ""
+  public_key_path: ""
+  notify_url: ""
+  refund_notify_url: ""
+
+family:
+  dissolution_cooldown_days: 7
+
+capacity:
+  order_timeout_minutes: 30
+
+log:
+  level: debug

@@ -1,0 +1,13 @@
+{
+  "name": "tree-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "release:staging": "./release-staging.sh",
+    "rollback:staging": "APP_ENV=staging STAGING_ROLLBACK_CONFIRM=ROLLBACK_STAGING STAGING_ROOT=/opt/tree-staging STAGING_SERVICE_NAME=tree-api-staging.service STAGING_HEALTH_URL=https://tapi.bigbigboy.cn/api/health ./rollback-staging.sh"
+  },
+  "devDependencies": {
+    "playwright": "^1.52.0",
+    "serve": "^14.2.4"
+  }
+}

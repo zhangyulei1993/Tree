@@ -1,0 +1,130 @@
+<template>
+  <div class="page-stack">
+    <PageHeader title="用户管理" description="真实用户账号列表；敏感手机号默认脱敏。" />
+    <SearchPanel>
+      <el-form inline>
+        <el-form-item label="关键词" class="field-wide">
+          <el-input v-model="keyword" placeholder="ID / 昵称 / 姓名 / 手机号" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="status" clearable style="width: 140px">
+            <el-option label="正常" value="ACTIVE" />
+            <el-option label="待绑定" value="PENDING_BIND" />
+            <el-option label="禁用" value="DISABLED" />
+            <el-option label="已注销" value="CANCELLED" />
+          </el-select>
+        </el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+      </el-form>
+    </SearchPanel>
+    <el-alert v-if="error" :title="error" type="error" show-icon />
+    <DataTable>
+      <el-table v-loading="loading" :data="items" stripe>
+        <el-table-column prop="id" label="用户 ID" width="100" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column label="手机号" width="140" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
+          <template #default="{ row }">{{ row.phone || '未绑定' }}</template>
+        </el-table-column>
+        <el-table-column prop="nickname" label="昵称" min-width="150" show-overflow-tooltip />
+        <el-table-column prop="realName" label="姓名" width="100" show-overflow-tooltip align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="loginMethod" label="登录方式" width="130" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column label="信任等级" width="120" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
+          <template #default="{ row }">{{ trustTierLabel(row.trustTier) }}</template>
+        </el-table-column>
+        <el-table-column label="来源" width="110" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center"><template #default="{ row }">{{ accountOriginText(row.accountOrigin) }}</template></el-table-column>
+        <el-table-column label="注册端" width="108" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center"><template #default="{ row }">{{ registerClientText(row.registerClient) }}</template></el-table-column>
+        <el-table-column label="状态" width="96" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
+          <template #default="{ row }"><StatusTag :status="row.status" /></template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="创建时间" min-width="170" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column label="操作" width="180" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
+          <template #default="{ row }">
+            <el-button size="small" @click="$router.push(`/admin/users/${row.id}`)">详情</el-button>
+            <el-button v-if="row.status === 'ACTIVE'" size="small" type="warning" @click="changeStatus(row, 'DISABLED')">禁用</el-button>
+            <el-button v-else-if="row.status === 'DISABLED'" size="small" type="success" @click="changeStatus(row, 'ACTIVE')">启用</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination
+        class="pager"
+        layout="total, prev, pager, next"
+        :total="total"
+        :page-size="20"
+        @current-change="changePage"
+      />
+    </DataTable>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+
+import { getApiErrorMessage } from '@/api/client'
+import { listUsers, setUserStatus } from '@/api/management'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import DataTable from '@/components/DataTable.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import SearchPanel from '@/components/SearchPanel.vue'
+import StatusTag from '@/components/StatusTag.vue'
+import type { ManagedUser } from '@/types/api'
+
+const keyword = ref('')
+const status = ref('')
+const items = ref<ManagedUser[]>([])
+const total = ref(0)
+const page = ref(1)
+const loading = ref(false)
+const error = ref('')
+
+function trustTierLabel(tier: string) {
+  return tier === 'PHONE_BOUND' ? '已绑定手机号' : '仅微信登录'
+}
+
+function accountOriginText(origin: string) {
+  return ({ PHONE_REGISTER: '手机号注册', WECHAT_MINI: '微信小程序注册', WECHAT_MINI_PROGRAM: '微信小程序注册', WECHAT_MINI_PHONE: '微信授权手机号', WECHAT_MINI_PROGRAM_PHONE: '微信授权手机号' } as Record<string, string>)[origin] || origin || '未记录'
+}
+
+function registerClientText(client: string) {
+  return ({ WECHAT_MINI: '微信小程序', WECHAT_MINI_PROGRAM: '微信小程序', WEB: '网页端', H5: 'H5 页面' } as Record<string, string>)[client] || client || '未记录'
+}
+
+async function load() {
+  loading.value = true
+  error.value = ''
+  try {
+    const r = await listUsers({ keyword: keyword.value, status: status.value, page: page.value, pageSize: 20 })
+    items.value = r.items
+    total.value = r.total
+  } catch (e) {
+    error.value = getApiErrorMessage(e)
+  } finally {
+    loading.value = false
+  }
+}
+
+function search() {
+  page.value = 1
+  void load()
+}
+
+function changePage(v: number) {
+  page.value = v
+  void load()
+}
+
+async function changeStatus(row: ManagedUser, next: 'ACTIVE' | 'DISABLED') {
+  try { await ElMessageBox.confirm(`确认${next === 'DISABLED' ? '禁用' : '启用'}该用户？`, '操作确认'); await setUserStatus(row.id, next); ElMessage.success('操作成功'); await load() } catch (e: any) { if (e !== 'cancel') ElMessage.error(getApiErrorMessage(e)) }
+}
+
+onMounted(load)
+</script>
+
+<style scoped>
+.pager {
+  justify-content: flex-end;
+  padding: 18px;
+}
+
+.field-wide {
+  min-width: 280px;
+}
+</style>

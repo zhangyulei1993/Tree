@@ -1,0 +1,44 @@
+{
+  "name": "tree-miniapp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:h5": "pnpm run dev:h5:local",
+    "dev:h5:local": "TREE_BUILD_ENV=local uni -p h5 --mode development",
+    "dev:h5:staging": "TREE_BUILD_ENV=staging uni -p h5 --mode staging-h5",
+    "dev:mp-weixin": "pnpm run dev:mp-weixin:local",
+    "dev:mp-weixin:local": "TREE_BUILD_ENV=local UNI_OUTPUT_DIR=dist/mp-weixin uni -p mp-weixin --mode mp-local",
+    "dev:mp-weixin:staging": "TREE_BUILD_ENV=staging UNI_OUTPUT_DIR=dist/mp-weixin uni -p mp-weixin --mode staging-mp",
+    "build:h5": "pnpm run build:h5:local",
+    "build:h5:local": "TREE_BUILD_ENV=local UNI_OUTPUT_DIR=dist/build/h5-local uni build -p h5 --mode development --emptyOutDir",
+    "build:h5:real": "TREE_BUILD_ENV=staging UNI_OUTPUT_DIR=dist/build/h5 uni build -p h5 --mode staging-h5 --emptyOutDir",
+    "build:h5:staging": "TREE_BUILD_ENV=staging UNI_OUTPUT_DIR=dist/build/h5-staging uni build -p h5 --mode staging-h5 --emptyOutDir",
+    "build:mp-weixin": "TREE_BUILD_ENV=staging UNI_OUTPUT_DIR=dist/mp-weixin uni build -p mp-weixin --mode staging-mp",
+    "build:mp-weixin:local": "TREE_BUILD_ENV=local UNI_OUTPUT_DIR=dist/mp-weixin uni build -p mp-weixin --mode mp-local --emptyOutDir",
+    "build:mp-weixin:staging": "TREE_BUILD_ENV=staging UNI_OUTPUT_DIR=dist/mp-weixin uni build -p mp-weixin --mode staging-mp",
+    "build:mp-weixin:staging:clean": "TREE_BUILD_ENV=staging UNI_OUTPUT_DIR=dist/mp-weixin uni build -p mp-weixin --mode staging-mp --emptyOutDir",
+    "test:contract": "node --test src/api/statusResult.test.mjs && npx --yes tsx --test src/features/capacity/paymentOutcome.test.ts src/features/content/wechatOfficialArticle.test.ts src/features/share/wechatShare.contract.test.ts src/features/contentsafety/contentSafety.contract.test.ts src/features/family/memberListActions.test.ts src/features/join/approveJoinLocation.test.ts src/pages/family/manage.smoke.test.ts src/features/legal/legalCompliance.test.ts src/features/legal/privacyConsent.test.ts src/features/session/wechatLoginPrivacyFlow.test.ts src/features/session/wechatProfileFlow.test.ts src/features/session/phoneBindingFlow.test.ts src/features/quota/quotaDisplay.test.ts src/features/visitorMessageOffline.contract.test.ts src/features/publicFamilySearchOffline.contract.test.ts src/features/public-display/settingsPublicDisplay.test.ts && node --test ../scripts/admin-account-quota-contract.test.mjs ../scripts/tree-h5-session-redaction.test.mjs",
+    "test:quota-e2e": "npm --prefix ../scripts install --silent && node --test --test-concurrency=1 ../scripts/tree-fresh-quota-e2e.test.mjs",
+    "test:kinship": "npx --yes tsx src/features/kinship/runCanonicalTests.ts",
+    "test:family-tree": "npx --yes tsx --test src/features/family-tree/buildFamilyGraph.test.ts src/features/family-tree/bloodGenerationGap.test.ts src/features/family-tree/deepGenerationTitle.test.ts src/features/family-tree/avatarAgeBand.test.ts src/features/family-tree/avatarAssetCatalog.test.ts src/features/family-tree/portraitCatalog.test.ts src/features/family-tree/patrilinealDisplay.test.ts src/features/family-tree/relationshipHealth.test.ts src/features/family-tree/familyHealthSummary.test.ts src/features/family-tree/exportLineageTree.test.ts src/features/family-tree/exportLineagePresentation.test.ts src/features/family-tree/exportLineagePoster.test.ts src/features/family-tree/treeMemberManagementFlow.test.ts src/features/native-place/geoHierarchy.test.ts"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-alpha-5010220260604001",
+    "@dcloudio/uni-components": "3.0.0-alpha-5010220260604001",
+    "@dcloudio/uni-h5": "3.0.0-alpha-5010220260604001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-alpha-5010220260604001",
+    "d3-hierarchy": "^3.1.2",
+    "pinia": "^2.3.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "3.4.16",
+    "@dcloudio/uni-cli-shared": "3.0.0-alpha-5010220260604001",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5010220260604001",
+    "@types/d3-hierarchy": "^3.1.7",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "vue-tsc": "^2.2.0"
+  }
+}

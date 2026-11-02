@@ -1,0 +1,2 @@
+# Run an independent application, public-route and disk check every five minutes.
+*/5 * * * * root flock -n /run/tree-staging-health.lock /opt/tree-staging/shared/health-staging.sh >>/var/log/tree-staging-health.log 2>&1

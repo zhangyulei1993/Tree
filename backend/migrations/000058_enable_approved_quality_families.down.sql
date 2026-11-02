@@ -1,0 +1,2 @@
+-- Approval is now the explicit platform decision to publish a quality family.
+-- Existing display choices are intentionally preserved on rollback.

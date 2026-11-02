@@ -1,0 +1,17 @@
+{
+  "name": "Tree",
+  "appid": "",
+  "description": "Tree 家谱平台",
+  "versionName": "0.1.0",
+  "versionCode": "1",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "wx1f3f9f7dfe343e3b",
+    "__usePrivacyCheck__": true,
+    "setting": {
+      "urlCheck": false,
+      "minified": true
+    },
+    "usingComponents": true
+  }
+}

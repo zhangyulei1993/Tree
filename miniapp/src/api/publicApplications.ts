@@ -1,0 +1,49 @@
+import { request } from '@/api/client'
+import type { FamilyOperationLog, FamilyPublicStatus, PaginatedResult, PublicApplication, QualityEligibility } from '@/types/api'
+
+export function getQualityEligibility(familyId: number | string) {
+  return request<QualityEligibility>(`/families/${familyId}/public-quality-eligibility`)
+}
+
+export function listPublicApplications(familyId: number | string) {
+  return request<PaginatedResult<PublicApplication>>(
+    `/families/${familyId}/public-applications?page=1&pageSize=50`
+  )
+}
+
+export function submitPublicApplication(familyId: number | string, reason?: string) {
+  return request<PublicApplication, { applicationReason?: string }>(
+    `/families/${familyId}/public-applications`,
+    { method: 'POST', data: reason ? { applicationReason: reason } : {} }
+  )
+}
+
+export function cancelPublicApplication(
+  familyId: number | string,
+  applicationId: number | string,
+  reason?: string
+) {
+  return request<PublicApplication, { cancelReason?: string }>(
+    `/families/${familyId}/public-applications/${applicationId}/cancel`,
+    { method: 'POST', data: reason ? { cancelReason: reason } : {} }
+  )
+}
+
+export function closePublicFamily(familyId: number | string, reason?: string) {
+  return request<FamilyPublicStatus, { reason?: string }>(
+    `/families/${familyId}/public-display/disable`,
+    { method: 'POST', data: reason ? { reason } : {} }
+  )
+}
+
+export function enablePublicFamily(familyId: number | string) {
+  return request<FamilyPublicStatus>(`/families/${familyId}/public-display/enable`, {
+    method: 'POST'
+  })
+}
+
+export function listFamilyOperationLogs(familyId: number | string) {
+  return request<PaginatedResult<FamilyOperationLog>>(
+    `/families/${familyId}/operation-logs?page=1&pageSize=20`
+  )
+}

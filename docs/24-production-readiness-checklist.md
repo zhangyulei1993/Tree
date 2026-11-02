@@ -171,3 +171,73 @@ HTTPS 未完成
 家庭成员关系测试未通过
 operation_logs 未写入
 ```
+
+## 12. M16 自动门禁
+
+发布候选版本必须执行：
+
+```bash
+bash scripts/security-check.sh
+bash scripts/m16-verify.sh
+```
+
+`m16-verify.sh` 包含：
+
+```text
+Docker Compose 配置校验
+后端 go test ./...
+admin-web 构建
+PC/H5 web 构建
+微信小程序构建
+仓库安全检查
+```
+
+任一子命令失败时总体结论必须为 FAIL。禁止跳过失败、忽略退出码或仅凭人工页面可打开标记 PASS。
+
+## 13. 上线证据要求
+
+每个 P0 项必须有可追溯证据：
+
+```text
+命令和退出码
+测试报告或脱敏截图
+staging 发布版本
+migration 版本
+数据库备份记录
+恢复演练记录
+权限越权测试结果
+operation_logs 抽查结果
+graph_version 操作矩阵结果
+小程序体验版设备矩阵结果
+```
+
+证据中不得包含真实密码、Token、验证码、openid、unionid、AppSecret、数据库密码或 Redis 密码。
+
+## 14. 当前原型限制
+
+如果 `admin-web`、`web` 或 `miniapp` 仍使用 mock data 或 mock 登录：
+
+```text
+构建成功只能证明工程可编译
+不能证明真实认证、权限或 API 流程可用
+不能作为生产上线通过依据
+体验版不得保留 mock、测试按钮或示例数据
+```
+
+必须完成真实 API 对接、安全评审和 staging 验收后，才能将对应 P0 项标记为 PASS。
+
+## 15. Staging 部署门禁
+
+使用 `scripts/deploy-staging.sh` 前确认：
+
+```text
+APP_ENV=staging
+已执行发布前备份
+只执行 forward-only migration
+发布物与 Git 版本可追溯
+健康检查地址属于 staging
+上一应用发布目录可用于回滚
+rollback-staging.sh 不执行 migration down
+```
+
+staging 验证失败时不得继续 production 发布。

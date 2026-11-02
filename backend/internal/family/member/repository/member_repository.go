@@ -1,0 +1,283 @@
+package repository
+
+import (
+	"context"
+	"time"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
+	familymodel "tree/backend/internal/family/core/model"
+	membermodel "tree/backend/internal/family/member/model"
+	rolemodel "tree/backend/internal/family/role/model"
+	usermodel "tree/backend/internal/user/model"
+)
+
+type MemberRow struct {
+	membermodel.FamilyMember
+	BoundUserID     *uint64 `gorm:"column:bound_user_id"`
+	BoundFamilyRole *string `gorm:"column:bound_family_role"`
+}
+
+type MemberRepository interface {
+	WithTx(*gorm.DB) MemberRepository
+	LockFamily(context.Context, uint64) (*familymodel.Family, error)
+	IncrementGraphVersion(context.Context, uint64) error
+	Create(context.Context, *membermodel.FamilyMember) error
+	List(context.Context, uint64) ([]MemberRow, error)
+	Find(context.Context, uint64, uint64) (*MemberRow, error)
+	FindForUpdate(context.Context, uint64, uint64) (*membermodel.FamilyMember, error)
+	Update(context.Context, uint64, uint64, map[string]any) error
+	SoftDelete(context.Context, uint64, uint64, uint64, *string, time.Time) error
+	CountBlockingRelationships(context.Context, uint64, uint64) (int64, error)
+	HasChildWithoutOtherLineageParent(context.Context, uint64, uint64) (bool, error)
+	SoftDeleteDeletableRelationships(context.Context, uint64, uint64, uint64, *string, time.Time) (int64, error)
+	ListDeletedSince(context.Context, uint64, time.Time) ([]membermodel.FamilyMember, error)
+	FindDeletedForUpdate(context.Context, uint64, uint64, time.Time) (*membermodel.FamilyMember, error)
+	HasRestorePositionConflict(context.Context, *membermodel.FamilyMember, time.Time) (bool, error)
+	RestoreDeleted(context.Context, uint64, uint64, time.Time) error
+	DiscardRecovery(context.Context, uint64, uint64, uint64, time.Time) error
+	RestoreRelationshipsDeletedAt(context.Context, uint64, uint64, time.Time) error
+	FindUserForUpdate(context.Context, uint64) (*usermodel.User, error)
+	FindActiveLinkByMember(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
+	FindActiveLinkByUser(context.Context, uint64, uint64) (*rolemodel.FamilyMemberUserLink, error)
+	CreateLink(context.Context, *rolemodel.FamilyMemberUserLink) error
+	UnbindLink(context.Context, uint64, uint64, *string, time.Time) error
+}
+
+type GormMemberRepository struct {
+	db *gorm.DB
+}
+
+func NewMemberRepository(db *gorm.DB) *GormMemberRepository {
+	return &GormMemberRepository{db: db}
+}
+
+func (r *GormMemberRepository) WithTx(tx *gorm.DB) MemberRepository {
+	return &GormMemberRepository{db: tx}
+}
+
+func (r *GormMemberRepository) LockFamily(ctx context.Context, familyID uint64) (*familymodel.Family, error) {
+	var family familymodel.Family
+	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND deleted_at IS NULL", familyID).First(&family).Error
+	return &family, err
+}
+
+func (r *GormMemberRepository) IncrementGraphVersion(ctx context.Context, familyID uint64) error {
+	return r.db.WithContext(ctx).Model(&familymodel.Family{}).
+		Where("id = ? AND deleted_at IS NULL", familyID).
+		UpdateColumn("graph_version", gorm.Expr("graph_version + 1")).Error
+}
+
+func (r *GormMemberRepository) Create(ctx context.Context, member *membermodel.FamilyMember) error {
+	return r.db.WithContext(ctx).Create(member).Error
+}
+
+func (r *GormMemberRepository) List(ctx context.Context, familyID uint64) ([]MemberRow, error) {
+	var rows []MemberRow
+	err := r.db.WithContext(ctx).Table("family_members AS fm").
+		Select("fm.*, links.user_id AS bound_user_id, links.family_role AS bound_family_role").
+		Joins("LEFT JOIN family_member_user_links AS links ON links.member_id = fm.id AND links.family_id = fm.family_id AND links.link_status = ?", "ACTIVE").
+		Where("fm.family_id = ? AND fm.deleted_at IS NULL AND fm.status = ?", familyID, "ACTIVE").
+		Order("fm.manual_order IS NULL, fm.manual_order, fm.id").
+		Scan(&rows).Error
+	return rows, err
+}
+
+func (r *GormMemberRepository) Find(ctx context.Context, familyID uint64, memberID uint64) (*MemberRow, error) {
+	var row MemberRow
+	err := r.db.WithContext(ctx).Table("family_members AS fm").
+		Select("fm.*, links.user_id AS bound_user_id, links.family_role AS bound_family_role").
+		Joins("LEFT JOIN family_member_user_links AS links ON links.member_id = fm.id AND links.family_id = fm.family_id AND links.link_status = ?", "ACTIVE").
+		Where("fm.id = ? AND fm.family_id = ? AND fm.deleted_at IS NULL AND fm.status = ?", memberID, familyID, "ACTIVE").
+		First(&row).Error
+	return &row, err
+}
+
+func (r *GormMemberRepository) FindForUpdate(ctx context.Context, familyID uint64, memberID uint64) (*membermodel.FamilyMember, error) {
+	var member membermodel.FamilyMember
+	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND family_id = ? AND deleted_at IS NULL AND status = ?", memberID, familyID, "ACTIVE").
+		First(&member).Error
+	return &member, err
+}
+
+func (r *GormMemberRepository) Update(ctx context.Context, familyID uint64, memberID uint64, values map[string]any) error {
+	return r.db.WithContext(ctx).Model(&membermodel.FamilyMember{}).
+		Where("id = ? AND family_id = ? AND deleted_at IS NULL", memberID, familyID).
+		Updates(values).Error
+}
+
+func (r *GormMemberRepository) SoftDelete(ctx context.Context, familyID uint64, memberID uint64, userID uint64, reason *string, now time.Time) error {
+	return r.db.WithContext(ctx).Model(&membermodel.FamilyMember{}).
+		Where("id = ? AND family_id = ? AND deleted_at IS NULL", memberID, familyID).
+		Updates(map[string]any{
+			"status":             "DELETED",
+			"deleted_at":         now,
+			"deleted_by_user_id": userID,
+			"delete_reason":      reason,
+			"updated_at":         now,
+		}).Error
+}
+
+func (r *GormMemberRepository) CountBlockingRelationships(ctx context.Context, familyID uint64, memberID uint64) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Table("family_relationships").
+		Where("family_id = ? AND status = ? AND deleted_at IS NULL", familyID, "ACTIVE").
+		Where("relationship_type = ? AND from_member_id = ?", "PARENT_CHILD", memberID).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *GormMemberRepository) HasChildWithoutOtherLineageParent(ctx context.Context, familyID uint64, memberID uint64) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Table("family_relationships AS own").
+		Where("own.family_id = ? AND own.status = ? AND own.deleted_at IS NULL", familyID, "ACTIVE").
+		Where("own.relationship_type = ? AND own.from_member_id = ?", "PARENT_CHILD", memberID).
+		Where(`NOT EXISTS (
+			SELECT 1
+			FROM family_relationships AS other
+			INNER JOIN family_members AS other_member ON other_member.id = other.from_member_id
+			WHERE other.family_id = own.family_id
+				AND other.status = 'ACTIVE'
+				AND other.deleted_at IS NULL
+				AND other.relationship_type = 'PARENT_CHILD'
+				AND other.to_member_id = own.to_member_id
+				AND other.from_member_id <> ?
+				AND other_member.family_id = own.family_id
+				AND other_member.status = 'ACTIVE'
+				AND other_member.deleted_at IS NULL
+				AND other_member.member_type = 'LINEAGE_MEMBER'
+		)`, memberID).
+		Count(&count).Error
+	return count > 0, err
+}
+
+func (r *GormMemberRepository) SoftDeleteDeletableRelationships(ctx context.Context, familyID uint64, memberID uint64, userID uint64, reason *string, now time.Time) (int64, error) {
+	result := r.db.WithContext(ctx).Table("family_relationships").
+		Where("family_id = ? AND status = ? AND deleted_at IS NULL", familyID, "ACTIVE").
+		Where("(relationship_type = ? AND (from_member_id = ? OR to_member_id = ?)) OR (relationship_type = ? AND (from_member_id = ? OR to_member_id = ?))",
+			"PARENT_CHILD", memberID, memberID, "SPOUSE", memberID, memberID).
+		Updates(map[string]any{
+			"status":             "DELETED",
+			"deleted_at":         now,
+			"deleted_by_user_id": userID,
+			"delete_reason":      reason,
+			"updated_at":         now,
+		})
+	return result.RowsAffected, result.Error
+}
+
+func (r *GormMemberRepository) ListDeletedSince(ctx context.Context, familyID uint64, since time.Time) ([]membermodel.FamilyMember, error) {
+	var members []membermodel.FamilyMember
+	err := r.db.WithContext(ctx).Unscoped().Where("family_id = ? AND status = ? AND deleted_at >= ? AND recovery_discarded_at IS NULL", familyID, "DELETED", since).Order("deleted_at DESC").Find(&members).Error
+	return members, err
+}
+
+func (r *GormMemberRepository) FindDeletedForUpdate(ctx context.Context, familyID, memberID uint64, since time.Time) (*membermodel.FamilyMember, error) {
+	var member membermodel.FamilyMember
+	err := r.db.WithContext(ctx).Unscoped().Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND family_id = ? AND status = ? AND deleted_at >= ? AND recovery_discarded_at IS NULL", memberID, familyID, "DELETED", since).First(&member).Error
+	return &member, err
+}
+
+// HasRestorePositionConflict detects a replacement node created in the same
+// relationship position after this member was deleted. Names alone are not
+// unique in a genealogy, so the comparison is anchored to the deleted edge.
+//
+// Do not use the edge deletion timestamp as the anchor here. MySQL timestamp
+// precision differs across installations, and a precision mismatch could let a
+// replacement node slip through and create a duplicate during recovery.
+func (r *GormMemberRepository) HasRestorePositionConflict(ctx context.Context, member *membermodel.FamilyMember, deletedAt time.Time) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Table("family_relationships AS historical").
+		Joins(`INNER JOIN family_members AS replacement
+			ON replacement.family_id = historical.family_id
+			AND replacement.status = 'ACTIVE'
+			AND replacement.deleted_at IS NULL
+			AND replacement.id <> ?
+			AND replacement.display_name = ?`, member.ID, member.DisplayName).
+		Joins(`INNER JOIN family_relationships AS current
+			ON current.family_id = historical.family_id
+			AND current.status = 'ACTIVE'
+			AND current.deleted_at IS NULL
+			AND current.relationship_type = historical.relationship_type
+			AND (
+				(historical.from_member_id = ? AND current.from_member_id = replacement.id AND current.to_member_id = historical.to_member_id)
+				OR
+				(historical.to_member_id = ? AND current.to_member_id = replacement.id AND current.from_member_id = historical.from_member_id)
+			)`, member.ID, member.ID).
+		Where("historical.family_id = ? AND historical.status = ? AND historical.deleted_at IS NOT NULL", member.FamilyID, "DELETED").
+		Where("historical.from_member_id = ? OR historical.to_member_id = ?", member.ID, member.ID).
+		Count(&count).Error
+	if err != nil || count > 0 {
+		return count > 0, err
+	}
+
+	// A deleted standalone node has no relationship anchor. In that narrow
+	// case, matching its basic identity still prevents an accidental duplicate.
+	err = r.db.WithContext(ctx).Model(&membermodel.FamilyMember{}).
+		Where("family_id = ? AND status = ? AND deleted_at IS NULL AND id <> ?", member.FamilyID, "ACTIVE", member.ID).
+		Where("display_name = ? AND gender = ?", member.DisplayName, member.Gender).
+		Where("birth_date <=> ?", member.BirthDate).
+		Count(&count).Error
+	return count > 0, err
+}
+
+func (r *GormMemberRepository) RestoreDeleted(ctx context.Context, familyID, memberID uint64, now time.Time) error {
+	return r.db.WithContext(ctx).Unscoped().Model(&membermodel.FamilyMember{}).Where("id = ? AND family_id = ? AND status = ? AND recovery_discarded_at IS NULL", memberID, familyID, "DELETED").Updates(map[string]any{"status": "ACTIVE", "deleted_at": nil, "deleted_by_user_id": nil, "delete_reason": nil, "recovery_discarded_at": nil, "recovery_discarded_by_user_id": nil, "updated_at": now, "revision": gorm.Expr("revision + 1")}).Error
+}
+
+func (r *GormMemberRepository) DiscardRecovery(ctx context.Context, familyID, memberID, actorID uint64, now time.Time) error {
+	return r.db.WithContext(ctx).Unscoped().Model(&membermodel.FamilyMember{}).
+		Where("id = ? AND family_id = ? AND status = ? AND recovery_discarded_at IS NULL", memberID, familyID, "DELETED").
+		Updates(map[string]any{
+			"recovery_discarded_at":         now,
+			"recovery_discarded_by_user_id": actorID,
+			"updated_at":                    now,
+			"revision":                      gorm.Expr("revision + 1"),
+		}).Error
+}
+
+func (r *GormMemberRepository) RestoreRelationshipsDeletedAt(ctx context.Context, familyID, memberID uint64, deletedAt time.Time) error {
+	return r.db.WithContext(ctx).Table("family_relationships").Where("family_id = ? AND status = ? AND deleted_at = ? AND (from_member_id = ? OR to_member_id = ?)", familyID, "DELETED", deletedAt, memberID, memberID).Updates(map[string]any{"status": "ACTIVE", "deleted_at": nil, "deleted_by_user_id": nil, "delete_reason": nil, "revision": gorm.Expr("revision + 1")}).Error
+}
+
+func (r *GormMemberRepository) FindUserForUpdate(ctx context.Context, userID uint64) (*usermodel.User, error) {
+	var user usermodel.User
+	err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND deleted_at IS NULL", userID).First(&user).Error
+	return &user, err
+}
+
+func (r *GormMemberRepository) FindActiveLinkByMember(ctx context.Context, familyID uint64, memberID uint64) (*rolemodel.FamilyMemberUserLink, error) {
+	var link rolemodel.FamilyMemberUserLink
+	err := r.db.WithContext(ctx).
+		Where("family_id = ? AND member_id = ? AND link_status = ?", familyID, memberID, "ACTIVE").
+		First(&link).Error
+	return &link, err
+}
+
+func (r *GormMemberRepository) FindActiveLinkByUser(ctx context.Context, familyID uint64, userID uint64) (*rolemodel.FamilyMemberUserLink, error) {
+	var link rolemodel.FamilyMemberUserLink
+	err := r.db.WithContext(ctx).
+		Where("family_id = ? AND user_id = ? AND link_status = ?", familyID, userID, "ACTIVE").
+		First(&link).Error
+	return &link, err
+}
+
+func (r *GormMemberRepository) CreateLink(ctx context.Context, link *rolemodel.FamilyMemberUserLink) error {
+	return r.db.WithContext(ctx).Create(link).Error
+}
+
+func (r *GormMemberRepository) UnbindLink(ctx context.Context, linkID uint64, userID uint64, reason *string, now time.Time) error {
+	return r.db.WithContext(ctx).Model(&rolemodel.FamilyMemberUserLink{}).
+		Where("id = ? AND link_status = ?", linkID, "ACTIVE").
+		Updates(map[string]any{
+			"link_status":         "UNLINKED",
+			"unlinked_at":         now,
+			"unlinked_reason":     reason,
+			"unlinked_by_user_id": userID,
+			"updated_at":          now,
+		}).Error
+}

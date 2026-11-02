@@ -1,0 +1,239 @@
+- generic [ref=f3e3]:
+  - complementary [ref=f3e4]:
+    - generic [ref=f3e5]:
+      - generic [ref=f3e6]: T
+      - generic [ref=f3e7]:
+        - strong [ref=f3e8]: Tree
+        - generic [ref=f3e9]: 管理后台
+    - menubar [ref=f3e10]:
+      - listitem [ref=f3e11]:
+        - generic [ref=f3e12]: 业务总览
+        - list [ref=f3e13]:
+          - menuitem "仪表盘" [ref=f3e14] [cursor=pointer]
+          - menuitem "用户管理" [ref=f3e19] [cursor=pointer]
+          - menuitem "家庭管理" [ref=f3e24] [cursor=pointer]
+      - listitem [ref=f3e29]:
+        - generic [ref=f3e30]: 内容与运营
+        - list [ref=f3e31]:
+          - menuitem "内容中心" [ref=f3e32] [cursor=pointer]
+          - menuitem "分享配置" [ref=f3e37] [cursor=pointer]
+          - menuitem "帝王世家配置" [ref=f3e43] [cursor=pointer]
+          - menuitem "常用工具配置" [ref=f3e48] [cursor=pointer]
+      - listitem [ref=f3e56]:
+        - generic [ref=f3e57]: 审核与风控
+        - list [ref=f3e58]:
+          - menuitem "公开申请审核" [ref=f3e59] [cursor=pointer]
+          - menuitem "创始人转让审核" [ref=f3e64] [cursor=pointer]
+          - menuitem "家庭解散审核" [ref=f3e70] [cursor=pointer]
+          - menuitem "操作日志" [ref=f3e75] [cursor=pointer]
+      - listitem [ref=f3e80]:
+        - generic [ref=f3e81]: 平台设置
+        - list [ref=f3e82]:
+          - menuitem "账号权益配置" [ref=f3e83] [cursor=pointer]
+          - menuitem "后台管理员管理" [ref=f3e91] [cursor=pointer]
+  - main [ref=f3e96]:
+    - generic [ref=f3e97]:
+      - generic [ref=f3e98]:
+        - strong [ref=f3e99]: 家庭树
+        - generic [ref=f3e100]: Tree 家脉亲缘平台
+      - generic [ref=f3e101]:
+        - generic [ref=f3e102]: admin
+        - generic [ref=f3e103]: 根管理员
+        - button "退出" [ref=f3e105] [cursor=pointer]
+    - generic [ref=f3e108]:
+      - generic [ref=f3e109]:
+        - generic [ref=f3e110]:
+          - navigation "Breadcrumb" [ref=f3e111]:
+            - generic [ref=f3e112]:
+              - link "后台" [ref=f3e113]
+              - text: /
+            - link "家庭树" [ref=f3e115]
+          - heading "家庭树" [level=1] [ref=f3e116]
+          - paragraph [ref=f3e117]: 后台成员管理主入口：选中成员后查看资料、亲属关系与后续操作。
+        - generic [ref=f3e118]:
+          - button "返回家庭详情" [ref=f3e119] [cursor=pointer]
+          - button "成员索引" [ref=f3e121] [cursor=pointer]
+      - generic [ref=f3e123]:
+        - generic [ref=f3e124]:
+          - generic [ref=f3e125]:
+            - generic [ref=f3e127]:
+              - generic [ref=f3e128]:
+                - strong [ref=f3e129]: 树结构
+                - generic [ref=f3e130]: 配偶以同一单元并列；父母与子女用连线表示。
+              - button "刷新" [ref=f3e131] [cursor=pointer]
+            - generic [ref=f3e133]:
+              - generic [ref=f3e137]:
+                - generic [ref=f3e138]:
+                  - button "测父205306 男 · 健在 未绑定" [ref=f3e139] [cursor=pointer]:
+                    - strong [ref=f3e140]: 测父205306
+                    - generic [ref=f3e141]: 男 · 健在
+                    - generic [ref=f3e142]: 未绑定
+                  - button "测母205306 女 · 健在 未绑定 配偶" [ref=f3e145] [cursor=pointer]:
+                    - strong [ref=f3e146]: 测母205306
+                    - generic [ref=f3e147]: 女 · 健在
+                    - generic [ref=f3e148]: 未绑定
+                    - generic [ref=f3e149]: 配偶
+                - generic [ref=f3e150]:
+                  - button "测试用户205306 男 · 状态未录 已绑定" [ref=f3e151] [cursor=pointer]:
+                    - strong [ref=f3e152]: 测试用户205306
+                    - generic [ref=f3e153]: 男 · 状态未录
+                    - generic [ref=f3e154]: 已绑定
+                  - button "测配偶205306 女 · 健在 未绑定 配偶" [ref=f3e157] [cursor=pointer]:
+                    - strong [ref=f3e158]: 测配偶205306
+                    - generic [ref=f3e159]: 女 · 健在
+                    - generic [ref=f3e160]: 未绑定
+                    - generic [ref=f3e161]: 配偶
+                - button "后台儿子205306 男 · 健在 未绑定" [ref=f3e412] [cursor=pointer]:
+                  - strong [ref=f3e413]: 后台儿子205306
+                  - generic [ref=f3e414]: 男 · 健在
+                  - generic [ref=f3e415]: 未绑定
+                - button "测女儿205306 女 · 健在 未绑定" [ref=f3e163] [cursor=pointer]:
+                  - strong [ref=f3e164]: 测女儿205306
+                  - generic [ref=f3e165]: 女 · 健在
+                  - generic [ref=f3e166]: 未绑定
+              - paragraph [ref=f3e167]: 共 6 位成员，树中展示 6 位；可左右、上下滚动查看。
+          - complementary [ref=f3e168]:
+            - generic [ref=f3e169]:
+              - generic [ref=f3e171]:
+                - generic [ref=f3e172]:
+                  - strong [ref=f3e173]: 后台儿子205306
+                  - generic [ref=f3e174]: 成员 6 · 亲属关系 6 · 家谱版本 6
+                - generic [ref=f3e175]:
+                  - button "成员索引" [ref=f3e176] [cursor=pointer]
+                  - button "编辑" [ref=f3e178] [cursor=pointer]
+                  - button "删除" [ref=f3e416] [cursor=pointer]
+              - generic [ref=f3e183]:
+                - generic [ref=f3e184]:
+                  - generic [ref=f3e185]:
+                    - strong [ref=f3e186]: 从该成员添加亲属
+                    - generic [ref=f3e187]: 按小程序同一套规则写入关系
+                  - generic [ref=f3e188]:
+                    - button "父亲" [disabled] [ref=f3e190]
+                    - button "母亲" [ref=f3e193] [cursor=pointer]
+                    - button "配偶" [ref=f3e196] [cursor=pointer]
+                    - button "子女" [ref=f3e199] [cursor=pointer]
+                    - button "同辈" [ref=f3e202] [cursor=pointer]
+                - table [ref=f3e206]:
+                  - rowgroup [ref=f3e207]:
+                    - row [ref=f3e418]:
+                      - cell "成员 ID" [ref=f3e209]
+                      - cell "13777" [ref=f3e419]
+                    - row [ref=f3e211]:
+                      - cell "性别" [ref=f3e212]
+                      - cell "男" [ref=f3e213]
+                    - row [ref=f3e420]:
+                      - cell "状态" [ref=f3e215]
+                      - cell "健在" [ref=f3e421]
+                    - row [ref=f3e217]:
+                      - cell "出生日期" [ref=f3e218]
+                      - cell "未记录" [ref=f3e219]
+                    - row [ref=f3e220]:
+                      - cell "节点类型" [ref=f3e221]
+                      - cell "本家成员" [ref=f3e222]
+                    - row [ref=f3e422]:
+                      - cell "绑定状态" [ref=f3e224]
+                      - cell "未绑定" [ref=f3e423]
+                - generic [ref=f3e226]:
+                  - generic [ref=f3e227]:
+                    - generic [ref=f3e228]: 父母
+                    - button "测试用户205306" [ref=f3e424] [cursor=pointer]
+                    - generic [ref=f3e232]: 决定上代结构与同辈联动
+                  - generic [ref=f3e233]:
+                    - generic [ref=f3e234]: 配偶
+                    - strong [ref=f3e425]: 未记录
+                    - generic [ref=f3e237]: 影响配偶并列和共同子女
+                  - generic [ref=f3e238]:
+                    - generic [ref=f3e239]: 子女
+                    - strong [ref=f3e426]: 未记录
+                    - generic [ref=f3e242]: 影响下代展开和删除限制
+                  - generic [ref=f3e243]:
+                    - generic [ref=f3e244]: 同辈
+                    - button "测女儿205306" [ref=f3e428] [cursor=pointer]
+                    - generic [ref=f3e246]: 由共同父母推导，不单独入库
+                - paragraph [ref=f3e247]: 后台变更会写入操作日志并刷新家谱版本；小程序会按同一套成员与关系数据重新计算亲属称谓。
+        - generic [ref=f3e248]:
+          - strong [ref=f3e250]: 关系明细
+          - generic [ref=f3e253]:
+            - table [ref=f3e255]:
+              - rowgroup [ref=f3e261]:
+                - row [ref=f3e262]:
+                  - columnheader "关系" [ref=f3e263]
+                  - columnheader "起点" [ref=f3e265]
+                  - columnheader "终点" [ref=f3e267]
+                  - columnheader "属性" [ref=f3e269]
+            - table [ref=f3e275]:
+              - rowgroup [ref=f3e281]:
+                - row [ref=f3e282]:
+                  - cell "父母子女" [ref=f3e283]
+                  - cell "测父205306" [ref=f3e285]
+                  - cell "测试用户205306" [ref=f3e287]
+                  - cell "PRIMARY" [ref=f3e289]
+                - row [ref=f3e291]:
+                  - cell "父母子女" [ref=f3e292]
+                  - cell "测母205306" [ref=f3e294]
+                  - cell "测试用户205306" [ref=f3e296]
+                  - cell "PRIMARY" [ref=f3e298]
+                - row [ref=f3e300]:
+                  - cell "配偶" [ref=f3e301]
+                  - cell "测父205306" [ref=f3e303]
+                  - cell "测母205306" [ref=f3e305]
+                  - cell "—" [ref=f3e307]
+                - row [ref=f3e309]:
+                  - cell "配偶" [ref=f3e310]
+                  - cell "测试用户205306" [ref=f3e312]
+                  - cell "测配偶205306" [ref=f3e314]
+                  - cell "—" [ref=f3e316]
+                - row [ref=f3e318]:
+                  - cell "父母子女" [ref=f3e319]
+                  - cell "测试用户205306" [ref=f3e321]
+                  - cell "测女儿205306" [ref=f3e323]
+                  - cell "PRIMARY" [ref=f3e325]
+                - row [ref=f3e429]:
+                  - cell "父母子女" [ref=f3e430]
+                  - cell "测试用户205306" [ref=f3e432]
+                  - cell "后台儿子205306" [ref=f3e434]
+                  - cell "PRIMARY" [ref=f3e436]
+      - dialog "向「后台儿子205306」添加同辈" [ref=f3e443]:
+        - generic [active] [ref=f3e444]:
+          - generic [ref=f3e445]:
+            - heading "向「后台儿子205306」添加同辈" [level=2] [ref=f3e446]
+            - button "Close this dialog" [ref=f3e447] [cursor=pointer]
+          - generic [ref=f3e452]:
+            - generic [ref=f3e453]:
+              - generic [ref=f3e454]: "* 姓名"
+              - textbox "* 姓名" [ref=f3e458]
+            - generic [ref=f3e459]:
+              - generic [ref=f3e460]: "* 性别"
+              - radiogroup "* 性别" [ref=f3e462]:
+                - generic [ref=f3e463]:
+                  - radio "男" [ref=f3e464]
+                  - generic [ref=f3e465] [cursor=pointer]: 男
+                - generic [ref=f3e466]:
+                  - radio "女" [ref=f3e467]
+                  - generic [ref=f3e468] [cursor=pointer]: 女
+            - generic [ref=f3e469]:
+              - generic [ref=f3e470]: 关系属性
+              - generic [ref=f3e473] [cursor=pointer]:
+                - generic:
+                  - combobox "关系属性" [ref=f3e475]
+                  - generic [ref=f3e476]: 主要亲属
+            - generic [ref=f3e481]:
+              - generic [ref=f3e482]: 出生日期
+              - combobox "出生日期" [ref=f3e490]
+            - generic [ref=f3e491]:
+              - generic [ref=f3e492]: 状态
+              - generic [ref=f3e495] [cursor=pointer]:
+                - generic:
+                  - combobox "状态" [ref=f3e497]
+                  - generic [ref=f3e498]: 健在
+            - generic [ref=f3e503]:
+              - generic [ref=f3e504]: 绑定策略
+              - generic [ref=f3e507] [cursor=pointer]:
+                - generic:
+                  - combobox "绑定策略" [ref=f3e509]
+                  - generic [ref=f3e510]: 可选绑定
+            - alert [ref=f3e515]:
+              - generic [ref=f3e519]: 同辈不会保存为兄弟姐妹关系，而是复用当前成员已有父母生成共同父母关系。
+          - generic [ref=f3e521]:
+            - button "取消" [ref=f3e522] [cursor=pointer]
+            - button "保存亲属" [ref=f3e524] [cursor=pointer]

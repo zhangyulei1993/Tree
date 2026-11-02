@@ -1,0 +1,332 @@
+<template>
+  <div class="page-stack">
+    <PageHeader title="家庭解散审核" description="仅 ROOT_ADMIN / SUPER_ADMIN 可审核。解散和恢复均为高风险操作。" />
+
+    <SearchPanel>
+      <el-form>
+        <el-form-item label="状态">
+          <el-select v-model="status" clearable placeholder="全部" style="width: 150px">
+            <el-option label="待审核" value="PENDING" />
+            <el-option label="已通过" value="APPROVED" />
+            <el-option label="已拒绝" value="REJECTED" />
+            <el-option label="已取消" value="CANCELLED" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="家庭 ID">
+          <el-input-number v-model="familyId" :min="1" :controls="false" placeholder="全部" />
+        </el-form-item>
+        <el-button type="primary" :loading="loading" @click="search">查询</el-button>
+        <el-button :disabled="loading" @click="resetSearch">重置</el-button>
+      </el-form>
+    </SearchPanel>
+
+    <el-alert v-if="loadError" :title="`解散申请列表加载失败：${loadError}`" type="error" show-icon :closable="false" />
+    <el-alert v-if="operationError" :title="`操作失败：${operationError}`" type="error" show-icon @close="operationError = ''" />
+
+    <DataTable>
+      <el-table v-loading="loading" :data="items" stripe empty-text="暂无家庭解散申请">
+        <el-table-column prop="requestId" label="申请 ID" width="90" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="familyId" label="家庭 ID" width="88" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="familyName" label="家庭名称" min-width="170" show-overflow-tooltip />
+        <el-table-column label="申请人标识" min-width="176">
+          <template #default="{ row }">
+            <div class="id-pair">
+              <span>成员：{{ row.requesterMemberId }}</span>
+              <span>用户：{{ row.requesterUserId }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="requestReason" label="申请原因" min-width="240" show-overflow-tooltip />
+        <el-table-column label="状态" width="96" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
+          <template #default="{ row }"><StatusTag :status="row.requestStatus" /></template>
+        </el-table-column>
+        <el-table-column prop="reviewResult" label="审核结果" width="96" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center" />
+        <el-table-column prop="reviewComment" label="审核意见" min-width="190" show-overflow-tooltip />
+        <el-table-column label="创建时间" width="160" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
+          <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+        </el-table-column>
+        <el-table-column label="审核时间" width="160" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
+          <template #default="{ row }">{{ formatTime(row.reviewedAt) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="172" fixed="right" align="center" header-align="center" class-name="table-column--center" label-class-name="table-column--center">
+          <template #default="{ row }">
+            <div v-if="row.requestStatus === 'PENDING'" class="table-actions">
+              <el-button size="small" type="danger" @click="openAudit(row.requestId, 'approve')">通过解散</el-button>
+              <el-button size="small" @click="openAudit(row.requestId, 'reject')">驳回</el-button>
+            </div>
+            <div v-else-if="row.requestStatus === 'APPROVED'" class="table-actions">
+              <template v-if="row.familyStatus === 'DISSOLUTION_COOLDOWN'">
+                <el-button size="small" type="primary" @click="openRestore(row.familyId)">恢复家庭</el-button>
+                <el-button size="small" type="danger" @click="openFinalize(row.familyId)">完成解散</el-button>
+              </template>
+              <el-button
+                v-else-if="row.familyStatus === 'DISSOLVED'"
+                size="small"
+                type="primary"
+                @click="openRestore(row.familyId)"
+              >
+                恢复家庭
+              </el-button>
+              <el-tag v-else-if="row.familyStatus === 'NORMAL'" type="success">已恢复</el-tag>
+              <el-tag v-else type="info">家庭状态：{{ familyStatusText(row.familyStatus) }}</el-tag>
+            </div>
+            <span v-else class="muted">已处理</span>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-pagination
+        class="pager"
+        layout="total, sizes, prev, pager, next"
+        :total="total"
+        :current-page="page"
+        :page-size="pageSize"
+        :page-sizes="[10, 20, 50]"
+        @current-change="changePage"
+        @size-change="changePageSize"
+      />
+    </DataTable>
+
+    <AuditDialog
+      :key="auditKey"
+      v-model="auditVisible"
+      :title="auditTitle"
+      :action="auditAction"
+      :submitting="submitting"
+      :close-on-submit="false"
+      @submit="submitAudit"
+    />
+    <ConfirmDialog
+      v-model="approveConfirmVisible"
+      title="确认解散家庭"
+      message="批准后家庭将进入恢复冷静期：用户端暂不展示，家庭资料仅可查看不可编辑；冷静期内可恢复，或由后台完成解散。该操作不会物理删除家庭数据。"
+      :submitting="submitting"
+      :close-on-confirm="false"
+      danger
+      @confirm="confirmApprove"
+    />
+    <ConfirmDialog
+      v-model="restoreConfirmVisible"
+      title="确认恢复家庭"
+      message="恢复后家庭状态变为 NORMAL、公开状态变为 PRIVATE，并默认恢复为可搜索。历史邀请和申请不会重新激活。"
+      :submitting="submitting"
+      :close-on-confirm="false"
+      danger
+      @confirm="confirmRestore"
+    />
+    <ConfirmDialog
+      v-model="finalizeConfirmVisible"
+      title="确认完成解散"
+      message="完成后家庭状态将变为 DISSOLVED，冷静期结束，并正式释放相关账号权益占用。该操作后仍可由后台恢复。"
+      :submitting="submitting"
+      :close-on-confirm="false"
+      danger
+      @confirm="confirmFinalize"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ElMessage } from 'element-plus/es/components/message/index'
+import { onMounted, ref } from 'vue'
+
+import { finalizeDissolutionFamily, restoreFamily } from '@/api/adminFamilies'
+import { getApiErrorMessage } from '@/api/client'
+import {
+  approveDissolutionRequest,
+  listDissolutionRequests,
+  rejectDissolutionRequest
+} from '@/api/dissolutions'
+import AuditDialog from '@/components/AuditDialog.vue'
+import ConfirmDialog from '@/components/ConfirmDialog.vue'
+import DataTable from '@/components/DataTable.vue'
+import PageHeader from '@/components/PageHeader.vue'
+import SearchPanel from '@/components/SearchPanel.vue'
+import StatusTag from '@/components/StatusTag.vue'
+import type { DissolutionRequest } from '@/types/api'
+
+const status = ref('PENDING')
+const familyId = ref<number | undefined>()
+const items = ref<DissolutionRequest[]>([])
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
+const loading = ref(false)
+const loadError = ref('')
+const operationError = ref('')
+const auditVisible = ref(false)
+const approveConfirmVisible = ref(false)
+const restoreConfirmVisible = ref(false)
+const finalizeConfirmVisible = ref(false)
+const auditAction = ref<'approve' | 'reject'>('approve')
+const auditTitle = ref('家庭解散审核')
+const auditKey = ref(0)
+const selectedRequestId = ref<number | null>(null)
+const selectedFamilyId = ref<number | null>(null)
+const pendingReviewComment = ref<string | undefined>()
+const submitting = ref(false)
+
+onMounted(loadRequests)
+
+async function loadRequests() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const result = await listDissolutionRequests({
+      status: status.value || undefined,
+      familyId: familyId.value || undefined,
+      page: page.value,
+      pageSize: pageSize.value
+    })
+    items.value = result.items
+    total.value = result.total
+  } catch (error) {
+    loadError.value = getApiErrorMessage(error)
+  } finally {
+    loading.value = false
+  }
+}
+
+function search() {
+  page.value = 1
+  void loadRequests()
+}
+
+function resetSearch() {
+  status.value = ''
+  familyId.value = undefined
+  page.value = 1
+  void loadRequests()
+}
+
+function changePage(value: number) {
+  page.value = value
+  void loadRequests()
+}
+
+function changePageSize(value: number) {
+  pageSize.value = value
+  page.value = 1
+  void loadRequests()
+}
+
+function openAudit(requestId: number, action: 'approve' | 'reject') {
+  operationError.value = ''
+  selectedRequestId.value = requestId
+  auditAction.value = action
+  auditTitle.value = `家庭解散申请 ${requestId}`
+  auditKey.value += 1
+  auditVisible.value = true
+}
+
+function openRestore(targetFamilyId: number) {
+  operationError.value = ''
+  selectedFamilyId.value = targetFamilyId
+  restoreConfirmVisible.value = true
+}
+
+function openFinalize(targetFamilyId: number) {
+  operationError.value = ''
+  selectedFamilyId.value = targetFamilyId
+  finalizeConfirmVisible.value = true
+}
+
+async function submitAudit(reviewComment: string) {
+  if (!selectedRequestId.value || submitting.value) return
+  const comment = reviewComment.trim() || undefined
+  if (auditAction.value === 'approve') {
+    pendingReviewComment.value = comment
+    auditVisible.value = false
+    approveConfirmVisible.value = true
+    return
+  }
+
+  submitting.value = true
+  operationError.value = ''
+  try {
+    await rejectDissolutionRequest(selectedRequestId.value, { reviewComment: comment })
+    auditVisible.value = false
+    ElMessage.success('家庭解散申请已驳回')
+    await loadRequests()
+  } catch (error) {
+    operationError.value = getApiErrorMessage(error)
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function confirmApprove() {
+  if (!selectedRequestId.value || submitting.value) return
+  submitting.value = true
+  operationError.value = ''
+  try {
+    await approveDissolutionRequest(selectedRequestId.value, {
+      reviewComment: pendingReviewComment.value
+    })
+    approveConfirmVisible.value = false
+    ElMessage.success('家庭解散申请已通过')
+    await loadRequests()
+  } catch (error) {
+    operationError.value = getApiErrorMessage(error)
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function confirmRestore() {
+  if (!selectedFamilyId.value || submitting.value) return
+  submitting.value = true
+  operationError.value = ''
+  try {
+    await restoreFamily(selectedFamilyId.value, { searchable: true })
+    restoreConfirmVisible.value = false
+    ElMessage.success('家庭已恢复，公开状态已重置为私有')
+    await loadRequests()
+  } catch (error) {
+    operationError.value = getApiErrorMessage(error)
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function confirmFinalize() {
+  if (!selectedFamilyId.value || submitting.value) return
+  submitting.value = true
+  operationError.value = ''
+  try {
+    await finalizeDissolutionFamily(selectedFamilyId.value)
+    finalizeConfirmVisible.value = false
+    ElMessage.success('家庭已完成解散')
+    await loadRequests()
+  } catch (error) {
+    operationError.value = getApiErrorMessage(error)
+  } finally {
+    submitting.value = false
+  }
+}
+
+function formatTime(value?: string) {
+  return value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-'
+}
+
+function familyStatusText(status?: string) {
+  if (status === 'NORMAL') return '正常'
+  if (status === 'DISSOLUTION_PENDING') return '解散待审核'
+  if (status === 'DISSOLUTION_COOLDOWN') return '恢复冷静期'
+  if (status === 'DISSOLVED') return '已解散'
+  if (status === 'DISABLED') return '已停用'
+  return '未知状态'
+}
+</script>
+
+<style scoped>
+.pager {
+  justify-content: flex-end;
+  padding: 14px;
+}
+
+.id-pair {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+</style>

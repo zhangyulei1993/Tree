@@ -1,0 +1,3131 @@
+openapi: 3.0.3
+info:
+  title: Tree API
+  version: 0.12.0
+  description: API contract synchronized from the M1-M12 Go router, DTOs, VOs, handlers, and services.
+servers:
+  - url: http://127.0.0.1:8080/api
+tags:
+  - name: Health
+  - name: Admin Auth
+  - name: User Auth
+  - name: WeChat Account
+  - name: Family
+  - name: Family Member
+  - name: Family Relationship
+  - name: Family Tree
+  - name: Family Invitation
+  - name: Family Join Request
+  - name: Family Public Display
+  - name: Visitor Message
+  - name: Family Role
+  - name: Founder Transfer
+  - name: Family Dissolution
+  - name: Family Restore
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: Service is responding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /admin/auth/login:
+    post:
+      tags: [Admin Auth]
+      summary: Admin login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminLoginRequest"
+      responses:
+        "200":
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLoginAPIResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/AdminLoginError"
+  /admin/auth/logout:
+    post:
+      tags: [Admin Auth]
+      summary: Revoke current admin token
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/StatusOK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/SystemError"
+  /admin/me:
+    get:
+      tags: [Admin Auth]
+      summary: Get current admin
+      security:
+        - AdminBearerAuth: []
+      responses:
+        "200":
+          description: Current admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminInfoAPIResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AdminStateError"
+  /admin/me/password:
+    put:
+      tags: [Admin Auth]
+      summary: Change current admin password
+      security:
+        - AdminBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminChangePasswordRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/StatusOK"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/send-code:
+    post:
+      tags: [User Auth]
+      summary: Send phone verification code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendCodeRequest"
+      responses:
+        "200":
+          description: Code created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendCodeAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+  /auth/register-phone:
+    post:
+      tags: [User Auth]
+      summary: Register with phone and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterPhoneRequest"
+      responses:
+        "200":
+          description: User created and logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserLoginAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+  /auth/login-phone:
+    post:
+      tags: [User Auth]
+      summary: Login with phone and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginPhoneRequest"
+      responses:
+        "200":
+          description: Login succeeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserLoginAPIResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/BusinessError"
+  /auth/logout:
+    post:
+      tags: [User Auth]
+      summary: Revoke current user token
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/StatusOK"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/SystemError"
+  /auth/wechat-mini/login:
+    post:
+      tags: [WeChat Account]
+      summary: Login with WeChat Mini Program code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WechatMiniLoginRequest"
+      responses:
+        "200":
+          description: Login succeeded or pending-phone-bind user created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserLoginAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+  /auth/wechat-mini/bind-phone:
+    post:
+      tags: [WeChat Account]
+      summary: Bind phone, claim account, or merge account
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BindPhoneRequest"
+      responses:
+        "200":
+          description: Phone bound; returns a new user token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserLoginAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/change-phone:
+    post:
+      tags: [WeChat Account]
+      summary: Change current user's phone
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePhoneRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/StatusOK"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /auth/cancel-account:
+    post:
+      tags: [WeChat Account]
+      summary: Cancel current user account
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelAccountRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/StatusOK"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /families:
+    post:
+      tags: [Family]
+      summary: Create family
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFamilyRequest"
+      responses:
+        "201":
+          description: Family created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyDetailAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    get:
+      tags: [Family]
+      summary: List current user's families
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Active family memberships
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyListAPIResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/SystemError"
+  /families/{familyId}:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    get:
+      tags: [Family]
+      summary: Get member-visible family detail
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Family detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyDetailAPIResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+    put:
+      tags: [Family]
+      summary: Update family base information
+      description: publicDisplayStatus, familySurname, status, founder member, and graphVersion are not writable.
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFamilyRequest"
+      responses:
+        "200":
+          description: Updated family
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyDetailAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/public:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    get:
+      tags: [Family]
+      summary: Get public family information
+      description: Returns code 42103 when the family is PRIVATE or otherwise not NORMAL and APPROVED.
+      security: []
+      responses:
+        "200":
+          description: Public family information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicFamilyAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/dissolution-requests:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family]
+      summary: Create family dissolution request
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDissolutionRequest"
+      responses:
+        "200":
+          description: Pending request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DissolutionAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/dissolution-requests/current:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    get:
+      tags: [Family]
+      summary: Get current pending dissolution request
+      description: data is null when no pending request exists.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Pending request or null
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NullableDissolutionAPIResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/dissolution-requests/{requestId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Family]
+      summary: Cancel pending family dissolution request
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelDissolutionRequest"
+      responses:
+        "200":
+          description: Request cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DissolutionAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/members:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family Member]
+      summary: Create an unbound family member node
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMemberRequest"
+      responses:
+        "201":
+          description: Member created and graph version incremented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+    get:
+      tags: [Family Member]
+      summary: List active members in the current family
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Family member list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberListAPIResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/members/{memberId}:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/MemberID"
+    get:
+      tags: [Family Member]
+      summary: Get active family member detail
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: Member detail without sensitive user data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberAPIResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+    put:
+      tags: [Family Member]
+      summary: Update member base information
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemberRequest"
+      responses:
+        "200":
+          description: Member updated and graph version incremented when values are supplied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+    delete:
+      tags: [Family Member]
+      summary: Soft-delete a member
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteMemberRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/StatusOK"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/members/{memberId}/bind-user:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/MemberID"
+    post:
+      tags: [Family Member]
+      summary: Bind an existing active user to a member
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BindMemberUserRequest"
+      responses:
+        "200":
+          description: User bound; graph version is unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/members/{memberId}/unbind-user:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/MemberID"
+    post:
+      tags: [Family Member]
+      summary: Unbind a non-privileged user link
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnbindMemberUserRequest"
+      responses:
+        "200":
+          description: User unbound; graph version is unchanged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/relationships:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family Relationship]
+      summary: Create a member and relationship through an addType operation
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRelationshipRequest"
+      responses:
+        "201":
+          description: Member and relationship created; graph version incremented once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RelationshipMutationAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/relationships/{relationshipId}:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/RelationshipID"
+    put:
+      tags: [Family Relationship]
+      summary: Update relationship note or parent-link type
+      description: fromMemberId, toMemberId, and relationshipType cannot be changed.
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRelationshipRequest"
+      responses:
+        "200":
+          description: Relationship updated and graph version incremented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RelationshipMutationAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+    delete:
+      tags: [Family Relationship]
+      summary: Soft-delete a relationship
+      security:
+        - UserBearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteRelationshipRequest"
+      responses:
+        "200":
+          description: Relationship soft deleted and graph version incremented
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RelationshipMutationAPIResponse"
+        "400":
+          $ref: "#/components/responses/BusinessError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "404":
+          $ref: "#/components/responses/BusinessError"
+  /families/{familyId}/tree:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    get:
+      tags: [Family Tree]
+      summary: Get the private family tree
+      description: Requires the current USER to be an active member of the family.
+      security:
+        - UserBearerAuth: []
+      responses:
+        "200":
+          description: LIST_TREE family-tree snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyTreeAPIResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "500":
+          $ref: "#/components/responses/SystemError"
+  /public/families/{familyId}/tree:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    get:
+      tags: [Family Tree]
+      summary: Get a public family tree
+      description: Available only when family status is NORMAL and publicDisplayStatus is APPROVED.
+      security: []
+      responses:
+        "200":
+          description: Public-safe LIST_TREE family-tree snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyTreeAPIResponse"
+        "403":
+          $ref: "#/components/responses/BusinessError"
+        "500":
+          $ref: "#/components/responses/SystemError"
+  /families/{familyId}/members/{memberId}/invite:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/MemberID"
+    post:
+      tags: [Family Invitation]
+      summary: Create a share-link or in-app invitation
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateInvitationRequest"}
+      responses:
+        "201":
+          description: Invitation created; the raw inviteToken is returned once
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/CreatedInvitationAPIResponse"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /invitations/{inviteToken}:
+    parameters:
+      - name: inviteToken
+        in: path
+        required: true
+        schema: {type: string}
+    get:
+      tags: [Family Invitation]
+      summary: Get public-safe invitation details
+      security: []
+      responses:
+        "200":
+          description: Invitation details
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/InvitationAPIResponse"}
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /invitations/{invitationId}/accept:
+    parameters:
+      - $ref: "#/components/parameters/InvitationID"
+    post:
+      tags: [Family Invitation]
+      summary: Accept an invitation and create an ACTIVE member link
+      security: [{UserBearerAuth: []}]
+      responses:
+        "200": {$ref: "#/components/responses/InvitationOK"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /invitations/{invitationId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/InvitationID"
+    post:
+      tags: [Family Invitation]
+      summary: Reject an invitation
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/InvitationReasonRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/InvitationOK"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+  /invitations/{invitationId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/InvitationID"
+    post:
+      tags: [Family Invitation]
+      summary: Cancel a pending invitation
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/InvitationReasonRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/InvitationOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /users/me/invitations:
+    get:
+      tags: [Family Invitation]
+      summary: List current user's in-app invitations
+      security: [{UserBearerAuth: []}]
+      responses:
+        "200":
+          description: Invitation list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/InvitationListAPIResponse"}
+  /families/{familyId}/join-requests:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family Join Request]
+      summary: Apply to join a family
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateJoinRequest"}
+      responses:
+        "201": {$ref: "#/components/responses/JoinRequestOK"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+    get:
+      tags: [Family Join Request]
+      summary: List family join requests as FOUNDER or FAMILY_ADMIN
+      security: [{UserBearerAuth: []}]
+      responses:
+        "200":
+          description: Join request list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/JoinRequestListAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /users/me/join-requests:
+    get:
+      tags: [Family Join Request]
+      summary: List current user's join requests
+      security: [{UserBearerAuth: []}]
+      responses:
+        "200":
+          description: Join request list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/JoinRequestListAPIResponse"}
+  /families/{familyId}/join-requests/{requestId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Family Join Request]
+      summary: Approve and bind an existing or newly-created member
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ApproveJoinRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/JoinRequestOK"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/join-requests/{requestId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Family Join Request]
+      summary: Reject a join request
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/HandleJoinRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/JoinRequestOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/join-requests/{requestId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Family Join Request]
+      summary: Cancel own pending join request
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CancelJoinRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/JoinRequestOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/public-applications:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family Public Display]
+      summary: Submit a public-display application
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreatePublicApplicationRequest"}
+      responses:
+        "201": {$ref: "#/components/responses/PublicApplicationOK"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+    get:
+      tags: [Family Public Display]
+      summary: List current family's public-display applications
+      security: [{UserBearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StatusQuery"
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PageSizeQuery"
+      responses:
+        "200":
+          description: Public-display application list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PublicApplicationListAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/public-applications/{applicationId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/ApplicationID"
+    post:
+      tags: [Family Public Display]
+      summary: Cancel a pending public-display application
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CancelPublicApplicationRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/PublicApplicationOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /admin/family-public-applications:
+    get:
+      tags: [Family Public Display]
+      summary: Admin list public-display applications
+      security: [{AdminBearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StatusQuery"
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PageSizeQuery"
+      responses:
+        "200":
+          description: Public-display application list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PublicApplicationListAPIResponse"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/family-public-applications/{applicationId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/ApplicationID"
+    post:
+      tags: [Family Public Display]
+      summary: Admin approve a public-display application
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewPublicApplicationRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/PublicApplicationOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /admin/family-public-applications/{applicationId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/ApplicationID"
+    post:
+      tags: [Family Public Display]
+      summary: Admin reject a public-display application
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewPublicApplicationRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/PublicApplicationOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /admin/families/{familyId}/take-down-public:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family Public Display]
+      summary: Admin take down an approved public family
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/TakeDownPublicFamilyRequest"}
+      responses:
+        "200":
+          description: Family public status updated
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FamilyPublicStatusAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /public/families/{familyId}/visitor-messages:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Visitor Message]
+      summary: Submit a visitor message to a public family
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateVisitorMessageRequest"}
+      responses:
+        "201": {$ref: "#/components/responses/VisitorMessageOK"}
+        "400": {$ref: "#/components/responses/BusinessError"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+        "429": {$ref: "#/components/responses/BusinessError"}
+    get:
+      tags: [Visitor Message]
+      summary: List approved public visitor messages
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PageSizeQuery"
+      responses:
+        "200":
+          description: Public visitor message list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PublicVisitorMessageListAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/visitor-messages:
+    get:
+      tags: [Visitor Message]
+      summary: Admin list visitor messages
+      security: [{AdminBearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StatusQuery"
+        - name: familyId
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PageSizeQuery"
+      responses:
+        "200":
+          description: Visitor message list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/VisitorMessageListAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/visitor-messages/{messageId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/MessageID"
+    post:
+      tags: [Visitor Message]
+      summary: Admin approve a visitor message
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewVisitorMessageRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/VisitorMessageOK"}
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /admin/visitor-messages/{messageId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/MessageID"
+    post:
+      tags: [Visitor Message]
+      summary: Admin reject a visitor message
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewVisitorMessageRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/VisitorMessageOK"}
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /admin/visitor-messages/{messageId}:
+    parameters:
+      - $ref: "#/components/parameters/MessageID"
+    delete:
+      tags: [Visitor Message]
+      summary: Admin soft-delete a visitor message
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/DeleteVisitorMessageRequest"}
+      responses:
+        "200":
+          description: Message deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ResponseEnvelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          deleted:
+                            type: boolean
+        "404": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/members/{memberId}/set-admin:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/MemberID"
+    post:
+      tags: [Family Role]
+      summary: Set a bound member as FAMILY_ADMIN
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RoleChangeRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/RoleChangeOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/members/{memberId}/unset-admin:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/MemberID"
+    post:
+      tags: [Family Role]
+      summary: Unset a FAMILY_ADMIN back to MEMBER
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RoleChangeRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/RoleChangeOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/founder-transfer-requests:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Founder Transfer]
+      summary: Create a founder transfer request
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CreateFounderTransferRequest"}
+      responses:
+        "201": {$ref: "#/components/responses/FounderTransferOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /families/{familyId}/founder-transfer-requests/{requestId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Founder Transfer]
+      summary: Cancel a pending founder transfer request
+      security: [{UserBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CancelFounderTransferRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/FounderTransferOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/founder-transfer-requests:
+    get:
+      tags: [Founder Transfer]
+      summary: Admin list founder transfer requests
+      security: [{AdminBearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StatusQuery"
+        - name: familyId
+          in: query
+          schema: {type: integer, format: int64}
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PageSizeQuery"
+      responses:
+        "200":
+          description: Founder transfer list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FounderTransferListAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/founder-transfer-requests/{requestId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Founder Transfer]
+      summary: Admin approve a founder transfer request
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/FounderTransferOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/founder-transfer-requests/{requestId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Founder Transfer]
+      summary: Admin reject a founder transfer request
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/FounderTransferOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/dissolution-requests:
+    get:
+      tags: [Family Dissolution]
+      summary: Admin list family dissolution requests
+      security: [{AdminBearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/StatusQuery"
+        - name: familyId
+          in: query
+          schema: {type: integer, format: int64}
+        - $ref: "#/components/parameters/PageQuery"
+        - $ref: "#/components/parameters/PageSizeQuery"
+      responses:
+        "200":
+          description: Dissolution request list
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/AdminDissolutionListAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/dissolution-requests/{requestId}/approve:
+    parameters:
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Family Dissolution]
+      summary: Admin approve a family dissolution request
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/AdminDissolutionOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/dissolution-requests/{requestId}/reject:
+    parameters:
+      - $ref: "#/components/parameters/RequestID"
+    post:
+      tags: [Family Dissolution]
+      summary: Admin reject a family dissolution request
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ReviewRequest"}
+      responses:
+        "200": {$ref: "#/components/responses/AdminDissolutionOK"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+  /admin/families/{familyId}/restore:
+    parameters:
+      - $ref: "#/components/parameters/FamilyID"
+    post:
+      tags: [Family Restore]
+      summary: Admin restore a dissolved family
+      security: [{AdminBearerAuth: []}]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RestoreFamilyRequest"}
+      responses:
+        "200":
+          description: Family restored
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RestoreFamilyAPIResponse"}
+        "403": {$ref: "#/components/responses/BusinessError"}
+components:
+  securitySchemes:
+    UserBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: USER token signed with JWT_USER_SECRET and typ=USER.
+    AdminBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ADMIN token signed with JWT_ADMIN_SECRET and typ=ADMIN.
+  parameters:
+    FamilyID:
+      name: familyId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    RequestID:
+      name: requestId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    MemberID:
+      name: memberId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    RelationshipID:
+      name: relationshipId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    InvitationID:
+      name: invitationId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    ApplicationID:
+      name: applicationId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    MessageID:
+      name: messageId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    StatusQuery:
+      name: status
+      in: query
+      schema:
+        type: string
+    PageQuery:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    PageSizeQuery:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+  responses:
+    BadRequest:
+      description: Invalid JSON or parameters
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: 10001
+            message: 参数错误
+            data: null
+    Unauthorized:
+      description: Missing, invalid, expired, wrong-type, or revoked token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: 10008
+            message: 登录已过期
+            data: null
+    BusinessError:
+      description: Business rule failure
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    SystemError:
+      description: Internal error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: 10000
+            message: 系统错误
+            data: null
+    AdminLoginError:
+      description: Invalid credentials or unusable admin
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            code: 47001
+            message: 用户名或密码错误
+            data: null
+    AdminStateError:
+      description: Admin is disabled, locked, or deleted
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    StatusOK:
+      description: Operation succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/StatusAPIResponse"
+    InvitationOK:
+      description: Invitation mutation succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/InvitationAPIResponse"
+    JoinRequestOK:
+      description: Join-request mutation succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/JoinRequestAPIResponse"
+    PublicApplicationOK:
+      description: Public-display application mutation succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/PublicApplicationAPIResponse"
+    VisitorMessageOK:
+      description: Visitor message mutation succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/VisitorMessageAPIResponse"
+    RoleChangeOK:
+      description: Family role changed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/RoleChangeAPIResponse"
+    FounderTransferOK:
+      description: Founder transfer mutation succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FounderTransferAPIResponse"
+    AdminDissolutionOK:
+      description: Family dissolution review succeeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AdminDissolutionAPIResponse"
+  schemas:
+    CreateInvitationRequest:
+      type: object
+      required: [inviteChannel]
+      properties:
+        inviteChannel:
+          type: string
+          enum: [SHARE_LINK, IN_APP]
+        targetUserId:
+          type: integer
+          format: int64
+        inviteMessage:
+          type: string
+          maxLength: 500
+        familyRoleAfterAccept:
+          type: string
+          enum: [MEMBER]
+    InvitationReasonRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+    Invitation:
+      type: object
+      required: [invitationId, familyId, targetMemberId, inviteChannel, familyRoleAfterAccept, status, expiredAt, createdAt]
+      properties:
+        invitationId: {type: integer, format: int64}
+        familyId: {type: integer, format: int64}
+        familyName: {type: string}
+        targetMemberId: {type: integer, format: int64}
+        targetMemberName: {type: string}
+        inviteChannel: {type: string, enum: [SHARE_LINK, IN_APP]}
+        inviteMessage: {type: string}
+        familyRoleAfterAccept: {type: string, enum: [MEMBER]}
+        status: {type: string, enum: [PENDING, ACCEPTED, REJECTED, CANCELLED, EXPIRED]}
+        expiredAt: {type: string, format: date-time}
+        acceptedAt: {type: string, format: date-time}
+        rejectedAt: {type: string, format: date-time}
+        cancelledAt: {type: string, format: date-time}
+        createdAt: {type: string, format: date-time}
+    CreatedInvitation:
+      type: object
+      required: [invitation, inviteToken]
+      properties:
+        invitation: {$ref: "#/components/schemas/Invitation"}
+        inviteToken:
+          type: string
+          description: Returned once and never stored in plaintext.
+    InvitationAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/Invitation"}
+    CreatedInvitationAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/CreatedInvitation"}
+    InvitationListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items: {$ref: "#/components/schemas/Invitation"}
+    CreateJoinRequest:
+      type: object
+      properties:
+        applicantRealName: {type: string, maxLength: 100}
+        applicantMessage: {type: string, maxLength: 500}
+    NewJoinMember:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string}
+        gender: {type: string, enum: [MALE, FEMALE, UNKNOWN]}
+        birthDate: {type: string, format: date}
+        birthYear: {type: integer}
+        isAlive: {type: boolean}
+        userBindingPolicy: {type: string, enum: [OPTIONAL, REQUIRED]}
+    ApproveJoinRequest:
+      type: object
+      required: [approveMode]
+      properties:
+        approveMode:
+          type: string
+          enum: [BIND_EXISTING_MEMBER, CREATE_NEW_MEMBER]
+        memberId: {type: integer, format: int64}
+        newMember: {$ref: "#/components/schemas/NewJoinMember"}
+        handleComment: {type: string, maxLength: 500}
+    HandleJoinRequest:
+      type: object
+      properties:
+        handleComment: {type: string, maxLength: 500}
+    CancelJoinRequest:
+      type: object
+      properties:
+        cancelReason: {type: string, maxLength: 500}
+    JoinRequest:
+      type: object
+      required: [requestId, familyId, applicantUserId, requestStatus, createdAt, updatedAt]
+      properties:
+        requestId: {type: integer, format: int64}
+        familyId: {type: integer, format: int64}
+        familyName: {type: string}
+        applicantUserId: {type: integer, format: int64}
+        applicantRealName: {type: string}
+        applicantMessage: {type: string}
+        requestStatus: {type: string, enum: [PENDING, APPROVED, REJECTED, CANCELLED]}
+        approveMode: {type: string, enum: [BIND_EXISTING_MEMBER, CREATE_NEW_MEMBER]}
+        boundMemberId: {type: integer, format: int64}
+        createdMemberId: {type: integer, format: int64}
+        handleComment: {type: string}
+        handledAt: {type: string, format: date-time}
+        cancelledAt: {type: string, format: date-time}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        graphVersion: {type: integer, format: int64}
+    JoinRequestAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/JoinRequest"}
+    JoinRequestListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items: {$ref: "#/components/schemas/JoinRequest"}
+    ErrorResponse:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+        data:
+          nullable: true
+    Status:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          example: ok
+    StatusAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/Status"
+    ResponseEnvelope:
+      type: object
+      required: [code, message, data]
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+          example: success
+        data: {}
+    HealthResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  example: ok
+    AdminLoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+    AdminChangePasswordRequest:
+      type: object
+      required: [oldPassword, newPassword]
+      properties:
+        oldPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+    AdminInfo:
+      type: object
+      required: [id, username, displayName, role, status]
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        displayName:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [ROOT_ADMIN, SUPER_ADMIN, PLATFORM_ADMIN]
+        status:
+          type: string
+    AdminLoginResponse:
+      type: object
+      required: [accessToken, tokenType, admin]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        admin:
+          $ref: "#/components/schemas/AdminInfo"
+    AdminLoginAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/AdminLoginResponse"
+    AdminInfoAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/AdminInfo"
+    SendCodeRequest:
+      type: object
+      required: [phone, scene, clientType]
+      properties:
+        phone:
+          type: string
+        scene:
+          type: string
+          enum: [REGISTER, LOGIN, BIND_PHONE, CHANGE_PHONE_OLD, CHANGE_PHONE_NEW, CANCEL_ACCOUNT]
+        clientType:
+          type: string
+          description: Required but not enum-validated by the current DTO/service.
+    SendCodeResponse:
+      type: object
+      required: [expireSeconds, cooldownSeconds]
+      properties:
+        expireSeconds:
+          type: integer
+        cooldownSeconds:
+          type: integer
+        devCode:
+          type: string
+          nullable: true
+          description: Present only outside production.
+    SendCodeAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/SendCodeResponse"
+    RegisterPhoneRequest:
+      type: object
+      required: [phone, code, password, clientType]
+      properties:
+        phone:
+          type: string
+        code:
+          type: string
+        password:
+          type: string
+          format: password
+          minLength: 6
+        nickname:
+          type: string
+          nullable: true
+        clientType:
+          type: string
+    LoginPhoneRequest:
+      type: object
+      required: [phone, password, clientType]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+          format: password
+        clientType:
+          type: string
+    WechatMiniLoginRequest:
+      type: object
+      required: [code, clientType]
+      properties:
+        code:
+          type: string
+        clientType:
+          type: string
+    BindPhoneRequest:
+      type: object
+      required: [phone, code]
+      properties:
+        phone:
+          type: string
+        code:
+          type: string
+    ChangePhoneRequest:
+      type: object
+      required: [oldPhoneCode, newPhone, newPhoneCode]
+      properties:
+        oldPhoneCode:
+          type: string
+        newPhone:
+          type: string
+        newPhoneCode:
+          type: string
+    CancelAccountRequest:
+      type: object
+      required: [phoneCode]
+      properties:
+        phoneCode:
+          type: string
+        cancelReason:
+          type: string
+    UserInfo:
+      type: object
+      required: [id, phoneVerified, status]
+      properties:
+        id:
+          type: integer
+          format: int64
+        phone:
+          type: string
+          nullable: true
+        phoneVerified:
+          type: boolean
+        nickname:
+          type: string
+          nullable: true
+        status:
+          type: string
+    UserLoginResponse:
+      type: object
+      required: [accessToken, tokenType, user]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        user:
+          $ref: "#/components/schemas/UserInfo"
+    UserLoginAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/UserLoginResponse"
+    PublicContact:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        wechat:
+          type: string
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        visible:
+          type: boolean
+          nullable: true
+    CreateFamilyRequest:
+      type: object
+      required: [surname]
+      properties:
+        surname:
+          type: string
+        familyName:
+          type: string
+          nullable: true
+        name:
+          type: string
+          nullable: true
+          description: Compatibility alias used only when familyName is blank.
+        nativePlace:
+          type: string
+          nullable: true
+        regionCode:
+          type: string
+          nullable: true
+        regionText:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        publicContact:
+          allOf:
+            - $ref: "#/components/schemas/PublicContact"
+          nullable: true
+    UpdateFamilyRequest:
+      type: object
+      description: All fields are optional. Explicit blank strings are normalized to null.
+      properties:
+        familyName:
+          type: string
+          nullable: true
+        nativePlace:
+          type: string
+          nullable: true
+        regionCode:
+          type: string
+          nullable: true
+        regionText:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        searchable:
+          type: boolean
+          nullable: true
+        publicContactName:
+          type: string
+          nullable: true
+        publicContactPhone:
+          type: string
+          nullable: true
+        publicContactWechat:
+          type: string
+          nullable: true
+        publicContactNote:
+          type: string
+          nullable: true
+        publicContactVisible:
+          type: boolean
+          nullable: true
+    FamilySummary:
+      type: object
+      required: [id, familyName, familySurname, status, publicDisplayStatus, role]
+      properties:
+        id:
+          type: integer
+          format: int64
+        familyName:
+          type: string
+        familySurname:
+          type: string
+        nativePlace:
+          type: string
+          nullable: true
+        regionText:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        status:
+          type: string
+        publicDisplayStatus:
+          type: string
+        role:
+          type: string
+          enum: [FOUNDER, FAMILY_ADMIN, MEMBER]
+    FamilyDetail:
+      type: object
+      required:
+        - id
+        - familyName
+        - familySurname
+        - status
+        - searchable
+        - publicDisplayStatus
+        - publicContactVisible
+        - graphVersion
+        - role
+      properties:
+        id:
+          type: integer
+          format: int64
+        familyName:
+          type: string
+        familySurname:
+          type: string
+        nativePlace:
+          type: string
+          nullable: true
+        regionCode:
+          type: string
+          nullable: true
+        regionText:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        status:
+          type: string
+        searchable:
+          type: boolean
+        publicDisplayStatus:
+          type: string
+        publicContactName:
+          type: string
+          nullable: true
+        publicContactPhone:
+          type: string
+          nullable: true
+        publicContactWechat:
+          type: string
+          nullable: true
+        publicContactNote:
+          type: string
+          nullable: true
+        publicContactVisible:
+          type: boolean
+        currentFounderMemberId:
+          type: integer
+          format: int64
+          nullable: true
+        graphVersion:
+          type: integer
+          format: int64
+        role:
+          type: string
+    PublicFamily:
+      type: object
+      required: [id, familyName, familySurname, publicContactVisible]
+      properties:
+        id:
+          type: integer
+          format: int64
+        familyName:
+          type: string
+        familySurname:
+          type: string
+        nativePlace:
+          type: string
+          nullable: true
+        regionText:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        publicContactName:
+          type: string
+          nullable: true
+        publicContactPhone:
+          type: string
+          nullable: true
+        publicContactWechat:
+          type: string
+          nullable: true
+        publicContactNote:
+          type: string
+          nullable: true
+        publicContactVisible:
+          type: boolean
+    CreateDissolutionRequest:
+      type: object
+      properties:
+        requestReason:
+          type: string
+          nullable: true
+    CancelDissolutionRequest:
+      type: object
+      properties:
+        cancelReason:
+          type: string
+          nullable: true
+    DissolutionRequest:
+      type: object
+      required: [id, familyId, requesterMemberId, requesterUserId, requestStatus, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        requesterMemberId:
+          type: integer
+          format: int64
+        requesterUserId:
+          type: integer
+          format: int64
+        requestStatus:
+          type: string
+        requestReason:
+          type: string
+          nullable: true
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+        cancelReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    CreateMemberRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        gender:
+          type: string
+          nullable: true
+          enum: [MALE, FEMALE, UNKNOWN]
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+        birthYear:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+        deathYear:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+        isAlive:
+          type: boolean
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        userBindingPolicy:
+          type: string
+          nullable: true
+          enum: [OPTIONAL, REQUIRED, NOT_REQUIRED]
+    UpdateMemberRequest:
+      type: object
+      description: All fields are optional. birthDate/deathDate take precedence over the corresponding year.
+      properties:
+        name:
+          type: string
+          nullable: true
+        gender:
+          type: string
+          nullable: true
+          enum: [MALE, FEMALE, UNKNOWN]
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+        birthYear:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+        deathYear:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+        isAlive:
+          type: boolean
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        userBindingPolicy:
+          type: string
+          nullable: true
+          enum: [OPTIONAL, REQUIRED, NOT_REQUIRED]
+    DeleteMemberRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    BindMemberUserRequest:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          minimum: 1
+    UnbindMemberUserRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    NewRelationshipMemberInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        gender:
+          type: string
+          nullable: true
+          enum: [MALE, FEMALE, UNKNOWN]
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+        birthYear:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+        deathYear:
+          type: integer
+          minimum: 1
+          maximum: 9999
+          nullable: true
+        isAlive:
+          type: boolean
+          nullable: true
+        userBindingPolicy:
+          type: string
+          nullable: true
+          enum: [OPTIONAL, REQUIRED, NOT_REQUIRED]
+    RelationshipInput:
+      type: object
+      properties:
+        relationshipType:
+          type: string
+          nullable: true
+          enum: [PARENT_CHILD, SPOUSE]
+        parentLinkType:
+          type: string
+          nullable: true
+          enum: [PRIMARY, STEP, ADOPTIVE, SUCCESSION, NOTE_ONLY, OTHER]
+        relationNoteType:
+          type: string
+          maxLength: 80
+          nullable: true
+        relationNote:
+          type: string
+          maxLength: 500
+          nullable: true
+    CreateRelationshipRequest:
+      type: object
+      required: [baseMemberId, addType, newMember]
+      properties:
+        baseMemberId:
+          type: integer
+          format: int64
+          minimum: 1
+        addType:
+          type: string
+          enum: [ADD_FATHER, ADD_MOTHER, ADD_CHILD, ADD_SPOUSE, ADD_SIBLING]
+        newMember:
+          $ref: "#/components/schemas/NewRelationshipMemberInput"
+        relationship:
+          $ref: "#/components/schemas/RelationshipInput"
+    UpdateRelationshipRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        parentLinkType:
+          type: string
+          nullable: true
+          enum: [PRIMARY, STEP, ADOPTIVE, SUCCESSION, NOTE_ONLY, OTHER]
+        relationNoteType:
+          type: string
+          maxLength: 80
+          nullable: true
+        relationNote:
+          type: string
+          maxLength: 500
+          nullable: true
+    DeleteRelationshipRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    CreatedRelationshipMember:
+      type: object
+      required: [memberId, familyId, name, gender, status]
+      properties:
+        memberId:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        gender:
+          type: string
+          enum: [MALE, FEMALE, UNKNOWN]
+        status:
+          type: string
+          enum: [ACTIVE]
+    FamilyRelationship:
+      type: object
+      required:
+        - relationshipId
+        - familyId
+        - fromMemberId
+        - toMemberId
+        - relationshipType
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        relationshipId:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        fromMemberId:
+          type: integer
+          format: int64
+        toMemberId:
+          type: integer
+          format: int64
+        relationshipType:
+          type: string
+          enum: [PARENT_CHILD, SPOUSE]
+        parentLinkType:
+          type: string
+          nullable: true
+          enum: [PRIMARY, STEP, ADOPTIVE, SUCCESSION, NOTE_ONLY, OTHER]
+        relationNoteType:
+          type: string
+          nullable: true
+        relationNote:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, DELETED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    RelationshipMutation:
+      type: object
+      required: [relationships, graphVersion]
+      properties:
+        createdMember:
+          allOf:
+            - $ref: "#/components/schemas/CreatedRelationshipMember"
+          nullable: true
+        relationships:
+          type: array
+          items:
+            $ref: "#/components/schemas/FamilyRelationship"
+        graphVersion:
+          type: integer
+          format: int64
+    RelationshipMutationAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/RelationshipMutation"
+    FamilyTreeNode:
+      type: object
+      required:
+        - memberId
+        - displayName
+        - gender
+        - memberType
+        - userBindingState
+        - canExpand
+      properties:
+        memberId:
+          type: integer
+          format: int64
+        displayName:
+          type: string
+        surname:
+          type: string
+        generationCharacter:
+          type: string
+        gender:
+          type: string
+        memberType:
+          type: string
+        birthDate:
+          type: string
+          format: date
+        deathDate:
+          type: string
+          format: date
+        isLiving:
+          type: boolean
+        userBindingState:
+          type: string
+          enum: [BOUND, UNBOUND, NOT_REQUIRED]
+        canExpand:
+          type: boolean
+        stopReason:
+          type: string
+    FamilyTreeEdge:
+      type: object
+      required:
+        - relationshipId
+        - fromMemberId
+        - toMemberId
+        - relationshipType
+      properties:
+        relationshipId:
+          type: integer
+          format: int64
+        fromMemberId:
+          type: integer
+          format: int64
+        toMemberId:
+          type: integer
+          format: int64
+        relationshipType:
+          type: string
+          enum: [PARENT_CHILD, SPOUSE]
+        parentLinkType:
+          type: string
+        relationNoteType:
+          type: string
+        relationNote:
+          type: string
+    FamilyTreeItem:
+      type: object
+      required: [memberId, parentIds, childrenIds, spouseIds]
+      properties:
+        memberId:
+          type: integer
+          format: int64
+        parentIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        childrenIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        spouseIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+    FamilyTree:
+      type: object
+      required: [familyId, treeMode, graphVersion, nodes, edges, tree]
+      properties:
+        familyId:
+          type: integer
+          format: int64
+        treeMode:
+          type: string
+          enum: [LIST_TREE]
+        graphVersion:
+          type: integer
+          format: int64
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/FamilyTreeNode"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/FamilyTreeEdge"
+        tree:
+          type: array
+          description: Root-oriented reference list; nodes and edges remain authoritative.
+          items:
+            $ref: "#/components/schemas/FamilyTreeItem"
+    FamilyTreeAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/FamilyTree"
+    FamilyMember:
+      type: object
+      required:
+        - memberId
+        - familyId
+        - name
+        - gender
+        - status
+        - userBindingPolicy
+        - createdAt
+        - updatedAt
+      properties:
+        memberId:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        gender:
+          type: string
+          enum: [MALE, FEMALE, UNKNOWN]
+        birthDate:
+          type: string
+          format: date
+          nullable: true
+        birthYear:
+          type: integer
+          nullable: true
+        deathDate:
+          type: string
+          format: date
+          nullable: true
+        deathYear:
+          type: integer
+          nullable: true
+        isAlive:
+          type: boolean
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [ACTIVE, DELETED]
+        userBindingPolicy:
+          type: string
+          enum: [OPTIONAL, REQUIRED, NOT_REQUIRED]
+        boundUserId:
+          type: integer
+          format: int64
+          nullable: true
+        boundFamilyRole:
+          type: string
+          nullable: true
+          enum: [FOUNDER, FAMILY_ADMIN, MEMBER]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    MemberAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/FamilyMember"
+    MemberListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/FamilyMember"
+    FamilyDetailAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/FamilyDetail"
+    FamilyListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/FamilySummary"
+    PublicFamilyAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PublicFamily"
+    DissolutionAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/DissolutionRequest"
+    NullableDissolutionAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: "#/components/schemas/DissolutionRequest"
+              nullable: true
+    CreatePublicApplicationRequest:
+      type: object
+      properties:
+        applicationReason:
+          type: string
+          nullable: true
+          maxLength: 500
+    ReviewPublicApplicationRequest:
+      type: object
+      properties:
+        reviewComment:
+          type: string
+          nullable: true
+          maxLength: 500
+    CancelPublicApplicationRequest:
+      type: object
+      properties:
+        cancelReason:
+          type: string
+          nullable: true
+          maxLength: 500
+    TakeDownPublicFamilyRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    PublicApplication:
+      type: object
+      properties:
+        applicationId:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        familyName:
+          type: string
+        applicantUserId:
+          type: integer
+          format: int64
+          nullable: true
+        applicantAdminId:
+          type: integer
+          format: int64
+          nullable: true
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, CANCELLED]
+        reason:
+          type: string
+          nullable: true
+        reviewResult:
+          type: string
+          nullable: true
+        reviewedByAdminId:
+          type: integer
+          format: int64
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewComment:
+          type: string
+          nullable: true
+        cancelledAt:
+          type: string
+          format: date-time
+          nullable: true
+        cancelReason:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PublicApplicationList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicApplication"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+    FamilyPublicStatus:
+      type: object
+      properties:
+        familyId:
+          type: integer
+          format: int64
+        publicDisplayStatus:
+          type: string
+          enum: [PRIVATE, PENDING, APPROVED, REJECTED, CANCELLED, TAKEN_DOWN]
+        publicAppliedAt:
+          type: string
+          format: date-time
+          nullable: true
+        publicApprovedAt:
+          type: string
+          format: date-time
+          nullable: true
+        publicTakenDownAt:
+          type: string
+          format: date-time
+          nullable: true
+    CreateVisitorMessageRequest:
+      type: object
+      required: [messageContent]
+      properties:
+        visitorName:
+          type: string
+          nullable: true
+          maxLength: 100
+        visitorPhone:
+          type: string
+          nullable: true
+          maxLength: 30
+        visitorWechat:
+          type: string
+          nullable: true
+          maxLength: 120
+        messageContent:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    ReviewVisitorMessageRequest:
+      type: object
+      properties:
+        reviewComment:
+          type: string
+          nullable: true
+          maxLength: 500
+    DeleteVisitorMessageRequest:
+      type: object
+      properties:
+        deleteReason:
+          type: string
+          nullable: true
+          maxLength: 500
+    VisitorMessage:
+      type: object
+      properties:
+        messageId:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        familyName:
+          type: string
+        visitorName:
+          type: string
+          nullable: true
+        visitorPhone:
+          type: string
+          nullable: true
+        visitorWechat:
+          type: string
+          nullable: true
+        messageContent:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, DELETED]
+        reviewedByAdminId:
+          type: integer
+          format: int64
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewComment:
+          type: string
+          nullable: true
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PublicVisitorMessage:
+      type: object
+      description: Public visitor message result; visitorPhone and visitorWechat are intentionally omitted.
+      properties:
+        messageId:
+          type: integer
+          format: int64
+        familyId:
+          type: integer
+          format: int64
+        visitorName:
+          type: string
+          nullable: true
+        messageContent:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+    VisitorMessageList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisitorMessage"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+    PublicVisitorMessageList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicVisitorMessage"
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+          format: int64
+    PublicApplicationAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PublicApplication"
+    PublicApplicationListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PublicApplicationList"
+    FamilyPublicStatusAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/FamilyPublicStatus"
+    VisitorMessageAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/VisitorMessage"
+    VisitorMessageListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/VisitorMessageList"
+    PublicVisitorMessageListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/PublicVisitorMessageList"
+    RoleChangeRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          nullable: true
+    RoleChangeResult:
+      type: object
+      properties:
+        familyId: {type: integer, format: int64}
+        memberId: {type: integer, format: int64}
+        userId: {type: integer, format: int64}
+        familyRole:
+          type: string
+          enum: [FAMILY_ADMIN, MEMBER]
+        graphVersion: {type: integer, format: int64}
+        updatedAt: {type: string, format: date-time}
+    RoleChangeAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/RoleChangeResult"}
+    CreateFounderTransferRequest:
+      type: object
+      required: [toMemberId]
+      properties:
+        toMemberId: {type: integer, format: int64}
+        requestReason:
+          type: string
+          nullable: true
+    CancelFounderTransferRequest:
+      type: object
+      properties:
+        cancelReason:
+          type: string
+          nullable: true
+    ReviewRequest:
+      type: object
+      properties:
+        reviewComment:
+          type: string
+          nullable: true
+    FounderTransferRequest:
+      type: object
+      properties:
+        requestId: {type: integer, format: int64}
+        familyId: {type: integer, format: int64}
+        familyName: {type: string}
+        fromMemberId: {type: integer, format: int64}
+        fromUserId: {type: integer, format: int64}
+        toMemberId: {type: integer, format: int64}
+        toUserId: {type: integer, format: int64}
+        requestStatus:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, CANCELLED]
+        requestReason: {type: string, nullable: true}
+        reviewResult: {type: string, nullable: true}
+        reviewedByAdminId: {type: integer, format: int64, nullable: true}
+        reviewedAt: {type: string, format: date-time, nullable: true}
+        reviewComment: {type: string, nullable: true}
+        completedAt: {type: string, format: date-time, nullable: true}
+        cancelledAt: {type: string, format: date-time, nullable: true}
+        cancelReason: {type: string, nullable: true}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    FounderTransferAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/FounderTransferRequest"}
+    FounderTransferList:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/FounderTransferRequest"}
+        page: {type: integer}
+        pageSize: {type: integer}
+        total: {type: integer, format: int64}
+    FounderTransferListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/FounderTransferList"}
+    AdminDissolutionRequest:
+      type: object
+      properties:
+        requestId: {type: integer, format: int64}
+        familyId: {type: integer, format: int64}
+        familyName: {type: string}
+        requesterMemberId: {type: integer, format: int64}
+        requesterUserId: {type: integer, format: int64}
+        requestStatus:
+          type: string
+          enum: [PENDING, APPROVED, REJECTED, CANCELLED]
+        requestReason: {type: string, nullable: true}
+        reviewResult: {type: string, nullable: true}
+        reviewedByAdminId: {type: integer, format: int64, nullable: true}
+        reviewedAt: {type: string, format: date-time, nullable: true}
+        reviewComment: {type: string, nullable: true}
+        completedAt: {type: string, format: date-time, nullable: true}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    AdminDissolutionAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/AdminDissolutionRequest"}
+    AdminDissolutionList:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/AdminDissolutionRequest"}
+        page: {type: integer}
+        pageSize: {type: integer}
+        total: {type: integer, format: int64}
+    AdminDissolutionListAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/AdminDissolutionList"}
+    RestoreFamilyRequest:
+      type: object
+      properties:
+        searchable:
+          type: boolean
+          nullable: true
+        restoreReason:
+          type: string
+          nullable: true
+        restoreStatus:
+          type: string
+          nullable: true
+        publicDisplayStatus:
+          type: string
+          nullable: true
+    RestoreFamilyResult:
+      type: object
+      properties:
+        familyId: {type: integer, format: int64}
+        status:
+          type: string
+          enum: [NORMAL]
+        publicDisplayStatus:
+          type: string
+          enum: [PRIVATE]
+        searchable: {type: boolean}
+        graphVersion: {type: integer, format: int64}
+        restoredAt: {type: string, format: date-time, nullable: true}
+    RestoreFamilyAPIResponse:
+      allOf:
+        - $ref: "#/components/schemas/ResponseEnvelope"
+        - type: object
+          properties:
+            data: {$ref: "#/components/schemas/RestoreFamilyResult"}

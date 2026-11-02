@@ -195,3 +195,50 @@ Swagger 在生产环境受限或关闭
 日志无敏感字段
 小程序 AppSecret 只在后端
 ```
+
+## 11. 仓库自动安全检查
+
+运行：
+
+```bash
+bash scripts/security-check.sh
+```
+
+脚本检查：
+
+```text
+真实 .env 是否被 Git 跟踪
+私有小程序配置、证书容器和数据库备份是否入库
+跟踪文件中是否包含私钥标记
+源代码和部署脚本中是否存在疑似硬编码凭据
+backend/.env、数据库目录、Redis 目录和构建产物是否被忽略
+前端源码是否引用微信 AppSecret 配置名
+```
+
+自动扫描只是最低门禁，不能替代代码审查、依赖漏洞扫描、服务器权限检查和运行时日志抽查。
+
+## 12. 日志抽查方法
+
+在隔离测试环境中使用唯一的非敏感哨兵值执行登录失败、验证码、微信 mock、游客留言和审核流程，然后检查：
+
+```text
+应用日志
+Nginx access/error log
+operation_logs.detail_json
+operation_logs.before_json
+operation_logs.after_json
+operation_logs.error_message
+```
+
+检查日志中不存在密码、password_hash、完整 Token、验证码、session_key、AppSecret、完整 openid/unionid、数据库密码或 Redis 密码。发现泄露后必须清理历史日志并完成密钥或 Token 轮换，不能只修复新日志。
+
+## 13. 环境隔离要求
+
+```text
+开发、staging、production 使用不同数据库和凭据
+自动化破坏性测试只连接名称以 _test 结尾的数据库
+staging 部署脚本必须拒绝 production 标识
+生产密钥通过服务器密钥管理或受限环境文件注入
+备份文件不得进入 Git，也不得放在公开下载目录
+本地 docker-compose.yml 中的开发密码禁止复用于 staging/production
+```
